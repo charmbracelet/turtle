@@ -46,50 +46,110 @@ These are same of our needs that other implementations don't fit:
 > This is a working in progress. We'll be breaking compatibility while this is a
 v0 and we do progress. We have some progress tracking below.
 
-### Phase 1: Foundational
-
-| Program    | POSIX | GNU |
-| ---------- | ----- | --- |
-| `true`     | ✅    | ❌  |
-| `false`    | ✅    | ❌  |
-| `echo`     | ✅    | ❌  |
-| `pwd`      | ✅    | ❌  |
-| `basename` | ✅    | ❌  |
-| `dirname`  | ✅    | ❌  |
-| `wc`       | ✅    | ❌  |
-
-### Phase 2: Filesystem
-
-| Program | POSIX | GNU |
-| ------- | ----- | --- |
-| `touch` | ✅    | ❌  |
-| `chmod` | ✅    | ❌  |
-| `cat`   | ✅    | ❌  |
-| `head`  | ✅    | ❌  |
-| `tail`  | ✅    | ❌  |
-| `mkdir` | ✅    | ❌  |
-| `rmdir` | ✅    | ❌  |
-| `cp`    | ✅    | ❌  |
-| `mv`    | ✅    | ❌  |
-| `rm`    | ✅    | ❌  |
-| `ln`    | ✅    | ❌  |
-
-### Phase 3: Text
-
-| Program | POSIX | GNU |
-| ------- | ----- | --- |
-| `cut`   | ❌    | ❌  |
-| `join`  | ❌    | ❌  |
-| `sort`  | ❌    | ❌  |
-| `paste` | ❌    | ❌  |
-| `tee`   | ❌    | ❌  |
-| `tr`    | ❌    | ❌  |
-| `uniq`  | ❌    | ❌  |
-
-### Phase 4: Discovery / Filtering
-
-| Program | POSIX | GNU |
-| ------- | ----- | --- |
-| `find`  | ❌    | ❌  |
-| `grep`  | ❌    | ❌  |
-| `xargs` | ❌    | ❌  |
+| Category           | Program      | POSIX | GNU |
+| ------------------ | ------------ | ----- | --- |
+| Foundational       | `true`       | ✅    | ❌  |
+| Foundational       | `false`      | ✅    | ❌  |
+| Foundational       | `echo`       | ✅    | ❌  |
+| Foundational       | `pwd`        | ✅    | ❌  |
+| Foundational       | `basename`   | ✅    | ❌  |
+| Foundational       | `dirname`    | ✅    | ❌  |
+| Foundational       | `wc`         | ✅    | ❌  |
+| Foundational       | `printf`     | ❌    | ❌  |
+| Foundational       | `test`       | ❌    | ❌  |
+| Foundational       | `expr`       | ❌    | ❌  |
+| Foundational       | `sleep`      | ❌    | ❌  |
+| Filesystem         | `touch`      | ✅    | ❌  |
+| Filesystem         | `chmod`      | ✅    | ❌  |
+| Filesystem         | `cat`        | ✅    | ❌  |
+| Filesystem         | `head`       | ✅    | ❌  |
+| Filesystem         | `tail`       | ✅    | ❌  |
+| Filesystem         | `mkdir`      | ✅    | ❌  |
+| Filesystem         | `rmdir`      | ✅    | ❌  |
+| Filesystem         | `cp`         | ✅    | ❌  |
+| Filesystem         | `mv`         | ✅    | ❌  |
+| Filesystem         | `rm`         | ✅    | ❌  |
+| Filesystem         | `ln`         | ✅    | ❌  |
+| Filesystem         | `ls`         | ❌    | ❌  |
+| Filesystem         | `chgrp`      | ❌    | ❌  |
+| Filesystem         | `chown`      | ❌    | ❌  |
+| Filesystem         | `link`       | ❌    | ❌  |
+| Filesystem         | `unlink`     | ❌    | ❌  |
+| Filesystem         | `mkfifo`     | ❌    | ❌  |
+| Filesystem         | `readlink`   | ❌    | ❌  |
+| Filesystem         | `realpath`   | ❌    | ❌  |
+| Filesystem         | `dd`         | ❌    | ❌  |
+| Filesystem         | `df`         | ❌    | ❌  |
+| Filesystem         | `du`         | ❌    | ❌  |
+| Filesystem         | `pathchk`    | ❌    | ❌  |
+| Filesystem         | `pax`        | ❌    | ❌  |
+| Text               | `cut`        | ❌    | ❌  |
+| Text               | `join`       | ❌    | ❌  |
+| Text               | `sort`       | ❌    | ❌  |
+| Text               | `paste`      | ❌    | ❌  |
+| Text               | `tee`        | ❌    | ❌  |
+| Text               | `tr`         | ❌    | ❌  |
+| Text               | `uniq`       | ❌    | ❌  |
+| Text               | `cmp`        | ❌    | ❌  |
+| Text               | `comm`       | ❌    | ❌  |
+| Text               | `csplit`     | ❌    | ❌  |
+| Text               | `diff`       | ❌    | ❌  |
+| Text               | `expand`     | ❌    | ❌  |
+| Text               | `fold`       | ❌    | ❌  |
+| Text               | `nl`         | ❌    | ❌  |
+| Text               | `od`         | ❌    | ❌  |
+| Text               | `pr`         | ❌    | ❌  |
+| Text               | `sed`        | ❌    | ❌  |
+| Text               | `split`      | ❌    | ❌  |
+| Text               | `strings`    | ❌    | ❌  |
+| Text               | `unexpand`   | ❌    | ❌  |
+| Text               | `cksum`      | ❌    | ❌  |
+| Text               | `patch`      | ❌    | ❌  |
+| Search / Filtering | `find`       | ❌    | ❌  |
+| Search / Filtering | `grep`       | ❌    | ❌  |
+| Search / Filtering | `xargs`      | ❌    | ❌  |
+| System / Process   | `date`       | ❌    | ❌  |
+| System / Process   | `env`        | ❌    | ❌  |
+| System / Process   | `id`         | ❌    | ❌  |
+| System / Process   | `kill`       | ❌    | ❌  |
+| System / Process   | `logname`    | ❌    | ❌  |
+| System / Process   | `nice`       | ❌    | ❌  |
+| System / Process   | `nohup`      | ❌    | ❌  |
+| System / Process   | `ps`         | ❌    | ❌  |
+| System / Process   | `time`       | ❌    | ❌  |
+| System / Process   | `timeout`    | ❌    | ❌  |
+| System / Process   | `uname`      | ❌    | ❌  |
+| System / Process   | `who`        | ❌    | ❌  |
+| Terminal           | `stty`       | ❌    | ❌  |
+| Terminal           | `tput`       | ❌    | ❌  |
+| Terminal           | `tabs`       | ❌    | ❌  |
+| Terminal           | `tty`        | ❌    | ❌  |
+| Terminal           | `more`       | ❌    | ❌  |
+| Encoding / Archive | `iconv`      | ❌    | ❌  |
+| Encoding / Archive | `compress`   | ❌    | ❌  |
+| Encoding / Archive | `uncompress` | ❌    | ❌  |
+| Encoding / Archive | `zcat`       | ❌    | ❌  |
+| Encoding / Archive | `uudecode`   | ❌    | ❌  |
+| Encoding / Archive | `uuencode`   | ❌    | ❌  |
+| GNU                | `base32`     | —     | ❌  |
+| GNU                | `base64`     | —     | ❌  |
+| GNU                | `gzip`       | —     | ❌  |
+| GNU                | `gunzip`     | —     | ❌  |
+| GNU                | `install`    | —     | ❌  |
+| GNU                | `md5sum`     | —     | ❌  |
+| GNU                | `mktemp`     | —     | ❌  |
+| GNU                | `nproc`      | —     | ❌  |
+| GNU                | `printenv`   | —     | ❌  |
+| GNU                | `seq`        | —     | ❌  |
+| GNU                | `sha1sum`    | —     | ❌  |
+| GNU                | `sha256sum`  | —     | ❌  |
+| GNU                | `sha512sum`  | —     | ❌  |
+| GNU                | `shuf`       | —     | ❌  |
+| GNU                | `stat`       | —     | ❌  |
+| GNU                | `sync`       | —     | ❌  |
+| GNU                | `tac`        | —     | ❌  |
+| GNU                | `tar`        | —     | ❌  |
+| GNU                | `truncate`   | —     | ❌  |
+| GNU                | `which`      | —     | ❌  |
+| GNU                | `whoami`     | —     | ❌  |
+| GNU                | `yes`        | —     | ❌  |
