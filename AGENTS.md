@@ -90,6 +90,13 @@ The process to implement a coreutils should be as follow:
   later).
 * The POSIX specification for every coreutil can be read in
   `https://pubs.opengroup.org/onlinepubs/9799919799/utilities/{prog}.html`.
+* The GNU documentation for every coreutil (needed for GNU extensions and for
+  GNU-only utilities) can be read in
+  `https://www.gnu.org/software/coreutils/manual/html_node/{prog}-invocation.html`.
+  The node name is usually `{prog}-invocation`, with a few exceptions: some
+  utilities share a node (e.g. the `sha*sum` family lives in
+  `sha2-utilities.html`), and utilities that are not part of GNU coreutils
+  (e.g. `gzip`, `tar`, `which`) have their own manuals.
 * Tests should be written according to the POSIX specification.
   * Every POSIX option must have at least one dedicated test. Options should
     also have tests covering invalid usage and important interactions with other
