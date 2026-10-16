@@ -1,0 +1,23 @@
+name: Lint
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  lint:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: jdx/mise-action@v2
+
+      - name: Check formatting and modernization
+        run: |
+          task fmt modernize
+          if [ -n "$(git status --porcelain)" ]; then
+            git diff
+            echo "::error::Unformatted or non-modernized code found, run 'task fmt modernize' and commit the changes."
+            exit 1
+          fi

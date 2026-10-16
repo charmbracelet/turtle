@@ -1,0 +1,42 @@
+version: '3'
+
+vars:
+  MODULES:
+    - coreutils
+    - fsx
+
+tasks:
+  default:
+    desc: List available tasks
+    silent: true
+    cmds:
+      - task --list
+
+  test:
+    desc: Run tests for all modules
+    cmds:
+      - for: { var: MODULES }
+        task: exec
+        vars:
+          MODULE: '{{.ITEM}}'
+          CMD: go test ./...
+
+  fmt:
+    desc: Format all Go code
+    cmds:
+      - gofumpt -w .
+
+  modernize:
+    desc: Modernize all Go code
+    cmds:
+      - for: { var: MODULES }
+        task: exec
+        vars:
+          MODULE: '{{.ITEM}}'
+          CMD: modernize -fix ./...
+
+  exec:
+    internal: true
+    dir: '{{.MODULE}}'
+    cmds:
+      - '{{.CMD}}'

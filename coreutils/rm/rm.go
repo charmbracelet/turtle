@@ -1,0 +1,305 @@
+// Package rm implements the POSIX rm utility.
+//
+// Files are removed with the file system's Remove operation, and with -r or
+// -R the whole hierarchy rooted at an operand is removed, reporting each
+// entry that can't be removed while the remaining ones are still processed.
+//
+// A removal is only confirmed with -i: detecting that the standard input is
+// a terminal isn't supported, so write-protected files are removed without
+// prompting. Symbolic links aren't supported by the file systems used here
+// either, so an operand naming one is handled as its target.
+package rm
+
+import (
+	"context"
+	"errors"
+	"fmt"
+	"io/fs"
+	"path"
+	"path/filepath"
+	"strings"
+
+	"charm.land/snail/coreutils"
+)
+
+// Prog is the rm core utility.
+type Prog struct {
+	*coreutils.Runtime
+}
+
+// New returns a new Prog.
+func New(rt *coreutils.Runtime) coreutils.Program {
+	return &Prog{Runtime: rt}
+}
+
+// Run removes the given files, in the order given. With -r or -R the whole
+// hierarchy rooted at each operand is removed, with -d empty directories are
+// removed like rmdir would, and with -i each removal is confirmed first. An
+// operand ending in dot or dot-dot, or naming a file system root, is always
+// refused.
+func (p *Prog) Run(ctx context.Context, args ...string) error {
+	opts, operands, err := parseFlags(args)
+	if err != nil {
+		p.errorf("%v", err)
+		return &coreutils.ExitError{Code: 2}
+	}
+	if len(operands) == 0 {
+		if opts.force {
+			return nil
+		}
+		p.errorf("missing operand")
+		return &coreutils.ExitError{Code: 2}
+	}
+	if p.FS == nil {
+		p.errorf("no file system available")
+		return &coreutils.ExitError{Code: 1}
+	}
+
+	ok := true
+	for _, operand := range operands {
+		if err := ctx.Err(); err != nil {
+			return err
+		}
+		err := p.removeOperand(ctx, operand, opts)
+		switch {
+		case err == nil, errors.Is(err, errSkipped):
+		case ctx.Err() != nil:
+			return ctx.Err()
+		case errors.Is(err, errFailed):
+			ok = false
+		default:
+			p.errorf("%v", err)
+			ok = false
+		}
+	}
+	if !ok {
+		return &coreutils.ExitError{Code: 1}
+	}
+	return nil
+}
+
+// removeOperand removes a single operand. Errors are returned ready to be
+// reported; errSkipped is returned when a removal was declined through -i,
+// and errFailed when the failure, somewhere inside a hierarchy, was already
+// reported.
+func (p *Prog) removeOperand(ctx context.Context, operand string, opts options) error {
+	if operand == "" {
+		return errors.New("invalid zero-length file name")
+	}
+	if err := protectedErr(operand); err != nil {
+		return fmt.Errorf("%s: %v", operand, err)
+	}
+	return p.removeEntry(ctx, p.resolve(operand), operand, opts)
+}
+
+// removeEntry removes the entry named by name, which display shows in
+// diagnostics and prompts. A directory is descended into with -r or -R, and
+// only an empty one is removed with -d alone.
+func (p *Prog) removeEntry(ctx context.Context, name, display string, opts options) error {
+	fi, err := fs.Stat(p.FS, name)
+	if err != nil {
+		if opts.force && errors.Is(err, fs.ErrNotExist) {
+			return nil
+		}
+		return fmt.Errorf("%s: %v", display, unwrapPathError(err))
+	}
+	if fi.IsDir() {
+		switch {
+		case opts.recursive:
+			return p.removeTree(ctx, name, display, opts)
+		case !opts.empty:
+			return fmt.Errorf("%s: %v", display, errIsDir)
+		}
+	}
+	if opts.interactive && !p.confirm("remove", display) {
+		return errSkipped
+	}
+	return p.removeOne(name, display, opts)
+}
+
+// removeTree removes the hierarchy rooted at a directory, deepest entries
+// first. Each entry that fails is reported while the remaining ones are
+// still removed, but the directory itself is left behind when that happens.
+func (p *Prog) removeTree(ctx context.Context, name, display string, opts options) error {
+	entries, err := fs.ReadDir(p.FS, name)
+	if err != nil {
+		return fmt.Errorf("%s: %v", display, unwrapPathError(err))
+	}
+	if len(entries) > 0 && opts.interactive && !p.confirm("descend into directory", display) {
+		return errSkipped
+	}
+
+	ok := true
+	for _, entry := range entries {
+		if err := ctx.Err(); err != nil {
+			return err
+		}
+		child := entry.Name()
+		err := p.removeEntry(ctx, path.Join(name, child), path.Join(display, child), opts)
+		switch {
+		case err == nil, errors.Is(err, errSkipped):
+		case ctx.Err() != nil:
+			return ctx.Err()
+		case errors.Is(err, errFailed):
+			ok = false
+		default:
+			p.errorf("%v", err)
+			ok = false
+		}
+	}
+	if !ok {
+		return errFailed
+	}
+	if opts.interactive && !p.confirm("remove", display) {
+		return errSkipped
+	}
+	return p.removeOne(name, display, opts)
+}
+
+// removeOne removes a single entry, which must be a file or an empty
+// directory. An entry that vanished on its own, as an emptied implicit
+// directory of a memory file system does, is taken as removed.
+func (p *Prog) removeOne(name, display string, opts options) error {
+	err := p.FS.Remove(name)
+	if err != nil && !errors.Is(err, fs.ErrNotExist) {
+		return fmt.Errorf("%s: %v", display, unwrapPathError(err))
+	}
+	if opts.verbose {
+		fmt.Fprintf(p.Stdout, "removed '%s'\n", display)
+	}
+	return nil
+}
+
+// confirm asks on the standard error whether the action should be taken on
+// display and reads the answer from the standard input. Only a response
+// starting with 'y' or 'Y' is taken as affirmative.
+func (p *Prog) confirm(action, display string) bool {
+	fmt.Fprintf(p.Stderr, "rm: %s '%s'? ", action, display)
+	if p.Stdin == nil {
+		return false
+	}
+	var (
+		buf    [1]byte
+		answer byte
+	)
+	for {
+		n, err := p.Stdin.Read(buf[:])
+		if n > 0 {
+			if buf[0] == '\n' {
+				break
+			}
+			if answer == 0 {
+				answer = buf[0]
+			}
+		}
+		if err != nil {
+			break
+		}
+	}
+	return answer == 'y' || answer == 'Y'
+}
+
+// resolve converts an operand into the slash-separated path used with the
+// file system, relative to the working directory.
+func (p *Prog) resolve(name string) string {
+	return path.Clean(filepath.ToSlash(p.ResolvePath(name)))
+}
+
+// protectedErr returns the refusal to remove an operand ending in dot or
+// dot-dot, or naming a file system root.
+func protectedErr(operand string) error {
+	switch path.Base(filepath.ToSlash(operand)) {
+	case ".", "..":
+		return errDotDot
+	case "/":
+		return errRoot
+	}
+	if clean := filepath.Clean(operand); filepath.Dir(clean) == clean {
+		return errRoot
+	}
+	return nil
+}
+
+// errDotDot and errRoot mark operands that rm refuses to remove.
+var (
+	errDotDot = errors.New("refusing to remove '.' or '..' directory")
+	errRoot   = errors.New("refusing to remove root directory")
+)
+
+// errIsDir is returned when a directory operand is given without -r, -R or
+// -d.
+var errIsDir = errors.New("is a directory")
+
+// errSkipped marks a removal declined through -i, which isn't a failure.
+var errSkipped = errors.New("skipped")
+
+// errFailed marks a hierarchy whose failure was already reported.
+var errFailed = errors.New("failed")
+
+// errorf writes a diagnostic message to standard error.
+func (p *Prog) errorf(format string, args ...any) {
+	fmt.Fprintf(p.Stderr, "rm: "+format+"\n", args...)
+}
+
+// unwrapPathError unwraps *fs.PathError so diagnostics don't repeat the file
+// name.
+func unwrapPathError(err error) error {
+	if pathErr, ok := errors.AsType[*fs.PathError](err); ok {
+		return pathErr.Err
+	}
+	return err
+}
+
+// options holds the -d, -f, -i, -r, -R and -v flags.
+type options struct {
+	empty       bool
+	force       bool
+	interactive bool
+	recursive   bool
+	verbose     bool
+}
+
+// parseFlags parses the options and operands. Option parsing stops at the
+// first operand or at "--", and the last of -f and -i wins.
+func parseFlags(args []string) (options, []string, error) {
+	var (
+		opts     options
+		operands []string
+		parsing  = true
+	)
+	for i := range args {
+		arg := args[i]
+		switch {
+		case !parsing || arg == "-" || !strings.HasPrefix(arg, "-"):
+			parsing = false
+			operands = append(operands, arg)
+		case arg == "--":
+			parsing = false
+		case strings.HasPrefix(arg, "--"):
+			return options{}, nil, fmt.Errorf("unrecognized option '%s'", arg)
+		default:
+			for j := 1; j < len(arg); j++ {
+				switch c := arg[j]; c {
+				case 'd':
+					opts.empty = true
+				case 'f':
+					opts.force, opts.interactive = true, false
+				case 'i':
+					opts.force, opts.interactive = false, true
+				case 'r', 'R':
+					opts.recursive = true
+				case 'v':
+					opts.verbose = true
+				default:
+					return options{}, nil, fmt.Errorf("invalid option -- '%c'", c)
+				}
+			}
+		}
+	}
+	return opts, operands, nil
+}
+
+var (
+	_ coreutils.Program = (*Prog)(nil)
+	_ coreutils.NewFunc = New
+)
