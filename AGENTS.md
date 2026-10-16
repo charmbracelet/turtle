@@ -10,8 +10,9 @@ This repository is a collection of tools and libraries for Go.
 * We'll be using [Scoped Commits](https://scopedcommits.com/) for commit style,
   so usually commit titles should either start with something like `{proj}:`,
   `all:`, `ci:`, `docs:`, `website:`, etc.
-* Make sure commit body is short and straightforward. We can actually even omit
-  it completely unless we have contextual info really worth mentioning.
+* Make sure commit body is short and straightforward. We should actually omit
+  it completely most of the time, unless we have contextual info really worth
+  mentioning.
 * We should write godoc comments for exported stuff, but they should be as short
   as possible. Unexported things don't need a godoc comment at all.
 * In general, you should only write comments when really worth it, and if so,
