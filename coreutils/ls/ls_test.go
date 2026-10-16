@@ -1219,16 +1219,36 @@ func TestRunRealFS(t *testing.T) {
 		t.Fatalf("Chtimes() error = %v", err)
 	}
 
+	// list runs the utility against the real file system and returns what it
+	// wrote to the standard output.
+	list := func(t *testing.T, args ...string) string {
+		t.Helper()
+		stdout, stderr := new(bytes.Buffer), new(bytes.Buffer)
+		rt := &coreutils.Runtime{
+			Stdout:    stdout,
+			Stderr:    stderr,
+			FS:        sys,
+			LookupEnv: envLookup(nil),
+		}
+		if err := New(rt).Run(t.Context(), args...); err != nil {
+			t.Fatalf("Run() error = %v, stderr = %q", err, stderr)
+		}
+		return stdout.String()
+	}
+
 	tests := []struct {
 		name        string
 		args        []string
 		want        string
-		needsChange bool
+		wantWindows string // the expectation on windows, when it differs
+		needsChange bool   // whether the file system has to report a change time
 	}{
 		{
 			name: "writes the mode and the link count of the file",
 			args: []string{"-l", "a.txt"},
 			want: "-rw-r--r-- 1 ",
+			// Windows keeps no permission bits, so a writable file is 0666.
+			wantWindows: "-rw-rw-rw- 1 ",
 		},
 		{
 			name: "writes the modification time of the file",
@@ -1242,10 +1262,9 @@ func TestRunRealFS(t *testing.T) {
 			needsChange: true,
 		},
 		{
-			name:        "writes the serial number of the file",
-			args:        []string{"-i", "-1", "a.txt"},
-			want:        " a.txt",
-			needsChange: true,
+			name: "writes a serial number before the name",
+			args: []string{"-i", "-1", "a.txt"},
+			want: " a.txt\n",
 		},
 		{
 			name: "writes the entries of a subdirectory",
@@ -1256,23 +1275,26 @@ func TestRunRealFS(t *testing.T) {
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
 			if test.needsChange && runtime.GOOS == "windows" {
-				t.Skip("windows reports neither a serial number nor a change time")
+				t.Skip("windows reports no status change time")
 			}
-			stdout, stderr := new(bytes.Buffer), new(bytes.Buffer)
-			rt := &coreutils.Runtime{
-				Stdout:    stdout,
-				Stderr:    stderr,
-				FS:        sys,
-				LookupEnv: envLookup(nil),
+			want := test.want
+			if runtime.GOOS == "windows" && test.wantWindows != "" {
+				want = test.wantWindows
 			}
-			if err := New(rt).Run(t.Context(), test.args...); err != nil {
-				t.Fatalf("Run() error = %v, stderr = %q", err, stderr)
-			}
-			if got := stdout.String(); !strings.Contains(got, test.want) {
-				t.Errorf("Run() stdout = %q, want it to hold %q", got, test.want)
+			if got := list(t, test.args...); !strings.Contains(got, want) {
+				t.Errorf("Run() stdout = %q, want it to hold %q", got, want)
 			}
 		})
 	}
+
+	t.Run("writes the serial number a unix file system reports", func(t *testing.T) {
+		if runtime.GOOS == "windows" {
+			t.Skip("windows reports no serial number for a file")
+		}
+		if got := list(t, "-i", "-1", "a.txt"); strings.HasPrefix(got, "0 ") {
+			t.Errorf("Run() stdout = %q, want the serial number of the file", got)
+		}
+	})
 }
 
 // TestRunUnreadable checks the diagnostic of a directory that can't be read.
