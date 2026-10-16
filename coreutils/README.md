@@ -70,7 +70,7 @@ v0 and we do progress. We have some progress tracking below.
 | Filesystem         | `mv`         | ✅    | ❌  |
 | Filesystem         | `rm`         | ✅    | ❌  |
 | Filesystem         | `ln`         | ✅    | ❌  |
-| Filesystem         | `ls`         | ❌    | ❌  |
+| Filesystem         | `ls`         | ✅    | ❌  |
 | Filesystem         | `chgrp`      | ❌    | ❌  |
 | Filesystem         | `chown`      | ❌    | ❌  |
 | Filesystem         | `link`       | ❌    | ❌  |
