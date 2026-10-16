@@ -10,6 +10,7 @@ This repository is a collection of tools and libraries for Go.
 * We'll be using [Scoped Commits](https://scopedcommits.com/) for commit style,
   so usually commit titles should either start with something like `{proj}:`,
   `all:`, `ci:`, `docs:`, `website:`, etc.
+* Commit titles should be all lowercase most of the time.
 * Make sure commit body is short and straightforward. We should actually omit
   it completely most of the time, unless we have contextual info really worth
   mentioning.
