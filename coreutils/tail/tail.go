@@ -21,6 +21,7 @@ import (
 	"time"
 
 	"charm.land/snail/coreutils"
+	"charm.land/snail/coreutils/internal/getopt"
 	"charm.land/snail/fsx"
 )
 
@@ -304,52 +305,29 @@ func (p *Prog) errorf(format string, args ...any) {
 // the beginning of the input instead of the end. The last of the two given
 // wins. Option parsing stops at the first operand or at "--".
 func parseFlags(args []string) (options, []string, error) {
-	var (
-		opts     options
-		operands []string
-		parsing  = true
-	)
-	for i := 0; i < len(args); i++ {
-		arg := args[i]
-		switch {
-		case !parsing || arg == "-" || !strings.HasPrefix(arg, "-"):
-			parsing = false
-			operands = append(operands, arg)
-		case arg == "--":
-			parsing = false
-		case strings.HasPrefix(arg, "--"):
-			return options{}, nil, fmt.Errorf("unrecognized option '%s'", arg)
-		default:
-		option:
-			for j := 1; j < len(arg); j++ {
-				switch arg[j] {
-				case 'f':
-					opts.follow = true
-				case 'r':
-					opts.reverse = true
-				case 'c', 'n':
-					value := arg[j+1:]
-					if value == "" {
-						i++
-						if i == len(args) {
-							return options{}, nil, fmt.Errorf("option requires an argument -- '%c'", arg[j])
-						}
-						value = args[i]
-					}
-					count, fromStart, err := parseCount(value)
-					if err != nil {
-						return options{}, nil, err
-					}
-					opts.lines = arg[j] == 'n'
-					opts.countSet = true
-					opts.fromStart = fromStart
-					opts.count = count
-					break option
-				default:
-					return options{}, nil, fmt.Errorf("invalid option -- '%c'", arg[j])
-				}
+	var opts options
+	operands, err := getopt.Set{Valued: "cn"}.Parse(args, func(opt rune, value string) error {
+		switch opt {
+		case 'f':
+			opts.follow = true
+		case 'r':
+			opts.reverse = true
+		case 'c', 'n':
+			count, fromStart, err := parseCount(value)
+			if err != nil {
+				return err
 			}
+			opts.lines = opt == 'n'
+			opts.countSet = true
+			opts.fromStart = fromStart
+			opts.count = count
+		default:
+			return getopt.InvalidOption(opt)
 		}
+		return nil
+	})
+	if err != nil {
+		return options{}, nil, err
 	}
 
 	switch {

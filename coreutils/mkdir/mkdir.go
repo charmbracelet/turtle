@@ -7,10 +7,10 @@ import (
 	"fmt"
 	"io/fs"
 	"path/filepath"
-	"strings"
 
 	"charm.land/snail/coreutils"
 	"charm.land/snail/coreutils/chmod"
+	"charm.land/snail/coreutils/internal/getopt"
 )
 
 // Prog is the mkdir core utility.
@@ -147,55 +147,22 @@ type options struct {
 // glued to the option or in the next argument, and the last one given is the
 // one used.
 func parseFlags(args []string) (options, []string, error) {
-	var (
-		opts    options
-		dirs    []string
-		parsing = true
-	)
-	for i := 0; i < len(args); i++ {
-		arg := args[i]
-		switch {
-		case !parsing || arg == "-" || !strings.HasPrefix(arg, "-"):
-			parsing = false
-			dirs = append(dirs, arg)
-		case arg == "--":
-			parsing = false
-		case strings.HasPrefix(arg, "--"):
-			return options{}, nil, fmt.Errorf("unrecognized option '%s'", arg)
-		default:
-			var err error
-			opts, i, err = parseShortFlags(arg, opts, args, i)
-			if err != nil {
-				return options{}, nil, err
-			}
-		}
-	}
-	return opts, dirs, nil
-}
-
-// parseShortFlags parses a single short option argument, returning the index
-// of the last argument it consumed.
-func parseShortFlags(arg string, opts options, args []string, i int) (options, int, error) {
-	for j := 1; j < len(arg); j++ {
-		switch c := arg[j]; c {
+	var opts options
+	dirs, err := getopt.Set{Valued: "m"}.Parse(args, func(opt rune, value string) error {
+		switch opt {
 		case 'p':
 			opts.parents = true
 		case 'm':
-			value := arg[j+1:]
-			if value == "" {
-				i++
-				if i >= len(args) {
-					return opts, i, fmt.Errorf("option requires an argument -- '%c'", c)
-				}
-				value = args[i]
-			}
 			opts.modeSet, opts.mode = true, value
-			return opts, i, nil
 		default:
-			return opts, i, fmt.Errorf("invalid option -- '%c'", c)
+			return getopt.InvalidOption(opt)
 		}
+		return nil
+	})
+	if err != nil {
+		return options{}, nil, err
 	}
-	return opts, i, nil
+	return opts, dirs, nil
 }
 
 var (

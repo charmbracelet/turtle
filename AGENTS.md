@@ -145,9 +145,14 @@ Code style guidelines:
   it's done, so callers can interrupt them and use `errors.Is`.
 * We should use as much as possible of the standard library, and avoid external
   dependencies, even for tests.
-* The exception is flag parsing: for coreutils that actually have options we'll
-  probably want to use `github.com/spf13/pflag`. (This doesn't apply to `echo`,
-  which the POSIX specification forbids from supporting options at all.)
+* Option parsing belongs to `charm.land/snail/coreutils/internal/getopt`, which
+  implements the POSIX syntax and its diagnostics: grouped single-character
+  options, option-arguments attached or in the next argument, `--` ending the
+  options, parsing stopping at the first operand, and long options accepted
+  only when a utility documents them. Utilities keep their own option table,
+  defaults and conflict checks in their `parseFlags` function. (This doesn't
+  apply to `echo`, which the POSIX specification forbids from supporting
+  options at all.)
 * Avoid `panic`s. We should return errors instead.
 * Make sure to implement code in smaller functions rather than having a big
   `Run` implementation.

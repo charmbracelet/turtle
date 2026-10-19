@@ -332,11 +332,11 @@ func TestGzipUsage(t *testing.T) {
 		args    []string
 		wantErr string
 	}{
-		{"an unknown option", []string{"-Z", "a.txt"}, "invalid option"},
-		{"an unknown long option", []string{"--zest", "a.txt"}, "unrecognized option"},
-		{"a long option with a value it doesn't take", []string{"--force=yes"}, "doesn't allow an argument"},
-		{"-S without an argument", []string{"-S"}, "option requires an argument"},
-		{"--suffix without an argument", []string{"--suffix"}, "option requires an argument"},
+		{"an unknown option", []string{"-Z", "a.txt"}, "gzip: invalid option -- 'Z'\n"},
+		{"an unknown long option", []string{"--zest", "a.txt"}, "gzip: unrecognized option '--zest'\n"},
+		{"a long option with a value it doesn't take", []string{"--force=yes"}, "gzip: option '--force=yes' doesn't allow an argument\n"},
+		{"-S without an argument", []string{"-S"}, "gzip: option requires an argument -- 'S'\n"},
+		{"--suffix without an argument", []string{"--suffix"}, "gzip: option '--suffix' requires an argument\n"},
 	}
 
 	for _, test := range tests {
@@ -346,8 +346,8 @@ func TestGzipUsage(t *testing.T) {
 			if res.exit != 1 {
 				t.Errorf("exit = %d, want 1", res.exit)
 			}
-			if !strings.Contains(res.stderr, test.wantErr) {
-				t.Errorf("stderr = %q, want it to contain %q", res.stderr, test.wantErr)
+			if res.stderr != test.wantErr {
+				t.Errorf("stderr = %q, want %q", res.stderr, test.wantErr)
 			}
 			wantData(t, fsys, map[string]string{"a.txt": "alpha\n"})
 		})

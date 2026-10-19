@@ -12,6 +12,7 @@ import (
 	"strings"
 
 	"charm.land/snail/coreutils"
+	"charm.land/snail/coreutils/internal/getopt"
 	"charm.land/snail/coreutils/internal/zcore"
 )
 
@@ -95,105 +96,58 @@ type settings struct {
 }
 
 // longOptions maps the long options of gzip to the short ones they stand for.
-var longOptions = map[string]string{
-	"best":       "9",
-	"decompress": "d",
-	"fast":       "1",
-	"force":      "f",
-	"help":       "h",
-	"keep":       "k",
-	"name":       "N",
-	"no-name":    "n",
-	"quiet":      "q",
-	"recursive":  "r",
-	"silent":     "q",
-	"stdout":     "c",
-	"suffix":     "S",
-	"test":       "t",
-	"to-stdout":  "c",
-	"uncompress": "d",
-	"verbose":    "v",
-	"version":    "V",
+var longOptions = map[string]rune{
+	"best":       '9',
+	"decompress": 'd',
+	"fast":       '1',
+	"force":      'f',
+	"help":       'h',
+	"keep":       'k',
+	"name":       'N',
+	"no-name":    'n',
+	"quiet":      'q',
+	"recursive":  'r',
+	"silent":     'q',
+	"stdout":     'c',
+	"suffix":     'S',
+	"test":       't',
+	"to-stdout":  'c',
+	"uncompress": 'd',
+	"verbose":    'v',
+	"version":    'V',
 }
 
 // parseFlags parses args on top of the base options of the program. Option
 // parsing stops at the first operand or at "--".
 func parseFlags(args []string, base zcore.Options) (settings, error) {
 	set := settings{Options: base}
-	parsing := true
-
-	for i := 0; i < len(args); i++ {
-		arg := args[i]
-		if !parsing || arg == "-" || !strings.HasPrefix(arg, "-") {
-			parsing = false
-			set.operands = append(set.operands, arg)
-			continue
+	operands, err := getopt.Set{Valued: "S", Long: longOptions}.Parse(args, func(opt rune, value string) error {
+		switch opt {
+		case 'c', 'd', 'f', 'k', 'N', 'n', 'q', 'r', 't', 'v':
+			set.apply(opt)
+		case 'h':
+			set.help = true
+		case 'V':
+			set.version = true
+		case 'S':
+			set.Suffix = value
+		case '0', '1', '2', '3', '4', '5', '6', '7', '8', '9':
+			set.Level = int(opt - '0')
+		default:
+			return getopt.InvalidOption(opt)
 		}
-		if arg == "--" {
-			parsing = false
-			continue
-		}
-
-		cluster := arg
-		if strings.HasPrefix(arg, "--") {
-			name, value := arg[2:], ""
-			hasValue := false
-			if eq := strings.IndexByte(name, '='); eq >= 0 {
-				name, value, hasValue = name[:eq], name[eq+1:], true
-			}
-			short, ok := longOptions[name]
-			if !ok {
-				return settings{}, fmt.Errorf("unrecognized option '%s'", arg)
-			}
-			if short == "S" {
-				if !hasValue {
-					if i+1 == len(args) {
-						return settings{}, fmt.Errorf("option requires an argument -- 'S'")
-					}
-					i++
-					value = args[i]
-				}
-				set.Suffix = value
-				continue
-			}
-			if hasValue {
-				return settings{}, fmt.Errorf("option '%s' doesn't allow an argument", arg)
-			}
-			cluster = "-" + short
-		}
-
-		for j := 1; j < len(cluster); j++ {
-			switch c := cluster[j]; c {
-			case 'c', 'd', 'f', 'k', 'N', 'n', 'q', 'r', 't', 'v':
-				set.apply(c)
-			case 'h':
-				set.help = true
-			case 'V':
-				set.version = true
-			case 'S':
-				value := cluster[j+1:]
-				if value == "" {
-					if i+1 == len(args) {
-						return settings{}, fmt.Errorf("option requires an argument -- 'S'")
-					}
-					i++
-					value = args[i]
-				}
-				set.Suffix = value
-				j = len(cluster)
-			case '0', '1', '2', '3', '4', '5', '6', '7', '8', '9':
-				set.Level = int(c - '0')
-			default:
-				return settings{}, fmt.Errorf("invalid option -- '%c'", c)
-			}
-		}
+		return nil
+	})
+	if err != nil {
+		return settings{}, err
 	}
+	set.operands = operands
 	return set, nil
 }
 
 // apply sets the option given as a short flag.
-func (s *settings) apply(c byte) {
-	switch c {
+func (s *settings) apply(opt rune) {
+	switch opt {
 	case 'c':
 		s.Stdout = true
 	case 'd':

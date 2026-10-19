@@ -11,6 +11,7 @@ import (
 	"strings"
 
 	"charm.land/snail/coreutils"
+	"charm.land/snail/coreutils/internal/getopt"
 )
 
 // Prog is the chmod core utility.
@@ -147,26 +148,14 @@ func unwrapPathError(err error) error {
 // parseFlags parses the options and operands. Option parsing stops at the
 // first operand or at "--".
 func parseFlags(args []string) (recursive bool, operands []string, err error) {
-	parsing := true
-	for _, arg := range args {
-		switch {
-		case !parsing || arg == "-" || !strings.HasPrefix(arg, "-"):
-			parsing = false
-			operands = append(operands, arg)
-		case arg == "--":
-			parsing = false
-		case strings.HasPrefix(arg, "--"):
-			return false, nil, fmt.Errorf("unrecognized option '%s'", arg)
-		default:
-			for j := 1; j < len(arg); j++ {
-				if arg[j] != 'R' {
-					return false, nil, fmt.Errorf("invalid option -- '%c'", arg[j])
-				}
-				recursive = true
-			}
+	operands, err = getopt.Set{}.Parse(args, func(opt rune, _ string) error {
+		if opt != 'R' {
+			return getopt.InvalidOption(opt)
 		}
-	}
-	return recursive, operands, nil
+		recursive = true
+		return nil
+	})
+	return recursive, operands, err
 }
 
 var (

@@ -11,6 +11,7 @@ import (
 	"time"
 	"unicode/utf8"
 
+	"charm.land/snail/coreutils/internal/getopt"
 	"charm.land/snail/fsx"
 )
 
@@ -85,8 +86,8 @@ type options struct {
 }
 
 // set turns on the option with the given letter.
-func (o *options) set(c byte) error {
-	switch c {
+func (o *options) set(opt rune) error {
+	switch opt {
 	case 'A', 'a':
 		o.all = true
 	case 'C':
@@ -138,7 +139,7 @@ func (o *options) set(c byte) error {
 	case '1':
 		o.layout = layoutOne
 	default:
-		return fmt.Errorf("invalid option -- '%c'", c)
+		return getopt.InvalidOption(opt)
 	}
 	return nil
 }
@@ -147,24 +148,11 @@ func (o *options) set(c byte) error {
 // first operand or at "--".
 func parseFlags(args []string) (options, []string, error) {
 	opts := options{owner: true, group: true}
-	var operands []string
-	parsing := true
-	for _, arg := range args {
-		switch {
-		case !parsing || arg == "-" || !strings.HasPrefix(arg, "-"):
-			parsing = false
-			operands = append(operands, arg)
-		case arg == "--":
-			parsing = false
-		case strings.HasPrefix(arg, "--"):
-			return options{}, nil, fmt.Errorf("unrecognized option '%s'", arg)
-		default:
-			for i := 1; i < len(arg); i++ {
-				if err := opts.set(arg[i]); err != nil {
-					return options{}, nil, err
-				}
-			}
-		}
+	operands, err := getopt.Set{}.Parse(args, func(opt rune, _ string) error {
+		return opts.set(opt)
+	})
+	if err != nil {
+		return options{}, nil, err
 	}
 	return opts, operands, nil
 }

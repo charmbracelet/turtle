@@ -23,6 +23,7 @@ import (
 	"time"
 
 	"charm.land/snail/coreutils"
+	"charm.land/snail/coreutils/internal/getopt"
 	"charm.land/snail/fsx"
 )
 
@@ -394,33 +395,20 @@ type options struct {
 // parseFlags parses the options and operands. Option parsing stops at the
 // first operand or at "--", and the last of -f and -i wins.
 func parseFlags(args []string) (options, []string, error) {
-	var (
-		opts     options
-		operands []string
-		parsing  = true
-	)
-	for i := range args {
-		arg := args[i]
-		switch {
-		case !parsing || arg == "-" || !strings.HasPrefix(arg, "-"):
-			parsing = false
-			operands = append(operands, arg)
-		case arg == "--":
-			parsing = false
-		case strings.HasPrefix(arg, "--"):
-			return options{}, nil, fmt.Errorf("unrecognized option '%s'", arg)
+	var opts options
+	operands, err := getopt.Set{}.Parse(args, func(opt rune, _ string) error {
+		switch opt {
+		case 'f':
+			opts.interactive = false
+		case 'i':
+			opts.interactive = true
 		default:
-			for j := 1; j < len(arg); j++ {
-				switch c := arg[j]; c {
-				case 'f':
-					opts.interactive = false
-				case 'i':
-					opts.interactive = true
-				default:
-					return options{}, nil, fmt.Errorf("invalid option -- '%c'", c)
-				}
-			}
+			return getopt.InvalidOption(opt)
 		}
+		return nil
+	})
+	if err != nil {
+		return options{}, nil, err
 	}
 	return opts, operands, nil
 }
