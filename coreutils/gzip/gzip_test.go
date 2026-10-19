@@ -286,6 +286,34 @@ func TestGzipOptions(t *testing.T) {
 		}
 	})
 
+	t.Run("an operand which already has a suffix is left alone", func(t *testing.T) {
+		fsys := fsx.MemFS{"a.txt.gz": {Data: []byte("data"), Mode: 0o644}}
+
+		res, fsys := run(t, New, fsys, nil, nil, "a.txt.gz")
+
+		if res.exit != 2 {
+			t.Errorf("exit = %d, want 2 (%s)", res.exit, res.stderr)
+		}
+		if !strings.Contains(res.stderr, "already has .gz suffix") {
+			t.Errorf("stderr = %q, want it to mention the suffix", res.stderr)
+		}
+		if _, ok := fsys["a.txt.gz.gz"]; ok {
+			t.Error("a.txt.gz.gz: unexpected double-compressed output")
+		}
+		wantData(t, fsys, map[string]string{"a.txt.gz": "data"})
+	})
+
+	t.Run("-f compresses an operand which already has a suffix", func(t *testing.T) {
+		fsys := fsx.MemFS{"a.txt.gz": {Data: []byte(strings.Repeat("alpha ", 30)), Mode: 0o644}}
+
+		res, fsys := run(t, New, fsys, nil, nil, "-f", "a.txt.gz")
+
+		if res.exit != 0 {
+			t.Errorf("exit = %d, want 0 (%s)", res.exit, res.stderr)
+		}
+		wantData(t, fsys, nil, "a.txt.gz")
+	})
+
 	t.Run("-q hides the diagnostics", func(t *testing.T) {
 		res, _ := run(t, New, testFS(), nil, nil, "-q", "missing.txt")
 
@@ -591,11 +619,18 @@ func TestZcat(t *testing.T) {
 		}
 	})
 
-	t.Run("-f -c passes through an operand that doesn't exist", func(t *testing.T) {
+	t.Run("-f -c passes a plain operand through", func(t *testing.T) {
 		fsys := fsx.MemFS{"plain": {Data: []byte("alpha\n"), Mode: 0o644}}
 		res, _ := run(t, Zcat, fsys, nil, nil, "-f", "plain")
 		if res.exit != 0 || res.stdout != "alpha\n" {
 			t.Errorf("exit = %d, stdout = %q, stderr = %q", res.exit, res.stdout, res.stderr)
+		}
+	})
+
+	t.Run("-f -c reports an operand which doesn't exist", func(t *testing.T) {
+		res, _ := run(t, Zcat, fsx.MemFS{}, nil, nil, "-f", "missing.txt")
+		if res.exit != 1 || !strings.Contains(res.stderr, "file does not exist") {
+			t.Errorf("exit = %d, stderr = %q, want a missing-file error", res.exit, res.stderr)
 		}
 	})
 
@@ -726,29 +761,60 @@ func TestGzipTest(t *testing.T) {
 	})
 }
 
-func TestGzipRecursive(t *testing.T) {
-	t.Run("compression refuses symlinks without -f", func(t *testing.T) {
+func TestGzipSymlinks(t *testing.T) {
+	t.Run("compression refuses a symbolic link without -f", func(t *testing.T) {
 		fsys := fsx.MemFS{
 			"target.txt": {Data: []byte("alpha\n"), Mode: 0o644},
 			"link.txt":   {Data: []byte("target.txt"), Mode: fs.ModeSymlink | 0o777},
 		}
+
 		res, fsys := run(t, New, fsys, nil, nil, "link.txt")
-		if res.exit != 1 || fsys["link.txt"] == nil || fsys["link.txt.gz"] != nil {
-			t.Errorf("exit = %d, files = %v, stderr = %q", res.exit, names(fsys), res.stderr)
+
+		if res.exit != 1 {
+			t.Errorf("exit = %d, want 1 (%s)", res.exit, res.stderr)
+		}
+		if _, ok := fsys["link.txt"]; !ok {
+			t.Error("link.txt: want the link kept")
+		}
+		if _, ok := fsys["link.txt.gz"]; ok {
+			t.Error("link.txt.gz: unexpected compressed output")
 		}
 	})
 
-	t.Run("compression permits symlinks with -f", func(t *testing.T) {
+	t.Run("compression follows a symbolic link with -f", func(t *testing.T) {
 		fsys := fsx.MemFS{
 			"target.txt": {Data: []byte("alpha\n"), Mode: 0o644},
 			"link.txt":   {Data: []byte("target.txt"), Mode: fs.ModeSymlink | 0o777},
 		}
+
 		res, fsys := run(t, New, fsys, nil, nil, "-f", "link.txt")
-		if res.exit != 0 || fsys["link.txt"] != nil || fsys["link.txt.gz"] == nil {
-			t.Errorf("exit = %d, files = %v, stderr = %q", res.exit, names(fsys), res.stderr)
+
+		if res.exit != 0 {
+			t.Errorf("exit = %d, want 0 (%s)", res.exit, res.stderr)
+		}
+		if _, ok := fsys["link.txt"]; ok {
+			t.Error("link.txt: want the link replaced by its target")
+		}
+		if _, ok := fsys["link.txt.gz"]; !ok {
+			t.Error("link.txt.gz: want the compressed target")
 		}
 	})
 
+	t.Run("restoring a symbolic link fails without -f", func(t *testing.T) {
+		fsys := fsx.MemFS{
+			"a.txt.gz": gzFile(t, "alpha\n"),
+			"link.gz":  {Data: []byte("a.txt.gz"), Mode: fs.ModeSymlink | 0o777},
+		}
+
+		res, _ := run(t, Gunzip, fsys, nil, nil, "link.gz")
+
+		if res.exit != 1 || !strings.Contains(res.stderr, "not a regular file") {
+			t.Errorf("exit = %d, stderr = %q, want a refusal", res.exit, res.stderr)
+		}
+	})
+}
+
+func TestGzipRecursive(t *testing.T) {
 	t.Run("-r walks into directories", func(t *testing.T) {
 		fsys := fsx.MemFS{
 			"sub/c.txt":    {Data: []byte("gamma\n"), Mode: 0o644},
@@ -787,6 +853,14 @@ func TestGzipRecursive(t *testing.T) {
 	t.Run("-rc recurses into directories", func(t *testing.T) {
 		fsys := fsx.MemFS{"sub/a.gz": gzFile(t, "alpha\n")}
 		res, _ := run(t, Gunzip, fsys, nil, nil, "-rc", "sub")
+		if res.exit != 0 || res.stdout != "alpha\n" {
+			t.Errorf("exit = %d, stdout = %q, stderr = %q", res.exit, res.stdout, res.stderr)
+		}
+	})
+
+	t.Run("-rcf recurses into directories", func(t *testing.T) {
+		fsys := fsx.MemFS{"sub/a.gz": gzFile(t, "alpha\n")}
+		res, _ := run(t, Gunzip, fsys, nil, nil, "-rcf", "sub")
 		if res.exit != 0 || res.stdout != "alpha\n" {
 			t.Errorf("exit = %d, stdout = %q, stderr = %q", res.exit, res.stdout, res.stderr)
 		}

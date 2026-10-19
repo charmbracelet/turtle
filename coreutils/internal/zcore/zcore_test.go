@@ -5,9 +5,14 @@ import (
 	"bytes"
 	"compress/gzip"
 	"context"
+	"errors"
 	"io"
+	"path"
 	"strings"
 	"testing"
+
+	"charm.land/snail/coreutils"
+	"charm.land/snail/fsx"
 )
 
 func TestSniff(t *testing.T) {
@@ -133,7 +138,7 @@ func TestStripSuffix(t *testing.T) {
 	}
 }
 
-func TestStoredFileName(t *testing.T) {
+func TestValidStoredName(t *testing.T) {
 	tests := []struct {
 		name  string
 		input string
@@ -144,15 +149,14 @@ func TestStoredFileName(t *testing.T) {
 		{"dot", ".", false},
 		{"dot dot", "..", false},
 		{"slash", "dir/file", false},
-		{"backslash", `dir\\file`, false},
+		{"backslash", `dir\file`, false},
 		{"newline", "bad\nname", false},
 		{"NUL", "bad\x00name", false},
 	}
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			_, got := storedFileName(test.input)
-			if got != test.want {
-				t.Errorf("storedFileName(%q) ok = %v, want %v", test.input, got, test.want)
+			if got := validStoredName(test.input); got != test.want {
+				t.Errorf("validStoredName(%q) = %v, want %v", test.input, got, test.want)
 			}
 		})
 	}
@@ -182,5 +186,232 @@ func TestCheckName(t *testing.T) {
 	}
 	if err := checkName("dir/" + strings.Repeat("x", nameMax+1)); err == nil {
 		t.Error("checkName() error = nil, want error")
+	}
+}
+
+// removeErrFS fails the removal of one name, so that the cleanup of the file it
+// produced can still be observed.
+type removeErrFS struct {
+	fsx.MemFS
+	blocked string
+}
+
+// Remove implements fsx.RemoveFS.
+func (f removeErrFS) Remove(name string) error {
+	if path.Base(name) == f.blocked {
+		return errors.New("permission denied")
+	}
+	return f.MemFS.Remove(name)
+}
+
+// errorWriter always fails to be written to.
+type errorWriter struct{}
+
+// Write implements io.Writer.
+func (errorWriter) Write([]byte) (int, error) {
+	return 0, errors.New("no space left on device")
+}
+
+// gzData builds the contents of a gzip file holding data.
+func gzData(t *testing.T, data string) []byte {
+	t.Helper()
+
+	var buf bytes.Buffer
+	writer := gzip.NewWriter(&buf)
+	if _, err := io.WriteString(writer, data); err != nil {
+		t.Fatalf("Write() error = %v", err)
+	}
+	if err := writer.Close(); err != nil {
+		t.Fatalf("Close() error = %v", err)
+	}
+	return buf.Bytes()
+}
+
+func TestRemoveInputFailure(t *testing.T) {
+	tests := []struct {
+		name     string
+		opts     Options
+		fsys     fsx.MemFS
+		operand  string
+		blocked  string
+		out      string
+		wantExit int
+		wantOut  bool
+	}{
+		{
+			name:     "compression discards its output",
+			opts:     Options{Prog: "gzip", Algorithm: Gzip, Level: -1},
+			fsys:     fsx.MemFS{"a.txt": {Data: []byte(strings.Repeat("alpha ", 30)), Mode: 0o644}},
+			operand:  "a.txt",
+			blocked:  "a.txt",
+			out:      "a.txt.gz",
+			wantExit: 1,
+			wantOut:  false,
+		},
+		{
+			name:     "forced compression keeps its output",
+			opts:     Options{Prog: "gzip", Algorithm: Gzip, Level: -1, Force: true},
+			fsys:     fsx.MemFS{"a.txt": {Data: []byte(strings.Repeat("alpha ", 30)), Mode: 0o644}},
+			operand:  "a.txt",
+			blocked:  "a.txt",
+			out:      "a.txt.gz",
+			wantExit: 2,
+			wantOut:  true,
+		},
+		{
+			name:     "decompression discards its output",
+			opts:     Options{Prog: "gunzip", Algorithm: Gzip, Level: -1, Decompress: true},
+			fsys:     fsx.MemFS{"a.txt.gz": {Data: gzData(t, "alpha\n"), Mode: 0o644}},
+			operand:  "a.txt.gz",
+			blocked:  "a.txt.gz",
+			out:      "a.txt",
+			wantExit: 1,
+			wantOut:  false,
+		},
+		{
+			name:     "forced decompression keeps its output",
+			opts:     Options{Prog: "gunzip", Algorithm: Gzip, Level: -1, Decompress: true, Force: true},
+			fsys:     fsx.MemFS{"a.txt.gz": {Data: gzData(t, "alpha\n"), Mode: 0o644}},
+			operand:  "a.txt.gz",
+			blocked:  "a.txt.gz",
+			out:      "a.txt",
+			wantExit: 2,
+			wantOut:  true,
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			rt := &coreutils.Runtime{
+				Stdin:     strings.NewReader(""),
+				Stdout:    io.Discard,
+				Stderr:    io.Discard,
+				FS:        removeErrFS{MemFS: test.fsys, blocked: test.blocked},
+				LookupEnv: func(string) (string, bool) { return "", false },
+			}
+
+			err := Run(t.Context(), rt, test.opts, []string{test.operand})
+			var exitErr *coreutils.ExitError
+			if !errors.As(err, &exitErr) || exitErr.Code != test.wantExit {
+				t.Fatalf("Run() error = %v, want exit %d", err, test.wantExit)
+			}
+			if _, ok := test.fsys[test.out]; ok != test.wantOut {
+				t.Errorf("%s exists = %v, want %v", test.out, ok, test.wantOut)
+			}
+			if _, ok := test.fsys[test.operand]; !ok {
+				t.Errorf("%s: want the input kept", test.operand)
+			}
+		})
+	}
+}
+
+func TestStdoutWriteFailure(t *testing.T) {
+	tests := []struct {
+		name    string
+		opts    Options
+		stdin   io.Reader
+		fsys    fsx.MemFS
+		operand string
+	}{
+		{
+			name:  "compressing the standard input",
+			opts:  Options{Prog: "gzip", Algorithm: Gzip, Level: -1},
+			stdin: strings.NewReader("alpha\n"),
+		},
+		{
+			name:  "restoring the standard input",
+			opts:  Options{Prog: "gunzip", Algorithm: Gzip, Level: -1, Decompress: true, Stdout: true},
+			stdin: bytes.NewReader(gzData(t, "alpha\n")),
+		},
+		{
+			name:    "compressing a file",
+			opts:    Options{Prog: "gzip", Algorithm: Gzip, Level: -1, Stdout: true},
+			stdin:   strings.NewReader(""),
+			fsys:    fsx.MemFS{"a.txt": {Data: []byte("alpha\n"), Mode: 0o644}},
+			operand: "a.txt",
+		},
+		{
+			name:    "restoring a file",
+			opts:    Options{Prog: "zcat", Algorithm: Gzip, Level: -1, Decompress: true, Stdout: true},
+			stdin:   strings.NewReader(""),
+			fsys:    fsx.MemFS{"a.txt.gz": {Data: gzData(t, "alpha\n"), Mode: 0o644}},
+			operand: "a.txt.gz",
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			if test.fsys == nil {
+				test.fsys = fsx.MemFS{}
+			}
+			rt := &coreutils.Runtime{
+				Stdin:     test.stdin,
+				Stdout:    errorWriter{},
+				Stderr:    io.Discard,
+				FS:        test.fsys,
+				LookupEnv: func(string) (string, bool) { return "", false },
+			}
+
+			var operands []string
+			if test.operand != "" {
+				operands = []string{test.operand}
+			}
+			err := Run(t.Context(), rt, test.opts, operands)
+			var exitErr *coreutils.ExitError
+			if !errors.As(err, &exitErr) || exitErr.Code != 1 {
+				t.Fatalf("Run() error = %v, want exit 1", err)
+			}
+		})
+	}
+}
+
+func TestMissingRuntimeValues(t *testing.T) {
+	t.Run("no standard input", func(t *testing.T) {
+		rt := &coreutils.Runtime{
+			Stdout:    io.Discard,
+			Stderr:    io.Discard,
+			FS:        fsx.MemFS{},
+			LookupEnv: func(string) (string, bool) { return "", false },
+		}
+		err := Run(t.Context(), rt, Options{Prog: "gzip", Algorithm: Gzip, Level: -1}, nil)
+		var exitErr *coreutils.ExitError
+		if !errors.As(err, &exitErr) || exitErr.Code != 1 {
+			t.Fatalf("Run() error = %v, want exit 1", err)
+		}
+	})
+
+	t.Run("no file system", func(t *testing.T) {
+		rt := &coreutils.Runtime{
+			Stdin:     strings.NewReader(""),
+			Stdout:    io.Discard,
+			Stderr:    io.Discard,
+			LookupEnv: func(string) (string, bool) { return "", false },
+		}
+		err := Run(t.Context(), rt, Options{Prog: "gzip", Algorithm: Gzip, Level: -1}, []string{"a.txt"})
+		var exitErr *coreutils.ExitError
+		if !errors.As(err, &exitErr) || exitErr.Code != 1 {
+			t.Fatalf("Run() error = %v, want exit 1", err)
+		}
+	})
+}
+
+func TestStoreNameHeaderFailure(t *testing.T) {
+	fsys := fsx.MemFS{"a.gz": {Data: []byte{0x1f, 0x8b}, Mode: 0o644}}
+	rt := &coreutils.Runtime{
+		Stdin:     strings.NewReader(""),
+		Stdout:    io.Discard,
+		Stderr:    io.Discard,
+		FS:        fsys,
+		LookupEnv: func(string) (string, bool) { return "", false },
+	}
+
+	opts := Options{Prog: "gunzip", Algorithm: Gzip, Level: -1, Decompress: true, StoreName: true}
+	err := Run(t.Context(), rt, opts, []string{"a.gz"})
+	var exitErr *coreutils.ExitError
+	if !errors.As(err, &exitErr) || exitErr.Code != 1 {
+		t.Fatalf("Run() error = %v, want exit 1", err)
+	}
+	if _, ok := fsys["a"]; ok {
+		t.Error("a: want no output file")
 	}
 }

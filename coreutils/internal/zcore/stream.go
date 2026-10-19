@@ -102,14 +102,13 @@ func gzipWriter(dst io.Writer, level int) (*gzip.Writer, error) {
 // decodeError turns a decoding failure into a concise message about the input.
 func decodeError(err error) error {
 	switch {
-	case errors.Is(err, errNotCompressed):
-		return errors.New("format not recognized")
-	case errors.Is(err, io.EOF),
+	case errors.Is(err, errNotCompressed),
+		errors.Is(err, io.EOF),
 		errors.Is(err, io.ErrUnexpectedEOF),
 		errors.Is(err, gzip.ErrHeader),
 		errors.Is(err, gzip.ErrChecksum),
 		isCorrupt(err):
-		return errors.New("format not recognized")
+		return errNotCompressed
 	}
 	return err
 }

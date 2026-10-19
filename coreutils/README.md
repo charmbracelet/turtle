@@ -136,6 +136,7 @@ v0 and we do progress. We have some progress tracking below.
 | GNU                | `gzip`       | —     | ✅  |
 | GNU                | `gunzip`     | —     | ✅  |
 | GNU                | `gzcat`      | —     | ✅  |
+| GNU                | `zcat`       | —     | ✅  |
 | GNU                | `install`    | —     | ❌  |
 | GNU                | `md5sum`     | —     | ❌  |
 | GNU                | `mktemp`     | —     | ❌  |

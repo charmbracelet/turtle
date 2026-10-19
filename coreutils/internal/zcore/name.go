@@ -33,12 +33,11 @@ func stripSuffix(name string, opts Options) (string, bool) {
 	return "", false
 }
 
-// storedFileName accepts only an ordinary basename from a gzip header.
-func storedFileName(storedName string) (string, bool) {
-	if storedName == "" || storedName == "." || storedName == ".." || strings.ContainsAny(storedName, "/\\\x00\n\r") || path.Base(storedName) != storedName {
-		return "", false
-	}
-	return storedName, true
+// validStoredName reports whether name is an ordinary basename, as only such a
+// name from a gzip header may be used for the restored file.
+func validStoredName(name string) bool {
+	return name != "" && name != "." && name != ".." &&
+		!strings.ContainsAny(name, "/\\\x00\n\r") && path.Base(name) == name
 }
 
 // checkName reports whether a file can be created at name, as far as the

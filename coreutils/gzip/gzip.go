@@ -55,7 +55,7 @@ func Gzcat(rt *coreutils.Runtime) coreutils.Program {
 // newProg builds a Prog with the given name and defaults applied on top of the
 // options shared by all of them.
 func newProg(rt *coreutils.Runtime, name string, defaults func(*zcore.Options)) *Prog {
-	opts := zcore.Options{Prog: name, Level: -1}
+	opts := zcore.Options{Prog: name, Level: -1, SkipSuffixed: true}
 	if defaults != nil {
 		defaults(&opts)
 	}

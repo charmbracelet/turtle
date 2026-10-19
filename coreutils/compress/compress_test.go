@@ -208,14 +208,15 @@ func TestCompressOptions(t *testing.T) {
 		}
 	})
 
-	t.Run("an already-compressed suffix is skipped", func(t *testing.T) {
-		fsys := fsx.MemFS{"a.txt.gz": {Data: []byte("data"), Mode: 0o644}}
-		code, _, stderr, fsys := run(t, func(rt *coreutils.Runtime) coreutils.Program { return gzip.New(rt) }, fsys, "a.txt.gz")
-		if code != 2 {
-			t.Errorf("exit = %d, want 2 (%s)", code, stderr)
+	t.Run("a suffixed operand is still compressed", func(t *testing.T) {
+		fsys := fsx.MemFS{"a.txt.gz": {Data: []byte(strings.Repeat("alpha ", 30)), Mode: 0o644}}
+		code, _, stderr, fsys := run(t, New, fsys, "-g", "a.txt.gz")
+
+		if code != 0 {
+			t.Errorf("exit = %d, want 0 (%s)", code, stderr)
 		}
-		if _, ok := fsys["a.txt.gz.gz"]; ok {
-			t.Error("a.txt.gz.gz: unexpected double-compressed output")
+		if _, ok := fsys["a.txt.gz.gz"]; !ok {
+			t.Error("a.txt.gz.gz: want the POSIX front to compress it")
 		}
 	})
 
