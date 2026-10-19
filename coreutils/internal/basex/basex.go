@@ -16,6 +16,7 @@ import (
 	"strings"
 
 	"charm.land/snail/coreutils"
+	"charm.land/snail/coreutils/internal/getopt"
 )
 
 // ErrInvalidInput reports input that can't be decoded.
@@ -300,75 +301,38 @@ type options struct {
 	wrap          int
 }
 
+// longOptions maps the long options of the utility to the short ones they
+// stand for.
+var longOptions = map[string]rune{
+	"decode":         'd',
+	"ignore-garbage": 'i',
+	"wrap":           'w',
+}
+
 // parseFlags parses the options and operands. The -w option takes a number
 // option-argument, either attached or in the next argument, and the last one
 // given wins. Option parsing stops at the first operand or at "--".
 func parseFlags(args []string) (options, []string, error) {
 	opts := options{wrap: defaultWrap}
-	var operands []string
-
-	parsing := true
-	for i := 0; i < len(args); i++ {
-		arg := args[i]
-		switch {
-		case !parsing || arg == "-" || !strings.HasPrefix(arg, "-"):
-			parsing = false
-			operands = append(operands, arg)
-		case arg == "--":
-			parsing = false
-		case strings.HasPrefix(arg, "--"):
-			name, value, given := strings.Cut(arg[2:], "=")
-			switch name {
-			case "decode":
-				opts.decode = true
-			case "ignore-garbage":
-				opts.ignoreGarbage = true
-			case "wrap":
-				if !given {
-					i++
-					if i == len(args) {
-						return options{}, nil, errors.New("option '--wrap' requires an argument")
-					}
-					value = args[i]
-				}
-				wrap, err := parseWrap(value)
-				if err != nil {
-					return options{}, nil, err
-				}
-				opts.wrap = wrap
-			default:
-				return options{}, nil, fmt.Errorf("unrecognized option '%s'", arg)
+	operands, err := getopt.Set{Valued: "w", Long: longOptions}.Parse(args, func(opt rune, value string) error {
+		switch opt {
+		case 'd':
+			opts.decode = true
+		case 'i':
+			opts.ignoreGarbage = true
+		case 'w':
+			wrap, err := parseWrap(value)
+			if err != nil {
+				return err
 			}
+			opts.wrap = wrap
 		default:
-		option:
-			for j := 1; j < len(arg); j++ {
-				switch arg[j] {
-				case 'd':
-					opts.decode = true
-				case 'i':
-					opts.ignoreGarbage = true
-				case 'w':
-					// An attached value takes the rest of the group,
-					// otherwise the next argument holds it.
-					value := arg[j+1:]
-					if value == "" {
-						i++
-						if i == len(args) {
-							return options{}, nil, errors.New("option requires an argument -- 'w'")
-						}
-						value = args[i]
-					}
-					wrap, err := parseWrap(value)
-					if err != nil {
-						return options{}, nil, err
-					}
-					opts.wrap = wrap
-					break option
-				default:
-					return options{}, nil, fmt.Errorf("invalid option -- '%c'", arg[j])
-				}
-			}
+			return getopt.InvalidOption(opt)
 		}
+		return nil
+	})
+	if err != nil {
+		return options{}, nil, err
 	}
 	return opts, operands, nil
 }

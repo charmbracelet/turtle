@@ -10,9 +10,9 @@ import (
 	"context"
 	"fmt"
 	"strconv"
-	"strings"
 
 	"charm.land/snail/coreutils"
+	"charm.land/snail/coreutils/internal/getopt"
 	"charm.land/snail/coreutils/internal/zcore"
 )
 
@@ -79,46 +79,21 @@ type settings struct {
 // parsing stops at the first operand or at "--".
 func parseFlags(args []string, base zcore.Options) (settings, error) {
 	set := settings{Options: base}
-	parsing := true
-
-	for i := 0; i < len(args); i++ {
-		arg := args[i]
-		if !parsing || arg == "-" || !strings.HasPrefix(arg, "-") {
-			parsing = false
-			set.operands = append(set.operands, arg)
-			continue
+	operands, err := getopt.Set{Valued: "bm"}.Parse(args, func(opt rune, value string) error {
+		switch opt {
+		case 'c', 'd', 'f', 'g', 'v':
+			set.apply(opt)
+		case 'b', 'm':
+			return set.assign(opt, value)
+		default:
+			return getopt.InvalidOption(opt)
 		}
-		if arg == "--" {
-			parsing = false
-			continue
-		}
-		if strings.HasPrefix(arg, "--") {
-			return settings{}, fmt.Errorf("invalid option -- '%c'", arg[2])
-		}
-
-		for j := 1; j < len(arg); j++ {
-			switch c := arg[j]; c {
-			case 'c', 'd', 'f', 'g', 'v':
-				set.apply(c)
-			case 'b', 'm':
-				value := arg[j+1:]
-				if value == "" {
-					if i+1 == len(args) {
-						return settings{}, fmt.Errorf("option requires an argument -- '%c'", c)
-					}
-					i++
-					value = args[i]
-				}
-				if err := set.assign(c, value); err != nil {
-					return settings{}, err
-				}
-				j = len(arg)
-			default:
-				return settings{}, fmt.Errorf("invalid option -- '%c'", c)
-			}
-		}
+		return nil
+	})
+	if err != nil {
+		return settings{}, err
 	}
-
+	set.operands = operands
 	if set.bitsSet {
 		if err := set.checkBits(); err != nil {
 			return settings{}, err
@@ -128,8 +103,8 @@ func parseFlags(args []string, base zcore.Options) (settings, error) {
 }
 
 // apply sets the option given as a short flag.
-func (s *settings) apply(c byte) {
-	switch c {
+func (s *settings) apply(opt rune) {
+	switch opt {
 	case 'c':
 		s.Stdout = true
 	case 'd':
@@ -144,8 +119,8 @@ func (s *settings) apply(c byte) {
 }
 
 // assign sets the option-argument of -b or -m.
-func (s *settings) assign(c byte, value string) error {
-	if c == 'm' {
+func (s *settings) assign(opt rune, value string) error {
+	if opt == 'm' {
 		switch value {
 		case "lzw":
 			s.Algorithm = zcore.LZW

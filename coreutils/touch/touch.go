@@ -13,6 +13,7 @@ import (
 	"time"
 
 	"charm.land/snail/coreutils"
+	"charm.land/snail/coreutils/internal/getopt"
 	"charm.land/snail/fsx"
 )
 
@@ -164,7 +165,7 @@ type options struct {
 	access   bool
 	modify   bool
 	noCreate bool
-	source   byte
+	source   rune
 	value    string
 }
 
@@ -173,40 +174,9 @@ type options struct {
 // either glued to the option or in the next argument, and the last one given
 // is the one used.
 func parseFlags(args []string) (options, []string, error) {
-	var (
-		opts    options
-		files   []string
-		parsing = true
-	)
-	for i := 0; i < len(args); i++ {
-		arg := args[i]
-		switch {
-		case !parsing || arg == "-" || !strings.HasPrefix(arg, "-"):
-			parsing = false
-			files = append(files, arg)
-		case arg == "--":
-			parsing = false
-		case strings.HasPrefix(arg, "--"):
-			return options{}, nil, fmt.Errorf("unrecognized option '%s'", arg)
-		default:
-			var err error
-			opts, i, err = parseShortFlags(arg, opts, args, i)
-			if err != nil {
-				return options{}, nil, err
-			}
-		}
-	}
-	if !opts.access && !opts.modify {
-		opts.access, opts.modify = true, true
-	}
-	return opts, files, nil
-}
-
-// parseShortFlags parses a single short option argument, returning the index
-// of the last argument it consumed.
-func parseShortFlags(arg string, opts options, args []string, i int) (options, int, error) {
-	for j := 1; j < len(arg); j++ {
-		switch c := arg[j]; c {
+	var opts options
+	files, err := getopt.Set{Valued: "drt"}.Parse(args, func(opt rune, value string) error {
+		switch opt {
 		case 'a':
 			opts.access = true
 		case 'c':
@@ -214,21 +184,19 @@ func parseShortFlags(arg string, opts options, args []string, i int) (options, i
 		case 'm':
 			opts.modify = true
 		case 'd', 'r', 't':
-			value := arg[j+1:]
-			if value == "" {
-				i++
-				if i >= len(args) {
-					return opts, i, fmt.Errorf("option requires an argument -- '%c'", c)
-				}
-				value = args[i]
-			}
-			opts.source, opts.value = c, value
-			return opts, i, nil
+			opts.source, opts.value = opt, value
 		default:
-			return opts, i, fmt.Errorf("invalid option -- '%c'", c)
+			return getopt.InvalidOption(opt)
 		}
+		return nil
+	})
+	if err != nil {
+		return options{}, nil, err
 	}
-	return opts, i, nil
+	if !opts.access && !opts.modify {
+		opts.access, opts.modify = true, true
+	}
+	return opts, files, nil
 }
 
 // parseTime parses a -t time of the form [[CC]YY]MMDDhhmm[.SS].

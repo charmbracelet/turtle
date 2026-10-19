@@ -23,6 +23,7 @@ import (
 	"unicode/utf8"
 
 	"charm.land/snail/coreutils"
+	"charm.land/snail/coreutils/internal/getopt"
 )
 
 // Prog is the wc core utility.
@@ -196,36 +197,24 @@ func (p *Prog) errorf(format string, args ...any) {
 // first operand or at "--". Following the POSIX description, -m replaces the
 // byte count, discarding -c no matter the order the options are given.
 func parseFlags(args []string) (options, []string, error) {
-	var (
-		opts     options
-		operands []string
-	)
-	parsing := true
-	for _, arg := range args {
-		switch {
-		case !parsing || arg == "-" || !strings.HasPrefix(arg, "-"):
-			parsing = false
-			operands = append(operands, arg)
-		case arg == "--":
-			parsing = false
-		case strings.HasPrefix(arg, "--"):
-			return options{}, nil, fmt.Errorf("unrecognized option '%s'", arg)
+	var opts options
+	operands, err := getopt.Set{}.Parse(args, func(opt rune, _ string) error {
+		switch opt {
+		case 'c':
+			opts.bytes = true
+		case 'l':
+			opts.lines = true
+		case 'm':
+			opts.chars = true
+		case 'w':
+			opts.words = true
 		default:
-			for i := 1; i < len(arg); i++ {
-				switch arg[i] {
-				case 'c':
-					opts.bytes = true
-				case 'l':
-					opts.lines = true
-				case 'm':
-					opts.chars = true
-				case 'w':
-					opts.words = true
-				default:
-					return options{}, nil, fmt.Errorf("invalid option -- '%c'", arg[i])
-				}
-			}
+			return getopt.InvalidOption(opt)
 		}
+		return nil
+	})
+	if err != nil {
+		return options{}, nil, err
 	}
 	if opts.chars {
 		opts.bytes = false

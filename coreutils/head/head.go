@@ -14,9 +14,9 @@ import (
 	"io/fs"
 	"path/filepath"
 	"strconv"
-	"strings"
 
 	"charm.land/snail/coreutils"
+	"charm.land/snail/coreutils/internal/getopt"
 )
 
 // Prog is the head core utility.
@@ -176,42 +176,22 @@ func (p *Prog) errorf(format string, args ...any) {
 func parseFlags(args []string) (options, []string, error) {
 	var (
 		opts     options
-		operands []string
 		countSet bool
-		parsing  = true
 	)
-	for i := 0; i < len(args); i++ {
-		arg := args[i]
-		switch {
-		case !parsing || arg == "-" || !strings.HasPrefix(arg, "-"):
-			parsing = false
-			operands = append(operands, arg)
-		case arg == "--":
-			parsing = false
-		case strings.HasPrefix(arg, "--"):
-			return options{}, nil, fmt.Errorf("unrecognized option '%s'", arg)
-		default:
-			for j := 1; j < len(arg); j++ {
-				if arg[j] != 'c' && arg[j] != 'n' {
-					return options{}, nil, fmt.Errorf("invalid option -- '%c'", arg[j])
-				}
-				value := arg[j+1:]
-				if value == "" {
-					i++
-					if i == len(args) {
-						return options{}, nil, fmt.Errorf("option requires an argument -- '%c'", arg[j])
-					}
-					value = args[i]
-				}
-				count, err := parseCount(value)
-				if err != nil {
-					return options{}, nil, err
-				}
-				opts = options{lines: arg[j] == 'n', count: count}
-				countSet = true
-				break
-			}
+	operands, err := getopt.Set{Valued: "cn"}.Parse(args, func(opt rune, value string) error {
+		if opt != 'c' && opt != 'n' {
+			return getopt.InvalidOption(opt)
 		}
+		count, err := parseCount(value)
+		if err != nil {
+			return err
+		}
+		opts = options{lines: opt == 'n', count: count}
+		countSet = true
+		return nil
+	})
+	if err != nil {
+		return options{}, nil, err
 	}
 	if !countSet {
 		opts = options{lines: true, count: 10}

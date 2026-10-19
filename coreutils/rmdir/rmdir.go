@@ -7,9 +7,9 @@ import (
 	"fmt"
 	"io/fs"
 	"path/filepath"
-	"strings"
 
 	"charm.land/snail/coreutils"
+	"charm.land/snail/coreutils/internal/getopt"
 )
 
 // Prog is the rmdir core utility.
@@ -114,26 +114,14 @@ func unwrapPathError(err error) error {
 // parseFlags parses the options and operands. Option parsing stops at the
 // first operand or at "--".
 func parseFlags(args []string) (parents bool, dirs []string, err error) {
-	parsing := true
-	for _, arg := range args {
-		switch {
-		case !parsing || arg == "-" || !strings.HasPrefix(arg, "-"):
-			parsing = false
-			dirs = append(dirs, arg)
-		case arg == "--":
-			parsing = false
-		case strings.HasPrefix(arg, "--"):
-			return false, nil, fmt.Errorf("unrecognized option '%s'", arg)
-		default:
-			for j := 1; j < len(arg); j++ {
-				if arg[j] != 'p' {
-					return false, nil, fmt.Errorf("invalid option -- '%c'", arg[j])
-				}
-				parents = true
-			}
+	dirs, err = getopt.Set{}.Parse(args, func(opt rune, _ string) error {
+		if opt != 'p' {
+			return getopt.InvalidOption(opt)
 		}
-	}
-	return parents, dirs, nil
+		parents = true
+		return nil
+	})
+	return parents, dirs, err
 }
 
 var (

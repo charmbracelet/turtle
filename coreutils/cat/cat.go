@@ -12,9 +12,9 @@ import (
 	"io"
 	"io/fs"
 	"path/filepath"
-	"strings"
 
 	"charm.land/snail/coreutils"
+	"charm.land/snail/coreutils/internal/getopt"
 )
 
 // Prog is the cat core utility.
@@ -130,28 +130,12 @@ func (p *Prog) errorf(format string, args ...any) {
 // output is written as each byte is read, which is the behavior -u asks for.
 // Option parsing stops at the first operand or at "--".
 func parseFlags(args []string) ([]string, error) {
-	var (
-		operands []string
-		parsing  = true
-	)
-	for _, arg := range args {
-		switch {
-		case !parsing || arg == "-" || !strings.HasPrefix(arg, "-"):
-			parsing = false
-			operands = append(operands, arg)
-		case arg == "--":
-			parsing = false
-		case strings.HasPrefix(arg, "--"):
-			return nil, fmt.Errorf("unrecognized option '%s'", arg)
-		default:
-			for i := 1; i < len(arg); i++ {
-				if arg[i] != 'u' {
-					return nil, fmt.Errorf("invalid option -- '%c'", arg[i])
-				}
-			}
+	return getopt.Set{}.Parse(args, func(opt rune, _ string) error {
+		if opt != 'u' {
+			return getopt.InvalidOption(opt)
 		}
-	}
-	return operands, nil
+		return nil
+	})
 }
 
 // input describes an input operand: a pathname or the standard input.
