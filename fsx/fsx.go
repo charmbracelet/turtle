@@ -47,6 +47,13 @@ type ChmodFS interface {
 	Chmod(name string, mode fs.FileMode) error
 }
 
+// ChownFS can change the numeric owner and group of a file.
+type ChownFS interface {
+	// Chown changes the numeric uid and gid of the named file, like os.Chown.
+	// A uid or gid of -1 means to not change that value.
+	Chown(name string, uid, gid int) error
+}
+
 // MkdirFS can create directories.
 type MkdirFS interface {
 	// Mkdir creates a new directory with the given permissions, like
@@ -98,6 +105,7 @@ type FS interface {
 	WriteFS
 	ChtimesFS
 	ChmodFS
+	ChownFS
 	MkdirFS
 	RemoveFS
 	RenameFS

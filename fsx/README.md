@@ -15,6 +15,8 @@ The main interface, `fsx.FS`, embeds `io/fs.FS` plus:
   `os.OpenFile`.
 - `ChtimesFS`: `Chtimes` sets the access and modification times of a file.
 - `ChmodFS`: `Chmod` changes the file mode bits of a file, like `os.Chmod`.
+- `ChownFS`: `Chown` changes the numeric owner and group of a file, like
+  `os.Chown`.
 - `MkdirFS`: `Mkdir` creates a new directory, like `os.Mkdir`.
 - `RemoveFS`: `Remove` removes a file or an empty directory, like
   `os.Remove`.
@@ -27,7 +29,8 @@ The main interface, `fsx.FS`, embeds `io/fs.FS` plus:
 
 On top of that, `fsx.File` is an `fs.File` that can also be written to,
 `fsx.Atime` reads the last access time of a file, which `fs.FileInfo` doesn't
-expose, and `fsx.SeekFile` is a file whose offset can be changed, like
+expose, `fsx.Owner` reads the numeric owner and group IDs of a file for the same
+reason, and `fsx.SeekFile` is a file whose offset can be changed, like
 `os.File`. The latter isn't embedded into the other interfaces because not every
 file is seekable, like pipes: callers should check for it and fall back to
 reading sequentially when it isn't implemented.

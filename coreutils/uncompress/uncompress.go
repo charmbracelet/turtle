@@ -1,0 +1,14 @@
+// Package uncompress implements the uncompress command.
+package uncompress
+
+import (
+	"charm.land/snail/coreutils"
+	"charm.land/snail/coreutils/compress"
+)
+
+// New returns a program which restores compressed files.
+func New(rt *coreutils.Runtime) coreutils.Program {
+	return compress.Uncompress(rt)
+}
+
+var _ coreutils.NewFunc = New

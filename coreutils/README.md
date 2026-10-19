@@ -126,15 +126,17 @@ v0 and we do progress. We have some progress tracking below.
 | Terminal           | `tty`        | ❌    | ❌  |
 | Terminal           | `more`       | ❌    | ❌  |
 | Encoding / Archive | `iconv`      | ❌    | ❌  |
-| Encoding / Archive | `compress`   | ❌    | ❌  |
-| Encoding / Archive | `uncompress` | ❌    | ❌  |
-| Encoding / Archive | `zcat`       | ❌    | ❌  |
+| Encoding / Archive | `compress`*  | ❌    | ❌  |
+| Encoding / Archive | `uncompress` | ✅    | ❌  |
+| Encoding / Archive | `zcat`       | ✅    | ❌  |
 | Encoding / Archive | `uudecode`   | ❌    | ❌  |
 | Encoding / Archive | `uuencode`   | ❌    | ❌  |
 | GNU                | `base32`     | —     | ✅  |
 | GNU                | `base64`     | —     | ✅  |
-| GNU                | `gzip`       | —     | ❌  |
-| GNU                | `gunzip`     | —     | ❌  |
+| GNU                | `gzip`       | —     | ✅  |
+| GNU                | `gunzip`     | —     | ✅  |
+| GNU                | `gzcat`      | —     | ✅  |
+| GNU                | `zcat`       | —     | ✅  |
 | GNU                | `install`    | —     | ❌  |
 | GNU                | `md5sum`     | —     | ❌  |
 | GNU                | `mktemp`     | —     | ❌  |
@@ -153,3 +155,13 @@ v0 and we do progress. We have some progress tracking below.
 | GNU                | `which`      | —     | ❌  |
 | GNU                | `whoami`     | —     | ❌  |
 | GNU                | `yes`        | —     | ❌  |
+| GNU                | `zless`†     | —     | ❌  |
+
+> [!NOTE]
+> `*` The LZW algorithm (the POSIX default, with its `.Z` suffix) is not yet
+> implemented for `compress`. Compression with `-g` or `-m gzip`/`-m deflate`
+> works, and `uncompress` and `zcat` can read `.gz` files. LZW compression
+> returns the specification's unsupported-algorithm exit status (>2).
+>
+> `†` `zless` is only a wrapper around an interactive pager, so it's out of scope
+> for this project.

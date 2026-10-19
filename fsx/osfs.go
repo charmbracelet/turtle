@@ -40,6 +40,11 @@ func (f *osFS) Chmod(name string, mode fs.FileMode) error {
 	return os.Chmod(f.resolve(name), mode)
 }
 
+// Chown implements ChownFS.
+func (f *osFS) Chown(name string, uid, gid int) error {
+	return os.Chown(f.resolve(name), uid, gid)
+}
+
 // Mkdir implements MkdirFS.
 func (f *osFS) Mkdir(name string, perm fs.FileMode) error {
 	return os.Mkdir(f.resolve(name), perm)
