@@ -155,7 +155,6 @@ v0 and we do progress. We have some progress tracking below.
 | GNU                | `which`      | —     | ❌  |
 | GNU                | `whoami`     | —     | ❌  |
 | GNU                | `yes`        | —     | ❌  |
-| GNU                | `zless`†     | —     | ❌  |
 
 > [!NOTE]
 > `*` The LZW algorithm (the POSIX default, with its `.Z` suffix) is not yet
@@ -165,6 +164,3 @@ v0 and we do progress. We have some progress tracking below.
 > specification's unsupported-algorithm exit status (>2). This implementation
 > also does not prompt before overwriting on a terminal or check for multiple
 > hard links.
->
-> `†` `zless` is only a wrapper around an interactive pager, so it's out of scope
-> for this project.
