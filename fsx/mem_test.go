@@ -7,6 +7,7 @@ import (
 	"os"
 	"slices"
 	"testing"
+	"testing/fstest"
 	"time"
 )
 
@@ -646,6 +647,85 @@ func TestMemFSChmod(t *testing.T) {
 					t.Errorf("Chmod(%q) error = %v, want %v", test.path, err, test.wantErr)
 				}
 			})
+		}
+	})
+}
+
+func TestMemFSChown(t *testing.T) {
+	t.Run("changes the uid and gid", func(t *testing.T) {
+		fsys := MemFS{"file.txt": {Data: []byte("hello"), Uid: 1, Gid: 2}}
+
+		if err := fsys.Chown("file.txt", 1000, 2000); err != nil {
+			t.Fatalf("Chown() error = %v", err)
+		}
+		fi, err := fs.Stat(fsys, "file.txt")
+		if err != nil {
+			t.Fatalf("Stat() error = %v", err)
+		}
+		uid, gid, ok := Owner(fi)
+		if !ok {
+			t.Fatal("Owner() ok = false, want true")
+		}
+		if uid != 1000 || gid != 2000 {
+			t.Errorf("Owner() = %d, %d, want 1000, 2000", uid, gid)
+		}
+	})
+
+	t.Run("keeps an ID given as -1", func(t *testing.T) {
+		fsys := MemFS{"file.txt": {Data: []byte("hello"), Uid: 7, Gid: 8}}
+
+		if err := fsys.Chown("file.txt", -1, 9); err != nil {
+			t.Fatalf("Chown() error = %v", err)
+		}
+		if file := fsys["file.txt"]; file.Uid != 7 || file.Gid != 9 {
+			t.Errorf("Uid, Gid = %d, %d, want 7, 9", file.Uid, file.Gid)
+		}
+	})
+
+	t.Run("ignores implicit directories", func(t *testing.T) {
+		fsys := MemFS{"dir/file.txt": {Data: []byte("hello")}}
+
+		if err := fsys.Chown("dir", 1000, 1000); err != nil {
+			t.Errorf("Chown() error = %v, want nil", err)
+		}
+	})
+
+	t.Run("errors", func(t *testing.T) {
+		tests := []struct {
+			name    string
+			fsys    MemFS
+			path    string
+			wantErr error
+		}{
+			{"missing file", MemFS{}, "missing.txt", fs.ErrNotExist},
+			{"missing file in a directory", MemFS{}, "dir/missing.txt", fs.ErrNotExist},
+			{"absolute path", MemFS{}, "/file.txt", fs.ErrInvalid},
+			{"empty path", MemFS{}, "", fs.ErrInvalid},
+		}
+		for _, test := range tests {
+			t.Run(test.name, func(t *testing.T) {
+				if err := test.fsys.Chown(test.path, 0, 0); !errors.Is(err, test.wantErr) {
+					t.Errorf("Chown(%q) error = %v, want %v", test.path, err, test.wantErr)
+				}
+			})
+		}
+	})
+}
+
+func TestOwner(t *testing.T) {
+	t.Run("reports nothing without a file info", func(t *testing.T) {
+		if _, _, ok := Owner(nil); ok {
+			t.Error("Owner(nil) ok = true, want false")
+		}
+	})
+
+	t.Run("reports nothing for a foreign file info", func(t *testing.T) {
+		fi, err := fs.Stat(fstest.MapFS{"file.txt": {Data: []byte("hello")}}, "file.txt")
+		if err != nil {
+			t.Fatalf("Stat() error = %v", err)
+		}
+		if _, _, ok := Owner(fi); ok {
+			t.Error("Owner() ok = true, want false")
 		}
 	})
 }

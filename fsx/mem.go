@@ -36,6 +36,11 @@ type MemFile struct {
 	Mode    fs.FileMode
 	ModTime time.Time
 
+	// Uid and Gid are the numeric owner and group IDs of the file, changed by
+	// Chown and read by Owner.
+	Uid int
+	Gid int
+
 	atime time.Time
 }
 
@@ -142,6 +147,28 @@ func (m MemFS) Chmod(name string, mode fs.FileMode) error {
 		m[name] = f
 	}
 	f.Mode = f.Mode.Type() | mode&chmodBits
+	return nil
+}
+
+// Chown implements ChownFS. A uid or gid of -1 keeps the current value.
+// Implicit directories are ignored.
+func (m MemFS) Chown(name string, uid, gid int) error {
+	if !fs.ValidPath(name) {
+		return &fs.PathError{Op: "chown", Path: name, Err: fs.ErrInvalid}
+	}
+	f, ok := m[name]
+	if !ok {
+		if m.isDir(name) {
+			return nil
+		}
+		return &fs.PathError{Op: "chown", Path: name, Err: fs.ErrNotExist}
+	}
+	if uid >= 0 {
+		f.Uid = uid
+	}
+	if gid >= 0 {
+		f.Gid = gid
+	}
 	return nil
 }
 

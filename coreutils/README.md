@@ -126,15 +126,17 @@ v0 and we do progress. We have some progress tracking below.
 | Terminal           | `tty`        | ❌    | ❌  |
 | Terminal           | `more`       | ❌    | ❌  |
 | Encoding / Archive | `iconv`      | ❌    | ❌  |
-| Encoding / Archive | `compress`   | ❌    | ❌  |
+| Encoding / Archive | `compress`*  | ❌    | ❌  |
 | Encoding / Archive | `uncompress` | ❌    | ❌  |
 | Encoding / Archive | `zcat`       | ❌    | ❌  |
 | Encoding / Archive | `uudecode`   | ❌    | ❌  |
 | Encoding / Archive | `uuencode`   | ❌    | ❌  |
 | GNU                | `base32`     | —     | ✅  |
 | GNU                | `base64`     | —     | ✅  |
-| GNU                | `gzip`       | —     | ❌  |
-| GNU                | `gunzip`     | —     | ❌  |
+| GNU                | `gzip`       | —     | ✅  |
+| GNU                | `gunzip`     | —     | ✅  |
+| GNU                | `gzcat`      | —     | ✅  |
+| GNU                | `zcat`       | —     | ✅  |
 | GNU                | `install`    | —     | ❌  |
 | GNU                | `md5sum`     | —     | ❌  |
 | GNU                | `mktemp`     | —     | ❌  |
@@ -153,3 +155,12 @@ v0 and we do progress. We have some progress tracking below.
 | GNU                | `which`      | —     | ❌  |
 | GNU                | `whoami`     | —     | ❌  |
 | GNU                | `yes`        | —     | ❌  |
+
+> [!NOTE]
+> `*` The LZW algorithm (the POSIX default, with its `.Z` suffix) is not yet
+> implemented for `compress`. Compression with `-g` or `-m gzip`/`-m deflate`
+> works. `uncompress` and `zcat` can restore `.gz` files, but `.Z` input is
+> unsupported until the LZW decoder is implemented. LZW compression returns the
+> specification's unsupported-algorithm exit status (>2). This implementation
+> also does not prompt before overwriting on a terminal or check for multiple
+> hard links.

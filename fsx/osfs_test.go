@@ -188,6 +188,54 @@ func TestOsFSChmod(t *testing.T) {
 	}
 }
 
+func TestOsFSChown(t *testing.T) {
+	switch runtime.GOOS {
+	case "windows", "plan9":
+		t.Skip("the file system here doesn't model ownership")
+	}
+
+	dir := t.TempDir()
+	fsys := OsFS(dir)
+
+	uid, gid := os.Getuid(), os.Getgid()
+	chownFS := fsys.(ChownFS)
+	if err := chownFS.Chown("file.txt", uid, gid); !errors.Is(err, fs.ErrNotExist) {
+		t.Fatalf("Chown() error = %v, want fs.ErrNotExist", err)
+	}
+
+	f, err := fsys.OpenFile("file.txt", os.O_CREATE|os.O_WRONLY, 0o644)
+	if err != nil {
+		t.Fatalf("OpenFile() error = %v", err)
+	}
+	if err := f.Close(); err != nil {
+		t.Fatalf("Close() error = %v", err)
+	}
+
+	// Giving the file to its current owner is always allowed, unlike giving it
+	// to somebody else.
+	if err := chownFS.Chown("file.txt", uid, gid); err != nil && !errors.Is(err, os.ErrPermission) {
+		t.Fatalf("Chown() error = %v, want nil or os.ErrPermission", err)
+	}
+	fi, err := fs.Stat(fsys, "file.txt")
+	if err != nil {
+		t.Fatalf("Stat() error = %v", err)
+	}
+	if gotUID, gotGID, ok := Owner(fi); !ok || gotUID != uid || gotGID != gid {
+		t.Errorf("Owner() = %d, %d, %v, want %d, %d, true", gotUID, gotGID, ok, uid, gid)
+	}
+
+	if err := chownFS.Chown("file.txt", -1, gid); err != nil && !errors.Is(err, os.ErrPermission) {
+		t.Fatalf("Chown() error = %v, want nil or os.ErrPermission", err)
+	}
+	fi, err = fs.Stat(fsys, "file.txt")
+	if err != nil {
+		t.Fatalf("Stat() error = %v", err)
+	}
+	if gotUID, _, ok := Owner(fi); !ok || gotUID != uid {
+		t.Errorf("Owner() uid = %d, %v, want %d, true", gotUID, ok, uid)
+	}
+}
+
 func TestOsFSMkdir(t *testing.T) {
 	dir := t.TempDir()
 	fsys := OsFS(dir)
