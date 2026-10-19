@@ -133,6 +133,31 @@ func TestStripSuffix(t *testing.T) {
 	}
 }
 
+func TestStoredFileName(t *testing.T) {
+	tests := []struct {
+		name  string
+		input string
+		want  bool
+	}{
+		{"ordinary name", "report.txt", true},
+		{"traversal", "../evil", false},
+		{"dot", ".", false},
+		{"dot dot", "..", false},
+		{"slash", "dir/file", false},
+		{"backslash", `dir\\file`, false},
+		{"newline", "bad\nname", false},
+		{"NUL", "bad\x00name", false},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			_, got := storedFileName(test.input)
+			if got != test.want {
+				t.Errorf("storedFileName(%q) ok = %v, want %v", test.input, got, test.want)
+			}
+		})
+	}
+}
+
 func TestRatio(t *testing.T) {
 	tests := []struct {
 		compressed int64

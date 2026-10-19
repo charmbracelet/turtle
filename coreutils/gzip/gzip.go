@@ -34,8 +34,9 @@ func Gunzip(rt *coreutils.Runtime) coreutils.Program {
 	})
 }
 
-// Zcat returns a new Prog which writes restored files to the standard output,
-// as gzip does when invoked as zcat.
+// Zcat returns a new Prog which writes restored files to standard output, as
+// gzip does when invoked as zcat. This front end also restores .Z input only
+// when the LZW decoder is implemented.
 func Zcat(rt *coreutils.Runtime) coreutils.Program {
 	return newProg(rt, "zcat", func(opts *zcore.Options) {
 		opts.Decompress = true
@@ -43,7 +44,7 @@ func Zcat(rt *coreutils.Runtime) coreutils.Program {
 	})
 }
 
-// Gzcat returns a new Prog, the name zcat goes by on some systems.
+// Gzcat returns a new Prog, an alias for zcat on some systems.
 func Gzcat(rt *coreutils.Runtime) coreutils.Program {
 	return newProg(rt, "gzcat", func(opts *zcore.Options) {
 		opts.Decompress = true
@@ -70,9 +71,7 @@ func newProg(rt *coreutils.Runtime, name string, defaults func(*zcore.Options)) 
 func (p *Prog) Run(ctx context.Context, args ...string) error {
 	set, err := parseFlags(append(envOptions(p.Getenv("GZIP")), args...), p.base)
 	if err != nil {
-		if !set.quiet {
-			fmt.Fprintf(p.Stderr, "%s: %v\n", p.base.Prog, err)
-		}
+		fmt.Fprintf(p.Stderr, "%s: %v\n", p.base.Prog, err)
 		return &coreutils.ExitError{Code: 1, Err: err}
 	}
 	switch {
@@ -93,7 +92,6 @@ type settings struct {
 	operands []string
 	help     bool
 	version  bool
-	quiet    bool
 }
 
 // longOptions maps the long options of gzip to the short ones they stand for.
@@ -150,7 +148,7 @@ func parseFlags(args []string, base zcore.Options) (settings, error) {
 			if short == "S" {
 				if !hasValue {
 					if i+1 == len(args) {
-						return set, fmt.Errorf("option requires an argument -- 'S'")
+						return settings{}, fmt.Errorf("option requires an argument -- 'S'")
 					}
 					i++
 					value = args[i]
@@ -176,7 +174,7 @@ func parseFlags(args []string, base zcore.Options) (settings, error) {
 				value := cluster[j+1:]
 				if value == "" {
 					if i+1 == len(args) {
-						return set, fmt.Errorf("option requires an argument -- 'S'")
+						return settings{}, fmt.Errorf("option requires an argument -- 'S'")
 					}
 					i++
 					value = args[i]
@@ -186,7 +184,7 @@ func parseFlags(args []string, base zcore.Options) (settings, error) {
 			case '0', '1', '2', '3', '4', '5', '6', '7', '8', '9':
 				set.Level = int(c - '0')
 			default:
-				return set, fmt.Errorf("invalid option -- '%c'", c)
+				return settings{}, fmt.Errorf("invalid option -- '%c'", c)
 			}
 		}
 	}
@@ -211,7 +209,6 @@ func (s *settings) apply(c byte) {
 		s.StoreName = false
 	case 'q':
 		s.Quiet = true
-		s.quiet = true
 	case 'r':
 		s.Recursive = true
 	case 't':
@@ -229,7 +226,7 @@ func envOptions(value string) []string {
 
 // usage describes the options of the utility.
 func usage(prog string) string {
-	return `Usage: ` + prog + ` [-cdfhknNqrStv] [-19] [-S suffix] [file ...]
+	return `Usage: ` + prog + ` [-cdfhknNqrStv] [-0..-9] [-S suffix] [file ...]
 
   -1..-9    compression level: -1 (fast) to -9 (best), -0 for none
   -c, --stdout

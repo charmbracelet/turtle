@@ -437,9 +437,6 @@ func (m MemFS) resolve(name string, followLast bool) (string, error) {
 		}
 		cur := path.Join(dir, comp)
 		f, ok := m[cur]
-		if ok && f == nil {
-			return cur, fs.ErrInvalid
-		}
 		switch {
 		case ok && f.Mode&fs.ModeSymlink != 0:
 			if rest == "" && !followLast {

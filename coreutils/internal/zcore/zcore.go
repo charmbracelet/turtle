@@ -106,7 +106,7 @@ var (
 	errNoAlgorithm   = errors.New("compression algorithm not supported")
 	errNoFS          = errors.New("no file system available")
 	errNoStdin       = errors.New("no standard input available")
-	errNotCompressed = errors.New("not in gzip format")
+	errNotCompressed = errors.New("compressed format not recognized")
 	errUnknownSuffix = errors.New("unknown suffix -- ignored")
 	errUnsupported   = errors.New("unsupported compression format")
 )
@@ -130,9 +130,6 @@ type run struct {
 func Run(ctx context.Context, rt *coreutils.Runtime, opts Options, operands []string) error {
 	r := &run{rt: rt, opts: opts}
 	if !opts.Decompress && opts.Algorithm == LZW {
-		if opts.Quiet {
-			return &coreutils.ExitError{Code: 3, Err: errNoAlgorithm}
-		}
 		r.fail("", errNoAlgorithm)
 		return &coreutils.ExitError{Code: 3, Err: errNoAlgorithm}
 	}
@@ -164,9 +161,7 @@ func (r *run) status() error {
 	return nil
 }
 
-// operand processes a single operand, which may name a file, a directory when
-// the utility recurses, or the standard input when it is "-". Only errors which
-// stop the whole run are returned.
+// operand processes one file operand, or recurses into it when -r is set.
 func (r *run) operand(ctx context.Context, operand string) error {
 	if operand == "-" {
 		return r.stdio(ctx)
@@ -175,62 +170,31 @@ func (r *run) operand(ctx context.Context, operand string) error {
 		r.fail(operand, errNoFS)
 		return nil
 	}
-	if r.opts.Decompress && (r.opts.Stdout || r.opts.Test) {
-		name := r.slash(operand)
-		if !r.exists(operand) && r.exists(operand+r.opts.suffix()) {
-			name = r.slash(operand + r.opts.suffix())
-		}
-		file, err := r.rt.FS.Open(name)
-		if err != nil {
-			r.fail(operand, err)
-			return nil
-		}
-		defer file.Close()
-		if r.opts.Test {
-			return r.testFileOpen(ctx, operand, file)
-		}
-		_, err = openSource(file).decode(ctx, r.stdout(), r.opts.Force)
-		if stopErr := r.stop(ctx, err); stopErr != nil {
-			return stopErr
-		}
-		if err != nil {
-			r.fail(operand, decodeError(err))
-		}
-		return nil
-	}
-	if r.opts.Decompress && !r.opts.Stdout && !r.opts.Test {
-		name := r.slash(operand)
-		if fi, err := r.rt.FS.Lstat(name); err == nil && fi.IsDir() {
-			if !r.opts.Recursive {
-				r.fail(operand, errIsDir)
-				return nil
-			}
-			return r.walk(ctx, operand, name)
-		}
-		in, out, err := r.decompressNames(operand)
-		if err != nil {
-			r.fail(operand, err)
-			return nil
-		}
-		if r.exists(out) && !r.opts.Force && in != out && out != operand {
-			r.fail(operand, fmt.Errorf("cannot overwrite %s: file exists", out))
-			return nil
-		}
-		r.decompressFile(ctx, operand)
-		return nil
-	}
 
 	name := r.slash(operand)
 	fi, err := r.rt.FS.Lstat(name)
 	if err != nil && r.opts.Decompress {
-		if suffixed := operand + r.opts.suffix(); r.exists(suffixed) {
-			name = r.slash(suffixed)
-			fi, err = r.rt.FS.Lstat(name)
+		in, _, resolveErr := r.decompressNames(operand)
+		if resolveErr != nil {
+			if errors.Is(resolveErr, errUnknownSuffix) {
+				r.warn(operand, resolveErr)
+			} else {
+				r.fail(operand, resolveErr)
+			}
+			return nil
 		}
+		name = r.slash(in)
+		fi, err = r.rt.FS.Lstat(name)
 	}
 	if err != nil {
+		if r.opts.Decompress && r.opts.Stdout && r.opts.Force {
+			return r.decompressToStdout(ctx, operand)
+		}
 		r.fail(operand, err)
 		return nil
+	}
+	if r.opts.Decompress && r.opts.Stdout && r.opts.Force && !fi.Mode().IsRegular() {
+		return r.decompressToStdout(ctx, operand)
 	}
 	if fi.IsDir() {
 		if !r.opts.Recursive {
@@ -239,18 +203,56 @@ func (r *run) operand(ctx context.Context, operand string) error {
 		}
 		return r.walk(ctx, operand, name)
 	}
-
-	switch {
-	case r.opts.Test:
-		return r.testFile(ctx, operand)
-	case r.opts.Stdout:
-		return r.fileToStdout(ctx, operand)
-	case r.opts.Decompress:
-		r.decompressFile(ctx, operand)
-	default:
-		r.compressFile(ctx, operand)
+	if !fi.Mode().IsRegular() && !r.opts.Force {
+		r.fail(operand, errors.New("not a regular file"))
+		return nil
 	}
+
+	if r.opts.Decompress {
+		if r.opts.Test || r.opts.Stdout {
+			return r.decompressToStdout(ctx, operand)
+		}
+		r.decompressFile(ctx, operand)
+		return nil
+	}
+	if r.opts.Test {
+		return r.testFile(ctx, operand)
+	}
+	if r.opts.Stdout {
+		return r.fileToStdout(ctx, operand)
+	}
+	if !r.opts.Force {
+		if _, hasSuffix := stripSuffix(operand, r.opts); hasSuffix {
+			r.warn(operand, fmt.Errorf("already has %s suffix -- unchanged", path.Ext(operand)))
+			return nil
+		}
+	}
+	r.compressFile(ctx, operand)
 	return nil
+}
+
+// decompressToStdout restores or tests a file without changing it.
+func (r *run) decompressToStdout(ctx context.Context, operand string) error {
+	input := operand
+	if !r.exists(input) {
+		if r.exists(input + r.opts.suffix()) {
+			input += r.opts.suffix()
+		} else if !r.opts.Force {
+			r.fail(operand, fs.ErrNotExist)
+			return nil
+		}
+	}
+	file, err := r.rt.FS.Open(r.slash(input))
+	if err != nil {
+		r.fail(operand, err)
+		return nil
+	}
+	defer file.Close()
+	if r.opts.Test {
+		return r.testFileOpen(ctx, operand, file)
+	}
+	_, err = openSource(file).decode(ctx, r.stdout(), r.opts.Force)
+	return r.streamError(ctx, operand, err)
 }
 
 // walk processes the entries of a directory operand, as -r asks for. Symbolic
@@ -304,14 +306,9 @@ func (r *run) stdio(ctx context.Context) error {
 	return nil
 }
 
-// fileToStdout writes a single operand to the standard output, decompressing it
-// when asked to.
+// fileToStdout writes a file operand to the standard output, compressing it.
 func (r *run) fileToStdout(ctx context.Context, operand string) error {
-	name := r.slash(operand)
-	if r.opts.Decompress && !r.exists(operand) && r.exists(operand+r.opts.suffix()) {
-		name = r.slash(operand + r.opts.suffix())
-	}
-	file, err := r.rt.FS.Open(name)
+	file, err := r.rt.FS.Open(r.slash(operand))
 	if err != nil {
 		r.fail(operand, err)
 		return nil
@@ -440,8 +437,8 @@ func (r *run) decompressFile(ctx context.Context, operand string) {
 		r.fail(operand, err)
 		return
 	}
-	if r.exists(in) && !r.opts.Keep && in != operand && out != operand {
-		r.fail(operand, fmt.Errorf("cannot overwrite %s: file exists", out))
+	if in == operand && out == operand {
+		r.fail(operand, errUnknownSuffix)
 		return
 	}
 
@@ -458,20 +455,37 @@ func (r *run) decompressFile(ctx context.Context, operand string) {
 		return
 	}
 	src := openSource(file)
-	if r.opts.StoreName && src.algorithm == Gzip {
+	if src.algorithm != Gzip {
+		if src.algorithm == LZW {
+			r.fail(operand, errUnsupported)
+		} else {
+			r.fail(operand, errors.New("format not recognized"))
+		}
+		return
+	}
+	if r.opts.StoreName {
 		if err := src.open(); err != nil {
 			r.fail(operand, decodeError(err))
 			return
 		}
 		if src.storedName != "" {
-			out = path.Join(path.Dir(in), src.storedName)
+			storedName, ok := storedFileName(src.storedName)
+			if !ok {
+				r.fail(operand, errors.New("unsafe stored file name"))
+				return
+			}
+			out = path.Join(path.Dir(in), storedName)
 		}
 	}
-	if err := checkName(out); err != nil {
-		r.fail(operand, err)
+	if checkNameErr := checkName(out); checkNameErr != nil {
+		r.fail(operand, checkNameErr)
 		return
 	}
-	if r.exists(out) && !r.opts.Force && out != in {
+	if out == in {
+		r.fail(operand, errors.New("cannot overwrite compressed file"))
+		return
+	}
+	if r.exists(out) && !r.opts.Force {
 		r.fail(operand, fmt.Errorf("cannot overwrite %s: file exists", out))
 		return
 	}
@@ -497,6 +511,11 @@ func (r *run) decompressFile(ctx context.Context, operand string) {
 	r.copyAttrs(out, fi)
 	if !r.opts.Keep {
 		if err := r.rt.FS.Remove(r.slash(in)); err != nil {
+			if !r.opts.Force {
+				r.remove(out)
+				r.fail(operand, err)
+				return
+			}
 			r.warn(operand, err)
 		}
 	}
@@ -505,10 +524,9 @@ func (r *run) decompressFile(ctx context.Context, operand string) {
 	}
 }
 
-// decompressNames returns the operand to read for a given operand and the name
-// of the file to write, following the suffix rules of the specifications: an
-// operand which doesn't hold a known suffix names the output, and the suffix of
-// the algorithm makes the name of the input.
+// decompressNames returns the file to read and the restored name. An operand
+// with a recognized compression suffix is treated as an input; otherwise its
+// algorithm suffix is appended to find the input.
 func (r *run) decompressNames(operand string) (in, out string, err error) {
 	if stripped, ok := stripSuffix(operand, r.opts); ok && r.exists(operand) {
 		return operand, stripped, nil
@@ -555,7 +573,9 @@ func (r *run) copyAttrs(operand string, fi fs.FileInfo) {
 		_ = r.rt.FS.Chtimes(name, fi.ModTime(), fi.ModTime())
 	}
 	if uid, gid, ok := fsx.Owner(fi); ok {
-		_ = r.rt.FS.Chown(name, uid, gid)
+		if chownFS, ok := r.rt.FS.(fsx.ChownFS); ok {
+			_ = chownFS.Chown(name, uid, gid)
+		}
 	}
 }
 

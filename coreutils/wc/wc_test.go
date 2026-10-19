@@ -76,10 +76,6 @@ func (readerFS) Chmod(string, fs.FileMode) error {
 	return fs.ErrInvalid
 }
 
-func (readerFS) Chown(string, int, int) error {
-	return fs.ErrInvalid
-}
-
 func (readerFS) Mkdir(string, fs.FileMode) error {
 	return fs.ErrInvalid
 }

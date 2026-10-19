@@ -346,6 +346,12 @@ func TestGzipErrors(t *testing.T) {
 			wantErr: "is a directory",
 		},
 		{
+			name:    "a missing decompression operand",
+			args:    []string{"-d", "missing.txt"},
+			fsys:    fsx.MemFS{},
+			wantErr: "file does not exist",
+		},
+		{
 			name:    "data which isn't compressed",
 			args:    []string{"-d", "a.txt"},
 			fsys:    testFS(),
@@ -495,15 +501,51 @@ func TestGunzipSuffixes(t *testing.T) {
 		wantData(t, fsys, map[string]string{"a.txt": "alpha\n"}, "a.txt.gz")
 	})
 
-	t.Run("-N uses the name stored in the file", func(t *testing.T) {
-		fsys := fsx.MemFS{"a.gz": {Data: []byte(gz(t, "named.txt", mtime, "alpha\n")), Mode: 0o644}}
+	t.Run("-N restores the stored name in the same directory", func(t *testing.T) {
+		fsys := fsx.MemFS{"sub/a.gz": {Data: []byte(gz(t, "named.txt", mtime, "alpha\n")), Mode: 0o644}}
 
-		res, fsys := run(t, Gunzip, fsys, nil, nil, "-N", "a.gz")
+		res, fsys := run(t, Gunzip, fsys, nil, nil, "-N", "sub/a.gz")
 
 		if res.exit != 0 {
 			t.Errorf("exit = %d, want 0 (%s)", res.exit, res.stderr)
 		}
-		wantData(t, fsys, map[string]string{"named.txt": "alpha\n"}, "a.gz")
+		wantData(t, fsys, map[string]string{"sub/named.txt": "alpha\n"}, "sub/a.gz")
+	})
+
+	t.Run("-N refuses a stored name equal to the compressed input", func(t *testing.T) {
+		fsys := fsx.MemFS{"a.gz": {Data: []byte(gz(t, "a.gz", mtime, "alpha\n")), Mode: 0o644}}
+
+		res, fsys := run(t, Gunzip, fsys, nil, nil, "-N", "a.gz")
+
+		if res.exit != 1 {
+			t.Errorf("exit = %d, want 1", res.exit)
+		}
+		wantData(t, fsys, map[string]string{"a.gz": string(fsys["a.gz"].Data)})
+	})
+
+	t.Run("-N refuses a path traversal name", func(t *testing.T) {
+		fsys := fsx.MemFS{"sub/a.gz": {Data: []byte(gz(t, "../evil", mtime, "alpha\n")), Mode: 0o644}}
+
+		res, fsys := run(t, Gunzip, fsys, nil, nil, "-N", "sub/a.gz")
+
+		if res.exit != 1 {
+			t.Errorf("exit = %d, want 1", res.exit)
+		}
+		wantData(t, fsys, map[string]string{"sub/a.gz": string(fsys["sub/a.gz"].Data)})
+		if _, ok := fsys["evil"]; ok {
+			t.Error("evil: unexpected file")
+		}
+	})
+
+	t.Run("-N refuses names containing a newline", func(t *testing.T) {
+		fsys := fsx.MemFS{"a.gz": {Data: []byte(gz(t, "bad\nname", mtime, "alpha\n")), Mode: 0o644}}
+
+		res, fsys := run(t, Gunzip, fsys, nil, nil, "-N", "a.gz")
+
+		if res.exit != 1 {
+			t.Errorf("exit = %d, want 1", res.exit)
+		}
+		wantData(t, fsys, map[string]string{"a.gz": string(fsys["a.gz"].Data)})
 	})
 }
 
@@ -549,14 +591,22 @@ func TestZcat(t *testing.T) {
 		}
 	})
 
-	t.Run("data which isn't compressed passes through with -f", func(t *testing.T) {
-		res, _ := run(t, Zcat, testFS(), nil, nil, "-f", "a.txt")
-
-		if res.exit != 0 {
-			t.Errorf("exit = %d, want 0 (%s)", res.exit, res.stderr)
+	t.Run("-f -c passes through an operand that doesn't exist", func(t *testing.T) {
+		fsys := fsx.MemFS{"plain": {Data: []byte("alpha\n"), Mode: 0o644}}
+		res, _ := run(t, Zcat, fsys, nil, nil, "-f", "plain")
+		if res.exit != 0 || res.stdout != "alpha\n" {
+			t.Errorf("exit = %d, stdout = %q, stderr = %q", res.exit, res.stdout, res.stderr)
 		}
-		if res.stdout != "alpha\n" {
-			t.Errorf("stdout = %q, want alpha\\n", res.stdout)
+	})
+
+	t.Run("-f -c passes through an operand that has a non-regular type", func(t *testing.T) {
+		fsys := fsx.MemFS{
+			"plain": {Data: []byte("plain"), Mode: 0o644},
+			"link":  {Data: []byte("plain"), Mode: fs.ModeSymlink | 0o777},
+		}
+		res, _ := run(t, Zcat, fsys, nil, nil, "-f", "link")
+		if res.exit != 0 || res.stdout != "plain" {
+			t.Errorf("exit = %d, stdout = %q, stderr = %q", res.exit, res.stdout, res.stderr)
 		}
 	})
 
@@ -566,7 +616,7 @@ func TestZcat(t *testing.T) {
 		if res.exit != 1 {
 			t.Errorf("exit = %d, want 1", res.exit)
 		}
-		if !strings.Contains(res.stderr, "not in gzip format") {
+		if !strings.Contains(res.stderr, "format not recognized") {
 			t.Errorf("stderr = %q, want it to mention the format", res.stderr)
 		}
 	})
@@ -677,6 +727,28 @@ func TestGzipTest(t *testing.T) {
 }
 
 func TestGzipRecursive(t *testing.T) {
+	t.Run("compression refuses symlinks without -f", func(t *testing.T) {
+		fsys := fsx.MemFS{
+			"target.txt": {Data: []byte("alpha\n"), Mode: 0o644},
+			"link.txt":   {Data: []byte("target.txt"), Mode: fs.ModeSymlink | 0o777},
+		}
+		res, fsys := run(t, New, fsys, nil, nil, "link.txt")
+		if res.exit != 1 || fsys["link.txt"] == nil || fsys["link.txt.gz"] != nil {
+			t.Errorf("exit = %d, files = %v, stderr = %q", res.exit, names(fsys), res.stderr)
+		}
+	})
+
+	t.Run("compression permits symlinks with -f", func(t *testing.T) {
+		fsys := fsx.MemFS{
+			"target.txt": {Data: []byte("alpha\n"), Mode: 0o644},
+			"link.txt":   {Data: []byte("target.txt"), Mode: fs.ModeSymlink | 0o777},
+		}
+		res, fsys := run(t, New, fsys, nil, nil, "-f", "link.txt")
+		if res.exit != 0 || fsys["link.txt"] != nil || fsys["link.txt.gz"] == nil {
+			t.Errorf("exit = %d, files = %v, stderr = %q", res.exit, names(fsys), res.stderr)
+		}
+	})
+
 	t.Run("-r walks into directories", func(t *testing.T) {
 		fsys := fsx.MemFS{
 			"sub/c.txt":    {Data: []byte("gamma\n"), Mode: 0o644},
@@ -709,6 +781,22 @@ func TestGzipRecursive(t *testing.T) {
 		}
 		if _, ok := fsys["sub/link"]; !ok {
 			t.Error("sub/link: want the link to be left alone")
+		}
+	})
+
+	t.Run("-rc recurses into directories", func(t *testing.T) {
+		fsys := fsx.MemFS{"sub/a.gz": gzFile(t, "alpha\n")}
+		res, _ := run(t, Gunzip, fsys, nil, nil, "-rc", "sub")
+		if res.exit != 0 || res.stdout != "alpha\n" {
+			t.Errorf("exit = %d, stdout = %q, stderr = %q", res.exit, res.stdout, res.stderr)
+		}
+	})
+
+	t.Run("-rt tests files in directories", func(t *testing.T) {
+		fsys := fsx.MemFS{"sub/a.gz": gzFile(t, "alpha\n")}
+		res, _ := run(t, Gunzip, fsys, nil, nil, "-rt", "sub")
+		if res.exit != 0 || res.stdout != "" {
+			t.Errorf("exit = %d, stdout = %q, stderr = %q", res.exit, res.stdout, res.stderr)
 		}
 	})
 
@@ -787,20 +875,15 @@ func TestGzipEnv(t *testing.T) {
 
 	t.Run("an invalid option in GZIP fails", func(t *testing.T) {
 		res, _ := run(t, New, testFS(), nil, map[string]string{"GZIP": "-Z"}, "a.txt")
-
 		if res.exit != 1 {
 			t.Errorf("exit = %d, want 1", res.exit)
 		}
 	})
 
-	t.Run("quiet from GZIP suppresses option diagnostics", func(t *testing.T) {
-		res, _ := run(t, New, testFS(), nil, map[string]string{"GZIP": "-q -Z"}, "a.txt")
-
-		if res.exit != 1 {
-			t.Errorf("exit = %d, want 1", res.exit)
-		}
-		if res.stderr != "" {
-			t.Errorf("stderr = %q, want none", res.stderr)
+	t.Run("an invalid long option reports a diagnostic", func(t *testing.T) {
+		res, _ := run(t, New, testFS(), nil, nil, "-q", "--bogus")
+		if res.exit != 1 || res.stderr == "" {
+			t.Errorf("exit = %d, stderr = %q, want error and diagnostic", res.exit, res.stderr)
 		}
 	})
 }

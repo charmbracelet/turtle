@@ -86,35 +86,30 @@ func TestCompressGzipMode(t *testing.T) {
 
 func TestCompressLZWDeferred(t *testing.T) {
 	tests := []struct {
-		name string
-		new  coreutils.NewFunc
-		args []string
+		name     string
+		mode     string
+		args     []string
+		wantCode int
+		wantErr  string
 	}{
-		{"default compress", New, []string{"a.txt"}},
-		{"explicit lzw", New, []string{"-m", "lzw", "a.txt"}},
-		{"uncompress .Z", Uncompress, []string{"a.txt.Z"}},
+		{"default compress", "compress", []string{"a.txt"}, 3, "compression algorithm not supported"},
+		{"explicit lzw", "compress", []string{"-m", "lzw", "a.txt"}, 3, "compression algorithm not supported"},
+		{"uncompress .Z", "uncompress", []string{"a.txt.Z"}, 1, "unsupported compression format"},
 	}
 
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			fsys := testFS()
-			if test.name == "uncompress .Z" {
+			newFunc, fsys := New, testFS()
+			if test.mode == "uncompress" {
+				newFunc = Uncompress
 				fsys = fsx.MemFS{"a.txt.Z": {Data: []byte{0x1f, 0x9d, 0x48, 0x00}, Mode: 0o644}}
 			}
-			code, _, stderr, _ := run(t, test.new, fsys, test.args...)
-
-			want := 3
-			if test.name == "uncompress .Z" {
-				want = 1
+			code, _, stderr, _ := run(t, newFunc, fsys, test.args...)
+			if code != test.wantCode {
+				t.Errorf("exit = %d, want %d (%s)", code, test.wantCode, stderr)
 			}
-			if code != want {
-				t.Errorf("exit = %d, want %d (%s)", code, want, stderr)
-			}
-			if !strings.Contains(stderr, "compression algorithm not supported") && test.name != "uncompress .Z" {
-				t.Errorf("stderr = %q, want unsupported algorithm", stderr)
-			}
-			if test.name == "uncompress .Z" && !strings.Contains(stderr, "unsupported compression format") {
-				t.Errorf("stderr = %q, want unsupported format", stderr)
+			if !strings.Contains(stderr, test.wantErr) {
+				t.Errorf("stderr = %q, want %q", stderr, test.wantErr)
 			}
 		})
 	}
@@ -136,12 +131,17 @@ func TestCompressLZWDeferred(t *testing.T) {
 
 func TestUncompressGzip(t *testing.T) {
 	t.Run("restores a gzip file with either suffix", func(t *testing.T) {
-		for _, name := range []string{"a.txt.gz", "a.txt.Z"} {
-			t.Run(name, func(t *testing.T) {
-				fsys := fsx.MemFS{name: {Data: gzipData(t, strings.Repeat("alpha ", 30)), Mode: 0o644}}
-
-				code, _, stderr, fsys := run(t, Uncompress, fsys, name)
-
+		tests := []struct {
+			name string
+			in   string
+		}{
+			{"gzip", "a.txt.gz"},
+			{"legacy suffix", "a.txt.Z"},
+		}
+		for _, test := range tests {
+			t.Run(test.name, func(t *testing.T) {
+				fsys := fsx.MemFS{test.in: {Data: gzipData(t, strings.Repeat("alpha ", 30)), Mode: 0o644}}
+				code, _, stderr, fsys := run(t, Uncompress, fsys, test.in)
 				if code != 0 {
 					t.Errorf("exit = %d, want 0 (%s)", code, stderr)
 				}
@@ -150,8 +150,8 @@ func TestUncompressGzip(t *testing.T) {
 				} else if got, want := string(file.Data), strings.Repeat("alpha ", 30); got != want {
 					t.Errorf("a.txt = %q, want original", got)
 				}
-				if _, ok := fsys[name]; ok {
-					t.Errorf("%s: want input removed", name)
+				if _, ok := fsys[test.in]; ok {
+					t.Errorf("%s: want input removed", test.in)
 				}
 			})
 		}
@@ -191,6 +191,31 @@ func TestCompressOptions(t *testing.T) {
 		}
 		if got := string(fsys["a.txt"].Data); got != strings.Repeat("alpha ", 30) {
 			t.Errorf("a.txt = %q, want original", got)
+		}
+	})
+
+	t.Run("-g on tiny files returns POSIX status 2 and keeps input", func(t *testing.T) {
+		fsys := fsx.MemFS{"tiny.txt": {Data: []byte("x"), Mode: 0o644}}
+		code, _, stderr, fsys := run(t, New, fsys, "-g", "tiny.txt")
+		if code != 2 {
+			t.Errorf("exit = %d, want 2 (%s)", code, stderr)
+		}
+		if file := fsys["tiny.txt"]; file == nil || string(file.Data) != "x" {
+			t.Error("tiny.txt: input was removed or changed")
+		}
+		if _, ok := fsys["tiny.txt.gz"]; ok {
+			t.Error("tiny.txt.gz: output should have been discarded")
+		}
+	})
+
+	t.Run("an already-compressed suffix is skipped", func(t *testing.T) {
+		fsys := fsx.MemFS{"a.txt.gz": {Data: []byte("data"), Mode: 0o644}}
+		code, _, stderr, fsys := run(t, func(rt *coreutils.Runtime) coreutils.Program { return gzip.New(rt) }, fsys, "a.txt.gz")
+		if code != 2 {
+			t.Errorf("exit = %d, want 2 (%s)", code, stderr)
+		}
+		if _, ok := fsys["a.txt.gz.gz"]; ok {
+			t.Error("a.txt.gz.gz: unexpected double-compressed output")
 		}
 	})
 

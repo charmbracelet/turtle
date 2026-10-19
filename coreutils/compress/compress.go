@@ -27,8 +27,8 @@ func New(rt *coreutils.Runtime) coreutils.Program {
 	return newProg(rt, "compress", nil)
 }
 
-// Uncompress returns a new Prog which restores files, as compress does when
-// invoked as uncompress.
+// Uncompress returns a new Prog which restores gzip files. Restoring the POSIX
+// default LZW format is not implemented yet.
 func Uncompress(rt *coreutils.Runtime) coreutils.Program {
 	return newProg(rt, "uncompress", func(opts *zcore.Options) {
 		opts.Decompress = true
@@ -60,9 +60,7 @@ func newProg(rt *coreutils.Runtime, name string, defaults func(*zcore.Options)) 
 func (p *Prog) Run(ctx context.Context, args ...string) error {
 	set, err := parseFlags(args, p.base)
 	if err != nil {
-		if !set.Quiet {
-			fmt.Fprintf(p.Stderr, "%s: %v\n", p.base.Prog, err)
-		}
+		fmt.Fprintf(p.Stderr, "%s: %v\n", p.base.Prog, err)
 		return &coreutils.ExitError{Code: 1, Err: err}
 	}
 	return zcore.Run(ctx, p.Runtime, set.Options, set.operands)
@@ -74,7 +72,6 @@ type settings struct {
 	operands []string
 	bits     int
 	bitsSet  bool
-	quiet    bool
 }
 
 // parseFlags parses args on top of the base options of the program. The -b and
@@ -91,22 +88,17 @@ func parseFlags(args []string, base zcore.Options) (settings, error) {
 			set.operands = append(set.operands, arg)
 			continue
 		}
+		if arg == "--" {
+			parsing = false
+			continue
+		}
 		if strings.HasPrefix(arg, "--") {
-			if len(arg) == 2 {
-				parsing = false
-				continue
-			}
 			return settings{}, fmt.Errorf("invalid option -- '%c'", arg[2])
 		}
 
 		for j := 1; j < len(arg); j++ {
 			switch c := arg[j]; c {
-			case 'c', 'd', 'f', 'v':
-				set.apply(c)
-				if c == 'f' {
-					set.quiet = true
-				}
-			case 'g':
+			case 'c', 'd', 'f', 'g', 'v':
 				set.apply(c)
 			case 'b', 'm':
 				value := arg[j+1:]
@@ -118,16 +110,10 @@ func parseFlags(args []string, base zcore.Options) (settings, error) {
 					value = args[i]
 				}
 				if err := set.assign(c, value); err != nil {
-					if set.quiet {
-						return set, err
-					}
 					return settings{}, err
 				}
 				j = len(arg)
 			default:
-				if set.quiet {
-					return set, fmt.Errorf("invalid option -- '%c'", c)
-				}
 				return settings{}, fmt.Errorf("invalid option -- '%c'", c)
 			}
 		}

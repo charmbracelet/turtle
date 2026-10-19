@@ -105,7 +105,6 @@ type FS interface {
 	WriteFS
 	ChtimesFS
 	ChmodFS
-	ChownFS
 	MkdirFS
 	RemoveFS
 	RenameFS

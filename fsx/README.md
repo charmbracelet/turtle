@@ -15,8 +15,8 @@ The main interface, `fsx.FS`, embeds `io/fs.FS` plus:
   `os.OpenFile`.
 - `ChtimesFS`: `Chtimes` sets the access and modification times of a file.
 - `ChmodFS`: `Chmod` changes the file mode bits of a file, like `os.Chmod`.
-- `ChownFS`: `Chown` changes the numeric owner and group of a file, like
-  `os.Chown`.
+- `ChownFS`: optional capability; `Chown` changes the numeric owner and group
+  of a file, like `os.Chown`.
 - `MkdirFS`: `Mkdir` creates a new directory, like `os.Mkdir`.
 - `RemoveFS`: `Remove` removes a file or an empty directory, like
   `os.Remove`.

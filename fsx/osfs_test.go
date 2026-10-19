@@ -198,7 +198,8 @@ func TestOsFSChown(t *testing.T) {
 	fsys := OsFS(dir)
 
 	uid, gid := os.Getuid(), os.Getgid()
-	if err := fsys.Chown("file.txt", uid, gid); !errors.Is(err, fs.ErrNotExist) {
+	chownFS := fsys.(ChownFS)
+	if err := chownFS.Chown("file.txt", uid, gid); !errors.Is(err, fs.ErrNotExist) {
 		t.Fatalf("Chown() error = %v, want fs.ErrNotExist", err)
 	}
 
@@ -212,7 +213,7 @@ func TestOsFSChown(t *testing.T) {
 
 	// Giving the file to its current owner is always allowed, unlike giving it
 	// to somebody else.
-	if err := fsys.Chown("file.txt", uid, gid); err != nil && !errors.Is(err, os.ErrPermission) {
+	if err := chownFS.Chown("file.txt", uid, gid); err != nil && !errors.Is(err, os.ErrPermission) {
 		t.Fatalf("Chown() error = %v, want nil or os.ErrPermission", err)
 	}
 	fi, err := fs.Stat(fsys, "file.txt")
@@ -223,7 +224,7 @@ func TestOsFSChown(t *testing.T) {
 		t.Errorf("Owner() = %d, %d, %v, want %d, %d, true", gotUID, gotGID, ok, uid, gid)
 	}
 
-	if err := fsys.Chown("file.txt", -1, gid); err != nil && !errors.Is(err, os.ErrPermission) {
+	if err := chownFS.Chown("file.txt", -1, gid); err != nil && !errors.Is(err, os.ErrPermission) {
 		t.Fatalf("Chown() error = %v, want nil or os.ErrPermission", err)
 	}
 	fi, err = fs.Stat(fsys, "file.txt")
