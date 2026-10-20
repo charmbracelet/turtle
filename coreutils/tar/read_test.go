@@ -4,6 +4,7 @@ import (
 	"archive/tar"
 	"errors"
 	"io/fs"
+	"runtime"
 	"strings"
 	"testing"
 	"time"
@@ -534,6 +535,41 @@ func TestExtract(t *testing.T) {
 			args:     []string{"-xf", "-"},
 			wantErr:  "tar: -: This does not look like a tar archive\n",
 			wantExit: 1,
+		},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			runExtract(t, test)
+		})
+	}
+}
+
+func TestExtractWindowsSeparators(t *testing.T) {
+	if runtime.GOOS != "windows" {
+		t.Skip("backslash is a separator only on Windows")
+	}
+	tests := []extractCase{
+		{
+			name:     "backslash parent escape refused",
+			stdin:    buildArchive(t, entry{name: `..\evil.txt`, typ: tar.TypeReg, mode: 0o644, body: "x"}),
+			args:     []string{"-xf", "-"},
+			wantErr:  `tar: ..\evil.txt: Member name contains '..'` + "\n",
+			wantExit: 1,
+		},
+		{
+			name:     "backslash nested escape refused",
+			stdin:    buildArchive(t, entry{name: `sub\..\evil.txt`, typ: tar.TypeReg, mode: 0o644, body: "x"}),
+			args:     []string{"-xf", "-"},
+			wantErr:  `tar: sub\..\evil.txt: Member name contains '..'` + "\n",
+			wantExit: 1,
+		},
+		{
+			name:     "backslash drive escape refused",
+			stdin:    buildArchive(t, entry{name: `C:\evil.txt`, typ: tar.TypeReg, mode: 0o644, body: "x"}),
+			args:     []string{"-xf", "-"},
+			want:     map[string]string{"evil.txt": "x"},
+			wantErr:  "tar: Removing leading '/' from member names\n",
+			wantExit: 0,
 		},
 	}
 	for _, test := range tests {

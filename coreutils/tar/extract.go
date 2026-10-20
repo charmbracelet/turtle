@@ -9,6 +9,7 @@ import (
 	"io/fs"
 	"os"
 	"path"
+	"path/filepath"
 	"slices"
 	"strings"
 	"time"
@@ -80,7 +81,9 @@ func (a *archiver) extract(ctx context.Context, operands []string) error {
 // an archive can't write outside the working directory. The empty name, for
 // the root itself, is skipped.
 func (a *archiver) extractName(name string) (string, error) {
-	name = a.relativeName(name)
+	// Backslashes are separators on Windows: normalize before the component
+	// checks, or a member named "..\x" would escape.
+	name = a.relativeName(filepath.ToSlash(name))
 	if slices.Contains(strings.Split(name, "/"), "..") {
 		return "", errors.New("Member name contains '..'")
 	}
