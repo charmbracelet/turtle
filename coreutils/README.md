@@ -152,7 +152,7 @@ v0 and we do progress. We have some progress tracking below.
 | GNU                | `stat`       | —     | ❌  |
 | GNU                | `sync`       | —     | ❌  |
 | GNU                | `tac`        | —     | ❌  |
-| GNU                | `tar`        | —     | ❌  |
+| GNU                | `tar`        | —     | ✅  |
 | GNU                | `truncate`   | —     | ❌  |
 | GNU                | `which`      | —     | ❌  |
 | GNU                | `whoami`     | —     | ❌  |
@@ -166,3 +166,12 @@ v0 and we do progress. We have some progress tracking below.
 > specification's unsupported-algorithm exit status (>2). This implementation
 > also does not prompt before overwriting on a terminal or check for multiple
 > hard links.
+>
+> `tar` supports the `-c`, `-r`, `-t`, `-u` and `-x` operations and the `-b`,
+> `-e`, `-f`, `-h`, `-m`, `-o`, `-p`, `-v` and `-w` options, in both the dashed
+> and the old option styles. Member operands of `-t` and `-x` are literal names
+> or directory prefixes, not glob patterns; ownership is never changed, making
+> `-o` a no-op; `-e` only ignores files which can't be read while an archive is
+> created; extraction refuses to write through symbolic links; and the archive
+> is the standard input or output (or the name in the `TAPE` environment
+> variable) when `-f` is not given.
