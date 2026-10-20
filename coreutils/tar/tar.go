@@ -9,7 +9,8 @@
 //
 // Some GNU behaviors are out of scope: operands of -t and -x are literal
 // names or directory prefixes, not glob patterns; member ownership is never
-// changed, making -o a no-op; and with no -f the archive is the standard
+// changed, making -o a no-op; -e only ignores files which can't be read
+// while an archive is created; and with no -f the archive is the standard
 // input or output, taken from the TAPE environment variable when set.
 package tar
 
@@ -146,6 +147,8 @@ func parseFlags(args []string) (options, []string, error) {
 			opts.archive = value
 			opts.archiveSet = true
 		case 'e':
+			// Like GNU's --ignore-failed-read: unreadable files don't fail
+			// an archive creation.
 			opts.ignoreErrors = true
 		case 'h':
 			opts.dereference = true
@@ -281,10 +284,9 @@ func (a *archiver) fail(name string, err error) {
 	a.failed = true
 }
 
-// exit returns a [*coreutils.ExitError] with code when the run failed,
-// which -e suppresses for extraction errors.
+// exit returns a [*coreutils.ExitError] with code when the run failed.
 func (a *archiver) exit(code int) error {
-	if a.failed && !a.opts.ignoreErrors {
+	if a.failed {
 		return &coreutils.ExitError{Code: code}
 	}
 	return nil
@@ -345,9 +347,14 @@ func cleanName(name string) string {
 }
 
 // relativeName returns the name stored in the archive for an operand,
-// stripping leading slashes, with a one-time note about it.
+// stripping leading slashes, with a one-time note about it. Drive letters,
+// which make a name absolute on Windows, are stripped the same way; on other
+// systems VolumeName is always empty.
 func (a *archiver) relativeName(name string) string {
 	stripped := strings.TrimLeft(name, "/")
+	if vol := filepath.VolumeName(stripped); vol != "" {
+		stripped = strings.TrimLeft(stripped[len(vol):], "/")
+	}
 	if stripped != name && !a.notedSlash {
 		a.errorf("Removing leading '/' from member names")
 		a.notedSlash = true

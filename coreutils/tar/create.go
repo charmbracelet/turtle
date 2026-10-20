@@ -161,6 +161,16 @@ func (a *archiver) scanEntries(ctx context.Context) (map[string]time.Time, error
 	}
 }
 
+// failCreate reports an input failure while archiving: with -e the run is
+// still a success, like GNU's --ignore-failed-read.
+func (a *archiver) failCreate(name string, err error) {
+	if a.opts.ignoreErrors {
+		a.errorf("%s: %v", name, unwrapPathError(err))
+		return
+	}
+	a.fail(name, err)
+}
+
 // archiveEntry writes a single operand to tw under name, recursing into
 // directories. With existing set (update), entries which aren't newer than
 // the stored copy are left out.
@@ -177,7 +187,7 @@ func (a *archiver) archiveEntry(ctx context.Context, tw *tar.Writer, name, resol
 		fi, err = fs.Stat(a.rt.FS, resolved)
 	}
 	if err != nil {
-		a.fail(name, err)
+		a.failCreate(name, err)
 		return
 	}
 	name = a.relativeName(cleanName(name))
@@ -185,7 +195,7 @@ func (a *archiver) archiveEntry(ctx context.Context, tw *tar.Writer, name, resol
 		a.writeEntry(ctx, tw, name, resolved, fi, existing)
 		children, err := fs.ReadDir(a.rt.FS, resolved)
 		if err != nil {
-			a.fail(name, err)
+			a.failCreate(name, err)
 			return
 		}
 		for _, child := range children {
@@ -201,7 +211,7 @@ func (a *archiver) archiveEntry(ctx context.Context, tw *tar.Writer, name, resol
 func (a *archiver) writeEntry(ctx context.Context, tw *tar.Writer, name, resolved string, fi fs.FileInfo, existing map[string]time.Time) {
 	hdr, err := a.header(name, resolved, fi)
 	if err != nil {
-		a.fail(name, err)
+		a.failCreate(name, err)
 		return
 	}
 	if existing != nil {
@@ -224,15 +234,15 @@ func (a *archiver) writeEntry(ctx context.Context, tw *tar.Writer, name, resolve
 	}
 	in, err := a.rt.FS.Open(resolved)
 	if err != nil {
-		a.fail(name, err)
+		a.failCreate(name, err)
 		return
 	}
 	_, copyErr := io.Copy(tw, ctxReader{ctx: ctx, r: in})
 	closeErr := in.Close()
 	if copyErr != nil {
-		a.fail(name, copyErr)
+		a.failCreate(name, copyErr)
 	} else if closeErr != nil {
-		a.fail(name, closeErr)
+		a.failCreate(name, closeErr)
 	}
 }
 

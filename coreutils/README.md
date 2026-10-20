@@ -171,5 +171,7 @@ v0 and we do progress. We have some progress tracking below.
 > `-e`, `-f`, `-h`, `-m`, `-o`, `-p`, `-v` and `-w` options, in both the dashed
 > and the old option styles. Member operands of `-t` and `-x` are literal names
 > or directory prefixes, not glob patterns; ownership is never changed, making
-> `-o` a no-op; and the archive is the standard input or output (or the name in
-> the `TAPE` environment variable) when `-f` is not given.
+> `-o` a no-op; `-e` only ignores files which can't be read while an archive is
+> created; extraction refuses to write through symbolic links; and the archive
+> is the standard input or output (or the name in the `TAPE` environment
+> variable) when `-f` is not given.

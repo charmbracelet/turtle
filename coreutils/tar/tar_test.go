@@ -8,6 +8,8 @@ import (
 	"io"
 	"io/fs"
 	"os"
+	"path/filepath"
+	"runtime"
 	"strings"
 	"testing"
 	"time"
@@ -338,6 +340,15 @@ func TestCreate(t *testing.T) {
 			wantExit: 1,
 		},
 		{
+			name:  "ignore failed read",
+			files: fsx.MemFS{"hello.txt": helloFile()},
+			args:  []string{"-cf", "-", "-e", "nope", "hello.txt"},
+			want: []entry{
+				{name: "hello.txt", typ: tar.TypeReg, mode: 0o644, body: "hello\n", mtime: oldTime},
+			},
+			wantErr: "tar: nope: file does not exist\n",
+		},
+		{
 			name:     "no operands",
 			files:    fsx.MemFS{"hello.txt": helloFile()},
 			args:     []string{"-cf", "-"},
@@ -445,8 +456,20 @@ func TestCreateAbsolute(t *testing.T) {
 	if got := stderr.String(); got != "tar: Removing leading '/' from member names\n" {
 		t.Errorf("stderr = %q, want the strip note", got)
 	}
+
+	// The stored name drops what made the operand absolute: the leading
+	// slashes, and the drive letter on Windows, where files also report a
+	// mode of 0666.
+	want := strings.TrimLeft(filepath.ToSlash(dir+"/d/f.txt"), "/")
+	if vol := filepath.VolumeName(want); vol != "" {
+		want = strings.TrimLeft(want[len(vol):], "/")
+	}
+	mode := int64(0o644)
+	if runtime.GOOS == "windows" {
+		mode = 0o666
+	}
 	compareEntries(t, []entry{
-		{name: strings.TrimPrefix(dir+"/d/f.txt", "/"), typ: tar.TypeReg, mode: 0o644, body: "x\n", uid: -1, gid: -1},
+		{name: want, typ: tar.TypeReg, mode: mode, body: "x\n", uid: -1, gid: -1},
 	}, parseArchive(t, stdout.String()))
 }
 

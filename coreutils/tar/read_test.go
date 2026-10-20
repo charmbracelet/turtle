@@ -368,6 +368,57 @@ func TestExtract(t *testing.T) {
 			wantExit: 1,
 		},
 		{
+			name: "symbolic link in the path is refused",
+			files: fsx.MemFS{
+				"evil/old.txt": {Data: []byte("old"), Mode: 0o644},
+				"link":         {Mode: fs.ModeSymlink | 0o777, Data: []byte("evil")},
+			},
+			stdin:    buildArchive(t, entry{name: "link/pwned.txt", typ: tar.TypeReg, mode: 0o644, body: "x"}),
+			args:     []string{"-xf", "-"},
+			absent:   []string{"link/pwned.txt", "evil/pwned.txt"},
+			want:     map[string]string{"evil/old.txt": "old"},
+			wantErr:  "tar: link/pwned.txt: refusing to extract through symbolic link 'link'\n",
+			wantExit: 1,
+		},
+		{
+			name: "symbolic link higher in the path is refused",
+			files: fsx.MemFS{
+				"evil/old.txt": {Data: []byte("old"), Mode: 0o644},
+				"a/link":       {Mode: fs.ModeSymlink | 0o777, Data: []byte("../evil")},
+			},
+			stdin:    buildArchive(t, entry{name: "a/link/deep/x.txt", typ: tar.TypeReg, mode: 0o644, body: "x"}),
+			args:     []string{"-xf", "-"},
+			absent:   []string{"evil/deep/x.txt"},
+			wantErr:  "tar: a/link/deep/x.txt: refusing to extract through symbolic link 'a/link'\n",
+			wantExit: 1,
+		},
+		{
+			name: "regular file replaces a symbolic link",
+			files: fsx.MemFS{
+				"target": {Data: []byte("OLD"), Mode: 0o644},
+				"f.txt":  {Mode: fs.ModeSymlink | 0o777, Data: []byte("target")},
+			},
+			stdin: buildArchive(t, entry{name: "f.txt", typ: tar.TypeReg, mode: 0o644, body: "new"}),
+			args:  []string{"-xf", "-"},
+			want:  map[string]string{"f.txt": "new", "target": "OLD"},
+			check: func(t *testing.T, files fsx.MemFS) {
+				if _, err := files.ReadLink("f.txt"); err == nil {
+					t.Errorf("ReadLink(f.txt) succeeded, want f.txt to be a regular file")
+				}
+			},
+		},
+		{
+			name: "directory over a symbolic link is refused",
+			files: fsx.MemFS{
+				"evil/old.txt": {Data: []byte("old"), Mode: 0o644},
+				"link":         {Mode: fs.ModeSymlink | 0o777, Data: []byte("evil")},
+			},
+			stdin:    buildArchive(t, entry{name: "link/", typ: tar.TypeDir, mode: 0o755}),
+			args:     []string{"-xf", "-"},
+			wantErr:  "tar: link/: not a directory\n",
+			wantExit: 1,
+		},
+		{
 			name:     "file over directory",
 			files:    fsx.MemFS{"x/in.txt": {Data: []byte("i"), Mode: 0o644}},
 			stdin:    buildArchive(t, entry{name: "x", typ: tar.TypeReg, mode: 0o644, body: "x"}),
@@ -392,11 +443,12 @@ func TestExtract(t *testing.T) {
 			wantExit: 1,
 		},
 		{
-			name:    "ignore errors",
-			stdin:   buildArchive(t, entry{name: "pipe", typ: tar.TypeFifo, mode: 0o644}),
-			args:    []string{"-xf", "-", "-e"},
-			absent:  []string{"pipe"},
-			wantErr: "tar: pipe: cannot create special files\n",
+			name:     "ignore errors doesn't apply to extraction",
+			stdin:    buildArchive(t, entry{name: "pipe", typ: tar.TypeFifo, mode: 0o644}),
+			args:     []string{"-xf", "-", "-e"},
+			absent:   []string{"pipe"},
+			wantErr:  "tar: pipe: cannot create special files\n",
+			wantExit: 1,
 		},
 		{
 			name:  "overwrite truncates",

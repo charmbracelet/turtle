@@ -101,7 +101,8 @@ type dirFix struct {
 }
 
 // pendingLink is a hard link whose target didn't exist when it was
-// extracted, retried after the whole archive is read.
+// extracted, retried after the whole archive is read. The names are relative
+// to the working directory.
 type pendingLink struct {
 	target, name string
 	err          error
@@ -111,6 +112,9 @@ type pendingLink struct {
 func (a *archiver) extractEntry(ctx context.Context, tr *tar.Reader, name string, hdr *tar.Header, dirs *[]dirFix, links *[]pendingLink) error {
 	if a.rt.FS == nil {
 		return errors.New("no file system available")
+	}
+	if err := a.refuseSymlink(name); err != nil {
+		return err
 	}
 	resolved := a.resolve(name)
 	parent := path.Dir(resolved)
@@ -124,6 +128,13 @@ func (a *archiver) extractEntry(ctx context.Context, tr *tar.Reader, name string
 	case tar.TypeReg:
 		if err := mkdirAll(a.rt.FS, parent, 0o777&^a.rt.Umask.Perm()); err != nil {
 			return err
+		}
+		// A symbolic link in the way is replaced, never followed: writing
+		// through it would clobber its target.
+		if fi, err := a.rt.FS.Lstat(resolved); err == nil && fi.Mode()&fs.ModeSymlink != 0 {
+			if err := a.rt.FS.Remove(resolved); err != nil {
+				return err
+			}
 		}
 		mode := a.entryMode(hdr)
 		out, err := a.rt.FS.OpenFile(resolved, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, mode|0o600)
@@ -169,7 +180,7 @@ func (a *archiver) extractEntry(ctx context.Context, tr *tar.Reader, name string
 			return err
 		}
 		if err := a.rt.FS.Link(a.resolve(target), resolved); err != nil {
-			*links = append(*links, pendingLink{a.resolve(target), resolved, err})
+			*links = append(*links, pendingLink{target, name, err})
 		}
 	case tar.TypeFifo, tar.TypeChar, tar.TypeBlock:
 		return errors.New("cannot create special files")
@@ -179,14 +190,44 @@ func (a *archiver) extractEntry(ctx context.Context, tr *tar.Reader, name string
 	return nil
 }
 
+// refuseSymlink rejects a target when an existing path component of it is a
+// symbolic link, so an archive can't write outside the working directory
+// through one. The final component is the caller's to handle.
+func (a *archiver) refuseSymlink(name string) error {
+	parts := strings.Split(name, "/")
+	prefix := ""
+	for _, comp := range parts[:len(parts)-1] {
+		if prefix != "" {
+			prefix += "/"
+		}
+		prefix += comp
+		fi, err := a.rt.FS.Lstat(a.resolve(prefix))
+		switch {
+		case errors.Is(err, fs.ErrNotExist):
+			// Deeper components can't exist either.
+			return nil
+		case err != nil:
+			return err
+		case fi.Mode()&fs.ModeSymlink != 0:
+			return fmt.Errorf("refusing to extract through symbolic link '%s'", prefix)
+		}
+	}
+	return nil
+}
+
 // retryLinks creates the hard links whose targets weren't extracted yet,
-// reporting the ones which still fail.
+// reporting the ones which still fail. The symlink check runs again since an
+// entry may have created one in the meantime.
 func (a *archiver) retryLinks(links []pendingLink) {
 	for len(links) > 0 {
 		var pending []pendingLink
 		progress := false
 		for _, l := range links {
-			if err := a.rt.FS.Link(l.target, l.name); err != nil {
+			if err := a.refuseSymlink(l.name); err != nil {
+				a.fail(l.name, err)
+				continue
+			}
+			if err := a.rt.FS.Link(a.resolve(l.target), a.resolve(l.name)); err != nil {
 				l.err = err
 				pending = append(pending, l)
 				continue
