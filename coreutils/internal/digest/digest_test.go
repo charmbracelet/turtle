@@ -3,6 +3,10 @@ package digest
 import (
 	"bytes"
 	"context"
+	"crypto/md5"
+	"crypto/sha1"
+	"crypto/sha256"
+	"crypto/sha512"
 	"errors"
 	"io"
 	"runtime"
@@ -11,6 +15,17 @@ import (
 
 	"charm.land/snail/coreutils"
 	"charm.land/snail/fsx"
+)
+
+// The algorithms of the utilities, built by the tests as the utilities
+// themselves build them.
+var (
+	testMD5    = Algorithm{Name: "md5sum", Tag: "MD5", New: md5.New}
+	testSHA1   = Algorithm{Name: "sha1sum", Tag: "SHA1", New: sha1.New}
+	testSHA224 = Algorithm{Name: "sha224sum", Tag: "SHA224", New: sha256.New224}
+	testSHA256 = Algorithm{Name: "sha256sum", Tag: "SHA256", New: sha256.New}
+	testSHA384 = Algorithm{Name: "sha384sum", Tag: "SHA384", New: sha512.New384}
+	testSHA512 = Algorithm{Name: "sha512sum", Tag: "SHA512", New: sha512.New}
 )
 
 // The digests of the fixtures of testFS, as the reference implementations of
@@ -90,7 +105,7 @@ func runCase(t *testing.T, test testCase) {
 	}
 	algorithm := test.algorithm
 	if algorithm.Name == "" {
-		algorithm = SHA256
+		algorithm = testSHA256
 	}
 
 	stdout, stderr := new(bytes.Buffer), new(bytes.Buffer)
@@ -167,12 +182,12 @@ func TestRunDigests(t *testing.T) {
 		algorithm Algorithm
 		digest    string
 	}{
-		{MD5, helloMD5},
-		{SHA1, helloSHA1},
-		{SHA224, helloSHA224},
-		{SHA256, helloSHA256},
-		{SHA384, helloSHA384},
-		{SHA512, helloSHA512},
+		{testMD5, helloMD5},
+		{testSHA1, helloSHA1},
+		{testSHA224, helloSHA224},
+		{testSHA256, helloSHA256},
+		{testSHA384, helloSHA384},
+		{testSHA512, helloSHA512},
 	} {
 		t.Run(test.algorithm.Name, func(t *testing.T) {
 			runCase(t, testCase{
@@ -304,7 +319,7 @@ func TestRunModes(t *testing.T) {
 		},
 		{
 			name:      "the tag option of another algorithm",
-			algorithm: MD5,
+			algorithm: testMD5,
 			fsys:      testFS(),
 			args:      []string{"--tag", "hello.txt"},
 			want:      "MD5 (hello.txt) = " + helloMD5 + "\n",
@@ -571,7 +586,7 @@ func runCancelled(t *testing.T, ctx context.Context, stdin io.Reader, args []str
 		Stderr: stderr,
 		FS:     testFS(),
 	}
-	err := SHA256.Run(ctx, rt, args)
+	err := testSHA256.Run(ctx, rt, args)
 
 	if !errors.Is(err, context.Canceled) {
 		t.Fatalf("Run() error = %v, want context.Canceled", err)

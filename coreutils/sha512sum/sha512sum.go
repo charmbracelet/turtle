@@ -7,6 +7,7 @@ package sha512sum
 
 import (
 	"context"
+	"crypto/sha512"
 
 	"charm.land/snail/coreutils"
 	"charm.land/snail/coreutils/internal/digest"
@@ -17,6 +18,8 @@ type Prog struct {
 	*coreutils.Runtime
 }
 
+var algorithm = digest.Algorithm{Name: "sha512sum", Tag: "SHA512", New: sha512.New}
+
 // New returns a new Prog.
 func New(rt *coreutils.Runtime) coreutils.Program {
 	return &Prog{Runtime: rt}
@@ -26,7 +29,7 @@ func New(rt *coreutils.Runtime) coreutils.Program {
 // by -c. Long operations are interrupted when ctx is done, returning the
 // context error as it is.
 func (p *Prog) Run(ctx context.Context, args ...string) error {
-	return digest.SHA512.Run(ctx, p.Runtime, args)
+	return algorithm.Run(ctx, p.Runtime, args)
 }
 
 var (

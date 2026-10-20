@@ -481,12 +481,12 @@ func TestRunCheckPerAlgorithm(t *testing.T) {
 		algorithm Algorithm
 		digest    string
 	}{
-		{MD5, helloMD5},
-		{SHA1, helloSHA1},
-		{SHA224, helloSHA224},
-		{SHA256, helloSHA256},
-		{SHA384, helloSHA384},
-		{SHA512, helloSHA512},
+		{testMD5, helloMD5},
+		{testSHA1, helloSHA1},
+		{testSHA224, helloSHA224},
+		{testSHA256, helloSHA256},
+		{testSHA384, helloSHA384},
+		{testSHA512, helloSHA512},
 	} {
 		t.Run(test.algorithm.Name, func(t *testing.T) {
 			runCase(t, testCase{

@@ -1,17 +1,12 @@
 // Package digest implements the behavior shared by the checksum utilities
-// md5sum, sha1sum and the sha*sum family, on top of the hash functions of the
-// standard library.
-//
-// The utilities differ only in the algorithm they use: the options they take,
-// the lines they write and the checksum files they verify are all the same.
+// md5sum, sha1sum and the sha*sum family. The utilities differ only in the
+// algorithm they use: the options they take, the lines they write and the
+// checksum files they verify are all the same. The algorithm itself is given
+// by each utility, so that only its hash lands in a build.
 package digest
 
 import (
 	"context"
-	"crypto/md5"
-	"crypto/sha1"
-	"crypto/sha256"
-	"crypto/sha512"
 	"encoding/hex"
 	"errors"
 	"fmt"
@@ -23,16 +18,6 @@ import (
 
 	"charm.land/snail/coreutils"
 	"charm.land/snail/coreutils/internal/getopt"
-)
-
-// The algorithms of the checksum utilities.
-var (
-	MD5    = Algorithm{Name: "md5sum", Tag: "MD5", New: md5.New}
-	SHA1   = Algorithm{Name: "sha1sum", Tag: "SHA1", New: sha1.New}
-	SHA224 = Algorithm{Name: "sha224sum", Tag: "SHA224", New: sha256.New224}
-	SHA256 = Algorithm{Name: "sha256sum", Tag: "SHA256", New: sha256.New}
-	SHA384 = Algorithm{Name: "sha384sum", Tag: "SHA384", New: sha512.New384}
-	SHA512 = Algorithm{Name: "sha512sum", Tag: "SHA512", New: sha512.New}
 )
 
 // Algorithm is a checksum algorithm, as implemented by a {prog}sum utility.
