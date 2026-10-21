@@ -1242,6 +1242,18 @@ func TestRunLongOptions(t *testing.T) {
 			wantOut: "total 0\n-rw-r--r-- 1 0 0 0 " + now.day(now.recent) + " a.txt\n",
 		},
 		{
+			name:    "format single-column disables the long format",
+			files:   fsx.MemFS{"a.txt": {Mode: 0o644, ModTime: now.recent}},
+			args:    []string{"-l", "--format=single-column"},
+			wantOut: "a.txt\n",
+		},
+		{
+			name:    "format long after single-column writes the long format again",
+			files:   fsx.MemFS{"a.txt": {Mode: 0o644, ModTime: now.recent}},
+			args:    []string{"--format=single-column", "--format=long"},
+			wantOut: "total 0\n-rw-r--r-- 1 0 0 0 " + now.day(now.recent) + " a.txt\n",
+		},
+		{
 			name:    "format takes its value in the next argument",
 			files:   fsx.MemFS{"a": {}, "b": {}},
 			args:    []string{"--format", "single-column"},

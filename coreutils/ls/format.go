@@ -138,6 +138,7 @@ func (o *options) set(opt rune, value string) error {
 	case 'x':
 		o.layout, o.long = layoutAcross, false
 	case '1':
+		// unlike --format=single-column, -1 keeps the long format
 		o.layout = layoutOne
 	case optFormat:
 		return o.setFormat(value)
@@ -165,7 +166,7 @@ func (o *options) setFormat(word string) error {
 	case "commas":
 		o.layout, o.long = layoutStream, false
 	case "single-column":
-		o.layout = layoutOne
+		o.layout, o.long = layoutOne, false
 	default:
 		return invalidWord("format", word)
 	}
