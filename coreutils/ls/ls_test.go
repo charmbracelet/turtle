@@ -1395,6 +1395,12 @@ func TestRunLongOptions(t *testing.T) {
 			wantOut: "b\naa\ndd\nccc\n",
 		},
 		{
+			name:    "sort width measures a wide character as two columns",
+			files:   fsx.MemFS{"界": {}, "aa": {}, "b": {}},
+			args:    []string{"--sort=width"},
+			wantOut: "b\naa\n界\n",
+		},
+		{
 			name:    "sort name keeps the order of the names",
 			files:   fsx.MemFS{"b": {Data: []byte("xxx")}, "a": {}},
 			args:    []string{"--sort=name"},

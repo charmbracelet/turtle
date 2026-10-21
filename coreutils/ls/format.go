@@ -9,7 +9,7 @@ import (
 	"strconv"
 	"strings"
 	"time"
-	"unicode/utf8"
+	"unicode"
 
 	"charm.land/snail/coreutils/internal/getopt"
 	"charm.land/snail/fsx"
@@ -558,9 +558,35 @@ func isNonPrintable(c byte) bool {
 	return c < 0x20 || c == 0x7f
 }
 
-// textWidth returns the width a name takes in a column.
+// textWidth returns the number of columns a name takes when written: a
+// combining mark takes none, and an East Asian wide or fullwidth character
+// takes two.
 func textWidth(name string) int {
-	return utf8.RuneCountInString(name)
+	width := 0
+	for _, r := range name {
+		switch {
+		case unicode.Is(unicode.Mn, r) || unicode.Is(unicode.Me, r):
+		case isWide(r):
+			width += 2
+		default:
+			width++
+		}
+	}
+	return width
+}
+
+// isWide reports whether r takes two columns, holding for the East Asian
+// wide and fullwidth characters.
+func isWide(r rune) bool {
+	return r >= 0x1100 && (r <= 0x115F || // Hangul Jamo
+		r == 0x2329 || r == 0x232A || // angle brackets
+		r >= 0x2E80 && r <= 0xA4CF && r != 0x303F || // CJK radicals through Yi
+		r >= 0xAC00 && r <= 0xD7A3 || // Hangul syllables
+		r >= 0xF900 && r <= 0xFAFF || // CJK compatibility ideographs
+		r >= 0xFE30 && r <= 0xFE6F || // CJK compatibility forms
+		r >= 0xFF00 && r <= 0xFF60 || // fullwidth forms
+		r >= 0xFFE0 && r <= 0xFFE6 || // fullwidth signs
+		r >= 0x20000 && r <= 0x3FFFD) // CJK extensions
 }
 
 // formatTime returns the date and time field of a long listing, with the year
