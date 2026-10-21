@@ -97,8 +97,8 @@ func DecodeLine(line []byte) ([]byte, bool, error) {
 		return nil, false, errors.New("invalid line length")
 	}
 	chars := (n + 2) / 3 * 4
-	if len(line) < 1+chars {
-		return nil, false, errors.New("short line")
+	if len(line) != 1+chars {
+		return nil, false, errors.New("invalid line length")
 	}
 	line = line[1:]
 	out := make([]byte, 0, n)
