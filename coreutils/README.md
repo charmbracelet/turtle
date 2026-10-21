@@ -94,7 +94,7 @@ v0 and we do progress. We have some progress tracking below.
 | Text               | `comm`       | ❌    | ❌  |
 | Text               | `csplit`     | ❌    | ❌  |
 | Text               | `diff`       | ❌    | ❌  |
-| Text               | `expand`     | ❌    | ❌  |
+| Text               | `expand`     | ✅    | ❌  |
 | Text               | `fold`       | ❌    | ❌  |
 | Text               | `nl`         | ❌    | ❌  |
 | Text               | `od`         | ❌    | ❌  |
