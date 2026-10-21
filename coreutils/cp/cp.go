@@ -395,11 +395,21 @@ type options struct {
 	recursive   bool
 }
 
+// longOptions maps the long options of cp to the short ones they stand for.
+var longOptions = map[string]rune{
+	"dereference":    'L',
+	"force":          'f',
+	"interactive":    'i',
+	"no-dereference": 'P',
+	"preserve":       'p',
+	"recursive":      'R',
+}
+
 // parseFlags parses the options and operands. Option parsing stops at the
 // first operand or at "--".
 func parseFlags(args []string) (options, []string, error) {
 	var opts options
-	operands, err := getopt.Set{}.Parse(args, func(opt rune, _ string) error {
+	operands, err := getopt.Set{Long: longOptions}.Parse(args, func(opt rune, _ string) error {
 		switch opt {
 		case 'f':
 			opts.force = true

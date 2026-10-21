@@ -10,6 +10,7 @@ import (
 	"strings"
 
 	"charm.land/snail/coreutils"
+	"charm.land/snail/coreutils/internal/getopt"
 )
 
 // Prog is the pwd core utility.
@@ -39,28 +40,31 @@ func (p *Prog) Run(_ context.Context, args ...string) error {
 	return nil
 }
 
+// longOptions maps the long options of pwd to the short ones they stand for.
+var longOptions = map[string]rune{
+	"logical":  'L',
+	"physical": 'P',
+}
+
 // parseFlags parses the -L and -P options. The last one to appear wins, and -L
 // is assumed when neither is given. Operands are not accepted.
 func parseFlags(args []string) (physical bool, err error) {
-	options := true
-	for _, arg := range args {
-		if !options || arg == "-" || !strings.HasPrefix(arg, "-") {
-			return false, fmt.Errorf("unexpected operand: %q", arg)
+	operands, err := getopt.Set{Long: longOptions}.Parse(args, func(opt rune, _ string) error {
+		switch opt {
+		case 'L':
+			physical = false
+		case 'P':
+			physical = true
+		default:
+			return getopt.InvalidOption(opt)
 		}
-		if arg == "--" {
-			options = false
-			continue
-		}
-		for i := 1; i < len(arg); i++ {
-			switch arg[i] {
-			case 'L':
-				physical = false
-			case 'P':
-				physical = true
-			default:
-				return false, fmt.Errorf("invalid option: %q", arg)
-			}
-		}
+		return nil
+	})
+	if err != nil {
+		return false, err
+	}
+	if len(operands) > 0 {
+		return false, fmt.Errorf("unexpected operand: %q", operands[0])
 	}
 	return physical, nil
 }

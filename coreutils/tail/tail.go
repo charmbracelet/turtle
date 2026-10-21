@@ -304,9 +304,17 @@ func (p *Prog) errorf(format string, args ...any) {
 // decimal number, optionally signed: a '+' makes copying start relative to
 // the beginning of the input instead of the end. The last of the two given
 // wins. Option parsing stops at the first operand or at "--".
+// longOptions maps the long options of tail to the short ones they stand
+// for. The -r option has no long form in GNU.
+var longOptions = map[string]rune{
+	"bytes":  'c',
+	"follow": 'f',
+	"lines":  'n',
+}
+
 func parseFlags(args []string) (options, []string, error) {
 	var opts options
-	operands, err := getopt.Set{Valued: "cn"}.Parse(args, func(opt rune, value string) error {
+	operands, err := getopt.Set{Valued: "cn", Long: longOptions}.Parse(args, func(opt rune, value string) error {
 		switch opt {
 		case 'f':
 			opts.follow = true

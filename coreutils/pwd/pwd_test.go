@@ -174,6 +174,27 @@ func TestRun(t *testing.T) {
 				want:    logical,
 			},
 			{
+				name:    "logical uses a valid PWD",
+				workDir: physical,
+				env:     map[string]string{"PWD": logical},
+				args:    []string{"--logical"},
+				want:    logical,
+			},
+			{
+				name:    "physical ignores a valid PWD",
+				workDir: physical,
+				env:     map[string]string{"PWD": logical},
+				args:    []string{"--physical"},
+				want:    physical,
+			},
+			{
+				name:    "the last option wins: physical logical",
+				workDir: physical,
+				env:     map[string]string{"PWD": logical},
+				args:    []string{"--physical", "--logical"},
+				want:    logical,
+			},
+			{
 				name:    "a lone double dash is accepted",
 				workDir: physical,
 				args:    []string{"--"},
@@ -225,6 +246,16 @@ func TestRun(t *testing.T) {
 			{
 				name: "a long option is rejected",
 				args: []string{"--help"},
+				want: 2,
+			},
+			{
+				name: "an unrecognized long option is rejected",
+				args: []string{"--bogus"},
+				want: 2,
+			},
+			{
+				name: "a long option with a value it doesn't take is rejected",
+				args: []string{"--logical=yes"},
 				want: 2,
 			},
 			{

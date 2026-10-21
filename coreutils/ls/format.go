@@ -9,7 +9,7 @@ import (
 	"strconv"
 	"strings"
 	"time"
-	"unicode/utf8"
+	"unicode"
 
 	"charm.land/snail/coreutils/internal/getopt"
 	"charm.land/snail/fsx"
@@ -28,10 +28,13 @@ const (
 type sortKey int
 
 const (
-	sortName sortKey = iota
-	sortSize         // -S
-	sortTime         // -t
-	sortNone         // -f
+	sortName      sortKey = iota
+	sortSize              // -S
+	sortTime              // -t
+	sortNone              // -f, -U
+	sortExtension         // -X
+	sortVersion           // -v
+	sortWidth             // --sort=width
 )
 
 // timeKey is the time a listing is written and sorted with.
@@ -57,9 +60,10 @@ const (
 type classify byte
 
 const (
-	classifyNone classify = 0
-	classifyFull classify = 'F' // -F
-	classifyDirs classify = 'p' // -p
+	classifyNone classify = iota // no indicator
+	classifyDirs                 // -p, --indicator-style=slash: directories only
+	classifyFile                 // --file-type: everything but executables
+	classifyFull                 // -F, --classify: everything
 )
 
 // options are the listing options parsed from the command line.
@@ -85,8 +89,9 @@ type options struct {
 	classify classify
 }
 
-// set turns on the option with the given letter.
-func (o *options) set(opt rune) error {
+// set turns on the option given, applying the argument of a valued long
+// option.
+func (o *options) set(opt rune, value string) error {
 	switch opt {
 	case 'A', 'a':
 		o.all = true
@@ -102,6 +107,10 @@ func (o *options) set(opt rune) error {
 		o.recursive, o.dirs = true, false
 	case 'S':
 		o.sort = sortSize
+	case 'U':
+		o.sort = sortNone
+	case 'X':
+		o.sort = sortExtension
 	case 'c':
 		o.time = timeStatus
 	case 'd':
@@ -134,22 +143,154 @@ func (o *options) set(opt rune) error {
 		o.sort = sortTime
 	case 'u':
 		o.time = timeAccessed
+	case 'v':
+		o.sort = sortVersion
 	case 'x':
 		o.layout, o.long = layoutAcross, false
 	case '1':
+		// unlike --format=single-column, -1 keeps the long format
 		o.layout = layoutOne
+	case optFormat:
+		return o.setFormat(value)
+	case optFileType:
+		o.classify = classifyFile
+	case optIndicatorStyle:
+		return o.setIndicatorStyle(value)
+	case optSort:
+		return o.setSort(value)
+	case optTime:
+		return o.setTime(value)
 	default:
 		return getopt.InvalidOption(opt)
 	}
 	return nil
 }
 
+// setFormat applies the word --format stands for: the layout it selects.
+func (o *options) setFormat(word string) error {
+	switch word {
+	case "long", "verbose":
+		o.long = true
+	case "vertical":
+		o.layout, o.long = layoutColumns, false
+	case "across", "horizontal":
+		o.layout, o.long = layoutAcross, false
+	case "commas":
+		o.layout, o.long = layoutStream, false
+	case "single-column":
+		o.layout, o.long = layoutOne, false
+	default:
+		return invalidWord("format", word)
+	}
+	return nil
+}
+
+// setIndicatorStyle applies the word --indicator-style stands for: the file
+// type indicator written after a name.
+func (o *options) setIndicatorStyle(word string) error {
+	switch word {
+	case "none":
+		o.classify = classifyNone
+	case "slash":
+		o.classify = classifyDirs
+	case "file-type":
+		o.classify = classifyFile
+	case "classify":
+		o.classify = classifyFull
+	default:
+		return invalidWord("indicator-style", word)
+	}
+	return nil
+}
+
+// setSort applies the word --sort stands for: the key a listing is sorted by.
+func (o *options) setSort(word string) error {
+	switch word {
+	case "name":
+		o.sort = sortName
+	case "time":
+		o.sort = sortTime
+	case "size":
+		o.sort = sortSize
+	case "none":
+		o.sort = sortNone
+	case "extension":
+		o.sort = sortExtension
+	case "version":
+		o.sort = sortVersion
+	case "width":
+		o.sort = sortWidth
+	default:
+		return invalidWord("sort", word)
+	}
+	return nil
+}
+
+// setTime applies the word --time stands for: the time a listing is written
+// and sorted with.
+func (o *options) setTime(word string) error {
+	switch word {
+	case "atime", "access", "use":
+		o.time = timeAccessed
+	case "ctime", "status":
+		o.time = timeStatus
+	case "mtime", "modification":
+		o.time = timeModified
+	default:
+		return invalidWord("time", word)
+	}
+	return nil
+}
+
+// invalidWord builds the error of a word a valued long option doesn't take.
+func invalidWord(option, word string) error {
+	return fmt.Errorf("invalid argument '%s' for '--%s'", word, option)
+}
+
+// longOptions maps the long options of ls to the short ones they stand for.
+// The ones without a short equivalent map to runes above the bytes a group of
+// short options can hold, keeping them out of the short syntax.
+var longOptions = map[string]rune{
+	"all":                      'a',
+	"almost-all":               'A',
+	"classify":                 'F',
+	"dereference":              'L',
+	"dereference-command-line": 'H',
+	"directory":                'd',
+	"file-type":                optFileType,
+	"format":                   optFormat,
+	"hide-control-chars":       'q',
+	"indicator-style":          optIndicatorStyle,
+	"inode":                    'i',
+	"kibibytes":                'k',
+	"numeric-uid-gid":          'n',
+	"recursive":                'R',
+	"reverse":                  'r',
+	"size":                     's',
+	"sort":                     optSort,
+	"time":                     optTime,
+}
+
+// The long options which have no short equivalent, taking the word which
+// selects what each stands for.
+const (
+	optFormat rune = 0x100 + iota
+	optIndicatorStyle
+	optSort
+	optTime
+	optFileType
+)
+
+// valuedLong is the Valued set of the long options which have no short
+// equivalent.
+const valuedLong = string(optFormat) + string(optIndicatorStyle) + string(optSort) + string(optTime)
+
 // parseFlags parses the options and operands. Option parsing stops at the
 // first operand or at "--".
 func parseFlags(args []string) (options, []string, error) {
 	opts := options{owner: true, group: true}
-	operands, err := getopt.Set{}.Parse(args, func(opt rune, _ string) error {
-		return opts.set(opt)
+	operands, err := getopt.Set{Valued: valuedLong, Long: longOptions}.Parse(args, func(opt rune, value string) error {
+		return opts.set(opt, value)
 	})
 	if err != nil {
 		return options{}, nil, err
@@ -244,7 +385,7 @@ func (l *lister) nameOf(e entry) string {
 	if e.link == nil || e.followed {
 		return name + indicator(e.fi, l.opts.classify)
 	}
-	if l.opts.classify == classifyFull {
+	if l.opts.classify >= classifyFile {
 		name += "@"
 	}
 	if !l.opts.long {
@@ -305,7 +446,7 @@ func writeStream(w io.Writer, names []string, width int) {
 	fmt.Fprint(w, "\n")
 }
 
-// indicator returns the file type indicator that -F or -p asks for.
+// indicator returns the file type indicator the given style asks for.
 func indicator(fi fs.FileInfo, kind classify) string {
 	if fi == nil || kind == classifyNone {
 		return ""
@@ -313,7 +454,7 @@ func indicator(fi fs.FileInfo, kind classify) string {
 	if fi.IsDir() {
 		return "/"
 	}
-	if kind == classifyDirs {
+	if kind < classifyFile {
 		return ""
 	}
 	switch {
@@ -323,7 +464,7 @@ func indicator(fi fs.FileInfo, kind classify) string {
 		return "|"
 	case fi.Mode()&fs.ModeSocket != 0:
 		return "="
-	case fi.Mode()&0o111 != 0:
+	case kind == classifyFull && fi.Mode()&0o111 != 0:
 		return "*"
 	}
 	return ""
@@ -417,9 +558,35 @@ func isNonPrintable(c byte) bool {
 	return c < 0x20 || c == 0x7f
 }
 
-// textWidth returns the width a name takes in a column.
+// textWidth returns the number of columns a name takes when written: a
+// combining mark takes none, and an East Asian wide or fullwidth character
+// takes two.
 func textWidth(name string) int {
-	return utf8.RuneCountInString(name)
+	width := 0
+	for _, r := range name {
+		switch {
+		case unicode.Is(unicode.Mn, r) || unicode.Is(unicode.Me, r):
+		case isWide(r):
+			width += 2
+		default:
+			width++
+		}
+	}
+	return width
+}
+
+// isWide reports whether r takes two columns, holding for the East Asian
+// wide and fullwidth characters.
+func isWide(r rune) bool {
+	return r >= 0x1100 && (r <= 0x115F || // Hangul Jamo
+		r == 0x2329 || r == 0x232A || // angle brackets
+		r >= 0x2E80 && r <= 0xA4CF && r != 0x303F || // CJK radicals through Yi
+		r >= 0xAC00 && r <= 0xD7A3 || // Hangul syllables
+		r >= 0xF900 && r <= 0xFAFF || // CJK compatibility ideographs
+		r >= 0xFE30 && r <= 0xFE6F || // CJK compatibility forms
+		r >= 0xFF00 && r <= 0xFF60 || // fullwidth forms
+		r >= 0xFFE0 && r <= 0xFFE6 || // fullwidth signs
+		r >= 0x20000 && r <= 0x3FFFD) // CJK extensions
 }
 
 // formatTime returns the date and time field of a long listing, with the year

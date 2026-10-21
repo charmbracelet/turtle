@@ -355,6 +355,42 @@ func TestRunParents(t *testing.T) {
 	}
 }
 
+func TestRunLongOptions(t *testing.T) {
+	tests := []testCase{
+		{
+			name:  "parents creates missing parents",
+			files: fsx.MemFS{},
+			args:  []string{"--parents", "a/b/c"},
+			want:  map[string]fs.FileMode{"a": 0o777, "a/b": 0o777, "a/b/c": 0o777},
+		},
+		{
+			name:  "mode sets the mode",
+			files: fsx.MemFS{},
+			args:  []string{"--mode", "0770", "d"},
+			want:  map[string]fs.FileMode{"d": 0o770},
+		},
+		{
+			name:  "mode takes its value glued to it",
+			files: fsx.MemFS{},
+			args:  []string{"--mode=0770", "d"},
+			want:  map[string]fs.FileMode{"d": 0o770},
+		},
+		{
+			name:     "mode requires an argument",
+			files:    fsx.MemFS{},
+			args:     []string{"--mode"},
+			wantErr:  "mkdir: option '--mode' requires an argument\n",
+			wantExit: 2,
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			runCase(t, test)
+		})
+	}
+}
+
 func TestRunErrors(t *testing.T) {
 	tests := []testCase{
 		{
@@ -371,11 +407,11 @@ func TestRunErrors(t *testing.T) {
 			wantExit: 2,
 		},
 		{
-			name:     "long options are not supported",
+			name:     "an unrecognized long option",
 			files:    fsx.MemFS{},
-			args:     []string{"--parents", "d"},
+			args:     []string{"--bogus", "d"},
 			absent:   []string{"d"},
-			wantErr:  "mkdir: unrecognized option '--parents'\n",
+			wantErr:  "mkdir: unrecognized option '--bogus'\n",
 			wantExit: 2,
 		},
 	}

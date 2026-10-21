@@ -173,12 +173,19 @@ func (p *Prog) errorf(format string, args ...any) {
 // parseFlags parses the options and operands. The -c and -n options take a
 // number option-argument, and the last one given wins. Option parsing stops
 // at the first operand or at "--".
+// longOptions maps the long options of head to the short ones they stand
+// for.
+var longOptions = map[string]rune{
+	"bytes": 'c',
+	"lines": 'n',
+}
+
 func parseFlags(args []string) (options, []string, error) {
 	var (
 		opts     options
 		countSet bool
 	)
-	operands, err := getopt.Set{Valued: "cn"}.Parse(args, func(opt rune, value string) error {
+	operands, err := getopt.Set{Valued: "cn", Long: longOptions}.Parse(args, func(opt rune, value string) error {
 		if opt != 'c' && opt != 'n' {
 			return getopt.InvalidOption(opt)
 		}

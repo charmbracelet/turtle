@@ -504,6 +504,20 @@ func TestRunRecursive(t *testing.T) {
 	})
 }
 
+func TestRunLongOptions(t *testing.T) {
+	runTests(t, []testCase{
+		{
+			name:  "recursive changes every file below the directory",
+			files: fsx.MemFS{"dir": {Mode: dir(0o755)}, "dir/a.txt": {Mode: 0o644}},
+			args:  []string{"--recursive", "700", "dir"},
+			want: map[string]fs.FileMode{
+				"dir":       dir(0o700),
+				"dir/a.txt": 0o700,
+			},
+		},
+	})
+}
+
 func TestRunGeneral(t *testing.T) {
 	runTests(t, []testCase{
 		{
@@ -531,11 +545,11 @@ func TestRunGeneral(t *testing.T) {
 			wantExit: 2,
 		},
 		{
-			name:     "a long option is unrecognized",
+			name:     "an unrecognized long option",
 			files:    fsx.MemFS{"file.txt": {Mode: 0o644}},
-			args:     []string{"--recursive", "755", "file.txt"},
+			args:     []string{"--bogus", "755", "file.txt"},
 			want:     map[string]fs.FileMode{"file.txt": 0o644},
-			wantErr:  "chmod: unrecognized option '--recursive'\n",
+			wantErr:  "chmod: unrecognized option '--bogus'\n",
 			wantExit: 2,
 		},
 		{

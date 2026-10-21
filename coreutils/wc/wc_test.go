@@ -455,6 +455,48 @@ func TestRunChars(t *testing.T) {
 	}
 }
 
+func TestRunLongOptions(t *testing.T) {
+	tests := []testCase{
+		{
+			name: "lines counts the lines",
+			fsys: testFS(),
+			args: []string{"--lines", "file.txt"},
+			want: "2 file.txt\n",
+		},
+		{
+			name: "words counts the words",
+			fsys: testFS(),
+			args: []string{"--words", "file.txt"},
+			want: "4 file.txt\n",
+		},
+		{
+			name: "bytes counts the bytes",
+			fsys: testFS(),
+			args: []string{"--bytes", "file.txt"},
+			want: "20 file.txt\n",
+		},
+		{
+			name: "chars counts the characters",
+			fsys: testFS(),
+			args: []string{"--chars", "utf8.txt"},
+			want: "12 utf8.txt\n",
+		},
+		{
+			name:     "a long option with a value it doesn't take is an error",
+			fsys:     testFS(),
+			args:     []string{"--lines=2", "file.txt"},
+			wantErr:  "wc: option '--lines=2' doesn't allow an argument\n",
+			wantExit: 2,
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			runCase(t, test)
+		})
+	}
+}
+
 func TestRunErrors(t *testing.T) {
 	tests := []testCase{
 		{
@@ -495,8 +537,8 @@ func TestRunErrors(t *testing.T) {
 		},
 		{
 			name:     "unknown long option",
-			args:     []string{"--bytes"},
-			wantErr:  "wc: unrecognized option '--bytes'\n",
+			args:     []string{"--bogus"},
+			wantErr:  "wc: unrecognized option '--bogus'\n",
 			wantExit: 2,
 		},
 		{

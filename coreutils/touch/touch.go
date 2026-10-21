@@ -169,13 +169,28 @@ type options struct {
 	value    string
 }
 
+// longOptions maps the long options of touch to the short ones they stand
+// for. The -a and -m options have no long form of their own: --time stands
+// for them, taking the word which selects the time to change.
+var longOptions = map[string]rune{
+	"date":      'd',
+	"no-create": 'c',
+	"reference": 'r',
+	"time":      optTime,
+}
+
+// optTime is the rune --time maps to. Having no short equivalent, it's kept
+// above the bytes a group of short options can hold.
+const optTime rune = 0x100
+
 // parseFlags parses the options and operands. Option parsing stops at the
 // first operand or at "--". The -d, -r and -t options take an option-argument,
 // either glued to the option or in the next argument, and the last one given
-// is the one used.
+// is the one used. The --time option takes the word which -a and -m each
+// stand for.
 func parseFlags(args []string) (options, []string, error) {
 	var opts options
-	files, err := getopt.Set{Valued: "drt"}.Parse(args, func(opt rune, value string) error {
+	files, err := getopt.Set{Valued: "drt" + string(optTime), Long: longOptions}.Parse(args, func(opt rune, value string) error {
 		switch opt {
 		case 'a':
 			opts.access = true
@@ -185,6 +200,15 @@ func parseFlags(args []string) (options, []string, error) {
 			opts.modify = true
 		case 'd', 'r', 't':
 			opts.source, opts.value = opt, value
+		case optTime:
+			switch value {
+			case "atime", "access", "use":
+				opts.access = true
+			case "mtime", "modify":
+				opts.modify = true
+			default:
+				return fmt.Errorf("invalid argument '%s' for '--time'", value)
+			}
 		default:
 			return getopt.InvalidOption(opt)
 		}
