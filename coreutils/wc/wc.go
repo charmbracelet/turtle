@@ -193,12 +193,20 @@ func (p *Prog) errorf(format string, args ...any) {
 	fmt.Fprintf(p.Stderr, "wc: "+format+"\n", args...)
 }
 
+// longOptions maps the long options of wc to the short ones they stand for.
+var longOptions = map[string]rune{
+	"bytes": 'c',
+	"chars": 'm',
+	"lines": 'l',
+	"words": 'w',
+}
+
 // parseFlags parses the options and operands. Option parsing stops at the
 // first operand or at "--". Following the POSIX description, -m replaces the
 // byte count, discarding -c no matter the order the options are given.
 func parseFlags(args []string) (options, []string, error) {
 	var opts options
-	operands, err := getopt.Set{}.Parse(args, func(opt rune, _ string) error {
+	operands, err := getopt.Set{Long: longOptions}.Parse(args, func(opt rune, _ string) error {
 		switch opt {
 		case 'c':
 			opts.bytes = true

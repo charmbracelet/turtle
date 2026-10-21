@@ -146,9 +146,16 @@ type options struct {
 // first operand or at "--". The -m option takes an option-argument, either
 // glued to the option or in the next argument, and the last one given is the
 // one used.
+// longOptions maps the long options of mkdir to the short ones they stand
+// for.
+var longOptions = map[string]rune{
+	"mode":    'm',
+	"parents": 'p',
+}
+
 func parseFlags(args []string) (options, []string, error) {
 	var opts options
-	dirs, err := getopt.Set{Valued: "m"}.Parse(args, func(opt rune, value string) error {
+	dirs, err := getopt.Set{Valued: "m", Long: longOptions}.Parse(args, func(opt rune, value string) error {
 		switch opt {
 		case 'p':
 			opts.parents = true

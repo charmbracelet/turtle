@@ -442,6 +442,49 @@ func TestRunFlags(t *testing.T) {
 	}
 }
 
+func TestRunLongOptions(t *testing.T) {
+	linked := func() fsx.MemFS {
+		return fsx.MemFS{
+			"a.txt":   {Data: []byte("hello")},
+			"sym.txt": {Data: []byte("a.txt"), Mode: fs.ModeSymlink},
+		}
+	}
+	tests := []testCase{
+		{
+			name:      "symbolic creates a symbolic link",
+			files:     fsx.MemFS{"a.txt": {Data: []byte("hello")}},
+			args:      []string{"--symbolic", "a.txt", "b.txt"},
+			want:      map[string]string{"b.txt": "hello"},
+			wantLinks: map[string]string{"b.txt": "a.txt"},
+		},
+		{
+			name:     "force replaces an existing file",
+			files:    fsx.MemFS{"a.txt": {Data: []byte("new")}, "b.txt": {Data: []byte("old")}},
+			args:     []string{"--force", "a.txt", "b.txt"},
+			want:     map[string]string{"b.txt": "new"},
+			wantSame: map[string]string{"b.txt": "a.txt"},
+		},
+		{
+			name:     "logical links the file the symbolic link refers to",
+			files:    linked(),
+			args:     []string{"--logical", "sym.txt", "hard.txt"},
+			wantSame: map[string]string{"hard.txt": "a.txt"},
+		},
+		{
+			name:     "physical links the symbolic link itself",
+			files:    linked(),
+			args:     []string{"--physical", "sym.txt", "hard.txt"},
+			wantSame: map[string]string{"hard.txt": "sym.txt"},
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			runCase(t, test)
+		})
+	}
+}
+
 func TestRunErrors(t *testing.T) {
 	tests := []testCase{
 		{
@@ -466,11 +509,11 @@ func TestRunErrors(t *testing.T) {
 			wantExit: 2,
 		},
 		{
-			name:     "long options are not supported",
+			name:     "an unrecognized long option",
 			files:    fsx.MemFS{"a.txt": {Data: []byte("x")}},
-			args:     []string{"--force", "a.txt", "b.txt"},
+			args:     []string{"--bogus", "a.txt", "b.txt"},
 			absent:   []string{"b.txt"},
-			wantErr:  "ln: unrecognized option '--force'\n",
+			wantErr:  "ln: unrecognized option '--bogus'\n",
 			wantExit: 2,
 		},
 		{

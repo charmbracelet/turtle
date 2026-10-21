@@ -1100,10 +1100,10 @@ func TestRunOptions(t *testing.T) {
 			wantExit: 2,
 		},
 		{
-			name:     "a long option is not supported",
+			name:     "an unrecognized long option is reported",
 			files:    fsx.MemFS{"a.txt": {}},
-			args:     []string{"--all"},
-			wantErr:  "ls: unrecognized option '--all'\n",
+			args:     []string{"--bogus"},
+			wantErr:  "ls: unrecognized option '--bogus'\n",
 			wantExit: 2,
 		},
 		{
@@ -1143,6 +1143,225 @@ func TestRunOptions(t *testing.T) {
 			args:     []string{"a.txt"},
 			wantErr:  "ls: no file system available\n",
 			wantExit: 1,
+		},
+	})
+}
+
+func TestRunLongOptions(t *testing.T) {
+	now := newTimes()
+
+	linked := fsx.MemFS{
+		"dir":    {Mode: dirMode(0o755)},
+		"dir/in": {Mode: 0o644},
+		"to-dir": link("dir"),
+	}
+
+	runCases(t, []testCase{
+		{
+			name:    "all writes the entries that begin with a dot",
+			files:   fsx.MemFS{".hidden": {}, "a.txt": {}},
+			args:    []string{"--all"},
+			wantOut: ".hidden\na.txt\n",
+		},
+		{
+			name:    "almost-all writes the hidden entries",
+			files:   fsx.MemFS{".hidden": {}, "a.txt": {}},
+			args:    []string{"--almost-all"},
+			wantOut: ".hidden\na.txt\n",
+		},
+		{
+			name:    "classify marks the type of each file",
+			files:   fsx.MemFS{"dir": {Mode: dirMode(0o755)}, "script": {Mode: 0o755}},
+			args:    []string{"--classify"},
+			wantOut: "dir/\nscript*\n",
+		},
+		{
+			name:    "dereference writes the indicator of the file a link refers to",
+			files:   linked,
+			args:    []string{"--dereference", "--classify"},
+			wantOut: "dir/\nto-dir/\n",
+		},
+		{
+			name:    "dereference-command-line lists the contents of an operand link to a directory",
+			files:   linked,
+			args:    []string{"--dereference-command-line", "to-dir"},
+			wantOut: "in\n",
+		},
+		{
+			name:    "directory writes a directory as a file",
+			files:   fsx.MemFS{"dir": {Mode: dirMode(0o755)}, "dir/b.txt": {}},
+			args:    []string{"--directory", "dir"},
+			wantOut: "dir\n",
+		},
+		{
+			name:    "hide-control-chars writes control characters as question marks",
+			files:   fsx.MemFS{"a\nb": {}, "e": {}},
+			args:    []string{"--hide-control-chars"},
+			wantOut: "a?b\ne\n",
+		},
+		{
+			name:    "inode writes the file serial number",
+			files:   fsx.MemFS{"a.txt": {}},
+			args:    []string{"--inode"},
+			wantOut: "0 a.txt\n",
+		},
+		{
+			name:    "kibibytes counts blocks in kibibytes",
+			files:   fsx.MemFS{"a.txt": {Data: []byte("x")}},
+			args:    []string{"--kibibytes", "--size"},
+			wantOut: "total 1\n1 a.txt\n",
+		},
+		{
+			name:    "numeric-uid-gid writes the identifiers as numbers",
+			files:   fsx.MemFS{"a.txt": {Mode: 0o644, ModTime: now.recent}},
+			args:    []string{"--numeric-uid-gid"},
+			wantOut: "total 0\n-rw-r--r-- 1 0 0 0 " + now.day(now.recent) + " a.txt\n",
+		},
+		{
+			name:    "recursive lists the directories below the operand",
+			files:   fsx.MemFS{"dir": {Mode: dirMode(0o755)}, "dir/b.txt": {}, "dir/sub": {Mode: dirMode(0o755)}, "dir/sub/c.txt": {}},
+			args:    []string{"--recursive", "dir"},
+			wantOut: "dir:\nb.txt\nsub\n\ndir/sub:\nc.txt\n",
+		},
+		{
+			name:    "reverse reverses the order of the names",
+			files:   fsx.MemFS{"a": {}, "b": {}, "c": {}},
+			args:    []string{"--reverse"},
+			wantOut: "c\nb\na\n",
+		},
+		{
+			name:    "size writes the blocks and their total",
+			files:   fsx.MemFS{"a.txt": {Data: []byte("x")}},
+			args:    []string{"--size"},
+			wantOut: "total 1\n1 a.txt\n",
+		},
+		{
+			name:    "format long writes the long format",
+			files:   fsx.MemFS{"a.txt": {Mode: 0o644, ModTime: now.recent}},
+			args:    []string{"--format=long"},
+			wantOut: "total 0\n-rw-r--r-- 1 0 0 0 " + now.day(now.recent) + " a.txt\n",
+		},
+		{
+			name:    "format takes its value in the next argument",
+			files:   fsx.MemFS{"a": {}, "b": {}},
+			args:    []string{"--format", "single-column"},
+			wantOut: "a\nb\n",
+		},
+		{
+			name:    "format vertical writes entries down the columns",
+			files:   fsx.MemFS{"a": {}, "b": {}, "c": {}, "d": {}},
+			env:     map[string]string{"COLUMNS": "80"},
+			args:    []string{"--format=vertical"},
+			wantOut: "a  b  c  d\n",
+		},
+		{
+			name:    "format across writes entries across the columns",
+			files:   fsx.MemFS{"a": {}, "b": {}, "c": {}, "d": {}},
+			env:     map[string]string{"COLUMNS": "10"},
+			args:    []string{"--format=across"},
+			wantOut: "a  b  c\nd\n",
+		},
+		{
+			name:    "format commas writes the names separated by commas",
+			files:   fsx.MemFS{"a": {}, "b": {}, "c": {}},
+			args:    []string{"--format=commas"},
+			wantOut: "a, b, c\n",
+		},
+		{
+			name:    "sort size sorts by size, largest first",
+			files:   fsx.MemFS{"small": {Data: []byte("x")}, "big": {Data: []byte("xxxxxxxxxx")}, "zero": {}},
+			args:    []string{"--sort=size"},
+			wantOut: "big\nsmall\nzero\n",
+		},
+		{
+			name:    "sort time sorts by modification time, most recent first",
+			files:   fsx.MemFS{"old": {ModTime: now.old}, "new": {ModTime: now.recent}},
+			args:    []string{"--sort=time"},
+			wantOut: "new\nold\n",
+		},
+		{
+			name:    "sort name keeps the order of the names",
+			files:   fsx.MemFS{"b": {Data: []byte("xxx")}, "a": {}},
+			args:    []string{"--sort=name"},
+			wantOut: "a\nb\n",
+		},
+		{
+			name:    "sort none keeps the order of the directory without showing hidden entries",
+			files:   fsx.MemFS{"b": {Data: []byte("xxx")}, "a": {}, ".hidden": {}},
+			args:    []string{"--sort=none"},
+			wantOut: "a\nb\n",
+		},
+		{
+			name:    "time atime writes the access time",
+			files:   fsx.MemFS{"a.txt": {Mode: 0o644, ModTime: now.old}},
+			args:    []string{"--format=long", "--time=atime"},
+			wantOut: "total 0\n-rw-r--r-- 1 0 0 0 " + now.year(now.old) + " a.txt\n",
+		},
+		{
+			name:    "time ctime writes the status change time",
+			files:   fsx.MemFS{"a.txt": {Mode: 0o644, ModTime: now.old}},
+			args:    []string{"--format=long", "--time=ctime"},
+			wantOut: "total 0\n-rw-r--r-- 1 0 0 0 " + now.year(now.old) + " a.txt\n",
+		},
+		{
+			name:    "indicator-style slash marks directories only",
+			files:   fsx.MemFS{"dir": {Mode: dirMode(0o755)}, "script": {Mode: 0o755}},
+			args:    []string{"--indicator-style=slash"},
+			wantOut: "dir/\nscript\n",
+		},
+		{
+			name:    "indicator-style classify marks the type of each file",
+			files:   fsx.MemFS{"dir": {Mode: dirMode(0o755)}, "script": {Mode: 0o755}},
+			args:    []string{"--indicator-style=classify"},
+			wantOut: "dir/\nscript*\n",
+		},
+		{
+			name:    "indicator-style none writes no indicator",
+			files:   fsx.MemFS{"dir": {Mode: dirMode(0o755)}, "script": {Mode: 0o755}},
+			args:    []string{"--classify", "--indicator-style=none"},
+			wantOut: "dir\nscript\n",
+		},
+		{
+			name:     "an unknown format word is an error",
+			files:    fsx.MemFS{},
+			args:     []string{"--format=bogus"},
+			wantErr:  "ls: invalid argument 'bogus' for '--format'\n",
+			wantExit: 2,
+		},
+		{
+			name:     "an unknown sort word is an error",
+			files:    fsx.MemFS{},
+			args:     []string{"--sort=bogus"},
+			wantErr:  "ls: invalid argument 'bogus' for '--sort'\n",
+			wantExit: 2,
+		},
+		{
+			name:     "an unknown time word is an error",
+			files:    fsx.MemFS{},
+			args:     []string{"--time=bogus"},
+			wantErr:  "ls: invalid argument 'bogus' for '--time'\n",
+			wantExit: 2,
+		},
+		{
+			name:     "an unknown indicator-style word is an error",
+			files:    fsx.MemFS{},
+			args:     []string{"--indicator-style=bogus"},
+			wantErr:  "ls: invalid argument 'bogus' for '--indicator-style'\n",
+			wantExit: 2,
+		},
+		{
+			name:     "a valued long option requires an argument",
+			files:    fsx.MemFS{},
+			args:     []string{"--format"},
+			wantErr:  "ls: option '--format' requires an argument\n",
+			wantExit: 2,
+		},
+		{
+			name:     "a long option with a value it doesn't take is an error",
+			files:    fsx.MemFS{},
+			args:     []string{"--all=yes"},
+			wantErr:  "ls: option '--all=yes' doesn't allow an argument\n",
+			wantExit: 2,
 		},
 	})
 }

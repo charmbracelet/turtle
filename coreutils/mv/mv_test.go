@@ -612,6 +612,34 @@ func TestRunCrossDevice(t *testing.T) {
 	})
 }
 
+func TestRunLongOptions(t *testing.T) {
+	tests := []testCase{
+		{
+			name:    "interactive prompts and overwrites when affirmative",
+			files:   fsx.MemFS{"a.txt": {Data: []byte("new")}, "b.txt": {Data: []byte("old")}},
+			stdin:   "y\n",
+			args:    []string{"--interactive", "a.txt", "b.txt"},
+			want:    map[string]string{"b.txt": "new"},
+			absent:  []string{"a.txt"},
+			wantErr: "mv: overwrite 'b.txt'? ",
+		},
+		{
+			name:    "force cancels an earlier interactive",
+			files:   fsx.MemFS{"a.txt": {Data: []byte("new")}, "b.txt": {Data: []byte("old")}},
+			args:    []string{"--interactive", "--force", "a.txt", "b.txt"},
+			want:    map[string]string{"b.txt": "new"},
+			absent:  []string{"a.txt"},
+			wantErr: "",
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			runCase(t, test)
+		})
+	}
+}
+
 func TestRunErrors(t *testing.T) {
 	tests := []testCase{
 		{
@@ -644,11 +672,11 @@ func TestRunErrors(t *testing.T) {
 			wantExit: 2,
 		},
 		{
-			name:     "long options are not supported",
+			name:     "an unrecognized long option",
 			files:    fsx.MemFS{"a.txt": {Data: []byte("x")}},
-			args:     []string{"--force", "a.txt", "b.txt"},
+			args:     []string{"--bogus", "a.txt", "b.txt"},
 			absent:   []string{"b.txt"},
-			wantErr:  "mv: unrecognized option '--force'\n",
+			wantErr:  "mv: unrecognized option '--bogus'\n",
 			wantExit: 2,
 		},
 		{

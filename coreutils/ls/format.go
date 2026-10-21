@@ -85,8 +85,9 @@ type options struct {
 	classify classify
 }
 
-// set turns on the option with the given letter.
-func (o *options) set(opt rune) error {
+// set turns on the option given, applying the argument of a valued long
+// option.
+func (o *options) set(opt rune, value string) error {
 	switch opt {
 	case 'A', 'a':
 		o.all = true
@@ -138,18 +139,135 @@ func (o *options) set(opt rune) error {
 		o.layout, o.long = layoutAcross, false
 	case '1':
 		o.layout = layoutOne
+	case optFormat:
+		return o.setFormat(value)
+	case optIndicatorStyle:
+		return o.setIndicatorStyle(value)
+	case optSort:
+		return o.setSort(value)
+	case optTime:
+		return o.setTime(value)
 	default:
 		return getopt.InvalidOption(opt)
 	}
 	return nil
 }
 
+// setFormat applies the word --format stands for: the layout it selects.
+func (o *options) setFormat(word string) error {
+	switch word {
+	case "long", "verbose":
+		o.long = true
+	case "vertical":
+		o.layout, o.long = layoutColumns, false
+	case "across", "horizontal":
+		o.layout, o.long = layoutAcross, false
+	case "commas":
+		o.layout, o.long = layoutStream, false
+	case "single-column":
+		o.layout = layoutOne
+	default:
+		return invalidWord("format", word)
+	}
+	return nil
+}
+
+// setIndicatorStyle applies the word --indicator-style stands for: the file
+// type indicator written after a name.
+func (o *options) setIndicatorStyle(word string) error {
+	switch word {
+	case "none":
+		o.classify = classifyNone
+	case "slash":
+		o.classify = classifyDirs
+	case "classify":
+		o.classify = classifyFull
+	default:
+		return invalidWord("indicator-style", word)
+	}
+	return nil
+}
+
+// setSort applies the word --sort stands for: the key a listing is sorted by.
+func (o *options) setSort(word string) error {
+	switch word {
+	case "name":
+		o.sort = sortName
+	case "time":
+		o.sort = sortTime
+	case "size":
+		o.sort = sortSize
+	case "none":
+		o.sort = sortNone
+	default:
+		return invalidWord("sort", word)
+	}
+	return nil
+}
+
+// setTime applies the word --time stands for: the time a listing is written
+// and sorted with.
+func (o *options) setTime(word string) error {
+	switch word {
+	case "atime", "access", "use":
+		o.time = timeAccessed
+	case "ctime", "status":
+		o.time = timeStatus
+	case "mtime", "modification":
+		o.time = timeModified
+	default:
+		return invalidWord("time", word)
+	}
+	return nil
+}
+
+// invalidWord builds the error of a word a valued long option doesn't take.
+func invalidWord(option, word string) error {
+	return fmt.Errorf("invalid argument '%s' for '--%s'", word, option)
+}
+
+// longOptions maps the long options of ls to the short ones they stand for.
+// The ones without a short equivalent map to runes above the bytes a group of
+// short options can hold, keeping them out of the short syntax.
+var longOptions = map[string]rune{
+	"all":                      'a',
+	"almost-all":               'A',
+	"classify":                 'F',
+	"dereference":              'L',
+	"dereference-command-line": 'H',
+	"directory":                'd',
+	"format":                   optFormat,
+	"hide-control-chars":       'q',
+	"indicator-style":          optIndicatorStyle,
+	"inode":                    'i',
+	"kibibytes":                'k',
+	"numeric-uid-gid":          'n',
+	"recursive":                'R',
+	"reverse":                  'r',
+	"size":                     's',
+	"sort":                     optSort,
+	"time":                     optTime,
+}
+
+// The long options which have no short equivalent, taking the word which
+// selects what each stands for.
+const (
+	optFormat rune = 0x100 + iota
+	optIndicatorStyle
+	optSort
+	optTime
+)
+
+// valuedLong is the Valued set of the long options which have no short
+// equivalent.
+const valuedLong = string(optFormat) + string(optIndicatorStyle) + string(optSort) + string(optTime)
+
 // parseFlags parses the options and operands. Option parsing stops at the
 // first operand or at "--".
 func parseFlags(args []string) (options, []string, error) {
 	opts := options{owner: true, group: true}
-	operands, err := getopt.Set{}.Parse(args, func(opt rune, _ string) error {
-		return opts.set(opt)
+	operands, err := getopt.Set{Valued: valuedLong, Long: longOptions}.Parse(args, func(opt rune, value string) error {
+		return opts.set(opt, value)
 	})
 	if err != nil {
 		return options{}, nil, err

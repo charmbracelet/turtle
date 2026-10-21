@@ -529,6 +529,57 @@ func TestRunVerbose(t *testing.T) {
 	}
 }
 
+func TestRunLongOptions(t *testing.T) {
+	tests := []testCase{
+		{
+			name:   "dir removes an empty directory",
+			files:  fsx.MemFS{"d": {Mode: fs.ModeDir}},
+			args:   []string{"--dir", "d"},
+			absent: []string{"d"},
+		},
+		{
+			name:  "force ignores a missing file",
+			files: fsx.MemFS{},
+			args:  []string{"--force", "missing"},
+		},
+		{
+			name:    "interactive prompts and removes when affirmative",
+			files:   fsx.MemFS{"a.txt": {Data: []byte("a")}},
+			stdin:   "y\n",
+			args:    []string{"--interactive", "a.txt"},
+			absent:  []string{"a.txt"},
+			wantErr: "rm: remove 'a.txt'? ",
+		},
+		{
+			name:   "recursive removes a hierarchy",
+			files:  fsx.MemFS{"d/f.txt": {Data: []byte("f")}},
+			args:   []string{"--recursive", "d"},
+			absent: []string{"d", "d/f.txt"},
+		},
+		{
+			name:    "verbose prints every removed file",
+			files:   fsx.MemFS{"a.txt": {Data: []byte("a")}},
+			args:    []string{"--verbose", "a.txt"},
+			absent:  []string{"a.txt"},
+			wantOut: "removed 'a.txt'\n",
+		},
+		{
+			name:     "a long option with a value it doesn't take is an error",
+			files:    fsx.MemFS{"a.txt": {Data: []byte("a")}},
+			args:     []string{"--force=yes", "a.txt"},
+			present:  []string{"a.txt"},
+			wantErr:  "rm: option '--force=yes' doesn't allow an argument\n",
+			wantExit: 2,
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			runCase(t, test)
+		})
+	}
+}
+
 func TestRunErrors(t *testing.T) {
 	tests := []testCase{
 		{
@@ -547,11 +598,11 @@ func TestRunErrors(t *testing.T) {
 			wantExit: 2,
 		},
 		{
-			name:     "long options are not supported",
+			name:     "an unrecognized long option",
 			files:    fsx.MemFS{"a.txt": {Data: []byte("a")}},
-			args:     []string{"--force", "a.txt"},
+			args:     []string{"--bogus", "a.txt"},
 			present:  []string{"a.txt"},
-			wantErr:  "rm: unrecognized option '--force'\n",
+			wantErr:  "rm: unrecognized option '--bogus'\n",
 			wantExit: 2,
 		},
 		{

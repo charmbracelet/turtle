@@ -230,6 +230,27 @@ func TestRunParents(t *testing.T) {
 	}
 }
 
+func TestRunLongOptions(t *testing.T) {
+	tests := []testCase{
+		{
+			name: "parents removes every component of the path",
+			files: fsx.MemFS{
+				"a":     {Mode: fs.ModeDir},
+				"a/b":   {Mode: fs.ModeDir},
+				"a/b/c": {Mode: fs.ModeDir},
+			},
+			args:   []string{"--parents", "a/b/c"},
+			absent: []string{"a", "a/b", "a/b/c"},
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			runCase(t, test)
+		})
+	}
+}
+
 func TestRunErrors(t *testing.T) {
 	tests := []testCase{
 		{
@@ -246,11 +267,11 @@ func TestRunErrors(t *testing.T) {
 			wantExit: 2,
 		},
 		{
-			name:     "long options are not supported",
+			name:     "an unrecognized long option",
 			files:    fsx.MemFS{"d": {Mode: fs.ModeDir}},
-			args:     []string{"--parents", "d"},
+			args:     []string{"--bogus", "d"},
 			present:  []string{"d"},
-			wantErr:  "rmdir: unrecognized option '--parents'\n",
+			wantErr:  "rmdir: unrecognized option '--bogus'\n",
 			wantExit: 2,
 		},
 	}

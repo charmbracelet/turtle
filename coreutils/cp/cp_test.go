@@ -780,6 +780,55 @@ func TestRunSymlinkOptions(t *testing.T) {
 	}
 }
 
+func TestRunLongOptions(t *testing.T) {
+	tests := []testCase{
+		{
+			name:  "force overwrites an existing file",
+			files: fsx.MemFS{"a.txt": {Data: []byte("new")}, "b.txt": {Data: []byte("old")}},
+			args:  []string{"--force", "a.txt", "b.txt"},
+			want:  map[string]string{"b.txt": "new"},
+		},
+		{
+			name:    "interactive prompts and overwrites when affirmative",
+			files:   fsx.MemFS{"a.txt": {Data: []byte("new")}, "b.txt": {Data: []byte("old")}},
+			stdin:   "y\n",
+			args:    []string{"--interactive", "a.txt", "b.txt"},
+			want:    map[string]string{"b.txt": "new"},
+			wantErr: "cp: overwrite 'b.txt'? ",
+		},
+		{
+			name:     "preserve preserves the times",
+			files:    fsx.MemFS{"a.txt": {Data: []byte("x"), ModTime: oldTime}},
+			args:     []string{"--preserve", "a.txt", "b.txt"},
+			wantTime: map[string]time.Time{"b.txt": oldTime},
+		},
+		{
+			name:  "recursive copies a hierarchy",
+			files: fsx.MemFS{"d/f.txt": {Data: []byte("f")}},
+			args:  []string{"--recursive", "d", "e"},
+			want:  map[string]string{"e/f.txt": "f"},
+		},
+		{
+			name:  "dereference is accepted",
+			files: fsx.MemFS{"a.txt": {Data: []byte("x")}},
+			args:  []string{"--dereference", "a.txt", "b.txt"},
+			want:  map[string]string{"b.txt": "x"},
+		},
+		{
+			name:  "no-dereference is accepted",
+			files: fsx.MemFS{"a.txt": {Data: []byte("x")}},
+			args:  []string{"--no-dereference", "a.txt", "b.txt"},
+			want:  map[string]string{"b.txt": "x"},
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			runCase(t, test)
+		})
+	}
+}
+
 func TestRunErrors(t *testing.T) {
 	tests := []testCase{
 		{
@@ -812,11 +861,11 @@ func TestRunErrors(t *testing.T) {
 			wantExit: 2,
 		},
 		{
-			name:     "long options are not supported",
+			name:     "an unrecognized long option",
 			files:    fsx.MemFS{"a.txt": {Data: []byte("x")}},
-			args:     []string{"--force", "a.txt", "b.txt"},
+			args:     []string{"--bogus", "a.txt", "b.txt"},
 			absent:   []string{"b.txt"},
-			wantErr:  "cp: unrecognized option '--force'\n",
+			wantErr:  "cp: unrecognized option '--bogus'\n",
 			wantExit: 2,
 		},
 		{

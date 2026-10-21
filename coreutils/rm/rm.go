@@ -259,11 +259,20 @@ type options struct {
 	verbose     bool
 }
 
+// longOptions maps the long options of rm to the short ones they stand for.
+var longOptions = map[string]rune{
+	"dir":         'd',
+	"force":       'f',
+	"interactive": 'i',
+	"recursive":   'r',
+	"verbose":     'v',
+}
+
 // parseFlags parses the options and operands. Option parsing stops at the
 // first operand or at "--", and the last of -f and -i wins.
 func parseFlags(args []string) (options, []string, error) {
 	var opts options
-	operands, err := getopt.Set{}.Parse(args, func(opt rune, _ string) error {
+	operands, err := getopt.Set{Long: longOptions}.Parse(args, func(opt rune, _ string) error {
 		switch opt {
 		case 'd':
 			opts.empty = true

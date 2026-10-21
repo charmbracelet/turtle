@@ -111,10 +111,16 @@ func unwrapPathError(err error) error {
 	return err
 }
 
+// longOptions maps the long options of rmdir to the short ones they stand
+// for.
+var longOptions = map[string]rune{
+	"parents": 'p',
+}
+
 // parseFlags parses the options and operands. Option parsing stops at the
 // first operand or at "--".
 func parseFlags(args []string) (parents bool, dirs []string, err error) {
-	dirs, err = getopt.Set{}.Parse(args, func(opt rune, _ string) error {
+	dirs, err = getopt.Set{Long: longOptions}.Parse(args, func(opt rune, _ string) error {
 		if opt != 'p' {
 			return getopt.InvalidOption(opt)
 		}

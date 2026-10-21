@@ -433,6 +433,63 @@ func TestRunLastTimeSourceWins(t *testing.T) {
 	}
 }
 
+func TestRunLongOptions(t *testing.T) {
+	tests := []testCase{
+		{
+			name:  "time atime sets the access time only",
+			files: testFS(),
+			tz:    "UTC",
+			args:  []string{"--time=atime", "-t", "202201020304.05", "ref.txt"},
+			want:  map[string]timePair{"ref.txt": {atime: time.Date(2022, 1, 2, 3, 4, 5, 0, time.UTC), mtime: refMtime}},
+		},
+		{
+			name:  "time mtime sets the modification time only",
+			files: testFS(),
+			tz:    "UTC",
+			args:  []string{"--time=mtime", "-t", "202201020304.05", "ref.txt"},
+			want:  map[string]timePair{"ref.txt": {atime: refAtime, mtime: time.Date(2022, 1, 2, 3, 4, 5, 0, time.UTC)}},
+		},
+		{
+			name:   "no-create does not create the file",
+			files:  fsx.MemFS{},
+			args:   []string{"--no-create", "missing.txt"},
+			absent: []string{"missing.txt"},
+		},
+		{
+			name:  "date sets both times",
+			files: fsx.MemFS{},
+			tz:    "UTC",
+			args:  []string{"--date", "2007-11-12T10:15:30", "file.txt"},
+			want:  map[string]timePair{"file.txt": both(time.Date(2007, 11, 12, 10, 15, 30, 0, time.UTC))},
+		},
+		{
+			name:  "reference uses both times of the reference file",
+			files: testFS(),
+			args:  []string{"--reference=ref.txt", "file.txt"},
+			want:  map[string]timePair{"file.txt": {atime: refAtime, mtime: refMtime}},
+		},
+		{
+			name:     "an unknown time word is an error",
+			files:    fsx.MemFS{},
+			args:     []string{"--time=bogus", "file.txt"},
+			wantErr:  "touch: invalid argument 'bogus' for '--time'\n",
+			wantExit: 2,
+		},
+		{
+			name:     "time requires an argument",
+			files:    fsx.MemFS{},
+			args:     []string{"--time"},
+			wantErr:  "touch: option '--time' requires an argument\n",
+			wantExit: 2,
+		},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			runCase(t, test)
+		})
+	}
+}
+
 func TestRunUsageErrors(t *testing.T) {
 	tests := []struct {
 		name    string

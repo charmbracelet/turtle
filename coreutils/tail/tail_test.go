@@ -764,6 +764,55 @@ func TestRunFollowErrors(t *testing.T) {
 	})
 }
 
+func TestRunLongOptions(t *testing.T) {
+	tests := []testCase{
+		{
+			name: "lines takes its value in the next argument",
+			fsys: testFS(),
+			args: []string{"--lines", "2", "lines.txt"},
+			want: "l4\nl5\n",
+		},
+		{
+			name: "lines takes its value glued to it",
+			fsys: testFS(),
+			args: []string{"--lines=2", "lines.txt"},
+			want: "l4\nl5\n",
+		},
+		{
+			name: "bytes takes its value glued to it",
+			fsys: testFS(),
+			args: []string{"--bytes=3", "bytes.txt"},
+			want: "789",
+		},
+		{
+			name:     "lines requires an argument",
+			fsys:     testFS(),
+			args:     []string{"--lines"},
+			wantErr:  "tail: option '--lines' requires an argument\n",
+			wantExit: 2,
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			runCase(t, test)
+		})
+	}
+
+	t.Run("follow copies data appended to the file", func(t *testing.T) {
+		got, stderr, err := runFollow(t, "one\n", []string{"--follow", "f.txt"}, []string{"two\n"})
+		if !errors.Is(err, context.Canceled) {
+			t.Errorf("Run() error = %v, want context.Canceled", err)
+		}
+		if want := "one\ntwo\n"; got != want {
+			t.Errorf("Run() stdout = %q, want %q", got, want)
+		}
+		if stderr != "" {
+			t.Errorf("Run() stderr = %q, want %q", stderr, "")
+		}
+	})
+}
+
 func TestRunErrors(t *testing.T) {
 	tests := []testCase{
 		{
@@ -819,8 +868,8 @@ func TestRunInvalidUsage(t *testing.T) {
 		{
 			name:     "unrecognized long option",
 			fsys:     testFS(),
-			args:     []string{"--lines", "a.txt"},
-			wantErr:  "tail: unrecognized option '--lines'\n",
+			args:     []string{"--bogus", "a.txt"},
+			wantErr:  "tail: unrecognized option '--bogus'\n",
 			wantExit: 2,
 		},
 		{

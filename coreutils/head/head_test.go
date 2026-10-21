@@ -401,6 +401,42 @@ func TestRunLastOptionWins(t *testing.T) {
 	}
 }
 
+func TestRunLongOptions(t *testing.T) {
+	tests := []testCase{
+		{
+			name: "lines takes its value in the next argument",
+			fsys: testFS(),
+			args: []string{"--lines", "2", "lines.txt"},
+			want: "l1\nl2\n",
+		},
+		{
+			name: "lines takes its value glued to it",
+			fsys: testFS(),
+			args: []string{"--lines=2", "lines.txt"},
+			want: "l1\nl2\n",
+		},
+		{
+			name: "bytes takes its value glued to it",
+			fsys: testFS(),
+			args: []string{"--bytes=4", "bytes.txt"},
+			want: "0123",
+		},
+		{
+			name:     "lines requires an argument",
+			fsys:     testFS(),
+			args:     []string{"--lines"},
+			wantErr:  "head: option '--lines' requires an argument\n",
+			wantExit: 2,
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			runCase(t, test)
+		})
+	}
+}
+
 func TestRunErrors(t *testing.T) {
 	tests := []testCase{
 		{
