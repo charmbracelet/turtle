@@ -122,8 +122,8 @@ func (p *Prog) decode(ctx context.Context, br *bufio.Reader, in input, outfile s
 
 // decodeBody decodes the body which follows the header: lines of the
 // historical encoding up to the terminator, or base64 up to a line holding
-// "====". An "end" line without a terminator before it is invalid, as POSIX
-// requires the zero-length line first.
+// "====". Empty lines are invalid, as is an "end" line without a terminator
+// before it: POSIX requires the zero-length line first.
 func (p *Prog) decodeBody(ctx context.Context, br *bufio.Reader, w io.Writer, base64 bool) error {
 	if base64 {
 		return basex.Base64.Decode(ctx, w, &bodyReader{br: br}, true)
@@ -133,29 +133,26 @@ func (p *Prog) decodeBody(ctx context.Context, br *bufio.Reader, w io.Writer, ba
 			return err
 		}
 		line, err := br.ReadString('\n')
+		if err != nil && !errors.Is(err, io.EOF) {
+			return err
+		}
 		trimmed := trimLine(line)
-		if trimmed == "end" {
+		if trimmed == "" || trimmed == "end" {
+			// POSIX requires a line holding only a space or backquote
+			// before the end line, and no empty lines in between.
 			return errInvalidInput
 		}
-		if trimmed != "" {
-			data, last, derr := uux.DecodeLine([]byte(trimmed))
-			if derr != nil {
-				return errInvalidInput
-			}
-			if len(data) > 0 {
-				if _, werr := w.Write(data); werr != nil {
-					return werr
-				}
-			}
-			if last {
-				return nil
+		data, last, derr := uux.DecodeLine([]byte(trimmed))
+		if derr != nil {
+			return errInvalidInput
+		}
+		if len(data) > 0 {
+			if _, werr := w.Write(data); werr != nil {
+				return werr
 			}
 		}
-		if err != nil {
-			if errors.Is(err, io.EOF) {
-				return errInvalidInput
-			}
-			return err
+		if last {
+			return nil
 		}
 	}
 }

@@ -124,6 +124,8 @@ func TestDecodeLine(t *testing.T) {
 		},
 		{"a short line", "Mab", nil, false, true},
 		{"a line shorter than its length says", "M", nil, false, true},
+		{"a line announcing 46 bytes", "N", nil, false, true},
+		{"a line announcing 63 bytes", "_", nil, false, true},
 	}
 
 	for _, test := range tests {

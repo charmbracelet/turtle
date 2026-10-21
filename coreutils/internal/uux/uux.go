@@ -78,7 +78,8 @@ func encodeLine(w io.Writer, data []byte) error {
 // trailing newline. It returns the decoded bytes, and whether the line is
 // the terminator: one whose length character decodes to zero, like "`" or
 // " ". Both '`' and <space> are accepted as a zero value, as some encoders
-// emit one and some the other.
+// emit one and some the other. Lines announcing more than LineBytes bytes
+// are invalid.
 func DecodeLine(line []byte) ([]byte, bool, error) {
 	if len(line) == 0 {
 		return nil, false, errors.New("short line")
@@ -86,6 +87,9 @@ func DecodeLine(line []byte) ([]byte, bool, error) {
 	n := int(decode(line[0]))
 	if n == 0 {
 		return nil, true, nil
+	}
+	if n > LineBytes {
+		return nil, false, errors.New("invalid line length")
 	}
 	chars := (n + 2) / 3 * 4
 	if len(line) < 1+chars {
