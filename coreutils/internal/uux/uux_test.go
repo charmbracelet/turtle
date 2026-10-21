@@ -110,7 +110,7 @@ func TestDecodeLine(t *testing.T) {
 		last    bool
 		wantErr bool
 	}{
-		{"an empty line is the terminator", "", nil, true, false},
+		{"an empty line is invalid", "", nil, false, true},
 		{"a backquote is the terminator", "`", nil, true, false},
 		{"a space is the terminator", " ", nil, true, false},
 		{"three bytes", "#8V%T", []byte("cat"), false, false},

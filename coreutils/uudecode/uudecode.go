@@ -111,7 +111,7 @@ func (p *Prog) decode(ctx context.Context, br *bufio.Reader, in input, outfile s
 		return nil
 	case ctx.Err() != nil:
 		return ctx.Err()
-	case errors.Is(err, errInvalidInput), errors.Is(err, basex.ErrInvalidInput):
+	case errors.Is(err, errInvalidInput), errors.Is(err, basex.ErrInvalidInput), errors.Is(err, io.ErrUnexpectedEOF):
 		p.errorf("%s: invalid input", in.label())
 		return &coreutils.ExitError{Code: 1}
 	default:
@@ -152,7 +152,7 @@ func (p *Prog) decodeBody(ctx context.Context, br *bufio.Reader, w io.Writer, ba
 		}
 		if err != nil {
 			if errors.Is(err, io.EOF) {
-				return nil
+				return errInvalidInput
 			}
 			return err
 		}
@@ -237,7 +237,8 @@ var errNoBegin = errors.New("no 'begin' line")
 var errInvalidInput = errors.New("invalid input")
 
 // bodyReader reads the lines of a base64 body from br, ending the stream at
-// a line holding "====" or at the end of the input.
+// a line holding "====". An end of the input before the terminator is
+// reported as an unexpected EOF.
 type bodyReader struct {
 	br   *bufio.Reader
 	line string
@@ -255,13 +256,13 @@ func (r *bodyReader) Read(p []byte) (int, error) {
 			r.done = true
 			continue
 		}
-		r.line = line
 		if err != nil {
-			if !errors.Is(err, io.EOF) {
-				return 0, err
+			if errors.Is(err, io.EOF) {
+				return 0, io.ErrUnexpectedEOF
 			}
-			r.done = true
+			return 0, err
 		}
+		r.line = line
 	}
 	n := copy(p, r.line)
 	r.line = r.line[n:]

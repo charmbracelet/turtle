@@ -76,12 +76,12 @@ func encodeLine(w io.Writer, data []byte) error {
 
 // DecodeLine decodes a single line of the historical encoding, without its
 // trailing newline. It returns the decoded bytes, and whether the line is
-// the terminator: an empty line, or one whose length character decodes to
-// zero, like "`" or " ". Both '`' and <space> are accepted as a zero value,
-// as some encoders emit one and some the other.
+// the terminator: one whose length character decodes to zero, like "`" or
+// " ". Both '`' and <space> are accepted as a zero value, as some encoders
+// emit one and some the other.
 func DecodeLine(line []byte) ([]byte, bool, error) {
 	if len(line) == 0 {
-		return nil, true, nil
+		return nil, false, errors.New("short line")
 	}
 	n := int(decode(line[0]))
 	if n == 0 {

@@ -211,14 +211,6 @@ func TestRunDecode(t *testing.T) {
 			},
 		},
 		{
-			name:  "base64 may lack the terminator",
-			stdin: strings.NewReader("begin-base64 644 out.txt\naGVsbG8=\n"),
-			fsys:  fsx.MemFS{},
-			wantFiles: map[string]wantFile{
-				"out.txt": {data: "hello", mode: 0o644},
-			},
-		},
-		{
 			name: "a file operand",
 			fsys: testFS(),
 			args: []string{"encoded.uue"},
@@ -329,6 +321,27 @@ func TestRunErrors(t *testing.T) {
 		{
 			name:     "a short body line",
 			stdin:    strings.NewReader("begin 644 out.txt\nMab\nend\n"),
+			fsys:     fsx.MemFS{},
+			wantErr:  "uudecode: standard input: invalid input\n",
+			wantExit: 1,
+		},
+		{
+			name:     "a truncated historical body",
+			stdin:    strings.NewReader("begin 644 out.txt\n%:&5L;&\\`\n"),
+			fsys:     fsx.MemFS{},
+			wantErr:  "uudecode: standard input: invalid input\n",
+			wantExit: 1,
+		},
+		{
+			name:     "a body of no lines",
+			stdin:    strings.NewReader("begin 644 out.txt\n"),
+			fsys:     fsx.MemFS{},
+			wantErr:  "uudecode: standard input: invalid input\n",
+			wantExit: 1,
+		},
+		{
+			name:     "base64 without its terminator",
+			stdin:    strings.NewReader("begin-base64 644 out.txt\naGVsbG8=\n"),
 			fsys:     fsx.MemFS{},
 			wantErr:  "uudecode: standard input: invalid input\n",
 			wantExit: 1,

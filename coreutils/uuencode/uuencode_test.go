@@ -10,6 +10,7 @@ import (
 	"testing"
 
 	"charm.land/snail/coreutils"
+	"charm.land/snail/coreutils/uudecode"
 	"charm.land/snail/fsx"
 )
 
@@ -163,10 +164,16 @@ func TestRunEncode(t *testing.T) {
 			want: "begin 000 dest\n!>```\n`\nend\n",
 		},
 		{
-			name:  "the name operand is used verbatim",
+			name:  "a name of dash is escaped for uudecode",
 			stdin: strings.NewReader("x"),
 			args:  []string{"-"},
-			want:  "begin 666 -\n!>```\n`\nend\n",
+			want:  "begin 666 ./-\n!>```\n`\nend\n",
+		},
+		{
+			name:  "a name of /dev/stdout is escaped for uudecode",
+			stdin: strings.NewReader("x"),
+			args:  []string{"/dev/stdout"},
+			want:  "begin 666 ///dev/stdout\n!>```\n`\nend\n",
 		},
 	}
 
@@ -364,5 +371,40 @@ func runCancelled(t *testing.T, ctx context.Context, stdin io.Reader) {
 	}
 	if got := stderr.String(); got != "" {
 		t.Errorf("Run() stderr = %q, want empty", got)
+	}
+}
+
+// TestRunEscapedNameRoundTrip encodes an input with a name of dash and
+// checks that uudecode recreates a literal file with that name rather than
+// writing it to the standard output.
+func TestRunEscapedNameRoundTrip(t *testing.T) {
+	stdout := new(bytes.Buffer)
+	enc := New(&coreutils.Runtime{
+		Stdin:  strings.NewReader("hello"),
+		Stdout: stdout,
+		Stderr: new(bytes.Buffer),
+		Umask:  0o022,
+	})
+	if err := enc.Run(t.Context(), "-"); err != nil {
+		t.Fatalf("Run() error = %v, want nil", err)
+	}
+
+	fsys := fsx.MemFS{"sub/keep.txt": {Data: []byte("x")}}
+	dec := uudecode.New(&coreutils.Runtime{
+		Stdin:      bytes.NewReader(stdout.Bytes()),
+		Stdout:     new(bytes.Buffer),
+		Stderr:     new(bytes.Buffer),
+		FS:         fsys,
+		WorkingDir: "sub",
+	})
+	if err := dec.Run(t.Context()); err != nil {
+		t.Fatalf("uudecode.Run() error = %v, want nil", err)
+	}
+	entry, ok := fsys["sub/-"]
+	if !ok {
+		t.Fatal("uudecode didn't create the file -")
+	}
+	if got := string(entry.Data); got != "hello" {
+		t.Errorf("the file - = %q, want %q", got, "hello")
 	}
 }
