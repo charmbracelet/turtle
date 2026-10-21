@@ -86,7 +86,7 @@ v0 and we do progress. We have some progress tracking below.
 | Text               | `cut`        | ❌    | ❌  |
 | Text               | `join`       | ❌    | ❌  |
 | Text               | `sort`       | ❌    | ❌  |
-| Text               | `paste`      | ❌    | ❌  |
+| Text               | `paste`      | ✅    | ❌  |
 | Text               | `tee`        | ✅    | ❌  |
 | Text               | `tr`         | ❌    | ❌  |
 | Text               | `uniq`       | ❌    | ❌  |
