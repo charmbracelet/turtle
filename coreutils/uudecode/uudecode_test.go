@@ -179,14 +179,6 @@ func TestRunDecode(t *testing.T) {
 			},
 		},
 		{
-			name:  "the terminator may be missing when the end follows",
-			stdin: strings.NewReader("begin 644 out.txt\n%:&5L;&\\`\nend\n"),
-			fsys:  fsx.MemFS{},
-			wantFiles: map[string]wantFile{
-				"out.txt": {data: "hello", mode: 0o644},
-			},
-		},
-		{
 			name:  "Windows line endings are accepted",
 			stdin: strings.NewReader("begin 644 out.txt\r\n%:&5L;&\\`\r\n`\r\nend\r\n"),
 			fsys:  fsx.MemFS{},
@@ -321,6 +313,13 @@ func TestRunErrors(t *testing.T) {
 		{
 			name:     "a short body line",
 			stdin:    strings.NewReader("begin 644 out.txt\nMab\nend\n"),
+			fsys:     fsx.MemFS{},
+			wantErr:  "uudecode: standard input: invalid input\n",
+			wantExit: 1,
+		},
+		{
+			name:     "an end line without the terminator",
+			stdin:    strings.NewReader("begin 644 out.txt\n%:&5L;&\\`\nend\n"),
 			fsys:     fsx.MemFS{},
 			wantErr:  "uudecode: standard input: invalid input\n",
 			wantExit: 1,

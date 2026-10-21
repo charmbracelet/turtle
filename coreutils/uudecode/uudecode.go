@@ -122,7 +122,8 @@ func (p *Prog) decode(ctx context.Context, br *bufio.Reader, in input, outfile s
 
 // decodeBody decodes the body which follows the header: lines of the
 // historical encoding up to the terminator, or base64 up to a line holding
-// "====".
+// "====". An "end" line without a terminator before it is invalid, as POSIX
+// requires the zero-length line first.
 func (p *Prog) decodeBody(ctx context.Context, br *bufio.Reader, w io.Writer, base64 bool) error {
 	if base64 {
 		return basex.Base64.Decode(ctx, w, &bodyReader{br: br}, true)
@@ -134,7 +135,7 @@ func (p *Prog) decodeBody(ctx context.Context, br *bufio.Reader, w io.Writer, ba
 		line, err := br.ReadString('\n')
 		trimmed := trimLine(line)
 		if trimmed == "end" {
-			return nil
+			return errInvalidInput
 		}
 		if trimmed != "" {
 			data, last, derr := uux.DecodeLine([]byte(trimmed))
