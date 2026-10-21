@@ -164,16 +164,16 @@ func TestRunEncode(t *testing.T) {
 			want: "begin 000 dest\n!>```\n`\nend\n",
 		},
 		{
-			name:  "a name of dash is escaped for uudecode",
+			name:  "a name of dash is kept verbatim",
 			stdin: strings.NewReader("x"),
 			args:  []string{"-"},
-			want:  "begin 666 ./-\n!>```\n`\nend\n",
+			want:  "begin 666 -\n!>```\n`\nend\n",
 		},
 		{
-			name:  "a name of /dev/stdout is escaped for uudecode",
+			name:  "a name of /dev/stdout is kept verbatim",
 			stdin: strings.NewReader("x"),
 			args:  []string{"/dev/stdout"},
-			want:  "begin 666 ///dev/stdout\n!>```\n`\nend\n",
+			want:  "begin 666 /dev/stdout\n!>```\n`\nend\n",
 		},
 	}
 
@@ -374,14 +374,14 @@ func runCancelled(t *testing.T, ctx context.Context, stdin io.Reader) {
 	}
 }
 
-// TestRunEscapedNameRoundTrip encodes an input with a name of dash and
-// checks that uudecode recreates a literal file with that name rather than
-// writing it to the standard output.
-func TestRunEscapedNameRoundTrip(t *testing.T) {
-	stdout := new(bytes.Buffer)
+// TestRunStdoutRoundTrip encodes an input with a name of dash and checks
+// that uudecode writes the decoded bytes to the standard output, like POSIX
+// specifies for the cookie.
+func TestRunStdoutRoundTrip(t *testing.T) {
+	encoded := new(bytes.Buffer)
 	enc := New(&coreutils.Runtime{
 		Stdin:  strings.NewReader("hello"),
-		Stdout: stdout,
+		Stdout: encoded,
 		Stderr: new(bytes.Buffer),
 		Umask:  0o022,
 	})
@@ -389,22 +389,16 @@ func TestRunEscapedNameRoundTrip(t *testing.T) {
 		t.Fatalf("Run() error = %v, want nil", err)
 	}
 
-	fsys := fsx.MemFS{"sub/keep.txt": {Data: []byte("x")}}
+	decoded := new(bytes.Buffer)
 	dec := uudecode.New(&coreutils.Runtime{
-		Stdin:      bytes.NewReader(stdout.Bytes()),
-		Stdout:     new(bytes.Buffer),
-		Stderr:     new(bytes.Buffer),
-		FS:         fsys,
-		WorkingDir: "sub",
+		Stdin:  bytes.NewReader(encoded.Bytes()),
+		Stdout: decoded,
+		Stderr: new(bytes.Buffer),
 	})
 	if err := dec.Run(t.Context()); err != nil {
 		t.Fatalf("uudecode.Run() error = %v, want nil", err)
 	}
-	entry, ok := fsys["sub/-"]
-	if !ok {
-		t.Fatal("uudecode didn't create the file -")
-	}
-	if got := string(entry.Data); got != "hello" {
-		t.Errorf("the file - = %q, want %q", got, "hello")
+	if got := decoded.String(); got != "hello" {
+		t.Errorf("uudecode wrote %q, want %q", got, "hello")
 	}
 }

@@ -88,7 +88,7 @@ func (p *Prog) Run(ctx context.Context, args ...string) error {
 // encode writes the encoding of r to w: the "begin" header, the encoded
 // lines and the trailer.
 func (p *Prog) encode(ctx context.Context, r io.Reader, w io.Writer, mode fs.FileMode, name string, base64 bool) error {
-	if _, err := io.WriteString(w, uux.BeginLine(base64, mode, escapeName(name))); err != nil {
+	if _, err := io.WriteString(w, uux.BeginLine(base64, mode, name)); err != nil {
 		return err
 	}
 	var err error
@@ -177,20 +177,6 @@ func (in input) label() string {
 		return "standard input"
 	}
 	return in.name
-}
-
-// escapeName maps the magic cookies which uudecode writes to the standard
-// output to pathnames holding the literal name, so the decoded file keeps
-// it.
-func escapeName(name string) string {
-	switch name {
-	case "-":
-		return "./-"
-	case "/dev/stdout":
-		return "///dev/stdout"
-	default:
-		return name
-	}
 }
 
 // errWriter records the first write error, so a read error isn't mistaken
