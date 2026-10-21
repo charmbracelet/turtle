@@ -406,6 +406,22 @@ func TestRunErrors(t *testing.T) {
 			wantExit: 2,
 		},
 		{
+			name:     "an empty -o argument",
+			stdin:    strings.NewReader(historical),
+			fsys:     fsx.MemFS{},
+			args:     []string{"-o", ""},
+			wantErr:  "uudecode: invalid zero-length file name\n",
+			wantExit: 1,
+		},
+		{
+			name:     "an empty --output-file value",
+			stdin:    strings.NewReader(historical),
+			fsys:     fsx.MemFS{},
+			args:     []string{"--output-file="},
+			wantErr:  "uudecode: invalid zero-length file name\n",
+			wantExit: 1,
+		},
+		{
 			name:     "an empty input name",
 			args:     []string{""},
 			wantErr:  "uudecode: invalid zero-length file name\n",

@@ -67,8 +67,8 @@ func (p *Prog) Run(ctx context.Context, args ...string) error {
 }
 
 // decode scans the input for an uuencode output and recreates the file it
-// holds.
-func (p *Prog) decode(ctx context.Context, br *bufio.Reader, in input, outfile string) error {
+// holds. A nil outfile means -o wasn't given, and the header names the file.
+func (p *Prog) decode(ctx context.Context, br *bufio.Reader, in input, outfile *string) error {
 	header, err := scanHeader(ctx, br)
 	switch {
 	case err == nil:
@@ -90,8 +90,12 @@ func (p *Prog) decode(ctx context.Context, br *bufio.Reader, in input, outfile s
 	mode := spec(0, false, 0)
 
 	name := header.Name
-	if outfile != "" {
-		name = outfile
+	if outfile != nil {
+		name = *outfile
+	}
+	if name == "" {
+		p.errorf("invalid zero-length file name")
+		return &coreutils.ExitError{Code: 1}
 	}
 
 	w, done, err := p.output(name, mode)
@@ -282,16 +286,16 @@ var longOptions = map[string]rune{
 // parseFlags parses the options and operands. The -o option takes a pathname
 // option-argument, either attached or in the next argument, and the last one
 // given wins. Option parsing stops at the first operand or at "--".
-func parseFlags(args []string) (outfile string, operands []string, err error) {
+func parseFlags(args []string) (outfile *string, operands []string, err error) {
 	operands, err = getopt.Set{Valued: "o", Long: longOptions}.Parse(args, func(opt rune, value string) error {
 		if opt != 'o' {
 			return getopt.InvalidOption(opt)
 		}
-		outfile = value
+		outfile = &value
 		return nil
 	})
 	if err != nil {
-		return "", nil, err
+		return nil, nil, err
 	}
 	return outfile, operands, nil
 }
