@@ -83,7 +83,7 @@ v0 and we do progress. We have some progress tracking below.
 | Filesystem         | `du`         | ❌    | ❌  |
 | Filesystem         | `pathchk`    | ❌    | ❌  |
 | Filesystem         | `pax`        | ❌    | ❌  |
-| Text               | `cut`        | ❌    | ❌  |
+| Text               | `cut`        | ✅    | ❌  |
 | Text               | `join`       | ❌    | ❌  |
 | Text               | `sort`       | ❌    | ❌  |
 | Text               | `paste`      | ✅    | ❌  |
