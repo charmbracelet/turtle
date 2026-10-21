@@ -126,6 +126,10 @@ func TestDecodeLine(t *testing.T) {
 		{"a line shorter than its length says", "M", nil, false, true},
 		{"a line announcing 46 bytes", "N", nil, false, true},
 		{"a line announcing 63 bytes", "_", nil, false, true},
+		{"a character outside of the alphabet", "#8V%t", nil, false, true},
+		{"an invalid length character", "t8V%", nil, false, true},
+		{"a control character", "#8V%\t", nil, false, true},
+		{"a byte outside of ASCII", "#8V%\x80", nil, false, true},
 	}
 
 	for _, test := range tests {

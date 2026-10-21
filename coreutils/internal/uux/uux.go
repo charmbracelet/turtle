@@ -78,11 +78,16 @@ func encodeLine(w io.Writer, data []byte) error {
 // trailing newline. It returns the decoded bytes, and whether the line is
 // the terminator: one whose length character decodes to zero, like "`" or
 // " ". Both '`' and <space> are accepted as a zero value, as some encoders
-// emit one and some the other. Lines announcing more than LineBytes bytes
-// are invalid.
+// emit one and some the other. Every character must be in the format's
+// alphabet, and lines announcing more than LineBytes bytes are invalid.
 func DecodeLine(line []byte) ([]byte, bool, error) {
 	if len(line) == 0 {
 		return nil, false, errors.New("short line")
+	}
+	for _, c := range line {
+		if !valid(c) {
+			return nil, false, errors.New("invalid character")
+		}
 	}
 	n := int(decode(line[0]))
 	if n == 0 {
@@ -121,6 +126,12 @@ func encode(v int) byte {
 // <space> map to zero.
 func decode(c byte) byte {
 	return (c - 0x20) & 0x3f
+}
+
+// valid reports whether c is in the alphabet of the historical encoding:
+// the printable characters up to '`', which encodes a zero.
+func valid(c byte) bool {
+	return c >= 0x20 && c <= '`'
 }
 
 // Header describes the "begin" line which opens an encoded input.
