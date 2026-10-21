@@ -348,64 +348,137 @@ func extensionOf(name string) string {
 	return ""
 }
 
-// versionOrder sorts names with their runs of decimal digits taken as
-// numbers, as -v asks for.
+// versionOrder sorts names by the versions they hold, as -v asks for.
 func versionOrder(a, b entry) int {
 	return compareVersion(a.name, b.name)
 }
 
-// compareVersion compares two names, treating each run of decimal digits as
-// a number.
+// compareVersion compares two names as versions, the way the GNU filevercmp
+// does: runs of decimal digits are taken as numbers, and the comparison is
+// made without the suffixes, the dot-extensions ending each name, before
+// being made with them. A name with a leading dot sorts first, with "." and
+// ".." before the others.
 func compareVersion(a, b string) int {
-	i, j := 0, 0
-	for i < len(a) && j < len(b) {
-		runA, runB := digitRun(a[i:]), digitRun(b[j:])
-		if runA != "" && runB != "" {
-			if order := compareNumbers(runA, runB); order != 0 {
-				return order
-			}
-			i += len(runA)
-			j += len(runB)
-			continue
+	switch {
+	case a == "":
+		if b == "" {
+			return 0
 		}
-		if a[i] != b[j] {
-			if a[i] < b[j] {
-				return -1
+		return -1
+	case b == "":
+		return 1
+	}
+	if a[0] == '.' {
+		if b[0] != '.' {
+			return -1
+		}
+		if rankA, rankB := dotRank(a), dotRank(b); rankA != rankB {
+			return rankA - rankB
+		}
+	} else if b[0] == '.' {
+		return 1
+	}
+	prefixA, prefixB := prefixLen(a), prefixLen(b)
+	result := verrevcmp(a[:prefixA], b[:prefixB])
+	if result != 0 || (prefixA == len(a) && prefixB == len(b)) {
+		return result
+	}
+	return verrevcmp(a, b)
+}
+
+// dotRank orders the names with a leading dot: "." first, then "..", then
+// the others.
+func dotRank(name string) int {
+	switch name {
+	case ".":
+		return 0
+	case "..":
+		return 1
+	}
+	return 2
+}
+
+// prefixLen returns the length of a name without its suffix: the chain of
+// dot-extensions ending it, each a dot followed by a letter or a tilde and
+// then letters, digits or tildes.
+func prefixLen(s string) int {
+	prefix := 0
+	for i := 0; i < len(s); {
+		i++
+		prefix = i
+		for i+1 < len(s) && s[i] == '.' && (isAlpha(s[i+1]) || s[i+1] == '~') {
+			for i += 2; i < len(s) && (isAlnum(s[i]) || s[i] == '~'); i++ {
 			}
+		}
+	}
+	return prefix
+}
+
+// verrevcmp compares two versions the Debian way: each run of decimal
+// digits is taken as a number, and the other bytes by their rank.
+func verrevcmp(a, b string) int {
+	ia, ib := 0, 0
+	for ia < len(a) || ib < len(b) {
+		firstDiff := 0
+		for (ia < len(a) && !isDigit(a[ia])) || (ib < len(b) && !isDigit(b[ib])) {
+			rankA, rankB := versionRank(a, ia), versionRank(b, ib)
+			if rankA != rankB {
+				return rankA - rankB
+			}
+			ia++
+			ib++
+		}
+		for ia < len(a) && a[ia] == '0' {
+			ia++
+		}
+		for ib < len(b) && b[ib] == '0' {
+			ib++
+		}
+		for ia < len(a) && ib < len(b) && isDigit(a[ia]) && isDigit(b[ib]) {
+			if firstDiff == 0 {
+				firstDiff = int(a[ia]) - int(b[ib])
+			}
+			ia++
+			ib++
+		}
+		if ia < len(a) && isDigit(a[ia]) {
 			return 1
 		}
-		i++
-		j++
+		if ib < len(b) && isDigit(b[ib]) {
+			return -1
+		}
+		if firstDiff != 0 {
+			return firstDiff
+		}
 	}
-	switch {
-	case i < len(a):
-		return 1
-	case j < len(b):
-		return -1
-	}
-	return strings.Compare(a, b)
+	return 0
 }
 
-// digitRun returns the leading run of decimal digits of s.
-func digitRun(s string) string {
-	end := 0
-	for end < len(s) && '0' <= s[end] && s[end] <= '9' {
-		end++
+// versionRank orders the byte of s at pos: a tilde sorts before everything,
+// the end of s before every other byte, and a byte that is neither a letter
+// nor a digit sorts after the letters.
+func versionRank(s string, pos int) int {
+	if pos == len(s) {
+		return -1
 	}
-	return s[:end]
+	c := s[pos]
+	switch {
+	case isDigit(c):
+		return 0
+	case isAlpha(c):
+		return int(c)
+	case c == '~':
+		return -2
+	default:
+		return int(c) + 256
+	}
 }
 
-// compareNumbers compares two runs of decimal digits by their value.
-func compareNumbers(a, b string) int {
-	a, b = strings.TrimLeft(a, "0"), strings.TrimLeft(b, "0")
-	switch {
-	case len(a) < len(b):
-		return -1
-	case len(a) > len(b):
-		return 1
-	}
-	return strings.Compare(a, b)
-}
+func isDigit(c byte) bool { return '0' <= c && c <= '9' }
+
+func isAlpha(c byte) bool { return 'a' <= c && c <= 'z' || 'A' <= c && c <= 'Z' }
+
+func isAlnum(c byte) bool { return isAlpha(c) || isDigit(c) }
 
 // widthOrder sorts by the width a name is written with, the narrowest first.
 func widthOrder(a, b entry) int {

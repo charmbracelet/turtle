@@ -747,6 +747,12 @@ func TestRunSort(t *testing.T) {
 			wantOut: "f1\nf2\nf9\nf10\n",
 		},
 		{
+			name:    "-v sorts a tilde first and the letters before the other bytes",
+			files:   fsx.MemFS{"a-b": {}, "a.b": {}, "ab": {}, "a~": {}, "a": {}},
+			args:    []string{"-1", "-v"},
+			wantOut: "a~\na\na.b\nab\na-b\n",
+		},
+		{
 			name:    "-U keeps the order of the directory",
 			files:   fsx.MemFS{"b": {}, "a": {}},
 			args:    []string{"-1", "-U"},
@@ -831,6 +837,61 @@ func TestRunSort(t *testing.T) {
 			args:    []string{"-1", "-S"},
 			wantOut: "big\nlink\ndir\n",
 		},
+	})
+}
+
+func TestCompareVersion(t *testing.T) {
+	t.Run("the well sorted GNU examples", func(t *testing.T) {
+		// The sorted examples of the filevercmp test of GNU, where each
+		// name sorts before every name after it.
+		sorted := []string{
+			"", ".", "..", ".0", ".9", ".A", ".Z", ".a~", ".a", ".b~", ".b",
+			".z", ".zz~", ".zz", ".zz.~1~", ".zz.0", ".\x01", ".\x01.txt",
+			".\x01x", ".\x01x\x01", ".\x01.0", "0", "9", "A", "Z", "a~", "a",
+			"a.b~", "a.b", "a.bc~", "a.bc", "a+", "a.", "a..a", "a.+", "b~", "b",
+			"gcc-c++-10.fc9.tar.gz", "gcc-c++-10.fc9.tar.gz.~1~",
+			"gcc-c++-10.fc9.tar.gz.~2~", "gcc-c++-10.8.12-0.7rc2.fc9.tar.bz2",
+			"gcc-c++-10.8.12-0.7rc2.fc9.tar.bz2.~1~", "glibc-2-0.1.beta1.fc10.rpm",
+			"glibc-common-5-0.2.beta2.fc9.ebuild", "glibc-common-5-0.2b.deb",
+			"glibc-common-11b.ebuild", "glibc-common-11-0.6rc2.ebuild",
+			"libstdc++-0.5.8.11-0.7rc2.fc10.tar.gz", "libstdc++-4a.fc8.tar.gz",
+			"libstdc++-4.10.4.20040204svn.rpm", "libstdc++-devel-3.fc8.ebuild",
+			"libstdc++-devel-3a.fc9.tar.gz", "libstdc++-devel-8.fc8.deb",
+			"libstdc++-devel-8.6.2-0.4b.fc8", "nss_ldap-1-0.2b.fc9.tar.bz2",
+			"nss_ldap-1-0.6rc2.fc8.tar.gz", "nss_ldap-1.0-0.1a.tar.gz",
+			"nss_ldap-10beta1.fc8.tar.gz", "nss_ldap-10.11.8.6.20040204cvs.fc10.ebuild",
+			"z", "zz~", "zz", "zz.~1~", "zz.0", "zz.0.txt",
+			"\x01", "\x01.txt", "\x01x", "\x01x\x01", "\x01.0", "#\x01.b#", "#.b#",
+		}
+		sign := func(n int) int { return min(max(n, -1), 1) }
+		for i, a := range sorted {
+			for j, b := range sorted {
+				if got, want := sign(compareVersion(a, b)), sign(i-j); got != want {
+					t.Errorf("compareVersion(%q, %q) = %d, want %d", a, b, got, want)
+				}
+			}
+		}
+	})
+
+	t.Run("names padded with zeros compare equal", func(t *testing.T) {
+		groups := [][]string{
+			{"a", "a0", "a0000"},
+			{"a\x01c-27.txt", "a\x01c-027.txt", "a\x01c-00000000000000000000000000000000000000000000000000000027.txt"},
+			{".a\x01c-27.txt", ".a\x01c-027.txt", ".a\x01c-00000000000000000000000000000000000000000000000000000027.txt"},
+			{"a\x01c-", "a\x01c-0", "a\x01c-00"},
+			{".a\x01c-", ".a\x01c-0", ".a\x01c-00"},
+			{"a\x01c-0.txt", "a\x01c-00.txt"},
+			{".a\x01c-1\x01.txt", ".a\x01c-001\x01.txt"},
+		}
+		for _, group := range groups {
+			for _, a := range group {
+				for _, b := range group {
+					if got := compareVersion(a, b); got != 0 {
+						t.Errorf("compareVersion(%q, %q) = %d, want 0", a, b, got)
+					}
+				}
+			}
+		}
 	})
 }
 
