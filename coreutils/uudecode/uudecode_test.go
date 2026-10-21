@@ -346,6 +346,13 @@ func TestRunErrors(t *testing.T) {
 			wantExit: 1,
 		},
 		{
+			name:     "a terminator with trailing characters",
+			stdin:    strings.NewReader("begin 644 out.txt\n%:&5L;&\\`\n`abc\nend\n"),
+			fsys:     fsx.MemFS{},
+			wantErr:  "uudecode: standard input: invalid input\n",
+			wantExit: 1,
+		},
+		{
 			name:     "a truncated historical body",
 			stdin:    strings.NewReader("begin 644 out.txt\n%:&5L;&\\`\n"),
 			fsys:     fsx.MemFS{},

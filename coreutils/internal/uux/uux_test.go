@@ -131,6 +131,7 @@ func TestDecodeLine(t *testing.T) {
 		{"a control character", "#8V%\t", nil, false, true},
 		{"a byte outside of ASCII", "#8V%\x80", nil, false, true},
 		{"a line with trailing characters", "#8V%TQQ", nil, false, true},
+		{"a terminator with trailing characters", "`abc", nil, false, true},
 	}
 
 	for _, test := range tests {
