@@ -735,6 +735,24 @@ func TestRunSort(t *testing.T) {
 			wantOut: "a\nb\n",
 		},
 		{
+			name:    "-X sorts by the suffix of a name after its last dot",
+			files:   fsx.MemFS{"b.txt": {}, "a.md": {}, "plain": {}, "c.txt": {}},
+			args:    []string{"-1", "-X"},
+			wantOut: "plain\na.md\nb.txt\nc.txt\n",
+		},
+		{
+			name:    "-v sorts the runs of digits of a name by value",
+			files:   fsx.MemFS{"f10": {}, "f9": {}, "f2": {}, "f1": {}},
+			args:    []string{"-1", "-v"},
+			wantOut: "f1\nf2\nf9\nf10\n",
+		},
+		{
+			name:    "-U keeps the order of the directory",
+			files:   fsx.MemFS{"b": {}, "a": {}},
+			args:    []string{"-1", "-U"},
+			wantOut: "a\nb\n",
+		},
+		{
 			name:    "-r reverses the order of the names",
 			files:   fsx.MemFS{"a": {}, "b": {}, "c": {}},
 			args:    []string{"-1", "-r"},
@@ -877,6 +895,12 @@ func TestRunSymbolicLinks(t *testing.T) {
 			name:    "-F writes an operand link as itself",
 			files:   files,
 			args:    []string{"-F", "to-dir"},
+			wantOut: "to-dir@\n",
+		},
+		{
+			name:    "--file-type writes an operand link as itself",
+			files:   files,
+			args:    []string{"--file-type", "to-dir"},
 			wantOut: "to-dir@\n",
 		},
 		{
@@ -1292,6 +1316,24 @@ func TestRunLongOptions(t *testing.T) {
 			wantOut: "new\nold\n",
 		},
 		{
+			name:    "sort version orders the runs of digits of a name by value",
+			files:   fsx.MemFS{"f10": {}, "f9": {}, "f2": {}, "f1": {}},
+			args:    []string{"--sort=version"},
+			wantOut: "f1\nf2\nf9\nf10\n",
+		},
+		{
+			name:    "sort extension sorts by the suffix of a name after its last dot",
+			files:   fsx.MemFS{"b.txt": {}, "a.md": {}, "plain": {}, "c.txt": {}},
+			args:    []string{"--sort=extension"},
+			wantOut: "plain\na.md\nb.txt\nc.txt\n",
+		},
+		{
+			name:    "sort width sorts the narrowest names first",
+			files:   fsx.MemFS{"ccc": {}, "dd": {}, "b": {}, "aa": {}},
+			args:    []string{"--sort=width"},
+			wantOut: "b\naa\ndd\nccc\n",
+		},
+		{
 			name:    "sort name keeps the order of the names",
 			files:   fsx.MemFS{"b": {Data: []byte("xxx")}, "a": {}},
 			args:    []string{"--sort=name"},
@@ -1326,6 +1368,23 @@ func TestRunLongOptions(t *testing.T) {
 			files:   fsx.MemFS{"dir": {Mode: dirMode(0o755)}, "script": {Mode: 0o755}},
 			args:    []string{"--indicator-style=classify"},
 			wantOut: "dir/\nscript*\n",
+		},
+		{
+			name: "indicator-style file-type marks the type of each file but executables",
+			files: fsx.MemFS{
+				"dir":    {Mode: dirMode(0o755)},
+				"link":   link("dir"),
+				"plain":  {},
+				"script": {Mode: 0o755},
+			},
+			args:    []string{"--indicator-style=file-type"},
+			wantOut: "dir/\nlink@\nplain\nscript\n",
+		},
+		{
+			name:    "file-type marks the type of each file but executables",
+			files:   fsx.MemFS{"dir": {Mode: dirMode(0o755)}, "script": {Mode: 0o755}},
+			args:    []string{"--file-type"},
+			wantOut: "dir/\nscript\n",
 		},
 		{
 			name:    "indicator-style none writes no indicator",

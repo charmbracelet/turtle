@@ -192,7 +192,7 @@ func (l *lister) follows(isOperand bool) bool {
 	}
 	// By default only an operand naming a symbolic link is followed, and only
 	// when no option asks for the link itself to be written.
-	return isOperand && !l.opts.dirs && !l.opts.long && l.opts.classify != classifyFull
+	return isOperand && !l.opts.dirs && !l.opts.long && l.opts.classify < classifyFile
 }
 
 // listDir writes the entries of a directory, and with -R the listings of the
@@ -294,6 +294,12 @@ func (l *lister) sortEntries(entries []entry) {
 			order = sizeOrder(a, b)
 		case sortTime:
 			order = timeOrder(l.timeOf, a, b)
+		case sortExtension:
+			order = extensionOrder(a, b)
+		case sortVersion:
+			order = versionOrder(a, b)
+		case sortWidth:
+			order = widthOrder(a, b)
 		}
 		if order == 0 {
 			order = strings.Compare(a.name, b.name)
@@ -326,6 +332,84 @@ func timeOrder(times func(entry) time.Time, a, b entry) int {
 		return 1
 	}
 	return 0
+}
+
+// extensionOrder sorts by the extension of a name: the part from its last
+// dot on, or nothing for a name without a dot, which sorts first.
+func extensionOrder(a, b entry) int {
+	return strings.Compare(extensionOf(a.name), extensionOf(b.name))
+}
+
+// extensionOf returns the extension of a name, from its last dot on.
+func extensionOf(name string) string {
+	if i := strings.LastIndexByte(name, '.'); i >= 0 {
+		return name[i:]
+	}
+	return ""
+}
+
+// versionOrder sorts names with their runs of decimal digits taken as
+// numbers, as -v asks for.
+func versionOrder(a, b entry) int {
+	return compareVersion(a.name, b.name)
+}
+
+// compareVersion compares two names, treating each run of decimal digits as
+// a number.
+func compareVersion(a, b string) int {
+	i, j := 0, 0
+	for i < len(a) && j < len(b) {
+		runA, runB := digitRun(a[i:]), digitRun(b[j:])
+		if runA != "" && runB != "" {
+			if order := compareNumbers(runA, runB); order != 0 {
+				return order
+			}
+			i += len(runA)
+			j += len(runB)
+			continue
+		}
+		if a[i] != b[j] {
+			if a[i] < b[j] {
+				return -1
+			}
+			return 1
+		}
+		i++
+		j++
+	}
+	switch {
+	case i < len(a):
+		return 1
+	case j < len(b):
+		return -1
+	}
+	return strings.Compare(a, b)
+}
+
+// digitRun returns the leading run of decimal digits of s.
+func digitRun(s string) string {
+	end := 0
+	for end < len(s) && '0' <= s[end] && s[end] <= '9' {
+		end++
+	}
+	return s[:end]
+}
+
+// compareNumbers compares two runs of decimal digits by their value.
+func compareNumbers(a, b string) int {
+	a, b = strings.TrimLeft(a, "0"), strings.TrimLeft(b, "0")
+	switch {
+	case len(a) < len(b):
+		return -1
+	case len(a) > len(b):
+		return 1
+	}
+	return strings.Compare(a, b)
+}
+
+// widthOrder sorts by the width a name is written with, the narrowest first.
+func widthOrder(a, b entry) int {
+	return textWidth(a.name) - textWidth(b.name)
 }
 
 // writeHeader writes the name of a directory before its listing, with the

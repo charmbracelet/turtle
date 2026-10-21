@@ -28,10 +28,13 @@ const (
 type sortKey int
 
 const (
-	sortName sortKey = iota
-	sortSize         // -S
-	sortTime         // -t
-	sortNone         // -f
+	sortName      sortKey = iota
+	sortSize              // -S
+	sortTime              // -t
+	sortNone              // -f, -U
+	sortExtension         // -X
+	sortVersion           // -v
+	sortWidth             // --sort=width
 )
 
 // timeKey is the time a listing is written and sorted with.
@@ -57,9 +60,10 @@ const (
 type classify byte
 
 const (
-	classifyNone classify = 0
-	classifyFull classify = 'F' // -F
-	classifyDirs classify = 'p' // -p
+	classifyNone classify = iota // no indicator
+	classifyDirs                 // -p, --indicator-style=slash: directories only
+	classifyFile                 // --file-type: everything but executables
+	classifyFull                 // -F, --classify: everything
 )
 
 // options are the listing options parsed from the command line.
@@ -103,6 +107,10 @@ func (o *options) set(opt rune, value string) error {
 		o.recursive, o.dirs = true, false
 	case 'S':
 		o.sort = sortSize
+	case 'U':
+		o.sort = sortNone
+	case 'X':
+		o.sort = sortExtension
 	case 'c':
 		o.time = timeStatus
 	case 'd':
@@ -135,6 +143,8 @@ func (o *options) set(opt rune, value string) error {
 		o.sort = sortTime
 	case 'u':
 		o.time = timeAccessed
+	case 'v':
+		o.sort = sortVersion
 	case 'x':
 		o.layout, o.long = layoutAcross, false
 	case '1':
@@ -142,6 +152,8 @@ func (o *options) set(opt rune, value string) error {
 		o.layout = layoutOne
 	case optFormat:
 		return o.setFormat(value)
+	case optFileType:
+		o.classify = classifyFile
 	case optIndicatorStyle:
 		return o.setIndicatorStyle(value)
 	case optSort:
@@ -181,6 +193,8 @@ func (o *options) setIndicatorStyle(word string) error {
 		o.classify = classifyNone
 	case "slash":
 		o.classify = classifyDirs
+	case "file-type":
+		o.classify = classifyFile
 	case "classify":
 		o.classify = classifyFull
 	default:
@@ -200,6 +214,12 @@ func (o *options) setSort(word string) error {
 		o.sort = sortSize
 	case "none":
 		o.sort = sortNone
+	case "extension":
+		o.sort = sortExtension
+	case "version":
+		o.sort = sortVersion
+	case "width":
+		o.sort = sortWidth
 	default:
 		return invalidWord("sort", word)
 	}
@@ -237,6 +257,7 @@ var longOptions = map[string]rune{
 	"dereference":              'L',
 	"dereference-command-line": 'H',
 	"directory":                'd',
+	"file-type":                optFileType,
 	"format":                   optFormat,
 	"hide-control-chars":       'q',
 	"indicator-style":          optIndicatorStyle,
@@ -257,6 +278,7 @@ const (
 	optIndicatorStyle
 	optSort
 	optTime
+	optFileType
 )
 
 // valuedLong is the Valued set of the long options which have no short
@@ -363,7 +385,7 @@ func (l *lister) nameOf(e entry) string {
 	if e.link == nil || e.followed {
 		return name + indicator(e.fi, l.opts.classify)
 	}
-	if l.opts.classify == classifyFull {
+	if l.opts.classify >= classifyFile {
 		name += "@"
 	}
 	if !l.opts.long {
@@ -424,7 +446,7 @@ func writeStream(w io.Writer, names []string, width int) {
 	fmt.Fprint(w, "\n")
 }
 
-// indicator returns the file type indicator that -F or -p asks for.
+// indicator returns the file type indicator the given style asks for.
 func indicator(fi fs.FileInfo, kind classify) string {
 	if fi == nil || kind == classifyNone {
 		return ""
@@ -432,7 +454,7 @@ func indicator(fi fs.FileInfo, kind classify) string {
 	if fi.IsDir() {
 		return "/"
 	}
-	if kind == classifyDirs {
+	if kind < classifyFile {
 		return ""
 	}
 	switch {
@@ -442,7 +464,7 @@ func indicator(fi fs.FileInfo, kind classify) string {
 		return "|"
 	case fi.Mode()&fs.ModeSocket != 0:
 		return "="
-	case fi.Mode()&0o111 != 0:
+	case kind == classifyFull && fi.Mode()&0o111 != 0:
 		return "*"
 	}
 	return ""
