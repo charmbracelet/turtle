@@ -129,8 +129,8 @@ v0 and we do progress. We have some progress tracking below.
 | Encoding / Archive | `compress`*  | ❌    | ❌  |
 | Encoding / Archive | `uncompress` | ❌    | ❌  |
 | Encoding / Archive | `zcat`       | ❌    | ❌  |
-| Encoding / Archive | `uudecode`   | ❌    | ❌  |
-| Encoding / Archive | `uuencode`   | ❌    | ❌  |
+| Encoding / Archive | `uudecode`   | ✅    | ❌  |
+| Encoding / Archive | `uuencode`   | ✅    | ❌  |
 | GNU                | `base32`     | —     | ✅  |
 | GNU                | `base64`     | —     | ✅  |
 | GNU                | `gzip`       | —     | ✅  |
