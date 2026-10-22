@@ -85,7 +85,7 @@ v0 and we do progress. We have some progress tracking below.
 | Filesystem         | `pax`        | ❌    | ❌  |
 | Text               | `cut`        | ✅    | ❌  |
 | Text               | `join`       | ❌    | ❌  |
-| Text               | `sort`       | ❌    | ❌  |
+| Text               | `sort`       | ✅    | ❌  |
 | Text               | `paste`      | ✅    | ❌  |
 | Text               | `tee`        | ✅    | ❌  |
 | Text               | `tr`         | ❌    | ❌  |
