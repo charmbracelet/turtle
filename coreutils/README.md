@@ -89,7 +89,7 @@ v0 and we do progress. We have some progress tracking below.
 | Text               | `paste`      | ✅    | ❌  |
 | Text               | `tee`        | ✅    | ❌  |
 | Text               | `tr`         | ❌    | ❌  |
-| Text               | `uniq`       | ❌    | ❌  |
+| Text               | `uniq`       | ✅    | ❌  |
 | Text               | `cmp`        | ❌    | ❌  |
 | Text               | `comm`       | ❌    | ❌  |
 | Text               | `csplit`     | ❌    | ❌  |
