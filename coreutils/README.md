@@ -100,7 +100,7 @@ v0 and we do progress. We have some progress tracking below.
 | Text               | `od`         | ✅    | ❌  |
 | Text               | `pr`         | ❌    | ❌  |
 | Text               | `sed`        | ❌    | ❌  |
-| Text               | `split`      | ❌    | ❌  |
+| Text               | `split`      | ✅    | ❌  |
 | Text               | `strings`    | ✅    | ❌  |
 | Text               | `unexpand`   | ✅    | ❌  |
 | Text               | `cksum`      | ❌    | ❌  |
