@@ -269,8 +269,8 @@ func markNoNewline(h *Hunk, lastOld, lastNew bool, n int) error {
 // which the timestamp follows, separated by a tab.
 func headerName(line string) string {
 	rest := line[4:]
-	if i := strings.IndexByte(rest, '\t'); i >= 0 {
-		return rest[:i]
+	if before, _, ok := strings.Cut(rest, "\t"); ok {
+		return before
 	}
 	return rest
 }

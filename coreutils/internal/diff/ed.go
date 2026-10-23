@@ -3,6 +3,7 @@ package diff
 import (
 	"fmt"
 	"io"
+	"slices"
 	"strconv"
 	"strings"
 )
@@ -12,8 +13,8 @@ import (
 // file to its beginning, so the line numbers of the edits still to apply
 // stay valid.
 func Ed(w io.Writer, b []string, changes []Change) error {
-	for i := len(changes) - 1; i >= 0; i-- {
-		c := changes[i]
+	for _, c := range slices.Backward(changes) {
+
 		switch {
 		case c.A0 == c.A1:
 			if _, err := fmt.Fprintf(w, "%da\n", c.A0); err != nil {
