@@ -19,7 +19,7 @@ const (
 // DetectPatch reports the format the patch data seems to be in.
 func DetectPatch(data string) PatchFormat {
 	lines := strings.Split(stripIndent(data), "\n")
-	for i := 0; i < len(lines); i++ {
+	for i := range lines {
 		line := lines[i]
 		switch {
 		case strings.HasPrefix(line, "@@ -"):

@@ -61,10 +61,7 @@ func (e *engine) add(c Change) {
 // goes through. ok is false when the search hits its limit first.
 func middleSnake(x, y []int) (d, sx, sy, ex, ey int, ok bool) {
 	n, m := len(x), len(y)
-	maxD := (n + m + 1) / 2
-	if maxD > maxDiffs {
-		maxD = maxDiffs
-	}
+	maxD := min((n+m+1)/2, maxDiffs)
 	delta := n - m
 	off := maxD
 	vf := make([]int, 2*maxD+1)
