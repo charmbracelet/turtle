@@ -127,12 +127,17 @@ func parseContextHunk(s *scanner) (Hunk, error) {
 		if isNewRange(body) {
 			break
 		}
+		// Every line of a context hunk holds a marker and a blank before
+		// its content, so shorter ones are malformed.
+		if len(body) < 2 {
+			return h, malformed(n, "truncated line in the old part of the hunk")
+		}
 		switch {
-		case body == "" || body[0] == ' ':
-			h.Old = append(h.Old, HunkLine{Kind: ContextLine, Content: contextContent(body)})
+		case body[0] == ' ':
+			h.Old = append(h.Old, HunkLine{Kind: ContextLine, Content: body[2:]})
 			lastOld = true
 		case body[0] == '-' || body[0] == '!':
-			h.Old = append(h.Old, HunkLine{Kind: DeleteLine, Content: contextContent(body)})
+			h.Old = append(h.Old, HunkLine{Kind: DeleteLine, Content: body[2:]})
 			lastOld = true
 		case body[0] == '\\':
 			if !lastOld {
@@ -158,16 +163,19 @@ func parseContextHunk(s *scanner) (Hunk, error) {
 		if !ok || wantNew >= 0 && len(h.New) >= wantNew {
 			break
 		}
-		if body != "" && body[0] != ' ' && body[0] != '+' && body[0] != '!' && body[0] != '\\' {
+		if body == "" || body[0] != ' ' && body[0] != '+' && body[0] != '!' && body[0] != '\\' {
 			break
 		}
 		s.next()
+		if len(body) < 2 {
+			return h, malformed(n, "truncated line in the new part of the hunk")
+		}
 		switch {
-		case body == "" || body[0] == ' ':
-			h.New = append(h.New, HunkLine{Kind: ContextLine, Content: contextContent(body)})
+		case body[0] == ' ':
+			h.New = append(h.New, HunkLine{Kind: ContextLine, Content: body[2:]})
 			lastNew = true
 		case body[0] == '+' || body[0] == '!':
-			h.New = append(h.New, HunkLine{Kind: InsertLine, Content: contextContent(body)})
+			h.New = append(h.New, HunkLine{Kind: InsertLine, Content: body[2:]})
 			lastNew = true
 		case body[0] == '\\':
 			if !lastNew {
@@ -188,15 +196,6 @@ func parseContextHunk(s *scanner) (Hunk, error) {
 		h.New[len(h.New)-1].NoNewline = true
 	}
 	return h, nil
-}
-
-// contextContent returns the content of a context format body line, after
-// its marker and the blank that follows it, which a malformed line can lack.
-func contextContent(line string) string {
-	if len(line) < 2 {
-		return ""
-	}
-	return line[2:]
 }
 
 // isNewRange reports whether the line is the "--- N,M ----" range that ends
