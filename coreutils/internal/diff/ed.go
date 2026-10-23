@@ -14,7 +14,6 @@ import (
 // stay valid.
 func Ed(w io.Writer, b []string, changes []Change) error {
 	for _, c := range slices.Backward(changes) {
-
 		switch {
 		case c.A0 == c.A1:
 			if _, err := fmt.Fprintf(w, "%da\n", c.A0); err != nil {
