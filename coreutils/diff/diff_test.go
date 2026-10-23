@@ -7,6 +7,7 @@ import (
 	"io"
 	"strings"
 	"testing"
+	"time"
 
 	"charm.land/snail/coreutils"
 	"charm.land/snail/fsx"
@@ -410,5 +411,231 @@ func runCancelled(t *testing.T, ctx context.Context, stdin io.Reader) {
 	}
 	if got := stderr.String(); got != "" {
 		t.Errorf("Run() stderr = %q, want empty", got)
+	}
+}
+
+// stamp is the fixed modification time of the fixtures of the format tests.
+var stamp = time.Date(2026, 1, 2, 3, 4, 5, 0, time.UTC)
+
+// formatFS holds the fixtures used by the format tests:
+//
+//	m1.txt, m2.txt: a three line file and one with its middle line changed
+//	m3.txt, m4.txt: a five line file and one with its second line changed
+func formatFS() fsx.MemFS {
+	return fsx.MemFS{
+		"m1.txt": {Data: []byte("1\n2\n3\n"), ModTime: stamp},
+		"m2.txt": {Data: []byte("1\nx\n3\n"), ModTime: stamp},
+		"m3.txt": {Data: []byte("1\n2\n3\n4\n5\n"), ModTime: stamp},
+		"m4.txt": {Data: []byte("1\nX\n3\n4\n5\n"), ModTime: stamp},
+	}
+}
+
+func TestRunFormats(t *testing.T) {
+	tests := []testCase{
+		{
+			name: "context format",
+			fsys: formatFS(),
+			args: []string{"-c", "m1.txt", "m2.txt"},
+			want: "*** m1.txt\tFri Jan  2 03:04:05 2026\n--- m2.txt\tFri Jan  2 03:04:05 2026\n" +
+				"***************\n*** 1,3 ****\n  1\n! 2\n  3\n--- 1,3 ----\n  1\n! x\n  3\n",
+			wantExit: 1,
+		},
+		{
+			name: "context format with a count",
+			fsys: formatFS(),
+			args: []string{"-C", "1", "m3.txt", "m4.txt"},
+			want: "*** m3.txt\tFri Jan  2 03:04:05 2026\n--- m4.txt\tFri Jan  2 03:04:05 2026\n" +
+				"***************\n*** 1,3 ****\n  1\n! 2\n  3\n--- 1,3 ----\n  1\n! X\n  3\n",
+			wantExit: 1,
+		},
+		{
+			name: "context format with an attached count",
+			fsys: formatFS(),
+			args: []string{"-C2", "m3.txt", "m4.txt"},
+			want: "*** m3.txt\tFri Jan  2 03:04:05 2026\n--- m4.txt\tFri Jan  2 03:04:05 2026\n" +
+				"***************\n*** 1,4 ****\n  1\n! 2\n  3\n  4\n--- 1,4 ----\n  1\n! X\n  3\n  4\n",
+			wantExit: 1,
+		},
+		{
+			name: "unified format",
+			fsys: formatFS(),
+			args: []string{"-u", "m1.txt", "m2.txt"},
+			want: "--- m1.txt\t2026-01-02 03:04:05 +0000\n+++ m2.txt\t2026-01-02 03:04:05 +0000\n" +
+				"@@ -1,3 +1,3 @@\n 1\n-2\n+x\n 3\n",
+			wantExit: 1,
+		},
+		{
+			name: "unified format with a count",
+			fsys: formatFS(),
+			args: []string{"-U", "1", "m3.txt", "m4.txt"},
+			want: "--- m3.txt\t2026-01-02 03:04:05 +0000\n+++ m4.txt\t2026-01-02 03:04:05 +0000\n" +
+				"@@ -1,3 +1,3 @@\n 1\n-2\n+X\n 3\n",
+			wantExit: 1,
+		},
+		{
+			name: "unified format without context",
+			fsys: formatFS(),
+			args: []string{"-U0", "m3.txt", "m4.txt"},
+			want: "--- m3.txt\t2026-01-02 03:04:05 +0000\n+++ m4.txt\t2026-01-02 03:04:05 +0000\n" +
+				"@@ -2 +2 @@\n-2\n+X\n",
+			wantExit: 1,
+		},
+		{
+			name:     "ed format",
+			fsys:     formatFS(),
+			args:     []string{"-e", "m1.txt", "m2.txt"},
+			want:     "2c\nx\n.\n",
+			wantExit: 1,
+		},
+		{
+			name:     "forward ed format",
+			fsys:     formatFS(),
+			args:     []string{"-f", "m1.txt", "m2.txt"},
+			want:     "c2\nx\n.\n",
+			wantExit: 1,
+		},
+		{
+			name: "identical files in the unified format",
+			fsys: formatFS(),
+			args: []string{"-u", "m1.txt", "m1.txt"},
+		},
+		{
+			name:     "binary files in the unified format",
+			fsys:     testFS(),
+			args:     []string{"-u", "bin1", "bin2"},
+			want:     "Binary files bin1 and bin2 differ\n",
+			wantExit: 1,
+		},
+		{
+			name: "context lines keep the first file contents with -b",
+			fsys: fsx.MemFS{"w1": {Data: []byte("1\n2 \n3\n"), ModTime: stamp}, "w2": {Data: []byte("1\n2\n4\n"), ModTime: stamp}},
+			args: []string{"-b", "-c", "w1", "w2"},
+			want: "*** w1\tFri Jan  2 03:04:05 2026\n--- w2\tFri Jan  2 03:04:05 2026\n" +
+				"***************\n*** 1,3 ****\n  1\n  2 \n! 3\n--- 1,3 ----\n  1\n  2\n! 4\n",
+			wantExit: 1,
+		},
+		{
+			name:     "conflicting output styles",
+			fsys:     formatFS(),
+			args:     []string{"-c", "-u", "m1.txt", "m2.txt"},
+			wantErr:  "diff: conflicting output style options\n",
+			wantExit: 2,
+		},
+		{
+			name: "same output styles combine",
+			fsys: formatFS(),
+			args: []string{"-c", "-C", "1", "m3.txt", "m4.txt"},
+			want: "*** m3.txt\tFri Jan  2 03:04:05 2026\n--- m4.txt\tFri Jan  2 03:04:05 2026\n" +
+				"***************\n*** 1,3 ****\n  1\n! 2\n  3\n--- 1,3 ----\n  1\n! X\n  3\n",
+			wantExit: 1,
+		},
+		{
+			name:     "invalid context count",
+			fsys:     formatFS(),
+			args:     []string{"-C", "0", "m1.txt", "m2.txt"},
+			wantErr:  "diff: invalid context length '0'\n",
+			wantExit: 2,
+		},
+		{
+			name:     "invalid context count argument",
+			fsys:     formatFS(),
+			args:     []string{"-C", "x", "m1.txt", "m2.txt"},
+			wantErr:  "diff: invalid context length 'x'\n",
+			wantExit: 2,
+		},
+		{
+			name:     "negative unified context count",
+			fsys:     formatFS(),
+			args:     []string{"-U", "-1", "m1.txt", "m2.txt"},
+			wantErr:  "diff: invalid context length '-1'\n",
+			wantExit: 2,
+		},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			runCase(t, test)
+		})
+	}
+}
+
+func TestRunFormatsStandardInput(t *testing.T) {
+	// The standard input holds no modification time, so only the hunks are
+	// compared exactly, with the file headers checked loosely.
+	stdout := new(bytes.Buffer)
+	rt := &coreutils.Runtime{
+		Stdin:  strings.NewReader("1\nx\n3\n"),
+		Stdout: stdout,
+		Stderr: new(bytes.Buffer),
+		FS:     formatFS(),
+	}
+	err := New(rt).Run(t.Context(), "-u", "-", "m1.txt")
+	if code := exitCode(t, err); code != 1 {
+		t.Fatalf("Run() exit code = %d, want 1", code)
+	}
+	got := stdout.String()
+	if !strings.HasPrefix(got, "--- -\t") || !strings.HasPrefix(got[strings.IndexByte(got, '\n')+1:], "+++ m1.txt\t") {
+		t.Errorf("Run() headers = %q", got)
+	}
+	want := "@@ -1,3 +1,3 @@\n 1\n-x\n+2\n 3\n"
+	if tail := got[strings.Index(got, "@@"):]; tail != want {
+		t.Errorf("Run() hunks = %q, want %q", tail, want)
+	}
+}
+
+func TestRunRecursive(t *testing.T) {
+	tests := []testCase{
+		{
+			name: "directories compared recursively",
+			fsys: testFS(),
+			args: []string{"-r", "d1", "d2"},
+			want: "File d1/mix is a regular file while file d2/mix is a directory\nOnly in d1: only\n" +
+				"diff -r d1/sub/f d2/sub/f\n1c1\n< q\n---\n> w\n" +
+				"diff -r d1/x d2/x\n1c1\n< a\n---\n> b\n",
+			wantExit: 1,
+		},
+		{
+			name: "deeply nested files",
+			fsys: fsx.MemFS{
+				"d3/a/b/c.txt": {Data: []byte("1\n")},
+				"d4/a/b/c.txt": {Data: []byte("2\n")},
+			},
+			args:     []string{"-r", "d3", "d4"},
+			want:     "diff -r d3/a/b/c.txt d4/a/b/c.txt\n1c1\n< 1\n---\n> 2\n",
+			wantExit: 1,
+		},
+		{
+			name: "recursion options in the header",
+			fsys: fsx.MemFS{
+				"d3/a/b/c.txt": {Data: []byte("1\n2\n3\n4\n5\n"), ModTime: stamp},
+				"d4/a/b/c.txt": {Data: []byte("1\nX\n3\n4\n5\n"), ModTime: stamp},
+			},
+			args: []string{"-r", "-C", "2", "d3", "d4"},
+			want: "diff -r -C 2 d3/a/b/c.txt d4/a/b/c.txt\n" +
+				"*** d3/a/b/c.txt\tFri Jan  2 03:04:05 2026\n--- d4/a/b/c.txt\tFri Jan  2 03:04:05 2026\n" +
+				"***************\n*** 1,4 ****\n  1\n! 2\n  3\n  4\n--- 1,4 ----\n  1\n! X\n  3\n  4\n",
+			wantExit: 1,
+		},
+		{
+			name:     "ed format keeps the header under directories",
+			fsys:     testFS(),
+			args:     []string{"-r", "-e", "d1", "d2"},
+			want:     "File d1/mix is a regular file while file d2/mix is a directory\nOnly in d1: only\ndiff -r -e d1/sub/f d2/sub/f\n1c\nw\n.\ndiff -r -e d1/x d2/x\n1c\nb\n.\n",
+			wantExit: 1,
+		},
+		{
+			name: "identical directories compare equal recursively",
+			fsys: fsx.MemFS{
+				"d1/x":   {Data: []byte("a\n")},
+				"d2/x":   {Data: []byte("a\n")},
+				"d1/s/y": {Data: []byte("b\n")},
+				"d2/s/y": {Data: []byte("b\n")},
+			},
+			args: []string{"-r", "d1", "d2"},
+		},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			runCase(t, test)
+		})
 	}
 }

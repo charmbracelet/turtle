@@ -2,17 +2,35 @@ package diff
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"io/fs"
+	"os"
 	"path"
 	"slices"
 	"strings"
 )
 
+// dirPair holds the identity of a compared directory pair, used to detect
+// the loops that symbolic links to ancestors cause when comparing
+// recursively.
+type dirPair struct {
+	fi1, fi2 os.FileInfo
+}
+
 // compareDirs compares the entries of both directory operands: names that
 // exist in only one directory are reported, common subdirectories are
-// noted, and common regular files are compared after a header naming them.
-func (p *Prog) compareDirs(ctx context.Context, d1, d2 operand, opts options) (bool, error) {
+// compared with the recursive option or noted otherwise, and common regular
+// files are compared after a header naming them.
+func (p *Prog) compareDirs(ctx context.Context, d1, d2 operand, opts options, seen []dirPair) (bool, error) {
+	fi1, fi2 := p.statDir(d1), p.statDir(d2)
+	for _, v := range seen {
+		if os.SameFile(v.fi1, fi1) && os.SameFile(v.fi2, fi2) {
+			return false, &pathError{label: d1.name, err: errors.New("recursive directory loop detected")}
+		}
+	}
+	seen = append(seen, dirPair{fi1: fi1, fi2: fi2})
+
 	entries1, err := p.readDir(d1)
 	if err != nil {
 		return false, &pathError{label: d1.name, err: err}
@@ -41,7 +59,7 @@ func (p *Prog) compareDirs(ctx context.Context, d1, d2 operand, opts options) (b
 			differ = true
 			continue
 		}
-		d, err := p.compareEntry(ctx, d1, d2, name, opts)
+		d, err := p.compareEntry(ctx, d1, d2, name, opts, seen)
 		if err != nil {
 			return differ, err
 		}
@@ -52,7 +70,7 @@ func (p *Prog) compareDirs(ctx context.Context, d1, d2 operand, opts options) (b
 
 // compareEntry compares the entries of both directories that share a name,
 // following symbolic links to their targets.
-func (p *Prog) compareEntry(ctx context.Context, d1, d2 operand, name string, opts options) (bool, error) {
+func (p *Prog) compareEntry(ctx context.Context, d1, d2 operand, name string, opts options, seen []dirPair) (bool, error) {
 	t1, err := p.fileType(path.Join(d1.path, name))
 	if err != nil {
 		return false, &pathError{label: path.Join(d1.name, name), err: err}
@@ -66,6 +84,9 @@ func (p *Prog) compareEntry(ctx context.Context, d1, d2 operand, name string, op
 	case t1.IsDir() && t2.IsDir():
 		sub1 := operand{name: path.Join(d1.name, name), path: path.Join(d1.path, name), isDir: true}
 		sub2 := operand{name: path.Join(d2.name, name), path: path.Join(d2.path, name), isDir: true}
+		if opts.recursive {
+			return p.compareDirs(ctx, sub1, sub2, opts, seen)
+		}
 		return false, p.write(fmt.Sprintf("Common subdirectories: %s and %s\n", sub1.name, sub2.name))
 	case t1.IsRegular() && t2.IsRegular():
 		return p.compareFiles(ctx, pair{
@@ -82,6 +103,16 @@ func (p *Prog) compareEntry(ctx context.Context, d1, d2 operand, name string, op
 		return true, p.write(fmt.Sprintf("File %s is a %s while file %s is a %s\n",
 			path.Join(d1.name, name), typeName(t1), path.Join(d2.name, name), typeName(t2)))
 	}
+}
+
+// statDir stats the directory operand, returning nil when it can't be
+// reached, in which case loop detection just can't tell.
+func (p *Prog) statDir(d operand) os.FileInfo {
+	fi, err := fs.Stat(p.FS, d.path)
+	if err != nil {
+		return nil
+	}
+	return fi
 }
 
 // readDir lists the entries of the directory operand.
@@ -115,6 +146,27 @@ func (o options) header(name1, name2 string) string {
 	b.WriteString("diff")
 	if o.blank {
 		b.WriteString(" -b")
+	}
+	if o.recursive {
+		b.WriteString(" -r")
+	}
+	switch o.format {
+	case contextFormat:
+		if o.lines == 3 {
+			b.WriteString(" -c")
+		} else {
+			fmt.Fprintf(&b, " -C %d", o.lines)
+		}
+	case unifiedFormat:
+		if o.lines == 3 {
+			b.WriteString(" -u")
+		} else {
+			fmt.Fprintf(&b, " -U %d", o.lines)
+		}
+	case edFormat:
+		b.WriteString(" -e")
+	case forwardEdFormat:
+		b.WriteString(" -f")
 	}
 	fmt.Fprintf(&b, " %s %s", name1, name2)
 	return b.String()
