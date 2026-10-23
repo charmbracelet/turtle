@@ -1,6 +1,7 @@
 package diff
 
 import (
+	"math/rand/v2"
 	"strings"
 	"testing"
 )
@@ -323,5 +324,65 @@ func TestDetectPatch(t *testing.T) {
 				t.Errorf("DetectPatch() = %v, want %v", got, test.want)
 			}
 		})
+	}
+}
+
+func TestParseShortLines(t *testing.T) {
+	tests := []struct {
+		name string
+		data string
+		want string
+	}{
+		{
+			name: "one character context line",
+			data: "***************\n*** 1 ****\n \n--- 1 ----\n \n",
+		},
+		{
+			name: "one character deleted line",
+			data: "***************\n*** 1 ****\n-\n--- 1 ----\n+\n",
+		},
+		{
+			name: "one character changed line",
+			data: "***************\n*** 1 ****\n!\n--- 1 ----\n!\n",
+		},
+		{
+			name: "truncated range header",
+			data: "***************\n***\n",
+			want: "malformed patch at line 2: missing old range in the hunk",
+		},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			_, err := ParseContext(test.data)
+			if test.want == "" {
+				if err != nil {
+					t.Errorf("ParseContext() error = %v, want none", err)
+				}
+				return
+			}
+			if err == nil || err.Error() != test.want {
+				t.Errorf("ParseContext() error = %v, want %q", err, test.want)
+			}
+		})
+	}
+}
+
+// TestParseRobustness feeds random near-patch noise to both parsers: none
+// of it may panic, whatever it parses or rejects.
+func TestParseRobustness(t *testing.T) {
+	const alphabet = " \t-*+!@.,0123456789/\\"
+	rnd := rand.New(rand.NewPCG(7, 8))
+	for range 2000 {
+		var b strings.Builder
+		b.WriteString("***************\n@@ -1 +1 @@\n--- \n+++ \n*** \nIndex: x\n")
+		for range rnd.IntN(30) {
+			for range rnd.IntN(12) {
+				b.WriteByte(alphabet[rnd.IntN(len(alphabet))])
+			}
+			b.WriteByte('\n')
+		}
+		data := b.String()
+		_, _ = ParseUnified(data)
+		_, _ = ParseContext(data)
 	}
 }

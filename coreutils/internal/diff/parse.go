@@ -268,6 +268,9 @@ func markNoNewline(h *Hunk, lastOld, lastNew bool, n int) error {
 // headerName extracts the file name of a "--- " or "*** " header line,
 // which the timestamp follows, separated by a tab.
 func headerName(line string) string {
+	if len(line) < 4 {
+		return ""
+	}
 	rest := line[4:]
 	if before, _, ok := strings.Cut(rest, "\t"); ok {
 		return before

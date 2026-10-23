@@ -129,14 +129,10 @@ func parseContextHunk(s *scanner) (Hunk, error) {
 		}
 		switch {
 		case body == "" || body[0] == ' ':
-			content := ""
-			if body != "" {
-				content = body[2:]
-			}
-			h.Old = append(h.Old, HunkLine{Kind: ContextLine, Content: content})
+			h.Old = append(h.Old, HunkLine{Kind: ContextLine, Content: contextContent(body)})
 			lastOld = true
 		case body[0] == '-' || body[0] == '!':
-			h.Old = append(h.Old, HunkLine{Kind: DeleteLine, Content: body[2:]})
+			h.Old = append(h.Old, HunkLine{Kind: DeleteLine, Content: contextContent(body)})
 			lastOld = true
 		case body[0] == '\\':
 			if !lastOld {
@@ -168,14 +164,10 @@ func parseContextHunk(s *scanner) (Hunk, error) {
 		s.next()
 		switch {
 		case body == "" || body[0] == ' ':
-			content := ""
-			if body != "" {
-				content = body[2:]
-			}
-			h.New = append(h.New, HunkLine{Kind: ContextLine, Content: content})
+			h.New = append(h.New, HunkLine{Kind: ContextLine, Content: contextContent(body)})
 			lastNew = true
 		case body[0] == '+' || body[0] == '!':
-			h.New = append(h.New, HunkLine{Kind: InsertLine, Content: body[2:]})
+			h.New = append(h.New, HunkLine{Kind: InsertLine, Content: contextContent(body)})
 			lastNew = true
 		case body[0] == '\\':
 			if !lastNew {
@@ -198,6 +190,15 @@ func parseContextHunk(s *scanner) (Hunk, error) {
 	return h, nil
 }
 
+// contextContent returns the content of a context format body line, after
+// its marker and the blank that follows it, which a malformed line can lack.
+func contextContent(line string) string {
+	if len(line) < 2 {
+		return ""
+	}
+	return line[2:]
+}
+
 // isNewRange reports whether the line is the "--- N,M ----" range that ends
 // the old part of a context hunk.
 func isNewRange(line string) bool {
@@ -211,6 +212,9 @@ func isNewRange(line string) bool {
 // its star or dash padding, giving the start line and its count, which is
 // unknown when the range has the single number form.
 func parseContextRange(line string, n int) (start, count int, err error) {
+	if len(line) < 4 || (line[:4] != "*** " && line[:4] != "--- ") {
+		return 0, 0, malformed(n, "invalid range in the hunk header")
+	}
 	rest := strings.TrimSpace(line[4:])
 	if strings.HasSuffix(rest, "****") || strings.HasSuffix(rest, "----") {
 		rest = strings.TrimSpace(rest[:len(rest)-4])
