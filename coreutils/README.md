@@ -106,7 +106,7 @@ The status icons link to the respective POSIX and GNU documentation pages.
 | Text | `strings` | Print printable strings in files | [✅](https://pubs.opengroup.org/onlinepubs/9799919799/utilities/strings.html) | [❌](https://web.archive.org/web/https://sourceware.org/binutils/docs/binutils/strings.html) |
 | Text | `unexpand` | Convert spaces to tabs | [✅](https://pubs.opengroup.org/onlinepubs/9799919799/utilities/unexpand.html) | [❌](https://web.archive.org/web/https://www.gnu.org/software/coreutils/manual/html_node/unexpand-invocation.html) |
 | Text | `cksum` | Compute CRC checksums for files | [❌](https://pubs.opengroup.org/onlinepubs/9799919799/utilities/cksum.html) | [❌](https://web.archive.org/web/https://www.gnu.org/software/coreutils/manual/html_node/cksum-invocation.html) |
-| Text | `patch` | Apply a diff file to an original | [❌](https://pubs.opengroup.org/onlinepubs/9799919799/utilities/patch.html) | ❌ |
+| Text | `patch`* | Apply a diff file to an original | [❌](https://pubs.opengroup.org/onlinepubs/9799919799/utilities/patch.html) | ❌ |
 | Search / Filtering | `find` | Find files matching given criteria | [❌](https://pubs.opengroup.org/onlinepubs/9799919799/utilities/find.html) | [❌](https://web.archive.org/web/https://www.gnu.org/software/findutils/manual/html_node/find_html/Invoking-find.html) |
 | Search / Filtering | `grep` | Print lines matching a pattern | [❌](https://pubs.opengroup.org/onlinepubs/9799919799/utilities/grep.html) | [❌](https://web.archive.org/web/https://www.gnu.org/software/grep/manual/grep.html) |
 | Search / Filtering | `xargs` | Build and execute command lines | [❌](https://pubs.opengroup.org/onlinepubs/9799919799/utilities/xargs.html) | [❌](https://web.archive.org/web/https://www.gnu.org/software/findutils/manual/html_node/find_html/Invoking-xargs.html) |
@@ -168,6 +168,13 @@ The status icons link to the respective POSIX and GNU documentation pages.
 > specification's unsupported-algorithm exit status (>2). This implementation
 > also does not prompt before overwriting on a terminal or check for multiple
 > hard links.
+>
+> `patch` applies unified and context diffs with all the POSIX options
+> except `-D`, `-e` and `-n`, which wait for `#ifdef` marks and the ed and
+> normal diff formats. It also deviates from GNU and BSD in two ways POSIX
+> allows: informative messages go to standard error instead of standard
+> output, and already applied hunks are ignored instead of saved to the
+> reject file.
 >
 > `tar` supports the `-c`, `-r`, `-t`, `-u` and `-x` operations and the `-b`,
 > `-e`, `-f`, `-h`, `-m`, `-o`, `-p`, `-v` and `-w` options, in both the dashed
