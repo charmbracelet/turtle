@@ -13,6 +13,7 @@ import (
 	"io/fs"
 	"path"
 	"path/filepath"
+	"strconv"
 
 	"charm.land/snail/coreutils"
 	"charm.land/snail/coreutils/internal/getopt"
@@ -89,7 +90,7 @@ func (p *Prog) compare(ctx context.Context, name1, name2 string, opts options) (
 
 	switch {
 	case op1.isDir && op2.isDir:
-		return p.compareDirs(ctx, op1, op2, opts)
+		return p.compareDirs(ctx, op1, op2, opts, nil)
 	case op1.isDir:
 		base := path.Base(op2.name)
 		return p.compareFiles(ctx, pair{
@@ -152,17 +153,53 @@ func (p *Prog) errorf(format string, args ...any) {
 
 // options holds the parsed command line options.
 type options struct {
-	blank bool
+	blank     bool
+	recursive bool
+	format    format
+	lines     int
 }
+
+// format is the output format of the changes.
+type format uint8
+
+const (
+	normalFormat format = iota
+	contextFormat
+	unifiedFormat
+	edFormat
+	forwardEdFormat
+)
 
 // parseFlags parses the command line options. Option parsing stops at the
 // first operand or at "--".
 func parseFlags(args []string) (options, []string, error) {
 	var opts options
-	operands, err := getopt.Set{}.Parse(args, func(opt rune, _ string) error {
+	operands, err := getopt.Set{Valued: "CU"}.Parse(args, func(opt rune, value string) error {
 		switch opt {
 		case 'b':
 			opts.blank = true
+		case 'r':
+			opts.recursive = true
+		case 'c':
+			return opts.setStyle(contextFormat, 3)
+		case 'e':
+			return opts.setStyle(edFormat, 0)
+		case 'f':
+			return opts.setStyle(forwardEdFormat, 0)
+		case 'u':
+			return opts.setStyle(unifiedFormat, 3)
+		case 'C':
+			n, err := parseCount(value, 1)
+			if err != nil {
+				return err
+			}
+			return opts.setStyle(contextFormat, n)
+		case 'U':
+			n, err := parseCount(value, 0)
+			if err != nil {
+				return err
+			}
+			return opts.setStyle(unifiedFormat, n)
 		default:
 			return getopt.InvalidOption(opt)
 		}
@@ -172,6 +209,26 @@ func parseFlags(args []string) (options, []string, error) {
 		return options{}, nil, err
 	}
 	return opts, operands, nil
+}
+
+// setStyle picks the output format, rejecting a conflicting one.
+func (o *options) setStyle(f format, lines int) error {
+	if o.format != normalFormat && o.format != f {
+		return errors.New("conflicting output style options")
+	}
+	o.format = f
+	o.lines = lines
+	return nil
+}
+
+// parseCount parses the option-argument of -C or -U as a line count of at
+// least min lines.
+func parseCount(value string, min int) (int, error) {
+	n, err := strconv.Atoi(value)
+	if err != nil || n < min {
+		return 0, fmt.Errorf("invalid context length '%s'", value)
+	}
+	return n, nil
 }
 
 var _ coreutils.Program = (*Prog)(nil)

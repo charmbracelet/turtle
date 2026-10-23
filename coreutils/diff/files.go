@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"io"
 	"io/fs"
+	"time"
 
 	"charm.land/snail/coreutils/internal/diff"
 )
@@ -67,10 +68,58 @@ func (p *Prog) compareFiles(ctx context.Context, pr pair, opts options) (bool, e
 	if err := p.writeHeader(pr); err != nil {
 		return false, err
 	}
-	if err := diff.Normal(p.Stdout, a, b, changes); err != nil {
-		return false, &writeError{err: err}
+	if err := p.writeChanges(pr, a, b, changes, opts); err != nil {
+		return false, err
 	}
 	return true, nil
+}
+
+// writeChanges writes the differences in the output format the options
+// picked.
+func (p *Prog) writeChanges(pr pair, a, b []string, changes []diff.Change, opts options) error {
+	var err error
+	switch opts.format {
+	case contextFormat, unifiedFormat:
+		var f1, f2 diff.File
+		f1, err = p.metaFile(pr.name1, pr.path1)
+		if err != nil {
+			return &pathError{label: pr.name1, err: err}
+		}
+		f2, err = p.metaFile(pr.name2, pr.path2)
+		if err != nil {
+			return &pathError{label: pr.name2, err: err}
+		}
+		if opts.format == contextFormat {
+			err = diff.Context(p.Stdout, f1, f2, a, b, changes, opts.lines)
+		} else {
+			err = diff.Unified(p.Stdout, f1, f2, a, b, changes, opts.lines)
+		}
+	case edFormat:
+		err = diff.Ed(p.Stdout, b, changes)
+	case forwardEdFormat:
+		err = diff.ForwardEd(p.Stdout, b, changes)
+	default:
+		err = diff.Normal(p.Stdout, a, b, changes)
+	}
+	if err != nil {
+		return &writeError{err: err}
+	}
+	return nil
+}
+
+// metaFile describes one side of a pair for the headers of the context and
+// unified formats, holding the modification time of the file, or the
+// current time for the standard input.
+func (p *Prog) metaFile(name, path string) (diff.File, error) {
+	f := diff.File{Name: name, Time: time.Now()}
+	if path != "" {
+		fi, err := fs.Stat(p.FS, path)
+		if err != nil {
+			return diff.File{}, err
+		}
+		f.Time = fi.ModTime()
+	}
+	return f, nil
 }
 
 // writeHeader writes the header of a pair compared under directories, when

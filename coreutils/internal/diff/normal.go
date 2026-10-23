@@ -60,13 +60,22 @@ func writeRange(b *strings.Builder, first, last int) {
 // a file that lacks a trailing newline.
 func writeLines(w io.Writer, mark string, lines []string) error {
 	for _, line := range lines {
-		if _, err := io.WriteString(w, mark+line); err != nil {
+		if err := writeLine(w, mark, line); err != nil {
 			return err
 		}
-		if !strings.HasSuffix(line, "\n") {
-			if _, err := io.WriteString(w, "\n\\ No newline at end of file\n"); err != nil {
-				return err
-			}
+	}
+	return nil
+}
+
+// writeLine writes one line prefixed with mark, flagging the last line of a
+// file that lacks a trailing newline.
+func writeLine(w io.Writer, mark, line string) error {
+	if _, err := io.WriteString(w, mark+line); err != nil {
+		return err
+	}
+	if !strings.HasSuffix(line, "\n") {
+		if _, err := io.WriteString(w, "\n\\ No newline at end of file\n"); err != nil {
+			return err
 		}
 	}
 	return nil
