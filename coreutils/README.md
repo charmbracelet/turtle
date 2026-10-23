@@ -98,7 +98,7 @@ v0 and we do progress. We have some progress tracking below.
 | Text               | `fold`       | ✅    | ❌  |
 | Text               | `nl`         | ✅    | ❌  |
 | Text               | `od`         | ✅    | ❌  |
-| Text               | `pr`         | ❌    | ❌  |
+| Text               | `pr`         | ✅    | ❌  |
 | Text               | `sed`        | ❌    | ❌  |
 | Text               | `split`      | ✅    | ❌  |
 | Text               | `strings`    | ✅    | ❌  |
