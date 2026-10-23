@@ -336,14 +336,22 @@ func TestParseShortLines(t *testing.T) {
 		{
 			name: "one character context line",
 			data: "***************\n*** 1 ****\n \n--- 1 ----\n \n",
+			want: "malformed patch at line 3: truncated line in the old part of the hunk",
 		},
 		{
 			name: "one character deleted line",
 			data: "***************\n*** 1 ****\n-\n--- 1 ----\n+\n",
+			want: "malformed patch at line 3: truncated line in the old part of the hunk",
 		},
 		{
 			name: "one character changed line",
 			data: "***************\n*** 1 ****\n!\n--- 1 ----\n!\n",
+			want: "malformed patch at line 3: truncated line in the old part of the hunk",
+		},
+		{
+			name: "one character inserted line",
+			data: "***************\n*** 1 ****\n  \n--- 1 ----\n+\n",
+			want: "malformed patch at line 5: truncated line in the new part of the hunk",
 		},
 		{
 			name: "truncated range header",
@@ -354,12 +362,6 @@ func TestParseShortLines(t *testing.T) {
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
 			_, err := ParseContext(test.data)
-			if test.want == "" {
-				if err != nil {
-					t.Errorf("ParseContext() error = %v, want none", err)
-				}
-				return
-			}
 			if err == nil || err.Error() != test.want {
 				t.Errorf("ParseContext() error = %v, want %q", err, test.want)
 			}
