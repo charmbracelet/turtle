@@ -165,6 +165,43 @@ func TestParse(t *testing.T) {
 			want:    []option{{'a', ""}},
 			wantErr: "unrecognized option '--bogus'",
 		},
+		{
+			name:         "an optional long option without an argument",
+			set:          Set{Optional: "p", Long: map[string]rune{"tmpdir": 'p'}},
+			args:         []string{"--tmpdir", "x"},
+			want:         []option{{'p', ""}},
+			wantOperands: []string{"x"},
+		},
+		{
+			name: "an optional long option with an attached argument",
+			set:  Set{Optional: "p", Long: map[string]rune{"tmpdir": 'p'}},
+			args: []string{"--tmpdir=/tmp"},
+			want: []option{{'p', "/tmp"}},
+		},
+		{
+			name: "an optional long option with an empty argument",
+			set:  Set{Optional: "p", Long: map[string]rune{"tmpdir": 'p'}},
+			args: []string{"--tmpdir="},
+			want: []option{{'p', ""}},
+		},
+		{
+			name: "an optional short option still requires its argument",
+			set:  Set{Optional: "p", Long: map[string]rune{"tmpdir": 'p'}},
+			args: []string{"-p", "dir"},
+			want: []option{{'p', "dir"}},
+		},
+		{
+			name: "an optional short option takes the rest of the group",
+			set:  Set{Optional: "p", Long: map[string]rune{"tmpdir": 'p'}},
+			args: []string{"-qp", "dir"},
+			want: []option{{'q', ""}, {'p', "dir"}},
+		},
+		{
+			name:    "an optional short option missing its argument",
+			set:     Set{Optional: "p", Long: map[string]rune{"tmpdir": 'p'}},
+			args:    []string{"-p"},
+			wantErr: "option requires an argument -- 'p'",
+		},
 	}
 
 	for _, test := range tests {
