@@ -150,6 +150,7 @@ The status icons link to the respective POSIX and GNU documentation pages.
 | GNU | `sha256sum` | Compute SHA-256 checksums | — | [✅](https://web.archive.org/web/https://www.gnu.org/software/coreutils/manual/html_node/sha2-utilities.html) |
 | GNU | `sha384sum` | Compute SHA-384 checksums | — | [✅](https://web.archive.org/web/https://www.gnu.org/software/coreutils/manual/html_node/sha2-utilities.html) |
 | GNU | `sha512sum` | Compute SHA-512 checksums | — | [✅](https://web.archive.org/web/https://www.gnu.org/software/coreutils/manual/html_node/sha2-utilities.html) |
+| GNU | `shasum` | Print or check SHA checksums | — | [✅](https://perldoc.perl.org/shasum) |
 | GNU | `shuf` | Generate random permutations | — | [❌](https://web.archive.org/web/https://www.gnu.org/software/coreutils/manual/html_node/shuf-invocation.html) |
 | GNU | `stat` | Print file and file system status | — | [❌](https://web.archive.org/web/https://www.gnu.org/software/coreutils/manual/html_node/stat-invocation.html) |
 | GNU | `sync` | Flush file system buffers | — | [❌](https://web.archive.org/web/https://www.gnu.org/software/coreutils/manual/html_node/sync-invocation.html) |
@@ -175,6 +176,11 @@ The status icons link to the respective POSIX and GNU documentation pages.
 > allows: informative messages go to standard error instead of standard
 > output, and already applied hunks are ignored instead of saved to the
 > reject file.
+>
+> `shasum` follows the Perl script of the `Digest::SHA` distribution, but it
+> doesn't take its `-U` (Universal Newlines) and `-0` (BITS) modes. When
+> verifying, it hashes with the algorithm `-a` selects, instead of the one
+> each checksum line implies.
 >
 > `tar` supports the `-c`, `-r`, `-t`, `-u` and `-x` operations and the `-b`,
 > `-e`, `-f`, `-h`, `-m`, `-o`, `-p`, `-v` and `-w` options, in both the dashed

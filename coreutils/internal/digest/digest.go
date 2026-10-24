@@ -2,7 +2,9 @@
 // md5sum, sha1sum and the sha*sum family. The utilities differ only in the
 // algorithm they use: the options they take, the lines they write and the
 // checksum files they verify are all the same. The algorithm itself is given
-// by each utility, so that only its hash lands in a build.
+// by each utility, so that only its hash lands in a build. The shasum
+// utility instead selects its algorithm with an -a option, as its Family
+// does.
 package digest
 
 import (
@@ -244,6 +246,7 @@ const (
 	optStatus
 	optStrict
 	optTag
+	optVersion
 )
 
 // validate reports the options which GNU refuses to take together.
