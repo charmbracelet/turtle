@@ -141,7 +141,7 @@ The status icons link to the respective POSIX and GNU documentation pages.
 | GNU | `zcat` | Decompress gzip files to standard output | — | [✅](https://web.archive.org/web/https://www.gnu.org/software/gzip/manual/gzip.html) |
 | GNU | `install` | Copy files and set attributes | — | [❌](https://web.archive.org/web/https://www.gnu.org/software/coreutils/manual/html_node/install-invocation.html) |
 | GNU | `md5sum` | Compute MD5 checksums | — | [✅](https://web.archive.org/web/https://www.gnu.org/software/coreutils/manual/html_node/md5sum-invocation.html) |
-| GNU | `mktemp` | Create a temporary file or directory | — | [❌](https://web.archive.org/web/https://www.gnu.org/software/coreutils/manual/html_node/mktemp-invocation.html) |
+| GNU | `mktemp` | Create a temporary file or directory | — | [✅](https://web.archive.org/web/https://www.gnu.org/software/coreutils/manual/html_node/mktemp-invocation.html) |
 | GNU | `nproc` | Print the number of processing units | — | [❌](https://web.archive.org/web/https://www.gnu.org/software/coreutils/manual/html_node/nproc-invocation.html) |
 | GNU | `printenv` | Print environment variables | — | [❌](https://web.archive.org/web/https://www.gnu.org/software/coreutils/manual/html_node/printenv-invocation.html) |
 | GNU | `seq` | Print a sequence of numbers | — | [❌](https://web.archive.org/web/https://www.gnu.org/software/coreutils/manual/html_node/seq-invocation.html) |
