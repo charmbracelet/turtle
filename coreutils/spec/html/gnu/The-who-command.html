@@ -1,0 +1,77 @@
+<!DOCTYPE html>
+<html>
+<!-- Created by GNU Texinfo 7.2, https://www.gnu.org/software/texinfo/ -->
+<head>
+<meta http-equiv="Content-Type" content="text/html; charset=utf-8">
+<!-- This manual documents version 9.12 of the GNU core
+utilities, including the standard programs for text and file manipulation.
+
+Copyright © 1994-2026 Free Software Foundation, Inc.
+
+Permission is granted to copy, distribute and/or modify this document
+under the terms of the GNU Free Documentation License, Version 1.3 or
+any later version published by the Free Software Foundation; with no
+Invariant Sections, with no Front-Cover Texts, and with no Back-Cover
+Texts.  A copy of the license is included in the section entitled "GNU
+Free Documentation License". -->
+<title>The who command (GNU Coreutils 9.12)</title>
+
+<meta name="description" content="The who command (GNU Coreutils 9.12)">
+<meta name="keywords" content="The who command (GNU Coreutils 9.12)">
+<meta name="resource-type" content="document">
+<meta name="distribution" content="global">
+<meta name="Generator" content="makeinfo">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+
+<link href="index.html" rel="start" title="Top">
+<link href="Concept-index.html" rel="index" title="Concept index">
+<link href="index.html#SEC_Contents" rel="contents" title="Table of Contents">
+<link href="Opening-the-software-toolbox.html" rel="up" title="Opening the software toolbox">
+<link href="The-cut-command.html" rel="next" title="The cut command">
+<link href="I_002fO-redirection.html" rel="prev" title="I/O redirection">
+<style type="text/css">
+<!--
+a.copiable-link {visibility: hidden; text-decoration: none; line-height: 0em}
+div.example {margin-left: 3.2em}
+span:hover a.copiable-link {visibility: visible}
+-->
+</style>
+<link rel="stylesheet" type="text/css" href="https://www.gnu.org/software/gnulib/manual.css">
+
+
+</head>
+
+<body lang="en">
+<div class="unnumberedsec-level-extent" id="The-who-command">
+<div class="nav-panel">
+<p>
+Next: <a href="The-cut-command.html" accesskey="n" rel="next">The <code class="command">cut</code> Command</a>, Previous: <a href="I_002fO-redirection.html" accesskey="p" rel="prev">I/O Redirection</a>, Up: <a href="Opening-the-software-toolbox.html" accesskey="u" rel="up">Opening the Software Toolbox</a> &nbsp; [<a href="index.html#SEC_Contents" title="Table of contents" rel="contents">Contents</a>][<a href="Concept-index.html" title="Index" rel="index">Index</a>]</p>
+</div>
+<hr>
+<h3 class="unnumberedsec" id="The-who-Command"><span>The <code class="command">who</code> Command<a class="copiable-link" href="#The-who-Command"> &para;</a></span></h3>
+
+<p>The first program is the <code class="command">who</code> command.  By itself, it generates a
+list of the users who are currently logged in.  Although I&rsquo;m writing
+this on a single-user system, we&rsquo;ll pretend that several people are
+logged in:
+</p>
+<div class="example">
+<pre class="example-preformatted">$ who
+-| arnold   console Jan 22 19:57
+-| miriam   ttyp0   Jan 23 14:19(:0.0)
+-| bill     ttyp1   Jan 21 09:32(:0.0)
+-| arnold   ttyp2   Jan 23 20:48(:0.0)
+</pre></div>
+
+<p>Here, the &lsquo;<samp class="samp">$</samp>&rsquo; is the usual shell prompt, at which I typed &lsquo;<samp class="samp">who</samp>&rsquo;.
+There are three people logged in, and I am logged in twice.  On traditional
+Unix systems, user names are never more than eight characters long.  This
+little bit of trivia will be useful later.  The output of <code class="command">who</code> is nice,
+but the data is not all that exciting.
+</p>
+</div>
+
+
+
+</body>
+</html>

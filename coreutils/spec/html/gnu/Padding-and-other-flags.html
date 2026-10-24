@@ -1,0 +1,164 @@
+<!DOCTYPE html>
+<html>
+<!-- Created by GNU Texinfo 7.2, https://www.gnu.org/software/texinfo/ -->
+<head>
+<meta http-equiv="Content-Type" content="text/html; charset=utf-8">
+<!-- This manual documents version 9.12 of the GNU core
+utilities, including the standard programs for text and file manipulation.
+
+Copyright © 1994-2026 Free Software Foundation, Inc.
+
+Permission is granted to copy, distribute and/or modify this document
+under the terms of the GNU Free Documentation License, Version 1.3 or
+any later version published by the Free Software Foundation; with no
+Invariant Sections, with no Front-Cover Texts, and with no Back-Cover
+Texts.  A copy of the license is included in the section entitled "GNU
+Free Documentation License". -->
+<title>Padding and other flags (GNU Coreutils 9.12)</title>
+
+<meta name="description" content="Padding and other flags (GNU Coreutils 9.12)">
+<meta name="keywords" content="Padding and other flags (GNU Coreutils 9.12)">
+<meta name="resource-type" content="document">
+<meta name="distribution" content="global">
+<meta name="Generator" content="makeinfo">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+
+<link href="index.html" rel="start" title="Top">
+<link href="Concept-index.html" rel="index" title="Concept index">
+<link href="index.html#SEC_Contents" rel="contents" title="Table of Contents">
+<link href="Date-format-specifiers.html" rel="up" title="Date format specifiers">
+<link href="Literal-conversion-specifiers.html" rel="prev" title="Literal conversion specifiers">
+<style type="text/css">
+<!--
+a.copiable-link {visibility: hidden; text-decoration: none; line-height: 0em}
+div.example {margin-left: 3.2em}
+span:hover a.copiable-link {visibility: visible}
+-->
+</style>
+<link rel="stylesheet" type="text/css" href="https://www.gnu.org/software/gnulib/manual.css">
+
+
+</head>
+
+<body lang="en">
+<div class="subsubsection-level-extent" id="Padding-and-other-flags">
+<div class="nav-panel">
+<p>
+Previous: <a href="Literal-conversion-specifiers.html" accesskey="p" rel="prev">Literal conversion specifiers</a>, Up: <a href="Date-format-specifiers.html" accesskey="u" rel="up">Specifying the format of <code class="command">date</code> output</a> &nbsp; [<a href="index.html#SEC_Contents" title="Table of contents" rel="contents">Contents</a>][<a href="Concept-index.html" title="Index" rel="index">Index</a>]</p>
+</div>
+<hr>
+<h4 class="subsubsection" id="Padding-and-other-flags-1"><span>21.1.1.4 Padding and other flags<a class="copiable-link" href="#Padding-and-other-flags-1"> &para;</a></span></h4>
+
+<a class="index-entry-id" id="index-numeric-field-padding"></a>
+<a class="index-entry-id" id="index-padding-of-numeric-fields"></a>
+<a class="index-entry-id" id="index-fields_002c-padding-numeric"></a>
+
+<p>Unless otherwise specified, <code class="command">date</code> normally pads numeric fields
+with zeros, so that, for
+example, numeric months are always output as two digits.
+Most numeric fields are padded on the left.
+However, nanoseconds are padded on the right since they are commonly
+used after decimal points in formats like &lsquo;<samp class="samp">%s.%-N</samp>&rsquo;.
+Also, seconds since the Epoch are not padded
+since there is no natural width for them.
+</p>
+<p>The following optional flags can appear after the &lsquo;<samp class="samp">%</samp>&rsquo;:
+</p>
+<dl class="table">
+<dt>&lsquo;<samp class="samp">-</samp>&rsquo;</dt>
+<dd><p>(hyphen) Do not pad the field; useful if the output is intended for
+human consumption.
+This is a GNU extension.
+As a special case, &lsquo;<samp class="samp">%-N</samp>&rsquo; outputs only enough trailing digits to
+not lose information, assuming that the timestamp&rsquo;s resolution is the
+same as the current hardware clock.  For example, if the hardware
+clock resolution is 1 microsecond, &lsquo;<samp class="samp">%s.%-N</samp>&rsquo; outputs something
+like &lsquo;<samp class="samp">1640890100.395710</samp>&rsquo;.
+</p>
+</dd>
+<dt>&lsquo;<samp class="samp">_</samp>&rsquo;</dt>
+<dd><p>(underscore) Pad with spaces; useful if you need a fixed
+number of characters in the output, but zeros are too distracting.
+This is a GNU extension.
+</p></dd>
+<dt>&lsquo;<samp class="samp">0</samp>&rsquo;</dt>
+<dd><p>(zero) Pad with zeros even if the conversion specifier
+would normally pad with spaces.
+</p></dd>
+<dt>&lsquo;<samp class="samp">+</samp>&rsquo;</dt>
+<dd><p>Pad with zeros, like &lsquo;<samp class="samp">0</samp>&rsquo;.  In addition, precede any year number
+with &lsquo;<samp class="samp">+</samp>&rsquo; if it exceeds 9999 or if its field width exceeds 4;
+similarly, precede any century number with &lsquo;<samp class="samp">+</samp>&rsquo; if it exceeds 99
+or if its field width exceeds 2.  This supports ISO 8601 formats
+for dates far in the future; for example, the command <code class="code">date
+--date=12019-02-25 +%+13F</code> outputs the string &lsquo;<samp class="samp">+012019-02-25</samp>&rsquo;.
+</p></dd>
+<dt>&lsquo;<samp class="samp">^</samp>&rsquo;</dt>
+<dd><p>Use upper case characters if possible.
+This is a GNU extension.
+</p></dd>
+<dt>&lsquo;<samp class="samp">#</samp>&rsquo;</dt>
+<dd><p>Use opposite case characters if possible.
+A field that is normally upper case becomes lower case, and vice versa.
+This is a GNU extension.
+</p></dd>
+</dl>
+
+<p>Here are some examples of padding:
+</p>
+<div class="example">
+<pre class="example-preformatted">date +%d/%m -d &quot;Feb 1&quot;
+&rArr; 01/02
+date +%-d/%-m -d &quot;Feb 1&quot;
+&rArr; 1/2
+date +%_d/%_m -d &quot;Feb 1&quot;
+&rArr;  1/ 2
+</pre></div>
+
+<p>You can optionally specify the field width
+(after any flag, if present) as a decimal number.  If the natural size of the
+output of the field has less than the specified number of characters,
+the result is normally written right adjusted and padded to the given
+size.  For example, &lsquo;<samp class="samp">%9B</samp>&rsquo; prints the right adjusted month name in
+a field of width 9.  Nanoseconds are left adjusted, and are truncated
+or padded to the field width.
+</p>
+<p>An optional modifier can follow the optional flag and width
+specification.  The modifiers are:
+</p>
+<dl class="table">
+<dt>&lsquo;<samp class="samp">E</samp>&rsquo;</dt>
+<dd><p>Use the locale&rsquo;s alternate representation for date and time.  This
+modifier applies to the &lsquo;<samp class="samp">%c</samp>&rsquo;, &lsquo;<samp class="samp">%C</samp>&rsquo;, &lsquo;<samp class="samp">%x</samp>&rsquo;, &lsquo;<samp class="samp">%X</samp>&rsquo;,
+&lsquo;<samp class="samp">%y</samp>&rsquo; and &lsquo;<samp class="samp">%Y</samp>&rsquo; conversion specifiers.  In a Japanese locale, for
+example, &lsquo;<samp class="samp">%Ex</samp>&rsquo; might yield a date format based on the Japanese
+Emperors&rsquo; reigns.
+</p>
+</dd>
+<dt>&lsquo;<samp class="samp">O</samp>&rsquo;</dt>
+<dd><p>Use the locale&rsquo;s alternate numeric symbols for numbers.  This modifier
+applies only to numeric conversion specifiers.
+</p></dd>
+</dl>
+
+<p>If the format supports the modifier but no alternate representation
+is available, it is ignored.
+</p>
+<p>POSIX specifies the behavior of flags and field widths only for
+&lsquo;<samp class="samp">%C</samp>&rsquo;, &lsquo;<samp class="samp">%F</samp>&rsquo;, &lsquo;<samp class="samp">%G</samp>&rsquo;, and &lsquo;<samp class="samp">%Y</samp>&rsquo; (all without
+modifiers), and requires a flag to be present if and only if a field
+width is also present.  Other combinations of flags, field widths and
+modifiers are GNU extensions.
+</p>
+
+</div>
+<hr>
+<div class="nav-panel">
+<p>
+Previous: <a href="Literal-conversion-specifiers.html">Literal conversion specifiers</a>, Up: <a href="Date-format-specifiers.html">Specifying the format of <code class="command">date</code> output</a> &nbsp; [<a href="index.html#SEC_Contents" title="Table of contents" rel="contents">Contents</a>][<a href="Concept-index.html" title="Index" rel="index">Index</a>]</p>
+</div>
+
+
+
+</body>
+</html>

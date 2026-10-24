@@ -1,0 +1,155 @@
+<!DOCTYPE html>
+<html>
+<!-- Created by GNU Texinfo 7.2, https://www.gnu.org/software/texinfo/ -->
+<head>
+<meta http-equiv="Content-Type" content="text/html; charset=utf-8">
+<!-- This manual documents version 9.12 of the GNU core
+utilities, including the standard programs for text and file manipulation.
+
+Copyright © 1994-2026 Free Software Foundation, Inc.
+
+Permission is granted to copy, distribute and/or modify this document
+under the terms of the GNU Free Documentation License, Version 1.3 or
+any later version published by the Free Software Foundation; with no
+Invariant Sections, with no Front-Cover Texts, and with no Back-Cover
+Texts.  A copy of the license is included in the section entitled "GNU
+Free Documentation License". -->
+<title>mknod invocation (GNU Coreutils 9.12)</title>
+
+<meta name="description" content="mknod invocation (GNU Coreutils 9.12)">
+<meta name="keywords" content="mknod invocation (GNU Coreutils 9.12)">
+<meta name="resource-type" content="document">
+<meta name="distribution" content="global">
+<meta name="Generator" content="makeinfo">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+
+<link href="index.html" rel="start" title="Top">
+<link href="Concept-index.html" rel="index" title="Concept index">
+<link href="index.html#SEC_Contents" rel="contents" title="Table of Contents">
+<link href="Special-file-types.html" rel="up" title="Special file types">
+<link href="readlink-invocation.html" rel="next" title="readlink invocation">
+<link href="mkfifo-invocation.html" rel="prev" title="mkfifo invocation">
+<style type="text/css">
+<!--
+a.copiable-link {visibility: hidden; text-decoration: none; line-height: 0em}
+div.example {margin-left: 3.2em}
+span:hover a.copiable-link {visibility: visible}
+-->
+</style>
+<link rel="stylesheet" type="text/css" href="https://www.gnu.org/software/gnulib/manual.css">
+
+
+</head>
+
+<body lang="en">
+<div class="section-level-extent" id="mknod-invocation">
+<div class="nav-panel">
+<p>
+Next: <a href="readlink-invocation.html" accesskey="n" rel="next"><code class="command">readlink</code>: Print value of a symlink or canonical file name</a>, Previous: <a href="mkfifo-invocation.html" accesskey="p" rel="prev"><code class="command">mkfifo</code>: Make FIFOs (named pipes)</a>, Up: <a href="Special-file-types.html" accesskey="u" rel="up">Special file types</a> &nbsp; [<a href="index.html#SEC_Contents" title="Table of contents" rel="contents">Contents</a>][<a href="Concept-index.html" title="Index" rel="index">Index</a>]</p>
+</div>
+<hr>
+<h3 class="section" id="mknod_003a-Make-block-or-character-special-files"><span>12.5 <code class="command">mknod</code>: Make block or character special files<a class="copiable-link" href="#mknod_003a-Make-block-or-character-special-files"> &para;</a></span></h3>
+
+<a class="index-entry-id" id="index-mknod"></a>
+<a class="index-entry-id" id="index-block-special-files_002c-creating"></a>
+<a class="index-entry-id" id="index-character-special-files_002c-creating"></a>
+
+<p><code class="command">mknod</code> creates a FIFO, character special file, or block special
+file with the specified name.  Synopsis:
+</p>
+<div class="example">
+<pre class="example-preformatted">mknod [<var class="var">option</var>]... <var class="var">name</var> <var class="var">type</var> [<var class="var">major</var> <var class="var">minor</var>]
+</pre></div>
+
+<a class="index-entry-id" id="index-special-files"></a>
+<a class="index-entry-id" id="index-block-special-files"></a>
+<a class="index-entry-id" id="index-character-special-files"></a>
+<p>Unlike the phrase &ldquo;special file type&rdquo; above, the term <em class="dfn">special
+file</em> has a technical meaning on Unix: something that can generate or
+receive data.  Usually this corresponds to a physical piece of hardware,
+e.g., a printer or a flash drive.  (These files are typically created at
+system-configuration time.)  The <code class="command">mknod</code> command is what creates
+files of this type.  Such devices can be read either a character at a
+time or a &ldquo;block&rdquo; (many characters) at a time, hence we say there are
+<em class="dfn">block special</em> files and <em class="dfn">character special</em> files.
+</p>
+<a class="index-entry-id" id="index-conflicts-with-shell-built_002dins"></a>
+<a class="index-entry-id" id="index-built_002din-shell-commands_002c-conflicts-with"></a>
+<p>Due to shell aliases and built-in <code class="command">mknod</code> functions, using an
+unadorned <code class="command">mknod</code> interactively or in a script may get you
+different functionality than that described here.  Invoke it via
+<code class="command">env</code> (i.e., <code class="code">env mknod &hellip;</code>) to avoid interference
+from the shell.
+</p>
+
+<p>The arguments after <var class="var">name</var> specify the type of file to make:
+</p>
+<dl class="table">
+<dt><a id="index-p-for-FIFO-file"></a><span>&lsquo;<samp class="samp">p</samp>&rsquo;<a class="copiable-link" href="#index-p-for-FIFO-file"> &para;</a></span></dt>
+<dd><p>for a FIFO
+</p>
+</dd>
+<dt><a id="index-b-for-block-special-file"></a><span>&lsquo;<samp class="samp">b</samp>&rsquo;<a class="copiable-link" href="#index-b-for-block-special-file"> &para;</a></span></dt>
+<dd><p>for a block special file
+</p>
+</dd>
+<dt>&lsquo;<samp class="samp">c</samp>&rsquo;</dt>
+<dd><a class="index-entry-id" id="index-c-for-character-special-file"></a>
+<p>for a character special file
+</p>
+</dd>
+</dl>
+
+<p>When making a block or character special file, the major and minor
+device numbers must be given after the file type.
+If a major or minor device number begins with &lsquo;<samp class="samp">0x</samp>&rsquo; or &lsquo;<samp class="samp">0X</samp>&rsquo;,
+it is interpreted as hexadecimal; otherwise, if it begins with &lsquo;<samp class="samp">0</samp>&rsquo;,
+as octal; otherwise, as decimal.
+</p>
+<p>The program accepts the following options.  Also see <a class="ref" href="Common-options.html">Common options</a>.
+</p>
+<dl class="table">
+<dd>
+<a class="anchor" id="mknod-m"></a></dd>
+<dt><a id="index-_002d_002dmode-3"></a><span>&lsquo;<samp class="samp">-m&nbsp;<!-- /@w --><var class="var">mode</var></samp>&rsquo;<a class="copiable-link" href="#index-_002d_002dmode-3"> &para;</a></span></dt>
+<dd><a class="index-entry-id" id="index-_002dm-7"></a>
+<a class="anchor" id="mknod--mode"></a></dd>
+<dt>&lsquo;<samp class="samp">--mode=<var class="var">mode</var></samp>&rsquo;</dt>
+<dd><p>Set the mode of created files to <var class="var">mode</var>, which is symbolic as in
+<code class="command">chmod</code> and uses &lsquo;<samp class="samp">a=rw</samp>&rsquo; as the point of departure.
+<var class="var">mode</var> should specify only file permission bits.
+See <a class="xref" href="File-permissions.html">File permissions</a>.
+</p>
+<a class="anchor" id="mknod-Z"></a></dd>
+<dt><a class="index-entry-id" id="index-SELinux_002c-setting_002frestoring-security-context-4"></a>
+<a class="index-entry-id" id="index-security-context-7"></a>
+<a id="index-_002d_002dcontext-6"></a><span>&lsquo;<samp class="samp">-Z</samp>&rsquo;<a class="copiable-link" href="#index-_002d_002dcontext-6"> &para;</a></span></dt>
+<dd><a class="index-entry-id" id="index-_002dZ-6"></a>
+<a class="anchor" id="mknod--context"></a></dd>
+<dt>&lsquo;<samp class="samp">--context[=<var class="var">context</var>]</samp>&rsquo;</dt>
+<dd><p>Without a specified <var class="var">context</var>, adjust the SELinux security context according
+to the system default type for destination files, similarly to the
+<code class="command">restorecon</code> command.
+The long form of this option with a specific context specified,
+will set the context for newly created files only.
+With a specified context, if both SELinux and SMACK are disabled, a warning is
+issued.
+</p>
+</dd>
+</dl>
+
+<p>An exit status of zero indicates success,
+and a nonzero value indicates failure.
+</p>
+
+</div>
+<hr>
+<div class="nav-panel">
+<p>
+Next: <a href="readlink-invocation.html"><code class="command">readlink</code>: Print value of a symlink or canonical file name</a>, Previous: <a href="mkfifo-invocation.html"><code class="command">mkfifo</code>: Make FIFOs (named pipes)</a>, Up: <a href="Special-file-types.html">Special file types</a> &nbsp; [<a href="index.html#SEC_Contents" title="Table of contents" rel="contents">Contents</a>][<a href="Concept-index.html" title="Index" rel="index">Index</a>]</p>
+</div>
+
+
+
+</body>
+</html>

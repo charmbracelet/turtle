@@ -1,0 +1,193 @@
+<!DOCTYPE html>
+<html>
+<!-- Created by GNU Texinfo 7.2, https://www.gnu.org/software/texinfo/ -->
+<head>
+<meta http-equiv="Content-Type" content="text/html; charset=utf-8">
+<!-- This manual documents version 9.12 of the GNU core
+utilities, including the standard programs for text and file manipulation.
+
+Copyright © 1994-2026 Free Software Foundation, Inc.
+
+Permission is granted to copy, distribute and/or modify this document
+under the terms of the GNU Free Documentation License, Version 1.3 or
+any later version published by the Free Software Foundation; with no
+Invariant Sections, with no Front-Cover Texts, and with no Back-Cover
+Texts.  A copy of the license is included in the section entitled "GNU
+Free Documentation License". -->
+<title>Formatting the file names (GNU Coreutils 9.12)</title>
+
+<meta name="description" content="Formatting the file names (GNU Coreutils 9.12)">
+<meta name="keywords" content="Formatting the file names (GNU Coreutils 9.12)">
+<meta name="resource-type" content="document">
+<meta name="distribution" content="global">
+<meta name="Generator" content="makeinfo">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+
+<link href="index.html" rel="start" title="Top">
+<link href="Concept-index.html" rel="index" title="Concept index">
+<link href="index.html#SEC_Contents" rel="contents" title="Table of Contents">
+<link href="ls-invocation.html" rel="up" title="ls invocation">
+<link href="Formatting-file-timestamps.html" rel="prev" title="Formatting file timestamps">
+<style type="text/css">
+<!--
+a.copiable-link {visibility: hidden; text-decoration: none; line-height: 0em}
+span:hover a.copiable-link {visibility: visible}
+-->
+</style>
+<link rel="stylesheet" type="text/css" href="https://www.gnu.org/software/gnulib/manual.css">
+
+
+</head>
+
+<body lang="en">
+<div class="subsection-level-extent" id="Formatting-the-file-names">
+<div class="nav-panel">
+<p>
+Previous: <a href="Formatting-file-timestamps.html" accesskey="p" rel="prev">Formatting file timestamps</a>, Up: <a href="ls-invocation.html" accesskey="u" rel="up"><code class="command">ls</code>: List directory contents</a> &nbsp; [<a href="index.html#SEC_Contents" title="Table of contents" rel="contents">Contents</a>][<a href="Concept-index.html" title="Index" rel="index">Index</a>]</p>
+</div>
+<hr>
+<h4 class="subsection" id="Formatting-the-file-names-1"><span>10.1.6 Formatting the file names<a class="copiable-link" href="#Formatting-the-file-names-1"> &para;</a></span></h4>
+
+<p>These options change how file names themselves are printed.
+</p>
+<p>You can specify the default value of the <samp class="option">--quoting-style</samp> option
+with the environment variable <code class="env">QUOTING_STYLE</code>.  If that environment
+variable is not set, the default value is &lsquo;<samp class="samp">shell-escape</samp>&rsquo; when the
+output is a terminal, and &lsquo;<samp class="samp">literal</samp>&rsquo; otherwise.
+</p>
+<dl class="table">
+<dd>
+<a class="anchor" id="ls-b"></a></dd>
+<dt><a class="index-entry-id" id="index-backslash-sequences-for-file-names"></a>
+<a id="index-_002d_002dquoting_002dstyle"></a><span>&lsquo;<samp class="samp">-b</samp>&rsquo;<a class="copiable-link" href="#index-_002d_002dquoting_002dstyle"> &para;</a></span></dt>
+<dd><a class="index-entry-id" id="index-_002db-12"></a>
+<a class="anchor" id="ls--escape"></a></dd>
+<dt>&lsquo;<samp class="samp">--escape</samp>&rsquo;</dt>
+<dd><a class="index-entry-id" id="index-_002d_002descape"></a>
+</dd>
+<dt>&lsquo;<samp class="samp">--quoting-style=escape</samp>&rsquo;</dt>
+<dd><p>Quote nongraphic characters in file names using alphabetic and octal
+backslash sequences like those used in C.
+</p>
+<a class="anchor" id="ls-N"></a></dd>
+<dt><a id="index-_002d_002dquoting_002dstyle-1"></a><span>&lsquo;<samp class="samp">-N</samp>&rsquo;<a class="copiable-link" href="#index-_002d_002dquoting_002dstyle-1"> &para;</a></span></dt>
+<dd><a class="index-entry-id" id="index-_002dN-2"></a>
+<a class="anchor" id="ls--literal"></a></dd>
+<dt>&lsquo;<samp class="samp">--literal</samp>&rsquo;</dt>
+<dd><a class="index-entry-id" id="index-_002d_002dliteral"></a>
+</dd>
+<dt>&lsquo;<samp class="samp">--quoting-style=literal</samp>&rsquo;</dt>
+<dd><p>Do not quote file names.  However, with <code class="command">ls</code> nongraphic
+characters are still printed as question marks if the output is a
+terminal and you do not specify the <samp class="option">--show-control-chars</samp> option.
+Also newline characters in file names are printed as question marks
+if ambiguous with separators, irrespective of whether output
+is a terminal or not.
+</p>
+<a class="anchor" id="ls-q"></a></dd>
+<dt><a id="index-_002d_002dhide_002dcontrol_002dchars"></a><span>&lsquo;<samp class="samp">-q</samp>&rsquo;<a class="copiable-link" href="#index-_002d_002dhide_002dcontrol_002dchars"> &para;</a></span></dt>
+<dd><a class="index-entry-id" id="index-_002dq-3"></a>
+<a class="anchor" id="ls--hide-control-chars"></a></dd>
+<dt>&lsquo;<samp class="samp">--hide-control-chars</samp>&rsquo;</dt>
+<dd><p>Print question marks instead of nongraphic characters in file names.
+This is the default if the output is a terminal and the program is
+<code class="command">ls</code>.
+</p>
+<a class="anchor" id="ls-Q"></a></dd>
+<dt><a id="index-_002d_002dquoting_002dstyle-2"></a><span>&lsquo;<samp class="samp">-Q</samp>&rsquo;<a class="copiable-link" href="#index-_002d_002dquoting_002dstyle-2"> &para;</a></span></dt>
+<dd><a class="index-entry-id" id="index-_002dQ"></a>
+<a class="anchor" id="ls--quote-name"></a></dd>
+<dt>&lsquo;<samp class="samp">--quote-name</samp>&rsquo;</dt>
+<dd><a class="index-entry-id" id="index-_002d_002dquote_002dname"></a>
+</dd>
+<dt>&lsquo;<samp class="samp">--quoting-style=c</samp>&rsquo;</dt>
+<dd><p>Enclose file names in double quotes and quote nongraphic characters as
+in C.
+</p>
+<a class="anchor" id="ls--quoting-style"></a></dd>
+<dt><a class="index-entry-id" id="index-quoting-style"></a>
+<a id="index-_002d_002dquoting_002dstyle-3"></a><span>&lsquo;<samp class="samp">--quoting-style=<var class="var">word</var></samp>&rsquo;<a class="copiable-link" href="#index-_002d_002dquoting_002dstyle-3"> &para;</a></span></dt>
+<dd><p>Use style <var class="var">word</var> to quote file names and other strings that may
+contain arbitrary characters.  The <var class="var">word</var> should
+be one of the following:
+</p>
+<dl class="table">
+<dt>&lsquo;<samp class="samp">literal</samp>&rsquo;</dt>
+<dd><p>Output strings as-is;
+this is the same as the <samp class="option">--literal</samp> (<samp class="option">-N</samp>) option.
+</p></dd>
+<dt>&lsquo;<samp class="samp">shell</samp>&rsquo;</dt>
+<dd><p>Quote strings for the shell if they contain shell metacharacters or would
+cause ambiguous output.
+The quoting is suitable for POSIX-compatible shells like
+<code class="command">bash</code>, but it does not always work for incompatible shells
+like <code class="command">csh</code>.
+</p></dd>
+<dt>&lsquo;<samp class="samp">shell-always</samp>&rsquo;</dt>
+<dd><p>Quote strings for the shell, even if they would normally not require quoting.
+</p></dd>
+<dt>&lsquo;<samp class="samp">shell-escape</samp>&rsquo;</dt>
+<dd><p>Like &lsquo;<samp class="samp">shell</samp>&rsquo;, but also quote non-printable characters using the POSIX
+&lsquo;<samp class="samp">$''</samp>&rsquo; syntax suitable for most shells. This is the most general format
+as any file name is represented unambiguously and safely.  I.e., the full
+quoted string can be pasted back to the shell to refer to any file.
+Consequently, this is the default format used when <code class="command">ls</code>
+is outputting to a tty.
+Note also that specifying the C locale with <code class="code">LC_ALL=C</code> can be useful
+with this output format, to avoid character set conversion issues
+with some terminals; e.g., xterm always converting to unicode composed form.
+See also
+<a class="uref" href="https://www.gnu.org/software/coreutils/quotes.html">Quoting file names</a>.
+</p></dd>
+<dt>&lsquo;<samp class="samp">shell-escape-always</samp>&rsquo;</dt>
+<dd><p>Like &lsquo;<samp class="samp">shell-escape</samp>&rsquo;, but quote strings even if they would
+normally not require quoting.
+</p></dd>
+<dt>&lsquo;<samp class="samp">c</samp>&rsquo;</dt>
+<dd><p>Quote strings as for C character string literals, including the
+surrounding double-quote characters;
+this is the same as the <samp class="option">--quote-name</samp> (<samp class="option">-Q</samp>) option.
+</p></dd>
+<dt>&lsquo;<samp class="samp">c-maybe</samp>&rsquo;</dt>
+<dd><p>Quote strings as for C character string literals, except omit the
+surrounding double-quote if no escaping is required.
+</p></dd>
+<dt>&lsquo;<samp class="samp">escape</samp>&rsquo;</dt>
+<dd><p>Quote strings as for C character string literals, except omit the
+surrounding double-quote characters;
+this is the same as the <samp class="option">--escape</samp> (<samp class="option">-b</samp>) option.
+</p></dd>
+<dt>&lsquo;<samp class="samp">clocale</samp>&rsquo;</dt>
+<dd><p>Quote strings as for C character string literals, except use
+surrounding quotation marks appropriate for the
+locale.
+</p></dd>
+<dt>&lsquo;<samp class="samp">locale</samp>&rsquo;</dt>
+<dd><p>Quote strings as for C character string literals, except use
+surrounding quotation marks appropriate for the locale, and quote
+<code class="t">'like this'</code> instead of <code class="t">&quot;like
+this&quot;</code> in the default C locale.  This looks nicer on many displays.
+</p></dd>
+</dl>
+
+<a class="anchor" id="ls--show-control-chars"></a></dd>
+<dt><a id="index-_002d_002dshow_002dcontrol_002dchars-1"></a><span>&lsquo;<samp class="samp">--show-control-chars</samp>&rsquo;<a class="copiable-link" href="#index-_002d_002dshow_002dcontrol_002dchars-1"> &para;</a></span></dt>
+<dd><p>Print nongraphic characters as-is in file names.
+This is the default unless the output is a terminal and the program is
+<code class="command">ls</code>.
+</p>
+</dd>
+</dl>
+
+
+</div>
+<hr>
+<div class="nav-panel">
+<p>
+Previous: <a href="Formatting-file-timestamps.html">Formatting file timestamps</a>, Up: <a href="ls-invocation.html"><code class="command">ls</code>: List directory contents</a> &nbsp; [<a href="index.html#SEC_Contents" title="Table of contents" rel="contents">Contents</a>][<a href="Concept-index.html" title="Index" rel="index">Index</a>]</p>
+</div>
+
+
+
+</body>
+</html>

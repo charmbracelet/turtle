@@ -1,0 +1,843 @@
+<!DOCTYPE html>
+<html>
+<!-- Created by GNU Texinfo 7.2, https://www.gnu.org/software/texinfo/ -->
+<head>
+<meta http-equiv="Content-Type" content="text/html; charset=utf-8">
+<!-- This manual documents version 9.12 of the GNU core
+utilities, including the standard programs for text and file manipulation.
+
+Copyright © 1994-2026 Free Software Foundation, Inc.
+
+Permission is granted to copy, distribute and/or modify this document
+under the terms of the GNU Free Documentation License, Version 1.3 or
+any later version published by the Free Software Foundation; with no
+Invariant Sections, with no Front-Cover Texts, and with no Back-Cover
+Texts.  A copy of the license is included in the section entitled "GNU
+Free Documentation License". -->
+<title>sort invocation (GNU Coreutils 9.12)</title>
+
+<meta name="description" content="sort invocation (GNU Coreutils 9.12)">
+<meta name="keywords" content="sort invocation (GNU Coreutils 9.12)">
+<meta name="resource-type" content="document">
+<meta name="distribution" content="global">
+<meta name="Generator" content="makeinfo">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+
+<link href="index.html" rel="start" title="Top">
+<link href="Concept-index.html" rel="index" title="Concept index">
+<link href="index.html#SEC_Contents" rel="contents" title="Table of Contents">
+<link href="Operating-on-sorted-files.html" rel="up" title="Operating on sorted files">
+<link href="shuf-invocation.html" rel="next" title="shuf invocation">
+<style type="text/css">
+<!--
+a.copiable-link {visibility: hidden; text-decoration: none; line-height: 0em}
+div.display {margin-left: 3.2em}
+div.example {margin-left: 3.2em}
+pre.display-preformatted {font-family: inherit}
+span:hover a.copiable-link {visibility: visible}
+ul.mark-bullet {list-style-type: disc}
+-->
+</style>
+<link rel="stylesheet" type="text/css" href="https://www.gnu.org/software/gnulib/manual.css">
+
+
+</head>
+
+<body lang="en">
+<div class="section-level-extent" id="sort-invocation">
+<div class="nav-panel">
+<p>
+Next: <a href="shuf-invocation.html" accesskey="n" rel="next"><code class="command">shuf</code>: Shuffling text</a>, Up: <a href="Operating-on-sorted-files.html" accesskey="u" rel="up">Operating on sorted files</a> &nbsp; [<a href="index.html#SEC_Contents" title="Table of contents" rel="contents">Contents</a>][<a href="Concept-index.html" title="Index" rel="index">Index</a>]</p>
+</div>
+<hr>
+<h3 class="section" id="sort_003a-Sort-text-files"><span>7.1 <code class="command">sort</code>: Sort text files<a class="copiable-link" href="#sort_003a-Sort-text-files"> &para;</a></span></h3>
+
+<a class="index-entry-id" id="index-sort"></a>
+<a class="index-entry-id" id="index-sorting-files"></a>
+
+<p><code class="command">sort</code> sorts, merges, or compares all the lines from the given
+files, or standard input if none are given or for a <var class="var">file</var> of
+&lsquo;<samp class="samp">-</samp>&rsquo;.  By default, <code class="command">sort</code> writes the results to standard
+output.  Synopsis:
+</p>
+<div class="example">
+<pre class="example-preformatted">sort [<var class="var">option</var>]... [<var class="var">file</var>]...
+</pre></div>
+
+<a class="index-entry-id" id="index-sort-stability"></a>
+<a class="index-entry-id" id="index-sort_0027s-last_002dresort-comparison"></a>
+<p>Many options affect how <code class="command">sort</code> compares lines; if the results
+are unexpected, try the <samp class="option">--debug</samp> option to see what happened.
+A pair of lines is compared as follows:
+<code class="command">sort</code> compares each pair of fields (see <samp class="option">--key</samp>), in the
+order specified on the command line, according to the associated
+ordering options, until a difference is found or no fields are left.
+If no key fields are specified, <code class="command">sort</code> uses a default key of
+the entire line.  Finally, as a last resort when all keys compare
+equal, <code class="command">sort</code> compares entire lines as if no ordering options
+other than <samp class="option">--reverse</samp> (<samp class="option">-r</samp>) were specified.  The
+<samp class="option">--stable</samp> (<samp class="option">-s</samp>) option disables this <em class="dfn">last-resort
+comparison</em> so that lines in which all fields compare equal are left
+in their original relative order.  The <samp class="option">--unique</samp>
+(<samp class="option">-u</samp>) option also disables the last-resort comparison.
+<a class="index-entry-id" id="index-LC_005fALL"></a>
+<a class="index-entry-id" id="index-LC_005fCOLLATE"></a>
+</p>
+<p>Unless otherwise specified, all comparisons use the character collating
+sequence specified by the <code class="env">LC_COLLATE</code> locale.<a class="footnote" id="DOCF1" href="#FOOT1"><sup>1</sup></a>
+A line&rsquo;s trailing newline is not part of the line for comparison
+purposes.  If the final byte of an input file is not a newline, GNU
+<code class="command">sort</code> silently supplies one.  GNU <code class="command">sort</code> (as
+specified for all GNU utilities) has no limit on input line length or
+restrictions on bytes allowed within lines.
+</p>
+<p><code class="command">sort</code> has three modes of operation: sort (the default), merge,
+and check for order.  The following options change the operation
+mode:
+</p>
+<dl class="table">
+<dd>
+<a class="anchor" id="sort-c"></a></dd>
+<dt><a id="index-checking-whether-a-file-is-sorted"></a><span>&lsquo;<samp class="samp">-c</samp>&rsquo;<a class="copiable-link" href="#index-checking-whether-a-file-is-sorted"> &para;</a></span></dt>
+<dd><a class="index-entry-id" id="index-_002dc-8"></a>
+<a class="anchor" id="sort--check"></a></dd>
+<dt>&lsquo;<samp class="samp">--check</samp>&rsquo;</dt>
+<dd><a class="index-entry-id" id="index-_002d_002dcheck-1"></a>
+</dd>
+<dt>&lsquo;<samp class="samp">--check=diagnose-first</samp>&rsquo;</dt>
+<dd><p>Check whether the given file is already sorted: if it is not all
+sorted, print a diagnostic containing the first out-of-order line and
+exit with a status of 1.
+Otherwise, exit successfully.
+At most one input file can be given.
+</p>
+<a class="anchor" id="sort-C"></a></dd>
+<dt><a class="index-entry-id" id="index-checking-whether-a-file-is-sorted-1"></a>
+<a id="index-_002d_002dcheck-2"></a><span>&lsquo;<samp class="samp">-C</samp>&rsquo;<a class="copiable-link" href="#index-_002d_002dcheck-2"> &para;</a></span></dt>
+<dd><a class="index-entry-id" id="index-_002dC-1"></a>
+</dd>
+<dt>&lsquo;<samp class="samp">--check=quiet</samp>&rsquo;</dt>
+<dt>&lsquo;<samp class="samp">--check=silent</samp>&rsquo;</dt>
+<dd><p>Exit successfully if the given file is already sorted, and
+exit with status 1 otherwise.
+At most one input file can be given.
+This is like <samp class="option">-c</samp>, except it does not print a diagnostic.
+</p>
+<a class="anchor" id="sort-m"></a></dd>
+<dt><a class="index-entry-id" id="index-merging-sorted-files"></a>
+<a id="index-_002d_002dmerge-1"></a><span>&lsquo;<samp class="samp">-m</samp>&rsquo;<a class="copiable-link" href="#index-_002d_002dmerge-1"> &para;</a></span></dt>
+<dd><a class="index-entry-id" id="index-_002dm-2"></a>
+<a class="anchor" id="sort--merge"></a></dd>
+<dt>&lsquo;<samp class="samp">--merge</samp>&rsquo;</dt>
+<dd><p>Merge the given files by sorting them as a group.  Each input file must
+always be individually sorted.  It always works to sort instead of
+merge; merging is provided because it is faster, in the case where it
+works.
+</p>
+</dd>
+</dl>
+
+<a class="index-entry-id" id="index-exit-status-of-sort"></a>
+<p>Exit status:
+</p>
+<div class="display">
+<pre class="display-preformatted">0 if no error occurred
+1 if invoked with <samp class="option">-c</samp> or <samp class="option">-C</samp> and the input is not sorted
+2 if an error occurred
+</pre></div>
+
+<a class="index-entry-id" id="index-TMPDIR-2"></a>
+<p>If the environment variable <code class="env">TMPDIR</code> is set, <code class="command">sort</code> uses its
+value as the directory for temporary files instead of <samp class="file">/tmp</samp>.  The
+<samp class="option">--temporary-directory</samp> (<samp class="option">-T</samp>) option in turn overrides
+the environment variable.
+</p>
+<p>The following options affect the ordering of output lines.  They may be
+specified globally or as part of a specific key field.  If no key
+fields are specified, global options apply to comparison of entire
+lines; otherwise the global options are inherited by key fields that do
+not specify any special options of their own.  In pre-POSIX
+versions of <code class="command">sort</code>, global options affect only later key fields,
+so portable shell scripts should specify global options first.
+</p>
+<dl class="table">
+<dd>
+<a class="anchor" id="sort-b"></a></dd>
+<dt><a class="index-entry-id" id="index-blanks_002c-ignoring-leading"></a>
+<a class="index-entry-id" id="index-LC_005fCTYPE"></a>
+<a id="index-_002d_002dignore_002dleading_002dblanks"></a><span>&lsquo;<samp class="samp">-b</samp>&rsquo;<a class="copiable-link" href="#index-_002d_002dignore_002dleading_002dblanks"> &para;</a></span></dt>
+<dd><a class="index-entry-id" id="index-_002db-9"></a>
+<a class="anchor" id="sort--ignore-leading-blanks"></a></dd>
+<dt>&lsquo;<samp class="samp">--ignore-leading-blanks</samp>&rsquo;</dt>
+<dd><p>Ignore leading blanks when finding sort keys in each line.
+By default a blank is a space or a tab, but the <code class="env">LC_CTYPE</code> locale
+can change this.  Blanks may be ignored by your locale&rsquo;s collating
+rules, but without this option they will be significant for character
+positions specified in keys with the <samp class="option">-k</samp> option.
+</p>
+<a class="anchor" id="sort-d"></a></dd>
+<dt><a class="index-entry-id" id="index-dictionary-order"></a>
+<a class="index-entry-id" id="index-phone-directory-order"></a>
+<a class="index-entry-id" id="index-telephone-directory-order"></a>
+<a class="index-entry-id" id="index-LC_005fCTYPE-1"></a>
+<a id="index-_002d_002ddictionary_002dorder"></a><span>&lsquo;<samp class="samp">-d</samp>&rsquo;<a class="copiable-link" href="#index-_002d_002ddictionary_002dorder"> &para;</a></span></dt>
+<dd><a class="index-entry-id" id="index-_002dd-5"></a>
+<a class="anchor" id="sort--dictionary-order"></a></dd>
+<dt>&lsquo;<samp class="samp">--dictionary-order</samp>&rsquo;</dt>
+<dd><p>Sort in <em class="dfn">phone directory</em> order: ignore all characters except
+letters, digits and blanks when sorting.
+By default letters and digits are those of ASCII and a blank
+is a space or a tab, but the <code class="env">LC_CTYPE</code> locale can change this.
+</p>
+<a class="anchor" id="sort-f"></a></dd>
+<dt><a class="index-entry-id" id="index-ignoring-case"></a>
+<a class="index-entry-id" id="index-case-folding"></a>
+<a class="index-entry-id" id="index-LC_005fCTYPE-2"></a>
+<a id="index-_002d_002dignore_002dcase"></a><span>&lsquo;<samp class="samp">-f</samp>&rsquo;<a class="copiable-link" href="#index-_002d_002dignore_002dcase"> &para;</a></span></dt>
+<dd><a class="index-entry-id" id="index-_002df-5"></a>
+<a class="anchor" id="sort--ignore-case"></a></dd>
+<dt>&lsquo;<samp class="samp">--ignore-case</samp>&rsquo;</dt>
+<dd><p>Fold lowercase characters into the equivalent uppercase characters when
+comparing so that, for example, &lsquo;<samp class="samp">b</samp>&rsquo; and &lsquo;<samp class="samp">B</samp>&rsquo; sort as equal.
+The <code class="env">LC_CTYPE</code> locale determines character types.
+When used with <samp class="option">--unique</samp> those lower case equivalent lines are
+thrown away.  (There is currently no way to throw away the upper case
+equivalent instead.  (Any <samp class="option">--reverse</samp> given would only affect
+the final result, after the throwing away.))
+</p>
+<a class="anchor" id="sort-g"></a></dd>
+<dt><a class="index-entry-id" id="index-general-numeric-sort"></a>
+<a class="index-entry-id" id="index-LC_005fNUMERIC-2"></a>
+<a id="index-_002d_002dsort"></a><span>&lsquo;<samp class="samp">-g</samp>&rsquo;<a class="copiable-link" href="#index-_002d_002dsort"> &para;</a></span></dt>
+<dd><a class="index-entry-id" id="index-_002dg-1"></a>
+<a class="anchor" id="sort--general-numeric-sort"></a></dd>
+<dt>&lsquo;<samp class="samp">--general-numeric-sort</samp>&rsquo;</dt>
+<dd><a class="index-entry-id" id="index-_002d_002dgeneral_002dnumeric_002dsort"></a>
+<a class="anchor" id="sort--sort"></a></dd>
+<dt>&lsquo;<samp class="samp">--sort=general-numeric</samp>&rsquo;</dt>
+<dd><p>Sort numerically, converting a prefix of each line to a long
+double-precision floating point number.  See <a class="xref" href="Floating-point.html">Floating point numbers</a>.
+Do not report overflow, underflow, or conversion errors.
+Use the following collating sequence:
+</p>
+<ul class="itemize mark-bullet">
+<li>Lines that do not start with numbers (all considered to be equal).
+</li><li>NaNs (&ldquo;Not a Number&rdquo; values, in IEEE floating point arithmetic)
+in a consistent but machine-dependent order.
+</li><li>Minus infinity.
+</li><li>Finite numbers in ascending numeric order (with <em class="math">-0</em> and <em class="math">+0</em> equal).
+</li><li>Plus infinity.
+</li></ul>
+
+<p>Use this option only if there is no alternative; it is much slower than
+<samp class="option">--numeric-sort</samp> (<samp class="option">-n</samp>) and it can lose information when
+converting to floating point.
+</p>
+<p>You can use this option to sort hexadecimal numbers prefixed with
+&lsquo;<samp class="samp">0x</samp>&rsquo; or &lsquo;<samp class="samp">0X</samp>&rsquo;, where those numbers are not fixed width,
+or of varying case.  However for hex numbers of consistent case,
+and left padded with &lsquo;<samp class="samp">0</samp>&rsquo; to a consistent width, a standard
+lexicographic sort will be faster.
+</p>
+<a class="anchor" id="sort-h"></a></dd>
+<dt><a class="index-entry-id" id="index-human-numeric-sort"></a>
+<a class="index-entry-id" id="index-LC_005fNUMERIC-3"></a>
+<a id="index-_002d_002dsort-1"></a><span>&lsquo;<samp class="samp">-h</samp>&rsquo;<a class="copiable-link" href="#index-_002d_002dsort-1"> &para;</a></span></dt>
+<dd><a class="index-entry-id" id="index-_002dh-3"></a>
+<a class="anchor" id="sort--human-numeric-sort"></a></dd>
+<dt>&lsquo;<samp class="samp">--human-numeric-sort</samp>&rsquo;</dt>
+<dd><a class="index-entry-id" id="index-_002d_002dhuman_002dnumeric_002dsort"></a>
+</dd>
+<dt>&lsquo;<samp class="samp">--sort=human-numeric</samp>&rsquo;</dt>
+<dd><p>Sort numerically, first by numeric sign (negative, zero, or positive);
+then by SI suffix (either empty, or &lsquo;<samp class="samp">k</samp>&rsquo; or &lsquo;<samp class="samp">K</samp>&rsquo;, or
+one of &lsquo;<samp class="samp">MGTPEZYRQ</samp>&rsquo;, in that order; see <a class="pxref" href="Block-size.html">Block size</a>); and finally
+by numeric value.  For example, &lsquo;<samp class="samp">1023M</samp>&rsquo; sorts before &lsquo;<samp class="samp">1G</samp>&rsquo;
+because &lsquo;<samp class="samp">M</samp>&rsquo; (mega) precedes &lsquo;<samp class="samp">G</samp>&rsquo; (giga) as an SI
+suffix.  This option sorts values that are consistently scaled to the
+nearest suffix, regardless of whether suffixes denote powers of 1000
+or 1024, and it therefore sorts the output of any single invocation of
+the <code class="command">df</code>, <code class="command">du</code>, or <code class="command">ls</code> commands that are
+invoked with their <samp class="option">--human-readable</samp> or <samp class="option">--si</samp> options.
+The syntax for numbers is the same as for the <samp class="option">--numeric-sort</samp>
+option; the SI suffix must immediately follow the number.
+To sort more accurately, you can use the <code class="command">numfmt</code> command
+to reformat numbers to human format <em class="emph">after</em> the sort.
+</p>
+<a class="anchor" id="sort-i"></a></dd>
+<dt><a class="index-entry-id" id="index-nonprinting-characters_002c-ignoring"></a>
+<a class="index-entry-id" id="index-unprintable-characters_002c-ignoring"></a>
+<a class="index-entry-id" id="index-LC_005fCTYPE-3"></a>
+<a id="index-_002d_002dignore_002dnonprinting"></a><span>&lsquo;<samp class="samp">-i</samp>&rsquo;<a class="copiable-link" href="#index-_002d_002dignore_002dnonprinting"> &para;</a></span></dt>
+<dd><a class="index-entry-id" id="index-_002di-4"></a>
+<a class="anchor" id="sort--ignore-nonprinting"></a></dd>
+<dt>&lsquo;<samp class="samp">--ignore-nonprinting</samp>&rsquo;</dt>
+<dd><p>Ignore nonprinting characters.
+The <code class="env">LC_CTYPE</code> locale determines character types.
+This option has no effect if the stronger <samp class="option">--dictionary-order</samp>
+(<samp class="option">-d</samp>) option is also given.
+</p>
+<a class="anchor" id="sort-M"></a></dd>
+<dt><a class="index-entry-id" id="index-months_002c-sorting-by"></a>
+<a class="index-entry-id" id="index-LC_005fTIME-1"></a>
+<a id="index-_002d_002dsort-2"></a><span>&lsquo;<samp class="samp">-M</samp>&rsquo;<a class="copiable-link" href="#index-_002d_002dsort-2"> &para;</a></span></dt>
+<dd><a class="index-entry-id" id="index-_002dM"></a>
+<a class="anchor" id="sort--month-sort"></a></dd>
+<dt>&lsquo;<samp class="samp">--month-sort</samp>&rsquo;</dt>
+<dd><a class="index-entry-id" id="index-_002d_002dmonth_002dsort"></a>
+</dd>
+<dt>&lsquo;<samp class="samp">--sort=month</samp>&rsquo;</dt>
+<dd><p>An initial string, consisting of any amount of blanks, followed
+by a month name abbreviation, is folded to UPPER case and
+compared in the order &lsquo;<samp class="samp">JAN</samp>&rsquo; &lt; &lsquo;<samp class="samp">FEB</samp>&rsquo; &lt; &hellip; &lt; &lsquo;<samp class="samp">DEC</samp>&rsquo;.
+Invalid names compare low to valid names.  The <code class="env">LC_TIME</code> locale
+category determines the month spellings.
+By default a blank is a space or a tab, but the <code class="env">LC_CTYPE</code> locale
+can change this.
+</p>
+<a class="anchor" id="sort-n"></a></dd>
+<dt><a class="index-entry-id" id="index-numeric-sort"></a>
+<a class="index-entry-id" id="index-LC_005fCTYPE-4"></a>
+<a class="index-entry-id" id="index-LC_005fNUMERIC-4"></a>
+<a id="index-_002d_002dsort-3"></a><span>&lsquo;<samp class="samp">-n</samp>&rsquo;<a class="copiable-link" href="#index-_002d_002dsort-3"> &para;</a></span></dt>
+<dd><a class="index-entry-id" id="index-_002dn-7"></a>
+<a class="anchor" id="sort--numeric-sort"></a></dd>
+<dt>&lsquo;<samp class="samp">--numeric-sort</samp>&rsquo;</dt>
+<dd><a class="index-entry-id" id="index-_002d_002dnumeric_002dsort"></a>
+</dd>
+<dt>&lsquo;<samp class="samp">--sort=numeric</samp>&rsquo;</dt>
+<dd><p>Sort numerically.  The number begins each line and consists
+of optional blanks, an optional &lsquo;<samp class="samp">-</samp>&rsquo; sign, and zero or more
+digits possibly separated by thousands separators, optionally followed
+by a decimal-point character and zero or more digits.  An empty
+number is treated as &lsquo;<samp class="samp">0</samp>&rsquo;.  Signs on zeros and leading zeros do
+not affect ordering.
+</p>
+<p>Comparison is exact; there is no rounding error.
+</p>
+<p>The <code class="env">LC_CTYPE</code> locale specifies which characters are blanks and
+the <code class="env">LC_NUMERIC</code> locale specifies the thousands separator and
+decimal-point character.  In the C locale, spaces and tabs are blanks,
+there is no thousands separator, and &lsquo;<samp class="samp">.</samp>&rsquo; is the decimal point.
+</p>
+<p>Neither a leading &lsquo;<samp class="samp">+</samp>&rsquo; nor exponential notation is recognized.
+To compare such strings numerically, use the
+<samp class="option">--general-numeric-sort</samp> (<samp class="option">-g</samp>) option.
+</p>
+<a class="anchor" id="sort-V"></a></dd>
+<dt><a class="index-entry-id" id="index-version-number-sort"></a>
+<a id="index-_002d_002dsort-4"></a><span>&lsquo;<samp class="samp">-V</samp>&rsquo;<a class="copiable-link" href="#index-_002d_002dsort-4"> &para;</a></span></dt>
+<dd><a class="index-entry-id" id="index-_002dV"></a>
+<a class="anchor" id="sort--version-sort"></a></dd>
+<dt>&lsquo;<samp class="samp">--version-sort</samp>&rsquo;</dt>
+<dd><a class="index-entry-id" id="index-_002d_002dversion_002dsort"></a>
+</dd>
+<dt>&lsquo;<samp class="samp">--sort=version</samp>&rsquo;</dt>
+<dd><p>Sort by version name and number.  It behaves like a standard sort,
+except that each sequence of decimal digits is treated numerically
+as an index/version number.  (See <a class="xref" href="Version-sort-ordering.html">Version sort ordering</a>.)
+</p>
+<a class="anchor" id="sort-r"></a></dd>
+<dt><a class="index-entry-id" id="index-reverse-sorting"></a>
+<a id="index-_002d_002dreverse"></a><span>&lsquo;<samp class="samp">-r</samp>&rsquo;<a class="copiable-link" href="#index-_002d_002dreverse"> &para;</a></span></dt>
+<dd><a class="index-entry-id" id="index-_002dr-3"></a>
+<a class="anchor" id="sort--reverse"></a></dd>
+<dt>&lsquo;<samp class="samp">--reverse</samp>&rsquo;</dt>
+<dd><p>Reverse the result of comparison, so that lines with greater key values
+appear earlier in the output instead of later.
+</p>
+<a class="anchor" id="sort-R"></a></dd>
+<dt><a class="index-entry-id" id="index-random-sort"></a>
+<a id="index-_002d_002dsort-5"></a><span>&lsquo;<samp class="samp">-R</samp>&rsquo;<a class="copiable-link" href="#index-_002d_002dsort-5"> &para;</a></span></dt>
+<dd><a class="index-entry-id" id="index-_002dR"></a>
+<a class="anchor" id="sort--random-sort"></a></dd>
+<dt>&lsquo;<samp class="samp">--random-sort</samp>&rsquo;</dt>
+<dd><a class="index-entry-id" id="index-_002d_002drandom_002dsort"></a>
+</dd>
+<dt>&lsquo;<samp class="samp">--sort=random</samp>&rsquo;</dt>
+<dd><p>Sort by hashing the input keys and then sorting the hash values.
+Choose the hash function at random, ensuring that it is free of
+collisions so that differing keys have differing hash values.  This is
+like a random permutation of the inputs (see <a class="pxref" href="shuf-invocation.html"><code class="command">shuf</code>: Shuffling text</a>),
+except that keys with the same value sort together.
+</p>
+<p>If multiple random sort fields are specified, the same random hash
+function is used for all fields.  To use different random hash
+functions for different fields, you can invoke <code class="command">sort</code> more
+than once.
+</p>
+<p>The choice of hash function is affected by the
+<samp class="option">--random-source</samp> option.
+</p>
+</dd>
+</dl>
+
+<p>Other options are:
+</p>
+<dl class="table">
+<dd>
+<a class="anchor" id="sort--compress-program"></a></dd>
+<dt><a id="index-_002d_002dcompress_002dprogram"></a><span>&lsquo;<samp class="samp">--compress-program&nbsp;<!-- /@w --><var class="var">prog</var></samp>&rsquo;<a class="copiable-link" href="#index-_002d_002dcompress_002dprogram"> &para;</a></span></dt>
+<dd><p>Compress any temporary files with the program <var class="var">prog</var>.
+</p>
+<p>With no arguments, <var class="var">prog</var> must compress standard input to standard
+output, and when given the <samp class="option">-d</samp> option it must decompress
+standard input to standard output.
+</p>
+<p>Terminate with an error if <var class="var">prog</var> exits with nonzero status.
+</p>
+<p>If <var class="var">prog</var> cannot be invoked, <code class="command">sort</code> will write a warning
+message to standard error and continue without compressing temporary
+files.
+</p>
+<p>White space and the backslash character should not appear in
+<var class="var">prog</var>; they are reserved for future use.
+</p>
+<a class="anchor" id="sort--files0-from"></a></dd>
+<dt><a id="index-_002d_002dfiles0_002dfrom-1"></a><span>&lsquo;<samp class="samp">--files0-from=<var class="var">file</var></samp>&rsquo;<a class="copiable-link" href="#index-_002d_002dfiles0_002dfrom-1"> &para;</a></span></dt>
+<dd><p>Disallow processing files named on the command line, and instead process
+those named in file <var class="var">file</var>; each name being terminated by a zero byte
+(ASCII NUL).
+This is useful 
+when the list of file names is so long that it may exceed a command line
+length limitation.
+In such cases, running <code class="command">sort</code> via <code class="command">xargs</code> is undesirable
+because it splits the list into pieces and makes <code class="command">sort</code> print
+sorted output for each sublist rather than for the entire list.
+One way to produce a list of ASCII NUL terminated file
+names is with GNU
+<code class="command">find</code>, using its <samp class="option">-print0</samp> predicate.
+If <var class="var">file</var> is &lsquo;<samp class="samp">-</samp>&rsquo; then the ASCII NUL terminated
+file names are read from standard input.
+</p>
+<a class="anchor" id="sort-k"></a></dd>
+<dt><a class="index-entry-id" id="index-sort-field"></a>
+<a id="index-_002d_002dkey"></a><span>&lsquo;<samp class="samp">-k&nbsp;<!-- /@w --><var class="var">pos1</var>[,<var class="var">pos2</var>]</samp>&rsquo;<a class="copiable-link" href="#index-_002d_002dkey"> &para;</a></span></dt>
+<dd><a class="index-entry-id" id="index-_002dk-2"></a>
+<a class="anchor" id="sort--key"></a></dd>
+<dt>&lsquo;<samp class="samp">--key=<var class="var">pos1</var>[,<var class="var">pos2</var>]</samp>&rsquo;</dt>
+<dd><p>Specify a sort field that consists of the part of the line between
+<var class="var">pos1</var> and <var class="var">pos2</var> (or the end of the line, if <var class="var">pos2</var> is
+omitted), <em class="emph">inclusive</em>.
+</p>
+<p>In its simplest form <var class="var">pos</var> specifies a field number (starting with 1),
+with fields being separated by runs of blank characters, and by default
+those blanks being included in the comparison at the start of each field.
+To adjust the handling of blank characters see the <samp class="option">-b</samp> and
+<samp class="option">-t</samp> options.
+</p>
+<p>More generally,
+each <var class="var">pos</var> has the form &lsquo;<samp class="samp"><var class="var">f</var>[.<var class="var">c</var>][<var class="var">opts</var>]</samp>&rsquo;,
+where <var class="var">f</var> is the number of the field to use, and <var class="var">c</var> is the number
+of the first character from the beginning of the field.  Fields and character
+positions are numbered starting with 1; a character position of zero in
+<var class="var">pos2</var> indicates the field&rsquo;s last character.  If &lsquo;<samp class="samp">.<var class="var">c</var></samp>&rsquo; is
+omitted from <var class="var">pos1</var>, it defaults to 1 (the beginning of the field);
+if omitted from <var class="var">pos2</var>, it defaults to 0 (the end of the field).
+<var class="var">opts</var> are ordering options, allowing individual keys to be sorted
+according to different rules; see below for details.  Keys can span
+multiple fields.
+</p>
+<p>Example:  To sort on the second field, use <samp class="option">--key=2,2</samp>
+(<samp class="option">-k 2,2</samp>).  See below for more notes on keys and more examples.
+See also the <samp class="option">--debug</samp> option to help determine the part
+of the line being used in the sort.
+</p>
+<a class="anchor" id="sort--debug"></a></dd>
+<dt><a id="index-_002d_002ddebug-3"></a><span>&lsquo;<samp class="samp">--debug</samp>&rsquo;<a class="copiable-link" href="#index-_002d_002ddebug-3"> &para;</a></span></dt>
+<dd><p>Highlight the portion of each line used for sorting.
+Also issue warnings about questionable usage to standard error.
+</p>
+<a class="anchor" id="sort--batch-size"></a></dd>
+<dt><a class="index-entry-id" id="index-number-of-inputs-to-merge_002c-nmerge"></a>
+<a id="index-_002d_002dbatch_002dsize"></a><span>&lsquo;<samp class="samp">--batch-size=<var class="var">nmerge</var></samp>&rsquo;<a class="copiable-link" href="#index-_002d_002dbatch_002dsize"> &para;</a></span></dt>
+<dd><p>Merge at most <var class="var">nmerge</var> inputs at once.
+</p>
+<p>When <code class="command">sort</code> has to merge more than <var class="var">nmerge</var> inputs,
+it merges them in groups of <var class="var">nmerge</var>, saving the result in
+a temporary file, which is then used as an input in a subsequent merge.
+</p>
+<p>A large value of <var class="var">nmerge</var> may improve merge performance and decrease
+temporary storage utilization at the expense of increased memory usage
+and I/O.  Conversely a small value of <var class="var">nmerge</var> may reduce memory
+requirements and I/O at the expense of temporary storage consumption and
+merge performance.
+</p>
+<p>The value of <var class="var">nmerge</var> must be at least 2.  The default value is
+currently 16, but this is implementation-dependent and may change in
+the future.
+</p>
+<p>The value of <var class="var">nmerge</var> may be bounded by a resource limit for open
+file descriptors.  The commands &lsquo;<samp class="samp">ulimit -n</samp>&rsquo; or &lsquo;<samp class="samp">getconf
+OPEN_MAX</samp>&rsquo; may display limits for your systems; these limits may be
+modified further if your program already has some files open, or if
+the operating system has other limits on the number of open files.  If
+the value of <var class="var">nmerge</var> exceeds the resource limit, <code class="command">sort</code>
+silently uses a smaller value.
+</p>
+<a class="anchor" id="sort-o"></a></dd>
+<dt><a class="index-entry-id" id="index-overwriting-of-input_002c-allowed"></a>
+<a id="index-_002d_002doutput"></a><span>&lsquo;<samp class="samp">-o&nbsp;<!-- /@w --><var class="var">output-file</var></samp>&rsquo;<a class="copiable-link" href="#index-_002d_002doutput"> &para;</a></span></dt>
+<dd><a class="index-entry-id" id="index-_002do-2"></a>
+<a class="anchor" id="sort--output"></a></dd>
+<dt>&lsquo;<samp class="samp">--output=<var class="var">output-file</var></samp>&rsquo;</dt>
+<dd><p>Write output to <var class="var">output-file</var> instead of standard output.
+Normally, <code class="command">sort</code> reads all input before opening
+<var class="var">output-file</var>, so you can sort a file in place by using
+commands like <code class="code">sort -o F F</code> and <code class="code">cat F | sort -o F</code>.
+However, it is often safer to output to an otherwise-unused file, as
+data may be lost if the system crashes or <code class="command">sort</code> encounters
+an I/O or other serious error while a file is being sorted in place.
+Also, <code class="command">sort</code> with <samp class="option">--merge</samp> (<samp class="option">-m</samp>) can open
+the output file before reading all input, so a command like <code class="code">cat
+F | sort -m -o F - G</code> is not safe as <code class="command">sort</code> might start
+writing <samp class="file">F</samp> before <code class="command">cat</code> is done reading it.
+</p>
+<a class="index-entry-id" id="index-POSIXLY_005fCORRECT-4"></a>
+<p>On newer systems, <samp class="option">-o</samp> cannot appear after an input file if
+<code class="env">POSIXLY_CORRECT</code> is set, e.g., &lsquo;<samp class="samp">sort F -o F</samp>&rsquo;.  Portable
+scripts should specify <samp class="option">-o <var class="var">output-file</var></samp> before any input
+files.
+</p>
+<a class="anchor" id="sort--random-source"></a></dd>
+<dt><a class="index-entry-id" id="index-random-source-for-sorting"></a>
+<a id="index-_002d_002drandom_002dsource"></a><span>&lsquo;<samp class="samp">--random-source=<var class="var">file</var></samp>&rsquo;<a class="copiable-link" href="#index-_002d_002drandom_002dsource"> &para;</a></span></dt>
+<dd><p>Use <var class="var">file</var> as a source of random data used to determine which
+random hash function to use with the <samp class="option">-R</samp> option.  See <a class="xref" href="Random-sources.html">Sources of random data</a>.
+</p>
+<a class="anchor" id="sort-s"></a></dd>
+<dt><a class="index-entry-id" id="index-sort-stability-1"></a>
+<a class="index-entry-id" id="index-sort_0027s-last_002dresort-comparison-1"></a>
+<a id="index-_002d_002dstable"></a><span>&lsquo;<samp class="samp">-s</samp>&rsquo;<a class="copiable-link" href="#index-_002d_002dstable"> &para;</a></span></dt>
+<dd><a class="index-entry-id" id="index-_002ds-10"></a>
+<a class="anchor" id="sort--stable"></a></dd>
+<dt>&lsquo;<samp class="samp">--stable</samp>&rsquo;</dt>
+<dd>
+<p>Make <code class="command">sort</code> stable by disabling its last-resort comparison.
+This option has no effect if no fields or global ordering options
+other than <samp class="option">--reverse</samp> (<samp class="option">-r</samp>) are specified.
+</p>
+<a class="anchor" id="sort-S"></a></dd>
+<dt><a class="index-entry-id" id="index-size-for-main-memory-sorting"></a>
+<a id="index-_002d_002dbuffer_002dsize"></a><span>&lsquo;<samp class="samp">-S&nbsp;<!-- /@w --><var class="var">size</var></samp>&rsquo;<a class="copiable-link" href="#index-_002d_002dbuffer_002dsize"> &para;</a></span></dt>
+<dd><a class="index-entry-id" id="index-_002dS-3"></a>
+<a class="anchor" id="sort--buffer-size"></a></dd>
+<dt>&lsquo;<samp class="samp">--buffer-size=<var class="var">size</var></samp>&rsquo;</dt>
+<dd><p>Use a main-memory sort buffer of the given <var class="var">size</var>.  By default,
+<var class="var">size</var> is in units of 1024 bytes.  Appending &lsquo;<samp class="samp">%</samp>&rsquo; causes
+<var class="var">size</var> to be interpreted as a percentage of physical memory.
+Appending &lsquo;<samp class="samp">K</samp>&rsquo; multiplies <var class="var">size</var> by 1024 (the default),
+&lsquo;<samp class="samp">M</samp>&rsquo; by 1,048,576, &lsquo;<samp class="samp">G</samp>&rsquo; by 1,073,741,824, and so on for
+&lsquo;<samp class="samp">T</samp>&rsquo;, &lsquo;<samp class="samp">P</samp>&rsquo;, &lsquo;<samp class="samp">E</samp>&rsquo;, &lsquo;<samp class="samp">Z</samp>&rsquo;, &lsquo;<samp class="samp">Y</samp>&rsquo;, &lsquo;<samp class="samp">R</samp>&rsquo;, and &lsquo;<samp class="samp">Q</samp>&rsquo;.
+Appending
+&lsquo;<samp class="samp">b</samp>&rsquo; causes <var class="var">size</var> to be interpreted as a byte count, with no
+multiplication.
+</p>
+<p>This option can improve the performance of <code class="command">sort</code> by causing it
+to start with a larger or smaller sort buffer than the default.
+However, this option affects only the initial buffer size.  The buffer
+grows beyond <var class="var">size</var> if <code class="command">sort</code> encounters input lines larger
+than <var class="var">size</var>.
+</p>
+<a class="anchor" id="sort-t"></a></dd>
+<dt><a class="index-entry-id" id="index-field-separator-character"></a>
+<a id="index-_002d_002dfield_002dseparator"></a><span>&lsquo;<samp class="samp">-t&nbsp;<!-- /@w --><var class="var">separator</var></samp>&rsquo;<a class="copiable-link" href="#index-_002d_002dfield_002dseparator"> &para;</a></span></dt>
+<dd><a class="index-entry-id" id="index-_002dt-6"></a>
+<a class="anchor" id="sort--field-separator"></a></dd>
+<dt>&lsquo;<samp class="samp">--field-separator=<var class="var">separator</var></samp>&rsquo;</dt>
+<dd><p>Use character <var class="var">separator</var> as the field separator when finding the
+sort keys in each line.  By default, fields are separated by the empty
+string between a non-blank character and a blank character.
+By default a blank is a space or a tab, but the <code class="env">LC_CTYPE</code> locale
+can change this.
+</p>
+<p>That is, given the input line &lsquo;<samp class="samp">&nbsp;foo&nbsp;bar</samp>&rsquo;<!-- /@w -->, <code class="command">sort</code> breaks it
+into fields &lsquo;<samp class="samp">&nbsp;foo</samp>&rsquo;<!-- /@w --> and &lsquo;<samp class="samp">&nbsp;bar</samp>&rsquo;<!-- /@w -->.  The field separator is
+not considered to be part of either the field preceding or the field
+following, so with &lsquo;<samp class="samp">sort -t&nbsp;&quot;&nbsp;&quot;<!-- /@w --></samp>&rsquo; the same input line has
+three fields: an empty field, &lsquo;<samp class="samp">foo</samp>&rsquo;, and &lsquo;<samp class="samp">bar</samp>&rsquo;.
+However, fields that extend to the end of the line,
+as <samp class="option">-k 2</samp>, or fields consisting of a range, as <samp class="option">-k 2,3</samp>,
+retain the field separators present between the endpoints of the range.
+</p>
+<p>To specify ASCII NUL as the field separator,
+use the two-character string &lsquo;<samp class="samp">\0</samp>&rsquo;, e.g., &lsquo;<samp class="samp">sort -t '\0'</samp>&rsquo;.
+</p>
+<a class="anchor" id="sort-T"></a></dd>
+<dt><a class="index-entry-id" id="index-temporary-directory"></a>
+<a class="index-entry-id" id="index-TMPDIR-3"></a>
+<a id="index-_002d_002dtemporary_002ddirectory"></a><span>&lsquo;<samp class="samp">-T&nbsp;<!-- /@w --><var class="var">tempdir</var></samp>&rsquo;<a class="copiable-link" href="#index-_002d_002dtemporary_002ddirectory"> &para;</a></span></dt>
+<dd><a class="index-entry-id" id="index-_002dT-2"></a>
+<a class="anchor" id="sort--temporary-directory"></a></dd>
+<dt>&lsquo;<samp class="samp">--temporary-directory=<var class="var">tempdir</var></samp>&rsquo;</dt>
+<dd><p>Use directory <var class="var">tempdir</var> to store temporary files, overriding the
+<code class="env">TMPDIR</code> environment variable.  If this option is given more than
+once, temporary files are stored in all the directories given.  If you
+have a large sort or merge that is I/O-bound, you can often improve
+performance by using this option to specify directories on different
+file systems.
+</p>
+<a class="anchor" id="sort--parallel"></a></dd>
+<dt><a class="index-entry-id" id="index-multithreaded-sort"></a>
+<a id="index-_002d_002dparallel"></a><span>&lsquo;<samp class="samp">--parallel=<var class="var">n</var></samp>&rsquo;<a class="copiable-link" href="#index-_002d_002dparallel"> &para;</a></span></dt>
+<dd><p>Set the number of sorts run in parallel to <var class="var">n</var>. By default,
+<var class="var">n</var> is set to the number of available processors, but limited
+to 8, as performance gains diminish after that.
+Using <var class="var">n</var> threads increases the memory usage by
+a factor of log <var class="var">n</var>.  Also see <a class="ref" href="nproc-invocation.html"><code class="command">nproc</code>: Print the number of available processors</a>.
+</p>
+<a class="anchor" id="sort-u"></a></dd>
+<dt><a class="index-entry-id" id="index-uniquifying-output"></a>
+<a id="index-_002d_002dunique"></a><span>&lsquo;<samp class="samp">-u</samp>&rsquo;<a class="copiable-link" href="#index-_002d_002dunique"> &para;</a></span></dt>
+<dd><a class="index-entry-id" id="index-_002du-3"></a>
+<a class="anchor" id="sort--unique"></a></dd>
+<dt>&lsquo;<samp class="samp">--unique</samp>&rsquo;</dt>
+<dd>
+<p>Normally, output only the first of a sequence of lines that compare
+equal.  For the <samp class="option">--check</samp> (<samp class="option">-c</samp> or <samp class="option">-C</samp>) option,
+check that no pair of consecutive lines compares equal.
+</p>
+<p>This option also disables the default last-resort comparison.
+</p>
+<p>The commands <code class="code">sort -u</code> and <code class="code">sort | uniq</code> are equivalent, but
+this equivalence does not extend to arbitrary <code class="command">sort</code> options.
+For example, <code class="code">sort -n -u</code> inspects only the value of the initial
+numeric string when checking for uniqueness, whereas <code class="code">sort -n |
+uniq</code> inspects the entire line.  See <a class="xref" href="uniq-invocation.html"><code class="command">uniq</code>: Uniquify files</a>.
+</p>
+<a class="anchor" id="sort-z"></a></dd>
+<dt><a class="index-entry-id" id="index-process-zero_002dterminated-items-2"></a>
+<a id="index-_002d_002dzero_002dterminated-2"></a><span>&lsquo;<samp class="samp">-z</samp>&rsquo;<a class="copiable-link" href="#index-_002d_002dzero_002dterminated-2"> &para;</a></span></dt>
+<dd><a class="index-entry-id" id="index-_002dz-4"></a>
+<a class="anchor" id="sort--zero-terminated"></a></dd>
+<dt>&lsquo;<samp class="samp">--zero-terminated</samp>&rsquo;</dt>
+<dd><p>Delimit items with a zero byte rather than a newline (ASCII LF).
+I.e., treat input as items separated by ASCII NUL
+and terminate output items with ASCII NUL.
+This option can be useful in conjunction with &lsquo;<samp class="samp">perl -0</samp>&rsquo; or
+&lsquo;<samp class="samp">find -print0</samp>&rsquo; and &lsquo;<samp class="samp">xargs -0</samp>&rsquo; which do the same in order to
+reliably handle arbitrary file names (even those containing blanks
+or other special characters).
+</p>
+</dd>
+</dl>
+
+<p>Historical (BSD and System V) implementations of <code class="command">sort</code> have
+differed in their interpretation of some options, particularly
+<samp class="option">-b</samp>, <samp class="option">-f</samp>, and <samp class="option">-n</samp>.
+GNU sort follows the POSIX
+behavior, which is usually (but not always!) like the System V behavior.
+According to POSIX, <samp class="option">-n</samp> no longer implies <samp class="option">-b</samp>.  For
+consistency, <samp class="option">-M</samp> has been changed in the same way.  This may
+affect the meaning of character positions in field specifications in
+obscure cases.  The only fix is to add an explicit <samp class="option">-b</samp>.
+</p>
+<p>A position in a sort field specified with <samp class="option">-k</samp> may have any
+of the option letters &lsquo;<samp class="samp">MbdfghinRrV</samp>&rsquo; appended to it, in which case no
+global ordering options are inherited by that particular field.  The
+<samp class="option">-b</samp> option may be independently attached to either or both of
+the start and end positions of a field specification, and if it is
+inherited from the global options it will be attached to both.
+If input lines can contain leading or adjacent blanks and <samp class="option">-t</samp>
+is not used, then <samp class="option">-k</samp> is typically combined with <samp class="option">-b</samp> or
+an option that implicitly ignores leading blanks (&lsquo;<samp class="samp">Mghn</samp>&rsquo;) as otherwise
+the varying numbers of leading blanks in fields can cause confusing results.
+</p>
+<p>If the start position in a sort field specifier falls after the end of
+the line or after the end field, the field is empty.  If the <samp class="option">-b</samp>
+option was specified, the &lsquo;<samp class="samp">.<var class="var">c</var></samp>&rsquo; part of a field specification
+is counted from the first nonblank character of the field.
+</p>
+<a class="index-entry-id" id="index-_005fPOSIX2_005fVERSION-2"></a>
+<a class="index-entry-id" id="index-POSIXLY_005fCORRECT-5"></a>
+<p>On systems not conforming to POSIX 1003.1-2001,
+<code class="command">sort</code> supports a traditional origin-zero
+syntax &lsquo;<samp class="samp">+<var class="var">pos1</var> [-<var class="var">pos2</var>]</samp>&rsquo; for specifying sort keys.
+The traditional command &lsquo;<samp class="samp">sort +<var class="var">a</var>.<var class="var">x</var> -<var class="var">b</var>.<var class="var">y</var></samp>&rsquo;
+is equivalent to &lsquo;<samp class="samp">sort -k <var class="var">a+1</var>.<var class="var">x+1</var>,<var class="var">b</var></samp>&rsquo; if <var class="var">y</var>
+is &lsquo;<samp class="samp">0</samp>&rsquo; or absent, otherwise it is equivalent to &lsquo;<samp class="samp">sort -k
+<var class="var">a+1</var>.<var class="var">x+1</var>,<var class="var">b+1</var>.<var class="var">y</var></samp>&rsquo;.
+</p>
+<p>This traditional behavior can be controlled with the
+<code class="env">_POSIX2_VERSION</code> environment variable (see <a class="pxref" href="Standards-conformance.html">Standards conformance</a>); it can also be enabled when <code class="env">POSIXLY_CORRECT</code> is
+not set by using the traditional syntax with &lsquo;<samp class="samp">-<var class="var">pos2</var></samp>&rsquo; present.
+</p>
+<p>Scripts intended for use on standard hosts should avoid traditional
+syntax and should use <samp class="option">-k</samp> instead.  For example, avoid
+&lsquo;<samp class="samp">sort +2</samp>&rsquo;, since it might be interpreted as either &lsquo;<samp class="samp">sort
+./+2</samp>&rsquo; or &lsquo;<samp class="samp">sort -k 3</samp>&rsquo;.  If your script must also run on hosts that
+support only the traditional syntax, it can use a test like &lsquo;<samp class="samp">if sort
+-k 1 &lt;/dev/null &gt;/dev/null 2&gt;&amp;1; then &hellip;</samp>&rsquo; to decide which syntax
+to use.
+</p>
+<p>Here are some examples to illustrate various combinations of options.
+</p>
+<ul class="itemize mark-bullet">
+<li>Sort in descending (reverse) numeric order.
+
+<div class="example">
+<pre class="example-preformatted">sort -n -r
+</pre></div>
+
+</li><li>Run no more than 4 sorts concurrently, using a buffer size of 10M.
+
+<div class="example">
+<pre class="example-preformatted">sort --parallel=4 -S 10M
+</pre></div>
+
+</li><li>Sort alphabetically, omitting the first and second fields
+and the blanks at the start of the third field.
+This uses a single key composed of the characters beginning
+at the start of the first nonblank character in field three
+and extending to the end of each line.
+
+<div class="example">
+<pre class="example-preformatted">sort -k 3b
+</pre></div>
+
+</li><li>Sort numerically on the second field and resolve ties by sorting
+alphabetically on the third and fourth characters of field five.
+Use &lsquo;<samp class="samp">:</samp>&rsquo; as the field delimiter.
+
+<div class="example">
+<pre class="example-preformatted">sort -t : -k 2,2n -k 5.3,5.4
+</pre></div>
+
+<p>If you had written <samp class="option">-k 2n</samp> instead of <samp class="option">-k 2,2n</samp>
+<code class="command">sort</code> would have used all characters beginning in the second field
+and extending to the end of the line as the primary <em class="emph">numeric</em>
+key.  For the large majority of applications, treating keys spanning
+more than one field as numeric will not do what you expect.
+</p>
+<p>Also, the &lsquo;<samp class="samp">n</samp>&rsquo; modifier was applied to the field-end
+specifier for the first key.  It would have been equivalent to
+specify <samp class="option">-k 2n,2</samp> or <samp class="option">-k 2n,2n</samp>.  All modifiers except
+&lsquo;<samp class="samp">b</samp>&rsquo; apply to the associated <em class="emph">field</em>, regardless of whether
+the modifier character is attached to the field-start and/or the
+field-end part of the key specifier.
+</p>
+</li><li>Sort the password file on the fifth field and ignore any
+leading blanks.  Sort lines with equal values in field five
+on the numeric user ID in field three.  Fields are separated
+by &lsquo;<samp class="samp">:</samp>&rsquo;.
+
+<div class="example">
+<pre class="example-preformatted">sort -t : -k 5b,5 -k 3,3n /etc/passwd
+sort -t : -n -k 5b,5 -k 3,3 /etc/passwd
+sort -t : -b -k 5,5 -k 3,3n /etc/passwd
+</pre></div>
+
+<p>These three commands have equivalent effect.  The first specifies that
+the first key&rsquo;s start position ignores leading blanks and the second
+key is sorted numerically.  The other two commands rely on global
+options being inherited by sort keys that lack modifiers.  The inheritance
+works in this case because <samp class="option">-k 5b,5b</samp> and <samp class="option">-k 5b,5</samp> are
+equivalent, as the location of a field-end lacking a &lsquo;<samp class="samp">.<var class="var">c</var></samp>&rsquo;
+character position is not affected by whether initial blanks are
+skipped.
+</p>
+</li><li>Sort a set of log files, primarily by IPv4 address and secondarily by
+timestamp.  If two lines&rsquo; primary and secondary keys are identical,
+output the lines in the same order that they were input.  The log
+files contain lines that look like this:
+
+<div class="example">
+<pre class="example-preformatted">4.150.156.3 - - [01/Apr/2020:06:31:51 +0000] message 1
+211.24.3.231 - - [24/Apr/2020:20:17:39 +0000] message 2
+</pre></div>
+
+<p>Fields are separated by exactly one space.  Sort IPv4 addresses
+lexicographically, e.g., 212.61.52.2 sorts before 212.129.233.201
+because 61 is less than 129.
+</p>
+<div class="example">
+<pre class="example-preformatted">sort -s -t ' ' -k 4.9n -k 4.5M -k 4.2n -k 4.14,4.21 file*.log |
+sort -s -t '.' -k 1,1n -k 2,2n -k 3,3n -k 4,4n
+</pre></div>
+
+<p>This example cannot be done with a single POSIX <code class="command">sort</code> invocation,
+since IPv4 address components are separated by &lsquo;<samp class="samp">.</samp>&rsquo; while dates
+come just after a space.  So it is broken down into two invocations of
+<code class="command">sort</code>: the first sorts by timestamp and the second by IPv4
+address.  The timestamp is sorted by year, then month, then day, and
+finally by hour-minute-second field, using <samp class="option">-k</samp> to isolate each
+field.  Except for hour-minute-second there&rsquo;s no need to specify the
+end of each key field, since the &lsquo;<samp class="samp">n</samp>&rsquo; and &lsquo;<samp class="samp">M</samp>&rsquo; modifiers sort
+based on leading prefixes that cannot cross field boundaries.  The
+IPv4 addresses are sorted lexicographically.  The second sort uses
+&lsquo;<samp class="samp">-s</samp>&rsquo; so that ties in the primary key are broken by the secondary
+key; the first sort uses &lsquo;<samp class="samp">-s</samp>&rsquo; so that the combination of the two
+sorts is stable.  As a GNU extension, the above example could
+be achieved in a single <code class="command">sort</code> invocation by sorting the
+IPv4 address field using a &lsquo;<samp class="samp">V</samp>&rsquo; version type, like &lsquo;<samp class="samp">-k1,1V</samp>&rsquo;.
+</p>
+</li><li>Generate a tags file in case-insensitive sorted order.
+
+<div class="example">
+<pre class="example-preformatted">find src -type f -print0 | sort -z -f | xargs -0 etags --append
+</pre></div>
+
+<p>The use of <samp class="option">-print0</samp>, <samp class="option">-z</samp>, and <samp class="option">-0</samp> in this case means
+that file names that contain blanks or other special characters are
+not broken up
+by the sort operation.
+</p>
+
+</li><li>Use the common DSU, Decorate Sort Undecorate idiom to
+sort lines according to their length.
+
+<div class="example">
+<pre class="example-preformatted">getent passwd |
+awk '{print length, $0}' | sort -n | cut -f2- -d' '
+</pre></div>
+
+<p>In general this technique can be used to sort data that the <code class="command">sort</code>
+command does not support, or is inefficient at, sorting directly.
+</p>
+</li><li>Use the same DSU idiom as above to sort lines by their last field,
+and in this specific example the presented lines are users&rsquo; full names.
+
+<div class="example">
+<pre class="example-preformatted">getent passwd | grep -v nologin | cut -d: -f5 | grep ' ' |
+awk '{print $NF, $0}' | sort -k1,1 | cut -f2- -d' '
+</pre></div>
+
+</li><li>Shuffle a list of directories, but preserve the order of files within
+each directory.  For instance, one could use this to generate a music
+playlist in which albums are shuffled but the songs of each album are
+played in order.
+
+<div class="example">
+<pre class="example-preformatted">ls */* | sort -t / -k 1,1R -k 2,2
+</pre></div>
+
+</li></ul>
+
+
+</div>
+<div class="footnotes-segment">
+<hr>
+<h4 class="footnotes-heading">Footnotes</h4>
+
+<h5 class="footnote-body-heading"><a id="FOOT1" href="#DOCF1">(1)</a></h5>
+<p>If you
+use a non-POSIX locale (e.g., by setting <code class="env">LC_ALL</code>
+to &lsquo;<samp class="samp">en_US</samp>&rsquo;), then <code class="command">sort</code> may produce output that is sorted
+differently than you&rsquo;re accustomed to.  In that case, set the <code class="env">LC_ALL</code>
+environment variable to &lsquo;<samp class="samp">C</samp>&rsquo;.  Setting only <code class="env">LC_COLLATE</code>
+has two problems.  First, it is ineffective if <code class="env">LC_ALL</code> is also set.
+Second, it has undefined behavior if <code class="env">LC_CTYPE</code> (or <code class="env">LANG</code>, if
+<code class="env">LC_CTYPE</code> is unset) is set to an incompatible value.  For example,
+you get undefined behavior if <code class="env">LC_CTYPE</code> is <code class="code">ja_JP.PCK</code> but
+<code class="env">LC_COLLATE</code> is <code class="code">en_US.UTF-8</code>.</p>
+</div>
+<hr>
+<div class="nav-panel">
+<p>
+Next: <a href="shuf-invocation.html"><code class="command">shuf</code>: Shuffling text</a>, Up: <a href="Operating-on-sorted-files.html">Operating on sorted files</a> &nbsp; [<a href="index.html#SEC_Contents" title="Table of contents" rel="contents">Contents</a>][<a href="Concept-index.html" title="Index" rel="index">Index</a>]</p>
+</div>
+
+
+
+</body>
+</html>

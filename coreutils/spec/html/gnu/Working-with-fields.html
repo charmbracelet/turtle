@@ -1,0 +1,120 @@
+<!DOCTYPE html>
+<html>
+<!-- Created by GNU Texinfo 7.2, https://www.gnu.org/software/texinfo/ -->
+<head>
+<meta http-equiv="Content-Type" content="text/html; charset=utf-8">
+<!-- This manual documents version 9.12 of the GNU core
+utilities, including the standard programs for text and file manipulation.
+
+Copyright © 1994-2026 Free Software Foundation, Inc.
+
+Permission is granted to copy, distribute and/or modify this document
+under the terms of the GNU Free Documentation License, Version 1.3 or
+any later version published by the Free Software Foundation; with no
+Invariant Sections, with no Front-Cover Texts, and with no Back-Cover
+Texts.  A copy of the license is included in the section entitled "GNU
+Free Documentation License". -->
+<title>Working with fields (GNU Coreutils 9.12)</title>
+
+<meta name="description" content="Working with fields (GNU Coreutils 9.12)">
+<meta name="keywords" content="Working with fields (GNU Coreutils 9.12)">
+<meta name="resource-type" content="document">
+<meta name="distribution" content="global">
+<meta name="Generator" content="makeinfo">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+
+<link href="index.html" rel="start" title="Top">
+<link href="Concept-index.html" rel="index" title="Concept index">
+<link href="index.html#SEC_Contents" rel="contents" title="Table of Contents">
+<link href="join-invocation.html" rel="up" title="join invocation">
+<link href="Paired-and-unpaired-lines.html" rel="next" title="Paired and unpaired lines">
+<link href="Sorting-files-for-join.html" rel="prev" title="Sorting files for join">
+<style type="text/css">
+<!--
+a.copiable-link {visibility: hidden; text-decoration: none; line-height: 0em}
+div.example {margin-left: 3.2em}
+span:hover a.copiable-link {visibility: visible}
+-->
+</style>
+<link rel="stylesheet" type="text/css" href="https://www.gnu.org/software/gnulib/manual.css">
+
+
+</head>
+
+<body lang="en">
+<div class="subsection-level-extent" id="Working-with-fields">
+<div class="nav-panel">
+<p>
+Next: <a href="Paired-and-unpaired-lines.html" accesskey="n" rel="next">Controlling <code class="command">join</code>&rsquo;s field matching</a>, Previous: <a href="Sorting-files-for-join.html" accesskey="p" rel="prev">Pre-sorting</a>, Up: <a href="join-invocation.html" accesskey="u" rel="up"><code class="command">join</code>: Join lines on a common field</a> &nbsp; [<a href="index.html#SEC_Contents" title="Table of contents" rel="contents">Contents</a>][<a href="Concept-index.html" title="Index" rel="index">Index</a>]</p>
+</div>
+<hr>
+<h4 class="subsection" id="Working-with-fields-1"><span>8.3.3 Working with fields<a class="copiable-link" href="#Working-with-fields-1"> &para;</a></span></h4>
+
+<p>Use <samp class="option">-1</samp>,<samp class="option">-2</samp> to set the key fields for each of the input files.
+Ensure the preceding <code class="command">sort</code> commands operated on the same fields.
+</p>
+<p>The following example joins two files, using the values from seventh field
+of the first file and the third field of the second file:
+</p>
+<div class="example">
+<div class="group"><pre class="example-preformatted">$ sort -k 7b,7 file1 &gt; file1.sorted
+$ sort -k 3b,3 file2 &gt; file2.sorted
+$ join -1 7 -2 3 file1.sorted file2.sorted &gt; file3
+</pre></div></div>
+
+<p>If the field number is the same for both files, use <samp class="option">-j</samp>:
+</p>
+<div class="example">
+<div class="group"><pre class="example-preformatted">$ sort -k4b,4 file1 &gt; file1.sorted
+$ sort -k4b,4 file2 &gt; file2.sorted
+$ join -j4    file1.sorted file2.sorted &gt; file3
+</pre></div></div>
+
+<p>Both <code class="command">sort</code> and <code class="command">join</code> operate of whitespace-delimited
+fields. To specify a different delimiter, use <samp class="option">-t</samp> in <em class="emph">both</em>:
+</p>
+<div class="example">
+<div class="group"><pre class="example-preformatted">$ sort -t, -k3b,3 file1 &gt; file1.sorted
+$ sort -t, -k3b,3 file2 &gt; file2.sorted
+$ join -t, -j3    file1.sorted file2.sorted &gt; file3
+</pre></div></div>
+
+<p>To specify a tab (<small class="sc">ASCII</small> 0x09) character instead of whitespace,
+use:<a class="footnote" id="DOCF2" href="#FOOT2"><sup>2</sup></a>
+</p>
+<div class="example">
+<div class="group"><pre class="example-preformatted">$ sort -t$'\t' -k3b,3 file1 &gt; file1.sorted
+$ sort -t$'\t' -k3b,3 file2 &gt; file2.sorted
+$ join -t$'\t' -j3    file1.sorted file2.sorted &gt; file3
+</pre></div></div>
+
+
+<p>If &lsquo;<samp class="samp">join -t ''</samp>&rsquo; is specified then the whole line is considered which
+matches the default operation of sort:
+</p>
+<div class="example">
+<div class="group"><pre class="example-preformatted">$ sort file1 &gt; file1.sorted
+$ sort file2 &gt; file2.sorted
+$ join -t '' file1.sorted file2.sorted &gt; file3
+</pre></div></div>
+
+
+</div>
+<div class="footnotes-segment">
+<hr>
+<h4 class="footnotes-heading">Footnotes</h4>
+
+<h5 class="footnote-body-heading"><a id="FOOT2" href="#DOCF2">(2)</a></h5>
+<p>the <code class="code">$'\t'</code> is supported in most modern shells.
+For older shells, use a literal tab.</p>
+</div>
+<hr>
+<div class="nav-panel">
+<p>
+Next: <a href="Paired-and-unpaired-lines.html">Controlling <code class="command">join</code>&rsquo;s field matching</a>, Previous: <a href="Sorting-files-for-join.html">Pre-sorting</a>, Up: <a href="join-invocation.html"><code class="command">join</code>: Join lines on a common field</a> &nbsp; [<a href="index.html#SEC_Contents" title="Table of contents" rel="contents">Contents</a>][<a href="Concept-index.html" title="Index" rel="index">Index</a>]</p>
+</div>
+
+
+
+</body>
+</html>

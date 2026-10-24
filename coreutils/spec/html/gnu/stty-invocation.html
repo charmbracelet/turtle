@@ -1,0 +1,158 @@
+<!DOCTYPE html>
+<html>
+<!-- Created by GNU Texinfo 7.2, https://www.gnu.org/software/texinfo/ -->
+<head>
+<meta http-equiv="Content-Type" content="text/html; charset=utf-8">
+<!-- This manual documents version 9.12 of the GNU core
+utilities, including the standard programs for text and file manipulation.
+
+Copyright © 1994-2026 Free Software Foundation, Inc.
+
+Permission is granted to copy, distribute and/or modify this document
+under the terms of the GNU Free Documentation License, Version 1.3 or
+any later version published by the Free Software Foundation; with no
+Invariant Sections, with no Front-Cover Texts, and with no Back-Cover
+Texts.  A copy of the license is included in the section entitled "GNU
+Free Documentation License". -->
+<title>stty invocation (GNU Coreutils 9.12)</title>
+
+<meta name="description" content="stty invocation (GNU Coreutils 9.12)">
+<meta name="keywords" content="stty invocation (GNU Coreutils 9.12)">
+<meta name="resource-type" content="document">
+<meta name="distribution" content="global">
+<meta name="Generator" content="makeinfo">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+
+<link href="index.html" rel="start" title="Top">
+<link href="Concept-index.html" rel="index" title="Concept index">
+<link href="index.html#SEC_Contents" rel="contents" title="Table of Contents">
+<link href="Working-context.html" rel="up" title="Working context">
+<link href="printenv-invocation.html" rel="next" title="printenv invocation">
+<link href="pwd-invocation.html" rel="prev" title="pwd invocation">
+<style type="text/css">
+<!--
+a.copiable-link {visibility: hidden; text-decoration: none; line-height: 0em}
+div.example {margin-left: 3.2em}
+span:hover a.copiable-link {visibility: visible}
+-->
+</style>
+<link rel="stylesheet" type="text/css" href="https://www.gnu.org/software/gnulib/manual.css">
+
+
+</head>
+
+<body lang="en">
+<div class="section-level-extent" id="stty-invocation">
+<div class="nav-panel">
+<p>
+Next: <a href="printenv-invocation.html" accesskey="n" rel="next"><code class="command">printenv</code>: Print all or some environment variables</a>, Previous: <a href="pwd-invocation.html" accesskey="p" rel="prev"><code class="command">pwd</code>: Print working directory</a>, Up: <a href="Working-context.html" accesskey="u" rel="up">Working context</a> &nbsp; [<a href="index.html#SEC_Contents" title="Table of contents" rel="contents">Contents</a>][<a href="Concept-index.html" title="Index" rel="index">Index</a>]</p>
+</div>
+<hr>
+<h3 class="section" id="stty_003a-Print-or-change-terminal-characteristics"><span>19.2 <code class="command">stty</code>: Print or change terminal characteristics<a class="copiable-link" href="#stty_003a-Print-or-change-terminal-characteristics"> &para;</a></span></h3>
+
+<a class="index-entry-id" id="index-stty"></a>
+<a class="index-entry-id" id="index-change-or-print-terminal-settings"></a>
+<a class="index-entry-id" id="index-terminal-settings"></a>
+<a class="index-entry-id" id="index-line-settings-of-terminal"></a>
+
+<p><code class="command">stty</code> prints or changes terminal characteristics, such as baud rate.
+Synopses:
+</p>
+<div class="example">
+<pre class="example-preformatted">stty [<var class="var">option</var>] [<var class="var">setting</var>]...
+stty [<var class="var">option</var>]
+</pre></div>
+
+<p>If given no line settings, <code class="command">stty</code> prints the baud rate, line
+discipline number (on systems that support it), and line settings
+that have been changed from the values set by &lsquo;<samp class="samp">stty sane</samp>&rsquo;.
+By default, mode reading and setting are performed on the tty line
+connected to standard input, although this can be modified by the
+<samp class="option">--file</samp> option.
+</p>
+<p><code class="command">stty</code> accepts many non-option arguments that change aspects of
+the terminal line operation, as described below.
+</p>
+<p>The program accepts the following options.  Also see <a class="ref" href="Common-options.html">Common options</a>.
+</p>
+<dl class="table">
+<dd><a class="anchor" id="stty-a"></a></dd>
+<dt><a id="index-_002d_002dall-4"></a><span>&lsquo;<samp class="samp">-a</samp>&rsquo;<a class="copiable-link" href="#index-_002d_002dall-4"> &para;</a></span></dt>
+<dd><a class="index-entry-id" id="index-_002da-14"></a>
+<a class="anchor" id="stty--all"></a></dd>
+<dt>&lsquo;<samp class="samp">--all</samp>&rsquo;</dt>
+<dd><p>Print all current settings in human-readable form.  This option may not
+be used in combination with any line settings.
+</p>
+<a class="anchor" id="stty-F"></a></dd>
+<dt><a id="index-_002d_002dfile"></a><span>&lsquo;<samp class="samp">-F&nbsp;<!-- /@w --><var class="var">device</var></samp>&rsquo;<a class="copiable-link" href="#index-_002d_002dfile"> &para;</a></span></dt>
+<dd><a class="index-entry-id" id="index-_002dF-6"></a>
+<a class="anchor" id="stty--file"></a></dd>
+<dt>&lsquo;<samp class="samp">--file=<var class="var">device</var></samp>&rsquo;</dt>
+<dd><p>Set the line opened by the file name specified in <var class="var">device</var> instead of
+the tty line connected to standard input.  This option is necessary
+because opening a POSIX tty requires use of the
+<code class="code">O_NONDELAY</code> flag to prevent a POSIX tty from blocking
+until the carrier detect line is high if
+the <code class="code">clocal</code> flag is not set.  Hence, it is not always possible
+to allow the shell to open the device in the traditional manner.
+</p>
+<a class="anchor" id="stty-g"></a></dd>
+<dt><a class="index-entry-id" id="index-machine_002dreadable-stty-output"></a>
+<a id="index-_002d_002dsave"></a><span>&lsquo;<samp class="samp">-g</samp>&rsquo;<a class="copiable-link" href="#index-_002d_002dsave"> &para;</a></span></dt>
+<dd><a class="index-entry-id" id="index-_002dg-6"></a>
+<a class="anchor" id="stty--save"></a></dd>
+<dt>&lsquo;<samp class="samp">--save</samp>&rsquo;</dt>
+<dd><p>Print all current settings in a form that can be used as an argument to
+another <code class="command">stty</code> command to restore the current settings.  This option
+may not be used in combination with any line settings.
+</p>
+<p>POSIX-1.2024 allows implementations of the <code class="code">-g</code> option to exclude
+the terminal window size from the output.  This is the behavior of GNU
+<code class="command">stty</code>.
+</p>
+</dd>
+</dl>
+
+<p>Many settings can be turned off by preceding them with a &lsquo;<samp class="samp">-</samp>&rsquo;.
+Such arguments are marked below with &ldquo;May be negated&rdquo; in their
+description.  The descriptions themselves refer to the positive
+case, that is, when <em class="emph">not</em> negated (unless stated otherwise,
+of course).
+</p>
+<p>Some settings are not available on all POSIX systems, since they use
+extensions.  Such arguments are marked below with
+&ldquo;Non-POSIX&rdquo; in their description.  On non-POSIX
+systems, those or other settings also may not
+be available, but it&rsquo;s not feasible to document all the variations: just
+try it and see.
+</p>
+<p><code class="command">stty</code> is installed only on platforms with the POSIX terminal
+interface, so portable scripts should not rely on its existence on
+non-POSIX platforms.
+</p>
+<p>An exit status of zero indicates success,
+and a nonzero value indicates failure.
+</p>
+
+
+<ul class="mini-toc">
+<li><a href="Control.html" accesskey="1">Control settings</a></li>
+<li><a href="Input.html" accesskey="2">Input settings</a></li>
+<li><a href="Output.html" accesskey="3">Output settings</a></li>
+<li><a href="Local.html" accesskey="4">Local settings</a></li>
+<li><a href="Combination.html" accesskey="5">Combination settings</a></li>
+<li><a href="Characters.html" accesskey="6">Special characters</a></li>
+<li><a href="Special.html" accesskey="7">Special settings</a></li>
+</ul>
+</div>
+<hr>
+<div class="nav-panel">
+<p>
+Next: <a href="printenv-invocation.html"><code class="command">printenv</code>: Print all or some environment variables</a>, Previous: <a href="pwd-invocation.html"><code class="command">pwd</code>: Print working directory</a>, Up: <a href="Working-context.html">Working context</a> &nbsp; [<a href="index.html#SEC_Contents" title="Table of contents" rel="contents">Contents</a>][<a href="Concept-index.html" title="Index" rel="index">Index</a>]</p>
+</div>
+
+
+
+</body>
+</html>

@@ -1,0 +1,109 @@
+<!DOCTYPE html>
+<html>
+<!-- Created by GNU Texinfo 7.2, https://www.gnu.org/software/texinfo/ -->
+<head>
+<meta http-equiv="Content-Type" content="text/html; charset=utf-8">
+<!-- This manual documents version 9.12 of the GNU core
+utilities, including the standard programs for text and file manipulation.
+
+Copyright © 1994-2026 Free Software Foundation, Inc.
+
+Permission is granted to copy, distribute and/or modify this document
+under the terms of the GNU Free Documentation License, Version 1.3 or
+any later version published by the Free Software Foundation; with no
+Invariant Sections, with no Front-Cover Texts, and with no Back-Cover
+Texts.  A copy of the license is included in the section entitled "GNU
+Free Documentation License". -->
+<title>Connectives for test (GNU Coreutils 9.12)</title>
+
+<meta name="description" content="Connectives for test (GNU Coreutils 9.12)">
+<meta name="keywords" content="Connectives for test (GNU Coreutils 9.12)">
+<meta name="resource-type" content="document">
+<meta name="distribution" content="global">
+<meta name="Generator" content="makeinfo">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+
+<link href="index.html" rel="start" title="Top">
+<link href="Concept-index.html" rel="index" title="Concept index">
+<link href="index.html#SEC_Contents" rel="contents" title="Table of Contents">
+<link href="test-invocation.html" rel="up" title="test invocation">
+<link href="Numeric-tests.html" rel="prev" title="Numeric tests">
+<style type="text/css">
+<!--
+a.copiable-link {visibility: hidden; text-decoration: none; line-height: 0em}
+div.example {margin-left: 3.2em}
+span:hover a.copiable-link {visibility: visible}
+-->
+</style>
+<link rel="stylesheet" type="text/css" href="https://www.gnu.org/software/gnulib/manual.css">
+
+
+</head>
+
+<body lang="en">
+<div class="subsection-level-extent" id="Connectives-for-test">
+<div class="nav-panel">
+<p>
+Previous: <a href="Numeric-tests.html" accesskey="p" rel="prev">Numeric tests</a>, Up: <a href="test-invocation.html" accesskey="u" rel="up"><code class="command">test</code>: Check file types and compare values</a> &nbsp; [<a href="index.html#SEC_Contents" title="Table of contents" rel="contents">Contents</a>][<a href="Concept-index.html" title="Index" rel="index">Index</a>]</p>
+</div>
+<hr>
+<h4 class="subsection" id="Connectives-for-test-1"><span>16.3.6 Connectives for <code class="command">test</code><a class="copiable-link" href="#Connectives-for-test-1"> &para;</a></span></h4>
+
+<a class="index-entry-id" id="index-logical-connectives"></a>
+<a class="index-entry-id" id="index-connectives_002c-logical"></a>
+
+<p>It is better to use shell logical primitives
+rather than these logical connectives internal to <code class="command">test</code>,
+because an expression may become ambiguous
+depending on the expansion of its parameters.
+</p>
+<p>For example, this becomes ambiguous when &lsquo;<samp class="samp">$1</samp>&rsquo;
+is set to &lsquo;<samp class="samp">'!'</samp>&rsquo; and &lsquo;<samp class="samp">$2</samp>&rsquo; to the empty string &lsquo;<samp class="samp">''</samp>&rsquo;:
+</p>
+<div class="example">
+<pre class="example-preformatted">test &quot;$1&quot; -a &quot;$2&quot;
+</pre></div>
+
+<p>and should be written as:
+</p>
+<div class="example">
+<pre class="example-preformatted">test &quot;$1&quot; &amp;&amp; test &quot;$2&quot;
+</pre></div>
+
+<p>The shell logical primitives also benefit from
+short circuit operation, which can be significant
+for file attribute tests.
+</p>
+<dl class="table">
+<dt><a id="index-_0021"></a><span>&lsquo;<samp class="samp">! <var class="var">expr</var></samp>&rsquo;<a class="copiable-link" href="#index-_0021"> &para;</a></span></dt>
+<dd><p>True if <var class="var">expr</var> is false.
+&lsquo;<samp class="samp">!</samp>&rsquo; has lower precedence than all parts of <var class="var">expr</var>.
+The &lsquo;<samp class="samp">!</samp>&rsquo; should be specified to the left
+of a binary expression, I.e., &lsquo;<samp class="samp">! 1 -gt 2</samp>&rsquo;
+rather than &lsquo;<samp class="samp">1 ! -gt 2</samp>&rsquo;.
+</p>
+<a class="anchor" id="test-a"></a></dd>
+<dt><a class="index-entry-id" id="index-logical-and-operator"></a>
+<a class="index-entry-id" id="index-and-operator"></a>
+<a id="index-_002da-11"></a><span>&lsquo;<samp class="samp"><var class="var">expr1</var> -a <var class="var">expr2</var></samp>&rsquo;<a class="copiable-link" href="#index-_002da-11"> &para;</a></span></dt>
+<dd><p>True if both <var class="var">expr1</var> and <var class="var">expr2</var> are true.
+&lsquo;<samp class="samp">-a</samp>&rsquo; is left associative,
+and has a higher precedence than &lsquo;<samp class="samp">-o</samp>&rsquo;.
+</p>
+<a class="anchor" id="test-o"></a></dd>
+<dt><a class="index-entry-id" id="index-logical-or-operator"></a>
+<a class="index-entry-id" id="index-or-operator"></a>
+<a id="index-_002do-9"></a><span>&lsquo;<samp class="samp"><var class="var">expr1</var> -o <var class="var">expr2</var></samp>&rsquo;<a class="copiable-link" href="#index-_002do-9"> &para;</a></span></dt>
+<dd><p>True if either <var class="var">expr1</var> or <var class="var">expr2</var> is true.
+&lsquo;<samp class="samp">-o</samp>&rsquo; is left associative.
+</p>
+</dd>
+</dl>
+
+
+</div>
+
+
+
+</body>
+</html>

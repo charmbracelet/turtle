@@ -1,0 +1,353 @@
+<!DOCTYPE html>
+<html>
+<!-- Created by GNU Texinfo 7.2, https://www.gnu.org/software/texinfo/ -->
+<head>
+<meta http-equiv="Content-Type" content="text/html; charset=utf-8">
+<!-- This manual documents version 9.12 of the GNU core
+utilities, including the standard programs for text and file manipulation.
+
+Copyright © 1994-2026 Free Software Foundation, Inc.
+
+Permission is granted to copy, distribute and/or modify this document
+under the terms of the GNU Free Documentation License, Version 1.3 or
+any later version published by the Free Software Foundation; with no
+Invariant Sections, with no Front-Cover Texts, and with no Back-Cover
+Texts.  A copy of the license is included in the section entitled "GNU
+Free Documentation License". -->
+<title>tail invocation (GNU Coreutils 9.12)</title>
+
+<meta name="description" content="tail invocation (GNU Coreutils 9.12)">
+<meta name="keywords" content="tail invocation (GNU Coreutils 9.12)">
+<meta name="resource-type" content="document">
+<meta name="distribution" content="global">
+<meta name="Generator" content="makeinfo">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+
+<link href="index.html" rel="start" title="Top">
+<link href="Concept-index.html" rel="index" title="Concept index">
+<link href="index.html#SEC_Contents" rel="contents" title="Table of Contents">
+<link href="Output-of-parts-of-files.html" rel="up" title="Output of parts of files">
+<link href="split-invocation.html" rel="next" title="split invocation">
+<link href="head-invocation.html" rel="prev" title="head invocation">
+<style type="text/css">
+<!--
+a.copiable-link {visibility: hidden; text-decoration: none; line-height: 0em}
+div.example {margin-left: 3.2em}
+span:hover a.copiable-link {visibility: visible}
+-->
+</style>
+<link rel="stylesheet" type="text/css" href="https://www.gnu.org/software/gnulib/manual.css">
+
+
+</head>
+
+<body lang="en">
+<div class="section-level-extent" id="tail-invocation">
+<div class="nav-panel">
+<p>
+Next: <a href="split-invocation.html" accesskey="n" rel="next"><code class="command">split</code>: Split a file into pieces.</a>, Previous: <a href="head-invocation.html" accesskey="p" rel="prev"><code class="command">head</code>: Output the first part of files</a>, Up: <a href="Output-of-parts-of-files.html" accesskey="u" rel="up">Output of parts of files</a> &nbsp; [<a href="index.html#SEC_Contents" title="Table of contents" rel="contents">Contents</a>][<a href="Concept-index.html" title="Index" rel="index">Index</a>]</p>
+</div>
+<hr>
+<h3 class="section" id="tail_003a-Output-the-last-part-of-files"><span>5.2 <code class="command">tail</code>: Output the last part of files<a class="copiable-link" href="#tail_003a-Output-the-last-part-of-files"> &para;</a></span></h3>
+
+<a class="index-entry-id" id="index-tail"></a>
+<a class="index-entry-id" id="index-last-part-of-files_002c-outputting"></a>
+
+<p><code class="command">tail</code> prints the last part (10 lines by default) of each
+<var class="var">file</var>; it reads from standard input if no files are given or
+when given a <var class="var">file</var> of &lsquo;<samp class="samp">-</samp>&rsquo;.  Synopsis:
+</p>
+<div class="example">
+<pre class="example-preformatted">tail [<var class="var">option</var>]... [<var class="var">file</var>]...
+</pre></div>
+
+<p>If more than one <var class="var">file</var> is specified, <code class="command">tail</code> prints a
+one-line header before the output for each <var class="var">file</var>, consisting of:
+</p>
+<div class="example">
+<pre class="example-preformatted">==&gt; <var class="var">file name</var> &lt;==
+</pre></div>
+
+<p>For further processing of tail output, it can be useful to convert the
+file headers to line prefixes, which can be done like:
+</p>
+<div class="example">
+<pre class="example-preformatted">tail ... |
+awk '
+  /^==&gt; .* &lt;==$/ {prefix=substr($0,5,length-8)&quot;:&quot;; next}
+  {print prefix$0}
+' | ...
+</pre></div>
+
+<a class="index-entry-id" id="index-BSD-tail"></a>
+<p>GNU <code class="command">tail</code> can output any amount of data (some other versions of
+<code class="command">tail</code> cannot).  It also has no <samp class="option">-r</samp> option (print in
+reverse), since reversing a file is really a different job from printing
+the end of a file; BSD <code class="command">tail</code> (which is the one with <samp class="option">-r</samp>) can
+only reverse files that are at most as large as its buffer, which is
+typically 32 KiB.  A more reliable and versatile way to reverse files is
+the GNU <code class="command">tac</code> command.
+</p>
+<p>The program accepts the following options.  Also see <a class="ref" href="Common-options.html">Common options</a>.
+</p>
+<dl class="table">
+<dd>
+<a class="anchor" id="tail-c"></a></dd>
+<dt><a id="index-_002d_002dbytes-2"></a><span>&lsquo;<samp class="samp">-c&nbsp;<!-- /@w -->[+]<var class="var">num</var></samp>&rsquo;<a class="copiable-link" href="#index-_002d_002dbytes-2"> &para;</a></span></dt>
+<dd><a class="index-entry-id" id="index-_002dc-5"></a>
+<a class="anchor" id="tail--bytes"></a></dd>
+<dt>&lsquo;<samp class="samp">--bytes=[+]<var class="var">num</var></samp>&rsquo;</dt>
+<dd><p>Output the last <var class="var">num</var> bytes, instead of final lines.
+If <var class="var">num</var> is prefixed with a &lsquo;<samp class="samp">+</samp>&rsquo;, start printing with
+byte <var class="var">num</var> from the start of each file. For example to skip the first byte
+use <code class="code">tail -c +2</code>, while to skip all but the last byte use <code class="code">tail -c 1</code>.
+<var class="var">num</var> may be, or may be an integer optionally followed by,
+one of the following multiplicative suffixes:
+</p><div class="example">
+<pre class="example-preformatted">&lsquo;<samp class="samp">b</samp>&rsquo;  =&gt;            512 (&quot;blocks&quot;)
+&lsquo;<samp class="samp">KB</samp>&rsquo; =&gt;           1000 (KiloBytes)
+&lsquo;<samp class="samp">K</samp>&rsquo;  =&gt;           1024 (KibiBytes)
+&lsquo;<samp class="samp">MB</samp>&rsquo; =&gt;      1000*1000 (MegaBytes)
+&lsquo;<samp class="samp">M</samp>&rsquo;  =&gt;      1024*1024 (MebiBytes)
+&lsquo;<samp class="samp">GB</samp>&rsquo; =&gt; 1000*1000*1000 (GigaBytes)
+&lsquo;<samp class="samp">G</samp>&rsquo;  =&gt; 1024*1024*1024 (GibiBytes)
+</pre></div>
+<p>and so on for &lsquo;<samp class="samp">T</samp>&rsquo;, &lsquo;<samp class="samp">P</samp>&rsquo;, &lsquo;<samp class="samp">E</samp>&rsquo;, &lsquo;<samp class="samp">Z</samp>&rsquo;, &lsquo;<samp class="samp">Y</samp>&rsquo;,
+&lsquo;<samp class="samp">R</samp>&rsquo;, and &lsquo;<samp class="samp">Q</samp>&rsquo;.
+Binary prefixes can be used, too: &lsquo;<samp class="samp">KiB</samp>&rsquo;=&lsquo;<samp class="samp">K</samp>&rsquo;, &lsquo;<samp class="samp">MiB</samp>&rsquo;=&lsquo;<samp class="samp">M</samp>&rsquo;,
+and so on.
+</p>
+<a class="anchor" id="tail--debug"></a></dd>
+<dt><a id="index-_002d_002ddebug"></a><span>&lsquo;<samp class="samp">--debug</samp>&rsquo;<a class="copiable-link" href="#index-_002d_002ddebug"> &para;</a></span></dt>
+<dd><p>Output extra information to standard error,
+like the &ndash;follow implementation being used.
+</p>
+<a class="anchor" id="tail-f"></a></dd>
+<dt><a class="index-entry-id" id="index-growing-files"></a>
+<a class="index-entry-id" id="index-name-follow-option"></a>
+<a class="index-entry-id" id="index-descriptor-follow-option"></a>
+<a id="index-_002d_002dfollow"></a><span>&lsquo;<samp class="samp">-f</samp>&rsquo;<a class="copiable-link" href="#index-_002d_002dfollow"> &para;</a></span></dt>
+<dd><a class="index-entry-id" id="index-_002df-3"></a>
+<a class="anchor" id="tail--follow"></a></dd>
+<dt>&lsquo;<samp class="samp">--follow[=<var class="var">how</var>]</samp>&rsquo;</dt>
+<dd><p>Loop forever trying to read more characters at the end of the file,
+presumably because the file is growing.
+If more than one file is given, <code class="command">tail</code> prints a header whenever it
+gets output from a different file, to indicate which file that output is
+from.
+</p>
+<p>There are two ways to specify how you&rsquo;d like to track files with this option,
+but that difference is noticeable only when a followed file is removed or
+renamed.
+If you&rsquo;d like to continue to track the end of a growing file even after
+it has been unlinked, use <samp class="option">--follow=descriptor</samp>.  This is the default
+behavior, but it is not useful if you&rsquo;re tracking a log file that may be
+rotated (removed or renamed, then reopened).  In that case, use
+<samp class="option">--follow=name</samp> to track the named file, perhaps by reopening it
+periodically to see if it has been removed and recreated by some other program.
+The inotify-based implementation handles this case without
+the need for any periodic reopening.
+</p>
+<p>No matter which method you use, if the tracked file is determined to have
+shrunk, <code class="command">tail</code> prints a message saying the file has been truncated
+and resumes tracking from the start of the file, assuming it has been
+truncated to 0, which is the usual truncation operation for log files.
+</p>
+<p>When a file is removed, <code class="command">tail</code>&rsquo;s behavior depends on whether it is
+following the name or the descriptor.  When following by name, tail can
+detect that a file has been removed and gives a message to that effect,
+and if <samp class="option">--retry</samp> has been specified it will continue checking
+periodically to see if the file reappears.
+When following a descriptor, tail does not detect that the file has
+been unlinked or renamed and issues no message;  even though the file
+may no longer be accessible via its original name, it may still be
+growing.
+</p>
+<p>The option values &lsquo;<samp class="samp">descriptor</samp>&rsquo; and &lsquo;<samp class="samp">name</samp>&rsquo; may be specified only
+with the long form of the option, not with <samp class="option">-f</samp>.
+</p>
+<p>The <samp class="option">-f</samp> option is ignored if
+no <var class="var">file</var> operand is specified and standard input is a FIFO or a pipe.
+Likewise, the <samp class="option">-f</samp> option has no effect for any
+operand specified as &lsquo;<samp class="samp">-</samp>&rsquo;, when standard input is a FIFO or a pipe.
+</p>
+<p>With kernel inotify support, output is triggered by file changes
+and is generally very prompt.
+Otherwise, <code class="command">tail</code> sleeps for one second between checks &ndash;
+use <samp class="option">--sleep-interval=<var class="var">n</var></samp> to change that default &ndash; which can
+make the output appear slightly less responsive or bursty.
+When using tail without inotify support, you can make it more responsive
+by using a sub-second sleep interval, e.g., via an alias like this:
+</p>
+<div class="example">
+<pre class="example-preformatted">alias tail='tail -s.1'
+</pre></div>
+
+<a class="anchor" id="tail-F"></a></dd>
+<dt><a id="index-_002dF-1"></a><span>&lsquo;<samp class="samp">-F</samp>&rsquo;<a class="copiable-link" href="#index-_002dF-1"> &para;</a></span></dt>
+<dd><p>This option is the same as <samp class="option">--follow=name --retry</samp>.  That is, tail
+will attempt to reopen a file when it is removed.  Should this fail, tail
+will keep trying until it becomes accessible again.
+</p>
+<a class="anchor" id="tail--max-unchanged-stats"></a></dd>
+<dt><a id="index-_002d_002dmax_002dunchanged_002dstats"></a><span>&lsquo;<samp class="samp">--max-unchanged-stats=<var class="var">n</var></samp>&rsquo;<a class="copiable-link" href="#index-_002d_002dmax_002dunchanged_002dstats"> &para;</a></span></dt>
+<dd><p>When tailing a file by name, if there have been <var class="var">n</var> (default
+n=5) consecutive
+iterations for which the file has not changed, then
+<code class="code">open</code>/<code class="code">fstat</code> the file to determine if that file name is
+still associated with the same device/inode-number pair as before.
+When following a log file that is rotated, this is approximately the
+number of seconds between when tail prints the last pre-rotation lines
+and when it prints the lines that have accumulated in the new log file.
+This option is meaningful only when polling (i.e., without inotify)
+and when following by name.
+</p>
+<a class="anchor" id="tail-n"></a></dd>
+<dt><a id="index-_002d_002dlines-1"></a><span>&lsquo;<samp class="samp">-n&nbsp;<!-- /@w -->[+]<var class="var">num</var></samp>&rsquo;<a class="copiable-link" href="#index-_002d_002dlines-1"> &para;</a></span></dt>
+<dd><a class="index-entry-id" id="index-_002dn-4"></a>
+<a class="anchor" id="tail--lines"></a></dd>
+<dt>&lsquo;<samp class="samp">--lines=[+]<var class="var">num</var></samp>&rsquo;</dt>
+<dd><p>Output the last <var class="var">num</var> lines.
+If <var class="var">num</var> is prefixed with a &lsquo;<samp class="samp">+</samp>&rsquo;, start printing with
+line <var class="var">num</var> from the start of each file. For example to skip the first line
+use <code class="code">tail -n +2</code>, while to skip all but the last line use <code class="code">tail -n 1</code>.
+Size multiplier suffixes are the same as with the <samp class="option">-c</samp> option.
+</p>
+<a class="anchor" id="tail--pid"></a></dd>
+<dt><a id="index-_002d_002dpid"></a><span>&lsquo;<samp class="samp">--pid=<var class="var">pid</var></samp>&rsquo;<a class="copiable-link" href="#index-_002d_002dpid"> &para;</a></span></dt>
+<dd><p>When following by name or by descriptor, you may specify the process ID,
+<var class="var">pid</var>, of one or more (by repeating <samp class="option">--pid</samp>) writers of the
+<var class="var">file</var> arguments.  Then, <code class="command">tail</code> will exit shortly
+after all the identified processes no longer exist.  This will
+work properly only if the writers and the tailing process are running on
+the same machine.  For example, to save the output of a build in a file
+and to watch the file grow, if you invoke <code class="command">make</code> and <code class="command">tail</code>
+like this then the tail process will stop when your build completes.
+Without this option, you would have had to kill the <code class="code">tail -f</code>
+process yourself.
+</p>
+<div class="example">
+<pre class="example-preformatted">$ make &gt;&amp; makerr &amp; tail --pid=$! -f makerr
+</pre></div>
+
+<p>If you specify a <var class="var">pid</var> that is not in use or that does not correspond
+to the process that is writing to the tailed files, then <code class="command">tail</code>
+may terminate long before any <var class="var">file</var>s stop growing or it may not
+terminate until long after the real writer has terminated.
+On some systems, <samp class="option">--pid</samp> is not supported and <code class="command">tail</code>
+outputs a warning.
+</p>
+<a class="anchor" id="tail-q"></a></dd>
+<dt><a id="index-_002d_002dsilent-1"></a><span>&lsquo;<samp class="samp">-q</samp>&rsquo;<a class="copiable-link" href="#index-_002d_002dsilent-1"> &para;</a></span></dt>
+<dd><a class="index-entry-id" id="index-_002dq-1"></a>
+<a class="anchor" id="tail--quiet"></a></dd>
+<dt>&lsquo;<samp class="samp">--quiet</samp>&rsquo;</dt>
+<dd><a class="index-entry-id" id="index-_002d_002dquiet-1"></a>
+<a class="anchor" id="tail--silent"></a></dd>
+<dt>&lsquo;<samp class="samp">--silent</samp>&rsquo;</dt>
+<dd><p>Never print file name headers.
+</p>
+<a class="anchor" id="tail--retry"></a></dd>
+<dt><a id="index-_002d_002dretry"></a><span>&lsquo;<samp class="samp">--retry</samp>&rsquo;<a class="copiable-link" href="#index-_002d_002dretry"> &para;</a></span></dt>
+<dd><p>Indefinitely try to open the specified file.
+This option is useful mainly when following (and otherwise issues a warning).
+</p>
+<p>When following by file descriptor (i.e., with <samp class="option">--follow=descriptor</samp>),
+this option only affects the initial open of the file, as after a successful
+open, <code class="command">tail</code> will start following the file descriptor.
+</p>
+<p>When following by name (i.e., with <samp class="option">--follow=name</samp>), <code class="command">tail</code>
+infinitely retries to re-open the given files until killed.
+</p>
+<p>Without this option, when <code class="command">tail</code> encounters a file that doesn&rsquo;t
+exist or is otherwise inaccessible, it reports that fact and
+never checks it again.
+</p>
+<a class="anchor" id="tail-s"></a></dd>
+<dt><a id="index-_002d_002dsleep_002dinterval"></a><span>&lsquo;<samp class="samp">-s&nbsp;<!-- /@w --><var class="var">number</var></samp>&rsquo;<a class="copiable-link" href="#index-_002d_002dsleep_002dinterval"> &para;</a></span></dt>
+<dd><a class="index-entry-id" id="index-_002ds-7"></a>
+<a class="anchor" id="tail--sleep-interval"></a></dd>
+<dt>&lsquo;<samp class="samp">--sleep-interval=<var class="var">number</var></samp>&rsquo;</dt>
+<dd><p>Change the number of seconds to wait between iterations (the default is 1.0).
+During one iteration, every specified file is checked to see if it has
+changed size.
+When <code class="command">tail</code> uses inotify, this polling-related option
+is usually ignored.  However, if you also specify <samp class="option">--pid=<var class="var">p</var></samp>,
+<code class="command">tail</code> checks whether process <var class="var">p</var> is alive at least
+every <var class="var">number</var> seconds.
+The <var class="var">number</var> must be non-negative and can be a floating-point number
+in either the current or the C locale.  See <a class="xref" href="Floating-point.html">Floating point numbers</a>.
+</p>
+<a class="anchor" id="tail-v"></a></dd>
+<dt><a id="index-_002d_002dverbose-1"></a><span>&lsquo;<samp class="samp">-v</samp>&rsquo;<a class="copiable-link" href="#index-_002d_002dverbose-1"> &para;</a></span></dt>
+<dd><a class="index-entry-id" id="index-_002dv-5"></a>
+<a class="anchor" id="tail--verbose"></a></dd>
+<dt>&lsquo;<samp class="samp">--verbose</samp>&rsquo;</dt>
+<dd><p>Always print file name headers.
+</p>
+<a class="anchor" id="tail-z"></a></dd>
+<dt><a class="index-entry-id" id="index-process-zero_002dterminated-items-1"></a>
+<a id="index-_002d_002dzero_002dterminated-1"></a><span>&lsquo;<samp class="samp">-z</samp>&rsquo;<a class="copiable-link" href="#index-_002d_002dzero_002dterminated-1"> &para;</a></span></dt>
+<dd><a class="index-entry-id" id="index-_002dz-1"></a>
+<a class="anchor" id="tail--zero-terminated"></a></dd>
+<dt>&lsquo;<samp class="samp">--zero-terminated</samp>&rsquo;</dt>
+<dd><p>Delimit items with a zero byte rather than a newline (ASCII LF).
+I.e., treat input as items separated by ASCII NUL
+and terminate output items with ASCII NUL.
+This option can be useful in conjunction with &lsquo;<samp class="samp">perl -0</samp>&rsquo; or
+&lsquo;<samp class="samp">find -print0</samp>&rsquo; and &lsquo;<samp class="samp">xargs -0</samp>&rsquo; which do the same in order to
+reliably handle arbitrary file names (even those containing blanks
+or other special characters).
+</p>
+</dd>
+</dl>
+
+<p>For compatibility <code class="command">tail</code> also supports an obsolete usage
+&lsquo;<samp class="samp">tail -[<var class="var">num</var>][bcl][f] [<var class="var">file</var>]</samp>&rsquo;, which is recognized
+only if it does not conflict with the usage described
+above.  This obsolete form uses exactly one option and at most one
+file.  In the option, <var class="var">num</var> is an optional decimal number optionally
+followed by a size letter (&lsquo;<samp class="samp">b</samp>&rsquo;, &lsquo;<samp class="samp">c</samp>&rsquo;, &lsquo;<samp class="samp">l</samp>&rsquo;) to mean count
+by 512-byte blocks, bytes, or lines, optionally followed by &lsquo;<samp class="samp">f</samp>&rsquo;
+which has the same meaning as <samp class="option">-f</samp>.
+</p>
+<a class="index-entry-id" id="index-_005fPOSIX2_005fVERSION-1"></a>
+<p>On systems not conforming to POSIX 1003.1-2001, the leading &lsquo;<samp class="samp">-</samp>&rsquo;
+can be replaced by &lsquo;<samp class="samp">+</samp>&rsquo; in the traditional option syntax with the
+same meaning as in counts, and on obsolete systems predating POSIX
+1003.1-2001 traditional usage overrides normal usage when the two
+conflict.  This behavior can be controlled with the
+<code class="env">_POSIX2_VERSION</code> environment variable (see <a class="pxref" href="Standards-conformance.html">Standards conformance</a>).
+</p>
+<p>Scripts intended for use on standard hosts should avoid traditional
+syntax and should use <samp class="option">-c <var class="var">num</var>[b]</samp>, <samp class="option">-n
+<var class="var">num</var></samp>, and/or <samp class="option">-f</samp> instead.  If your script must also
+run on hosts that support only the traditional syntax, you can often
+rewrite it to avoid problematic usages, e.g., by using &lsquo;<samp class="samp">sed -n
+'$p'</samp>&rsquo; rather than &lsquo;<samp class="samp">tail -1</samp>&rsquo;.  If that&rsquo;s not possible, the script
+can use a test like &lsquo;<samp class="samp">if tail -c +1 &lt;/dev/null &gt;/dev/null 2&gt;&amp;1;
+then &hellip;</samp>&rsquo; to decide which syntax to use.
+</p>
+<p>Even if your script assumes the standard behavior, you should still
+beware usages whose behaviors differ depending on the POSIX
+version.  For example, avoid &lsquo;<samp class="samp">tail - main.c</samp>&rsquo;, since it might be
+interpreted as either &lsquo;<samp class="samp">tail main.c</samp>&rsquo; or as &lsquo;<samp class="samp">tail -- -
+main.c</samp>&rsquo;; avoid &lsquo;<samp class="samp">tail -c 4</samp>&rsquo;, since it might mean either &lsquo;<samp class="samp">tail
+-c4</samp>&rsquo; or &lsquo;<samp class="samp">tail -c 10 4</samp>&rsquo;; and avoid &lsquo;<samp class="samp">tail +4</samp>&rsquo;, since it might
+mean either &lsquo;<samp class="samp">tail ./+4</samp>&rsquo; or &lsquo;<samp class="samp">tail -n +4</samp>&rsquo;.
+</p>
+<p>An exit status of zero indicates success,
+and a nonzero value indicates failure.
+</p>
+
+</div>
+<hr>
+<div class="nav-panel">
+<p>
+Next: <a href="split-invocation.html"><code class="command">split</code>: Split a file into pieces.</a>, Previous: <a href="head-invocation.html"><code class="command">head</code>: Output the first part of files</a>, Up: <a href="Output-of-parts-of-files.html">Output of parts of files</a> &nbsp; [<a href="index.html#SEC_Contents" title="Table of contents" rel="contents">Contents</a>][<a href="Concept-index.html" title="Index" rel="index">Index</a>]</p>
+</div>
+
+
+
+</body>
+</html>

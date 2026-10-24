@@ -1,0 +1,83 @@
+<!DOCTYPE html>
+<html>
+<!-- Created by GNU Texinfo 7.2, https://www.gnu.org/software/texinfo/ -->
+<head>
+<meta http-equiv="Content-Type" content="text/html; charset=utf-8">
+<!-- This manual documents version 9.12 of the GNU core
+utilities, including the standard programs for text and file manipulation.
+
+Copyright © 1994-2026 Free Software Foundation, Inc.
+
+Permission is granted to copy, distribute and/or modify this document
+under the terms of the GNU Free Documentation License, Version 1.3 or
+any later version published by the Free Software Foundation; with no
+Invariant Sections, with no Front-Cover Texts, and with no Back-Cover
+Texts.  A copy of the license is included in the section entitled "GNU
+Free Documentation License". -->
+<title>Punctuation vs letters (GNU Coreutils 9.12)</title>
+
+<meta name="description" content="Punctuation vs letters (GNU Coreutils 9.12)">
+<meta name="keywords" content="Punctuation vs letters (GNU Coreutils 9.12)">
+<meta name="resource-type" content="document">
+<meta name="distribution" content="global">
+<meta name="Generator" content="makeinfo">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+
+<link href="index.html" rel="start" title="Top">
+<link href="Concept-index.html" rel="index" title="Concept index">
+<link href="index.html#SEC_Contents" rel="contents" title="Table of Contents">
+<link href="Version-sort-implementation.html" rel="up" title="Version sort implementation">
+<link href="The-tilde-_007e.html" rel="next" title="The tilde ~">
+<link href="Version-sort-punctuation.html" rel="prev" title="Version sort punctuation">
+<style type="text/css">
+<!--
+a.copiable-link {visibility: hidden; text-decoration: none; line-height: 0em}
+div.example {margin-left: 3.2em}
+span:hover a.copiable-link {visibility: visible}
+-->
+</style>
+<link rel="stylesheet" type="text/css" href="https://www.gnu.org/software/gnulib/manual.css">
+
+
+</head>
+
+<body lang="en">
+<div class="subsection-level-extent" id="Punctuation-vs-letters">
+<div class="nav-panel">
+<p>
+Next: <a href="The-tilde-_007e.html" accesskey="n" rel="next">The tilde &lsquo;<samp class="samp">~</samp>&rsquo;</a>, Previous: <a href="Version-sort-punctuation.html" accesskey="p" rel="prev">Version sort punctuation</a>, Up: <a href="Version-sort-implementation.html" accesskey="u" rel="up">Version sort implementation</a> &nbsp; [<a href="index.html#SEC_Contents" title="Table of contents" rel="contents">Contents</a>][<a href="Concept-index.html" title="Index" rel="index">Index</a>]</p>
+</div>
+<hr>
+<h4 class="subsection" id="Punctuation-vs-letters-1"><span>30.2.4 Punctuation vs letters<a class="copiable-link" href="#Punctuation-vs-letters-1"> &para;</a></span></h4>
+
+<p>Rule 2.B.a says letters sort before non-letters
+(after breaking down a string to digit and non-digit parts).
+</p>
+<div class="example">
+<pre class="example-preformatted">$ cat input6
+a%
+az
+$ sort -V input6
+az
+a%
+</pre></div>
+
+<p>The input strings consist entirely of non-digits, and based on the
+above algorithm have only one part, all non-digits
+(&lsquo;<samp class="samp">a%</samp>&rsquo; vs &lsquo;<samp class="samp">az</samp>&rsquo;).
+</p>
+<p>Each part is then compared lexically,
+byte-by-byte; &lsquo;<samp class="samp">a</samp>&rsquo; compares identically in both
+strings.
+</p>
+<p>Rule 2.B.a says a letter like &lsquo;<samp class="samp">z</samp>&rsquo; sorts before
+a non-letter like &lsquo;<samp class="samp">%</samp>&rsquo; &ndash; hence &lsquo;<samp class="samp">az</samp>&rsquo; appears first (despite
+&lsquo;<samp class="samp">z</samp>&rsquo; having ASCII value of 122, much larger than &lsquo;<samp class="samp">%</samp>&rsquo;
+with ASCII value 37).
+</p>
+</div>
+
+
+
+</body>
+</html>

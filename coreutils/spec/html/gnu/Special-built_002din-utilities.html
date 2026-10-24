@@ -1,0 +1,83 @@
+<!DOCTYPE html>
+<html>
+<!-- Created by GNU Texinfo 7.2, https://www.gnu.org/software/texinfo/ -->
+<head>
+<meta http-equiv="Content-Type" content="text/html; charset=utf-8">
+<!-- This manual documents version 9.12 of the GNU core
+utilities, including the standard programs for text and file manipulation.
+
+Copyright © 1994-2026 Free Software Foundation, Inc.
+
+Permission is granted to copy, distribute and/or modify this document
+under the terms of the GNU Free Documentation License, Version 1.3 or
+any later version published by the Free Software Foundation; with no
+Invariant Sections, with no Front-Cover Texts, and with no Back-Cover
+Texts.  A copy of the license is included in the section entitled "GNU
+Free Documentation License". -->
+<title>Special built-in utilities (GNU Coreutils 9.12)</title>
+
+<meta name="description" content="Special built-in utilities (GNU Coreutils 9.12)">
+<meta name="keywords" content="Special built-in utilities (GNU Coreutils 9.12)">
+<meta name="resource-type" content="document">
+<meta name="distribution" content="global">
+<meta name="Generator" content="makeinfo">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+
+<link href="index.html" rel="start" title="Top">
+<link href="Concept-index.html" rel="index" title="Concept index">
+<link href="index.html#SEC_Contents" rel="contents" title="Table of Contents">
+<link href="Common-options.html" rel="up" title="Common options">
+<link href="Exit-status.html" rel="next" title="Exit status">
+<link href="Treating-_002f-specially.html" rel="prev" title="Treating / specially">
+<style type="text/css">
+<!--
+a.copiable-link {visibility: hidden; text-decoration: none; line-height: 0em}
+span:hover a.copiable-link {visibility: visible}
+-->
+</style>
+<link rel="stylesheet" type="text/css" href="https://www.gnu.org/software/gnulib/manual.css">
+
+
+</head>
+
+<body lang="en">
+<div class="section-level-extent" id="Special-built_002din-utilities">
+<div class="nav-panel">
+<p>
+Next: <a href="Exit-status.html" accesskey="n" rel="next">Exit status</a>, Previous: <a href="Treating-_002f-specially.html" accesskey="p" rel="prev">Treating <samp class="file">/</samp> specially</a>, Up: <a href="Common-options.html" accesskey="u" rel="up">Common options</a> &nbsp; [<a href="index.html#SEC_Contents" title="Table of contents" rel="contents">Contents</a>][<a href="Concept-index.html" title="Index" rel="index">Index</a>]</p>
+</div>
+<hr>
+<h3 class="section" id="Special-built_002din-utilities-1"><span>2.10 Special built-in utilities<a class="copiable-link" href="#Special-built_002din-utilities-1"> &para;</a></span></h3>
+
+<p>Some programs like <code class="command">nice</code> can invoke other programs; for
+example, the command &lsquo;<samp class="samp">nice cat file</samp>&rsquo; invokes the program
+<code class="command">cat</code> by executing the command &lsquo;<samp class="samp">cat file</samp>&rsquo;.  However,
+<em class="dfn">special built-in utilities</em> like <code class="command">exit</code> cannot be invoked
+this way.  For example, the command &lsquo;<samp class="samp">nice exit</samp>&rsquo; does not have a
+well-defined behavior: it may generate an error message instead of
+exiting.
+</p>
+<p>Here is a list of the special built-in utilities that are standardized
+by POSIX 1003.1-2004.
+</p>
+<blockquote class="quotation">
+<p><code class="t">. : break continue eval exec exit export readonly
+return set shift times trap unset</code>
+</p></blockquote>
+
+<p>For example, because &lsquo;<samp class="samp">.</samp>&rsquo;, &lsquo;<samp class="samp">:</samp>&rsquo;, and &lsquo;<samp class="samp">exec</samp>&rsquo; are special,
+the commands &lsquo;<samp class="samp">nice . foo.sh</samp>&rsquo;, &lsquo;<samp class="samp">nice :</samp>&rsquo;, and &lsquo;<samp class="samp">nice exec
+pwd</samp>&rsquo; do not work as you might expect.
+</p>
+<p>Many shells extend this list.  For example, Bash has several extra
+special built-in utilities like <code class="command">history</code>, and
+<code class="command">suspend</code>, and with Bash the command &lsquo;<samp class="samp">nice suspend</samp>&rsquo;
+generates an error message instead of suspending.
+</p>
+
+</div>
+
+
+
+</body>
+</html>

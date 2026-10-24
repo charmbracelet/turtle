@@ -1,0 +1,18 @@
+# arch invocation (GNU Coreutils 9.12)
+### 21.2 `arch`: Print machine hardware name
+
+`arch` prints the machine hardware name,
+and is equivalent to ‘`uname -m`’.
+Synopsis:
+
+```
+arch [option]
+```
+
+The program accepts the [Common options](Common-options.md) only.
+
+`arch` is not installed by default, so portable scripts should
+not rely on its existence.
+
+An exit status of zero indicates success,
+and a nonzero value indicates failure.

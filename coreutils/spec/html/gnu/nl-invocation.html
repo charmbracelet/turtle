@@ -1,0 +1,248 @@
+<!DOCTYPE html>
+<html>
+<!-- Created by GNU Texinfo 7.2, https://www.gnu.org/software/texinfo/ -->
+<head>
+<meta http-equiv="Content-Type" content="text/html; charset=utf-8">
+<!-- This manual documents version 9.12 of the GNU core
+utilities, including the standard programs for text and file manipulation.
+
+Copyright © 1994-2026 Free Software Foundation, Inc.
+
+Permission is granted to copy, distribute and/or modify this document
+under the terms of the GNU Free Documentation License, Version 1.3 or
+any later version published by the Free Software Foundation; with no
+Invariant Sections, with no Front-Cover Texts, and with no Back-Cover
+Texts.  A copy of the license is included in the section entitled "GNU
+Free Documentation License". -->
+<title>nl invocation (GNU Coreutils 9.12)</title>
+
+<meta name="description" content="nl invocation (GNU Coreutils 9.12)">
+<meta name="keywords" content="nl invocation (GNU Coreutils 9.12)">
+<meta name="resource-type" content="document">
+<meta name="distribution" content="global">
+<meta name="Generator" content="makeinfo">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+
+<link href="index.html" rel="start" title="Top">
+<link href="Concept-index.html" rel="index" title="Concept index">
+<link href="index.html#SEC_Contents" rel="contents" title="Table of Contents">
+<link href="Output-of-entire-files.html" rel="up" title="Output of entire files">
+<link href="od-invocation.html" rel="next" title="od invocation">
+<link href="tac-invocation.html" rel="prev" title="tac invocation">
+<style type="text/css">
+<!--
+a.copiable-link {visibility: hidden; text-decoration: none; line-height: 0em}
+div.example {margin-left: 3.2em}
+span:hover a.copiable-link {visibility: visible}
+-->
+</style>
+<link rel="stylesheet" type="text/css" href="https://www.gnu.org/software/gnulib/manual.css">
+
+
+</head>
+
+<body lang="en">
+<div class="section-level-extent" id="nl-invocation">
+<div class="nav-panel">
+<p>
+Next: <a href="od-invocation.html" accesskey="n" rel="next"><code class="command">od</code>: Write files in octal or other formats</a>, Previous: <a href="tac-invocation.html" accesskey="p" rel="prev"><code class="command">tac</code>: Concatenate and write files in reverse</a>, Up: <a href="Output-of-entire-files.html" accesskey="u" rel="up">Output of entire files</a> &nbsp; [<a href="index.html#SEC_Contents" title="Table of contents" rel="contents">Contents</a>][<a href="Concept-index.html" title="Index" rel="index">Index</a>]</p>
+</div>
+<hr>
+<h3 class="section" id="nl_003a-Number-lines-and-write-files"><span>3.3 <code class="command">nl</code>: Number lines and write files<a class="copiable-link" href="#nl_003a-Number-lines-and-write-files"> &para;</a></span></h3>
+
+<a class="index-entry-id" id="index-nl-1"></a>
+<a class="index-entry-id" id="index-numbering-lines"></a>
+<a class="index-entry-id" id="index-line-numbering"></a>
+
+<p><code class="command">nl</code> writes each <var class="var">file</var> (&lsquo;<samp class="samp">-</samp>&rsquo; means standard input), or
+standard input if none are given, to standard output, with line numbers
+added to some or all of the lines.  Synopsis:
+</p>
+<div class="example">
+<pre class="example-preformatted">nl [<var class="var">option</var>]... [<var class="var">file</var>]...
+</pre></div>
+
+<a class="index-entry-id" id="index-logical-pages_002c-numbering-on"></a>
+<p><code class="command">nl</code> decomposes its input into (logical) page sections;
+by default, the line number is reset to 1 at each logical page section.
+<code class="command">nl</code> treats all of the input files as a single document;
+it does not reset line numbers or logical pages between files.
+</p>
+<a class="index-entry-id" id="index-headers_002c-numbering"></a>
+<a class="index-entry-id" id="index-body_002c-numbering"></a>
+<a class="index-entry-id" id="index-footers_002c-numbering"></a>
+<p>A logical page consists of three sections: header, body, and footer.
+Any of the sections can be empty.  Each can be numbered in a different
+style from the others.
+</p>
+<p>The beginnings of the sections of logical pages are indicated in the
+input file by a line containing exactly one of these delimiter strings:
+</p>
+<dl class="table">
+<dt>&lsquo;<samp class="samp">\:\:\:</samp>&rsquo;</dt>
+<dd><p>start of header;
+</p></dd>
+<dt>&lsquo;<samp class="samp">\:\:</samp>&rsquo;</dt>
+<dd><p>start of body;
+</p></dd>
+<dt>&lsquo;<samp class="samp">\:</samp>&rsquo;</dt>
+<dd><p>start of footer.
+</p></dd>
+</dl>
+
+<p>The characters from which these strings are made can be changed from
+&lsquo;<samp class="samp">\</samp>&rsquo; and &lsquo;<samp class="samp">:</samp>&rsquo; via options (see below), but the pattern
+of each string cannot be changed.
+</p>
+<p>A section delimiter is replaced by an empty line on output.  Any text
+that comes before the first section delimiter string in the input file
+is considered to be part of a body section, so <code class="command">nl</code> treats a
+file that contains no section delimiters as a single body section.
+</p>
+<p>The program accepts the following options.  Also see <a class="ref" href="Common-options.html">Common options</a>.
+</p>
+<dl class="table">
+<dd>
+<a class="anchor" id="nl-b"></a></dd>
+<dt><a id="index-_002d_002dbody_002dnumbering"></a><span>&lsquo;<samp class="samp">-b&nbsp;<!-- /@w --><var class="var">style</var></samp>&rsquo;<a class="copiable-link" href="#index-_002d_002dbody_002dnumbering"> &para;</a></span></dt>
+<dd><a class="index-entry-id" id="index-_002db-3"></a>
+<a class="anchor" id="nl--body-numbering"></a></dd>
+<dt>&lsquo;<samp class="samp">--body-numbering=<var class="var">style</var></samp>&rsquo;</dt>
+<dd><p>Select the numbering style for lines in the body section of each
+logical page.  When a line is not numbered, the current line number
+is not incremented, but the line number separator character is still
+prepended to the line.  The styles are:
+</p>
+<dl class="table">
+<dt>&lsquo;<samp class="samp">a</samp>&rsquo;</dt>
+<dd><p>number all lines,
+</p></dd>
+<dt>&lsquo;<samp class="samp">t</samp>&rsquo;</dt>
+<dd><p>number only nonempty lines (default for body),
+</p></dd>
+<dt>&lsquo;<samp class="samp">n</samp>&rsquo;</dt>
+<dd><p>do not number lines (default for header and footer),
+</p></dd>
+<dt>&lsquo;<samp class="samp">p<var class="var">bre</var></samp>&rsquo;</dt>
+<dd><p>number only lines that contain a match for the basic regular
+expression <var class="var">bre</var>.
+See <a data-manual="grep" href="https://www.gnu.org/software/grep/manual/html_node/Regular-Expressions.html#Regular-Expressions">Regular Expressions</a> in <cite class="cite">The GNU Grep Manual</cite>.
+</p></dd>
+</dl>
+
+<a class="anchor" id="nl-d"></a></dd>
+<dt><a class="index-entry-id" id="index-section-delimiters-of-pages"></a>
+<a id="index-_002d_002dsection_002ddelimiter"></a><span>&lsquo;<samp class="samp">-d&nbsp;<!-- /@w --><var class="var">cd</var></samp>&rsquo;<a class="copiable-link" href="#index-_002d_002dsection_002ddelimiter"> &para;</a></span></dt>
+<dd><a class="index-entry-id" id="index-_002dd"></a>
+<a class="anchor" id="nl--section-delimiter"></a></dd>
+<dt>&lsquo;<samp class="samp">--section-delimiter=<var class="var">cd</var></samp>&rsquo;</dt>
+<dd><p>Set the section delimiter characters to <var class="var">cd</var>; default is
+&lsquo;<samp class="samp">\:</samp>&rsquo;.  If only <var class="var">c</var> is given, the second remains &lsquo;<samp class="samp">:</samp>&rsquo;.
+As a GNU extension more than two characters can be specified,
+and also if <var class="var">cd</var> is empty (<samp class="option">-d ''</samp>), then section
+matching is disabled.
+(Remember to protect &lsquo;<samp class="samp">\</samp>&rsquo; or other metacharacters from shell
+expansion with quotes or extra backslashes.)
+</p>
+<a class="anchor" id="nl-f"></a></dd>
+<dt><a id="index-_002d_002dfooter_002dnumbering"></a><span>&lsquo;<samp class="samp">-f&nbsp;<!-- /@w --><var class="var">style</var></samp>&rsquo;<a class="copiable-link" href="#index-_002d_002dfooter_002dnumbering"> &para;</a></span></dt>
+<dd><a class="index-entry-id" id="index-_002df"></a>
+<a class="anchor" id="nl--footer-numbering"></a></dd>
+<dt>&lsquo;<samp class="samp">--footer-numbering=<var class="var">style</var></samp>&rsquo;</dt>
+<dd><p>Analogous to <samp class="option">--body-numbering</samp>.
+</p>
+<a class="anchor" id="nl-h"></a></dd>
+<dt><a id="index-_002d_002dheader_002dnumbering"></a><span>&lsquo;<samp class="samp">-h&nbsp;<!-- /@w --><var class="var">style</var></samp>&rsquo;<a class="copiable-link" href="#index-_002d_002dheader_002dnumbering"> &para;</a></span></dt>
+<dd><a class="index-entry-id" id="index-_002dh-1"></a>
+<a class="anchor" id="nl--header-numbering"></a></dd>
+<dt>&lsquo;<samp class="samp">--header-numbering=<var class="var">style</var></samp>&rsquo;</dt>
+<dd><p>Analogous to <samp class="option">--body-numbering</samp>.
+</p>
+<a class="anchor" id="nl-i"></a></dd>
+<dt><a id="index-_002d_002dline_002dincrement"></a><span>&lsquo;<samp class="samp">-i&nbsp;<!-- /@w --><var class="var">number</var></samp>&rsquo;<a class="copiable-link" href="#index-_002d_002dline_002dincrement"> &para;</a></span></dt>
+<dd><a class="index-entry-id" id="index-_002di"></a>
+<a class="anchor" id="nl--line-increment"></a></dd>
+<dt>&lsquo;<samp class="samp">--line-increment=<var class="var">number</var></samp>&rsquo;</dt>
+<dd><p>Increment line numbers by <var class="var">number</var> (default 1).
+<var class="var">number</var> can be negative to decrement.
+</p>
+<a class="anchor" id="nl-l"></a></dd>
+<dt><a class="index-entry-id" id="index-empty-lines_002c-numbering"></a>
+<a class="index-entry-id" id="index-blank-lines_002c-numbering"></a>
+<a id="index-_002d_002djoin_002dblank_002dlines"></a><span>&lsquo;<samp class="samp">-l&nbsp;<!-- /@w --><var class="var">number</var></samp>&rsquo;<a class="copiable-link" href="#index-_002d_002djoin_002dblank_002dlines"> &para;</a></span></dt>
+<dd><a class="index-entry-id" id="index-_002dl"></a>
+<a class="anchor" id="nl--join-blank-lines"></a></dd>
+<dt>&lsquo;<samp class="samp">--join-blank-lines=<var class="var">number</var></samp>&rsquo;</dt>
+<dd><p>Consider <var class="var">number</var> (default 1) consecutive empty lines to be one
+logical line for numbering, and only number the last one.  Where fewer
+than <var class="var">number</var> consecutive empty lines occur, do not number them.
+An empty line is one that contains no characters, not even spaces
+or tabs.
+</p>
+<a class="anchor" id="nl-n"></a></dd>
+<dt><a id="index-_002d_002dnumber_002dformat"></a><span>&lsquo;<samp class="samp">-n&nbsp;<!-- /@w --><var class="var">format</var></samp>&rsquo;<a class="copiable-link" href="#index-_002d_002dnumber_002dformat"> &para;</a></span></dt>
+<dd><a class="index-entry-id" id="index-_002dn-1"></a>
+<a class="anchor" id="nl--number-format"></a></dd>
+<dt>&lsquo;<samp class="samp">--number-format=<var class="var">format</var></samp>&rsquo;</dt>
+<dd><p>Select the line numbering format (default is <code class="code">rn</code>):
+</p>
+<dl class="table">
+<dt><a id="index-ln-format-for-nl"></a><span>&lsquo;<samp class="samp">ln</samp>&rsquo;<a class="copiable-link" href="#index-ln-format-for-nl"> &para;</a></span></dt>
+<dd><p>left justified, no leading zeros;
+</p></dd>
+<dt><a id="index-rn-format-for-nl"></a><span>&lsquo;<samp class="samp">rn</samp>&rsquo;<a class="copiable-link" href="#index-rn-format-for-nl"> &para;</a></span></dt>
+<dd><p>right justified, no leading zeros;
+</p></dd>
+<dt><a id="index-rz-format-for-nl"></a><span>&lsquo;<samp class="samp">rz</samp>&rsquo;<a class="copiable-link" href="#index-rz-format-for-nl"> &para;</a></span></dt>
+<dd><p>right justified, leading zeros.
+</p></dd>
+</dl>
+
+<a class="anchor" id="nl-p"></a></dd>
+<dt><a id="index-_002d_002dno_002drenumber"></a><span>&lsquo;<samp class="samp">-p</samp>&rsquo;<a class="copiable-link" href="#index-_002d_002dno_002drenumber"> &para;</a></span></dt>
+<dd><a class="index-entry-id" id="index-_002dp"></a>
+<a class="anchor" id="nl--no-renumber"></a></dd>
+<dt>&lsquo;<samp class="samp">--no-renumber</samp>&rsquo;</dt>
+<dd><p>Do not reset the line number at the start of a logical page.
+</p>
+<a class="anchor" id="nl-s"></a></dd>
+<dt><a id="index-_002d_002dnumber_002dseparator"></a><span>&lsquo;<samp class="samp">-s&nbsp;<!-- /@w --><var class="var">string</var></samp>&rsquo;<a class="copiable-link" href="#index-_002d_002dnumber_002dseparator"> &para;</a></span></dt>
+<dd><a class="index-entry-id" id="index-_002ds-2"></a>
+<a class="anchor" id="nl--number-separator"></a></dd>
+<dt>&lsquo;<samp class="samp">--number-separator=<var class="var">string</var></samp>&rsquo;</dt>
+<dd><p>Separate the line number from the text line in the output with
+<var class="var">string</var> (default is the TAB character).
+</p>
+<a class="anchor" id="nl-v"></a></dd>
+<dt><a id="index-_002d_002dstarting_002dline_002dnumber"></a><span>&lsquo;<samp class="samp">-v&nbsp;<!-- /@w --><var class="var">number</var></samp>&rsquo;<a class="copiable-link" href="#index-_002d_002dstarting_002dline_002dnumber"> &para;</a></span></dt>
+<dd><a class="index-entry-id" id="index-_002dv-1"></a>
+<a class="anchor" id="nl--starting-line-number"></a></dd>
+<dt>&lsquo;<samp class="samp">--starting-line-number=<var class="var">number</var></samp>&rsquo;</dt>
+<dd><p>Set the initial line number on each logical page to <var class="var">number</var> (default 1).
+The starting <var class="var">number</var> can be negative.
+</p>
+<a class="anchor" id="nl-w"></a></dd>
+<dt><a id="index-_002d_002dnumber_002dwidth"></a><span>&lsquo;<samp class="samp">-w&nbsp;<!-- /@w --><var class="var">number</var></samp>&rsquo;<a class="copiable-link" href="#index-_002d_002dnumber_002dwidth"> &para;</a></span></dt>
+<dd><a class="index-entry-id" id="index-_002dw"></a>
+<a class="anchor" id="nl--number-width"></a></dd>
+<dt>&lsquo;<samp class="samp">--number-width=<var class="var">number</var></samp>&rsquo;</dt>
+<dd><p>Use <var class="var">number</var> characters for line numbers (default 6).
+</p>
+</dd>
+</dl>
+
+<p>An exit status of zero indicates success,
+and a nonzero value indicates failure.
+</p>
+
+</div>
+<hr>
+<div class="nav-panel">
+<p>
+Next: <a href="od-invocation.html"><code class="command">od</code>: Write files in octal or other formats</a>, Previous: <a href="tac-invocation.html"><code class="command">tac</code>: Concatenate and write files in reverse</a>, Up: <a href="Output-of-entire-files.html">Output of entire files</a> &nbsp; [<a href="index.html#SEC_Contents" title="Table of contents" rel="contents">Contents</a>][<a href="Concept-index.html" title="Index" rel="index">Index</a>]</p>
+</div>
+
+
+
+</body>
+</html>

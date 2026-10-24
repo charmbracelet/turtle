@@ -1,0 +1,137 @@
+<!DOCTYPE html>
+<html>
+<!-- Created by GNU Texinfo 7.2, https://www.gnu.org/software/texinfo/ -->
+<head>
+<meta http-equiv="Content-Type" content="text/html; charset=utf-8">
+<!-- This manual documents version 9.12 of the GNU core
+utilities, including the standard programs for text and file manipulation.
+
+Copyright © 1994-2026 Free Software Foundation, Inc.
+
+Permission is granted to copy, distribute and/or modify this document
+under the terms of the GNU Free Documentation License, Version 1.3 or
+any later version published by the Free Software Foundation; with no
+Invariant Sections, with no Front-Cover Texts, and with no Back-Cover
+Texts.  A copy of the license is included in the section entitled "GNU
+Free Documentation License". -->
+<title>String expressions (GNU Coreutils 9.12)</title>
+
+<meta name="description" content="String expressions (GNU Coreutils 9.12)">
+<meta name="keywords" content="String expressions (GNU Coreutils 9.12)">
+<meta name="resource-type" content="document">
+<meta name="distribution" content="global">
+<meta name="Generator" content="makeinfo">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+
+<link href="index.html" rel="start" title="Top">
+<link href="Concept-index.html" rel="index" title="Concept index">
+<link href="index.html#SEC_Contents" rel="contents" title="Table of Contents">
+<link href="expr-invocation.html" rel="up" title="expr invocation">
+<link href="Numeric-expressions.html" rel="next" title="Numeric expressions">
+<style type="text/css">
+<!--
+a.copiable-link {visibility: hidden; text-decoration: none; line-height: 0em}
+span:hover a.copiable-link {visibility: visible}
+-->
+</style>
+<link rel="stylesheet" type="text/css" href="https://www.gnu.org/software/gnulib/manual.css">
+
+
+</head>
+
+<body lang="en">
+<div class="subsection-level-extent" id="String-expressions">
+<div class="nav-panel">
+<p>
+Next: <a href="Numeric-expressions.html" accesskey="n" rel="next">Numeric expressions</a>, Up: <a href="expr-invocation.html" accesskey="u" rel="up"><code class="command">expr</code>: Evaluate expressions</a> &nbsp; [<a href="index.html#SEC_Contents" title="Table of contents" rel="contents">Contents</a>][<a href="Concept-index.html" title="Index" rel="index">Index</a>]</p>
+</div>
+<hr>
+<h4 class="subsection" id="String-expressions-1"><span>16.4.1 String expressions<a class="copiable-link" href="#String-expressions-1"> &para;</a></span></h4>
+
+<a class="index-entry-id" id="index-string-expressions"></a>
+<a class="index-entry-id" id="index-expressions_002c-string"></a>
+
+<p><code class="command">expr</code> supports pattern matching and other string operators.  These
+have higher precedence than both the numeric and relational operators (in
+the next sections).
+</p>
+<dl class="table">
+<dt><a class="index-entry-id" id="index-regular-expression-matching"></a>
+<a class="index-entry-id" id="index-matching-patterns"></a>
+<a id="index-pattern-matching"></a><span>&lsquo;<samp class="samp"><var class="var">string</var> : <var class="var">regex</var></samp>&rsquo;<a class="copiable-link" href="#index-pattern-matching"> &para;</a></span></dt>
+<dd><p>Perform pattern matching.  The arguments are converted to strings and the
+second is considered to be a (basic, a la GNU <code class="code">grep</code>) regular
+expression, with a <code class="code">^</code> implicitly prepended.  The first argument is
+then matched against this regular expression.
+</p>
+<p>If <var class="var">regex</var> does not use &lsquo;<samp class="samp">\(</samp>&rsquo; and &lsquo;<samp class="samp">\)</samp>&rsquo;, the <code class="code">:</code>
+expression returns the number of characters matched, or 0 if the match
+fails.
+</p>
+<p>If <var class="var">regex</var> uses &lsquo;<samp class="samp">\(</samp>&rsquo; and &lsquo;<samp class="samp">\)</samp>&rsquo;, the <code class="code">:</code> expression
+returns the part of <var class="var">string</var> that matched the subexpression, or
+the null string if the match failed or the subexpression did not
+contribute to the match.
+</p>
+<a class="index-entry-id" id="index-_005c_0028-regexp-operator"></a>
+<p>Only the first &lsquo;<samp class="samp">\( &hellip; \)</samp>&rsquo; pair is relevant to the return
+value; additional pairs are meaningful only for grouping the regular
+expression operators.
+</p>
+<a class="index-entry-id" id="index-_005c_002b-regexp-operator"></a>
+<a class="index-entry-id" id="index-_005c_003f-regexp-operator"></a>
+<a class="index-entry-id" id="index-_005c_007c-regexp-operator"></a>
+<p>In the regular expression, <code class="code">\+</code>, <code class="code">\?</code>, and <code class="code">\|</code> are
+operators which respectively match one or more, zero or one, or separate
+alternatives.  These operators are GNU extensions.  See <a data-manual="grep" href="https://www.gnu.org/software/grep/manual/html_node/Regular-Expressions.html#Regular-Expressions">Regular Expressions</a> in <cite class="cite">The GNU Grep Manual</cite>, for details of
+regular expression syntax.  Some examples are in <a class="ref" href="Examples-of-expr.html">Examples of using <code class="command">expr</code></a>.
+</p>
+</dd>
+<dt><a id="index-match"></a><span>&lsquo;<samp class="samp">match <var class="var">string</var> <var class="var">regex</var></samp>&rsquo;<a class="copiable-link" href="#index-match"> &para;</a></span></dt>
+<dd><p>An alternative way to do pattern matching.  This is the same as
+&lsquo;<samp class="samp"><var class="var">string</var>&nbsp;:&nbsp;<var class="var">regex</var></samp>&rsquo;<!-- /@w -->.
+</p>
+</dd>
+<dt><a id="index-substr"></a><span>&lsquo;<samp class="samp">substr <var class="var">string</var> <var class="var">position</var> <var class="var">length</var></samp>&rsquo;<a class="copiable-link" href="#index-substr"> &para;</a></span></dt>
+<dd><p>Returns the substring of <var class="var">string</var> beginning at <var class="var">position</var>
+with length at most <var class="var">length</var>.  If either <var class="var">position</var> or
+<var class="var">length</var> is negative, zero, or non-numeric, returns the null string.
+</p>
+</dd>
+<dt><a id="index-index"></a><span>&lsquo;<samp class="samp">index <var class="var">string</var> <var class="var">charset</var></samp>&rsquo;<a class="copiable-link" href="#index-index"> &para;</a></span></dt>
+<dd><p>Returns the first position in <var class="var">string</var> where the first character in
+<var class="var">charset</var> was found.  If no character in <var class="var">charset</var> is found in
+<var class="var">string</var>, return 0.
+</p>
+</dd>
+<dt><a id="index-length"></a><span>&lsquo;<samp class="samp">length <var class="var">string</var></samp>&rsquo;<a class="copiable-link" href="#index-length"> &para;</a></span></dt>
+<dd><p>Returns the length of <var class="var">string</var>.
+</p>
+</dd>
+<dt><a id="index-_002b"></a><span>&lsquo;<samp class="samp">+ <var class="var">token</var></samp>&rsquo;<a class="copiable-link" href="#index-_002b"> &para;</a></span></dt>
+<dd><p>Interpret <var class="var">token</var> as a string, even if it is a keyword like <var class="var">match</var>
+or an operator like <code class="code">/</code>.
+This makes it possible to test <code class="code">expr length + &quot;$x&quot;</code> or
+<code class="code">expr + &quot;$x&quot; : '.*/\(.\)'</code> and have it do the right thing even if
+the value of <var class="var">$x</var> happens to be (for example) <code class="code">/</code> or <code class="code">index</code>.
+This operator is a GNU extension.  Portable shell scripts should use
+<code class="code">&quot;&nbsp;$token&quot;<!-- /@w --> : '&nbsp;\(.*\)'<!-- /@w --></code> instead of <code class="code">+ &quot;$token&quot;</code>.
+</p>
+</dd>
+</dl>
+
+<p>To make <code class="command">expr</code> interpret keywords as strings, you must use the
+<code class="code">quote</code> operator.
+</p>
+
+</div>
+<hr>
+<div class="nav-panel">
+<p>
+Next: <a href="Numeric-expressions.html">Numeric expressions</a>, Up: <a href="expr-invocation.html"><code class="command">expr</code>: Evaluate expressions</a> &nbsp; [<a href="index.html#SEC_Contents" title="Table of contents" rel="contents">Contents</a>][<a href="Concept-index.html" title="Index" rel="index">Index</a>]</p>
+</div>
+
+
+
+</body>
+</html>

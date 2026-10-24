@@ -1,0 +1,118 @@
+<!DOCTYPE html>
+<html>
+<!-- Created by GNU Texinfo 7.2, https://www.gnu.org/software/texinfo/ -->
+<head>
+<meta http-equiv="Content-Type" content="text/html; charset=utf-8">
+<!-- This manual documents version 9.12 of the GNU core
+utilities, including the standard programs for text and file manipulation.
+
+Copyright © 1994-2026 Free Software Foundation, Inc.
+
+Permission is granted to copy, distribute and/or modify this document
+under the terms of the GNU Free Documentation License, Version 1.3 or
+any later version published by the Free Software Foundation; with no
+Invariant Sections, with no Front-Cover Texts, and with no Back-Cover
+Texts.  A copy of the license is included in the section entitled "GNU
+Free Documentation License". -->
+<title>File type tests (GNU Coreutils 9.12)</title>
+
+<meta name="description" content="File type tests (GNU Coreutils 9.12)">
+<meta name="keywords" content="File type tests (GNU Coreutils 9.12)">
+<meta name="resource-type" content="document">
+<meta name="distribution" content="global">
+<meta name="Generator" content="makeinfo">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+
+<link href="index.html" rel="start" title="Top">
+<link href="Concept-index.html" rel="index" title="Concept index">
+<link href="index.html#SEC_Contents" rel="contents" title="Table of Contents">
+<link href="test-invocation.html" rel="up" title="test invocation">
+<link href="Access-permission-tests.html" rel="next" title="Access permission tests">
+<style type="text/css">
+<!--
+a.copiable-link {visibility: hidden; text-decoration: none; line-height: 0em}
+span:hover a.copiable-link {visibility: visible}
+-->
+</style>
+<link rel="stylesheet" type="text/css" href="https://www.gnu.org/software/gnulib/manual.css">
+
+
+</head>
+
+<body lang="en">
+<div class="subsection-level-extent" id="File-type-tests">
+<div class="nav-panel">
+<p>
+Next: <a href="Access-permission-tests.html" accesskey="n" rel="next">Access permission tests</a>, Up: <a href="test-invocation.html" accesskey="u" rel="up"><code class="command">test</code>: Check file types and compare values</a> &nbsp; [<a href="index.html#SEC_Contents" title="Table of contents" rel="contents">Contents</a>][<a href="Concept-index.html" title="Index" rel="index">Index</a>]</p>
+</div>
+<hr>
+<h4 class="subsection" id="File-type-tests-1"><span>16.3.1 File type tests<a class="copiable-link" href="#File-type-tests-1"> &para;</a></span></h4>
+
+<a class="index-entry-id" id="index-file-type-tests"></a>
+
+<p>These options test for particular types of files.  (Everything&rsquo;s a file,
+but not all files are the same!)
+</p>
+<dl class="table">
+<dd>
+<a class="anchor" id="test-b"></a></dd>
+<dt><a class="index-entry-id" id="index-block-special-check"></a>
+<a id="index-_002db-19"></a><span>&lsquo;<samp class="samp">-b&nbsp;<!-- /@w --><var class="var">file</var></samp>&rsquo;<a class="copiable-link" href="#index-_002db-19"> &para;</a></span></dt>
+<dd><p>True if <var class="var">file</var> exists and is a block special device.
+</p>
+<a class="anchor" id="test-c"></a></dd>
+<dt><a class="index-entry-id" id="index-character-special-check"></a>
+<a id="index-_002dc-22"></a><span>&lsquo;<samp class="samp">-c&nbsp;<!-- /@w --><var class="var">file</var></samp>&rsquo;<a class="copiable-link" href="#index-_002dc-22"> &para;</a></span></dt>
+<dd><p>True if <var class="var">file</var> exists and is a character special device.
+</p>
+<a class="anchor" id="test-d"></a></dd>
+<dt><a class="index-entry-id" id="index-directory-check"></a>
+<a id="index-_002dd-18"></a><span>&lsquo;<samp class="samp">-d&nbsp;<!-- /@w --><var class="var">file</var></samp>&rsquo;<a class="copiable-link" href="#index-_002dd-18"> &para;</a></span></dt>
+<dd><p>True if <var class="var">file</var> exists and is a directory.
+</p>
+<a class="anchor" id="test-f"></a></dd>
+<dt><a class="index-entry-id" id="index-regular-file-check"></a>
+<a id="index-_002df-22"></a><span>&lsquo;<samp class="samp">-f&nbsp;<!-- /@w --><var class="var">file</var></samp>&rsquo;<a class="copiable-link" href="#index-_002df-22"> &para;</a></span></dt>
+<dd><p>True if <var class="var">file</var> exists and is a regular file.
+</p>
+<a class="anchor" id="test-h"></a></dd>
+<dt><a class="index-entry-id" id="index-symbolic-link-check"></a>
+<a id="index-_002dL-10"></a><span>&lsquo;<samp class="samp">-h&nbsp;<!-- /@w --><var class="var">file</var></samp>&rsquo;<a class="copiable-link" href="#index-_002dL-10"> &para;</a></span></dt>
+<dd><a class="index-entry-id" id="index-_002dh-11"></a>
+<a class="anchor" id="test-L"></a></dd>
+<dt>&lsquo;<samp class="samp">-L&nbsp;<!-- /@w --><var class="var">file</var></samp>&rsquo;</dt>
+<dd><p>True if <var class="var">file</var> exists and is a symbolic link.
+Unlike all other file-related tests, this test does not dereference
+<var class="var">file</var> if it is a symbolic link.
+</p>
+<a class="anchor" id="test-p"></a></dd>
+<dt><a class="index-entry-id" id="index-named-pipe-check"></a>
+<a id="index-_002dp-8"></a><span>&lsquo;<samp class="samp">-p&nbsp;<!-- /@w --><var class="var">file</var></samp>&rsquo;<a class="copiable-link" href="#index-_002dp-8"> &para;</a></span></dt>
+<dd><p>True if <var class="var">file</var> exists and is a named pipe.
+</p>
+<a class="anchor" id="test-S"></a></dd>
+<dt><a class="index-entry-id" id="index-socket-check"></a>
+<a id="index-_002dS-11"></a><span>&lsquo;<samp class="samp">-S&nbsp;<!-- /@w --><var class="var">file</var></samp>&rsquo;<a class="copiable-link" href="#index-_002dS-11"> &para;</a></span></dt>
+<dd><p>True if <var class="var">file</var> exists and is a socket.
+</p>
+<a class="anchor" id="test-t"></a></dd>
+<dt><a class="index-entry-id" id="index-terminal-check"></a>
+<a id="index-_002dt-21"></a><span>&lsquo;<samp class="samp">-t&nbsp;<!-- /@w --><var class="var">fd</var></samp>&rsquo;<a class="copiable-link" href="#index-_002dt-21"> &para;</a></span></dt>
+<dd><p>True if <var class="var">fd</var> is a file descriptor that is associated with a
+terminal.
+</p>
+</dd>
+</dl>
+
+
+</div>
+<hr>
+<div class="nav-panel">
+<p>
+Next: <a href="Access-permission-tests.html">Access permission tests</a>, Up: <a href="test-invocation.html"><code class="command">test</code>: Check file types and compare values</a> &nbsp; [<a href="index.html#SEC_Contents" title="Table of contents" rel="contents">Contents</a>][<a href="Concept-index.html" title="Index" rel="index">Index</a>]</p>
+</div>
+
+
+
+</body>
+</html>

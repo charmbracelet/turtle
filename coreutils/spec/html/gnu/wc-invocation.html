@@ -1,0 +1,226 @@
+<!DOCTYPE html>
+<html>
+<!-- Created by GNU Texinfo 7.2, https://www.gnu.org/software/texinfo/ -->
+<head>
+<meta http-equiv="Content-Type" content="text/html; charset=utf-8">
+<!-- This manual documents version 9.12 of the GNU core
+utilities, including the standard programs for text and file manipulation.
+
+Copyright © 1994-2026 Free Software Foundation, Inc.
+
+Permission is granted to copy, distribute and/or modify this document
+under the terms of the GNU Free Documentation License, Version 1.3 or
+any later version published by the Free Software Foundation; with no
+Invariant Sections, with no Front-Cover Texts, and with no Back-Cover
+Texts.  A copy of the license is included in the section entitled "GNU
+Free Documentation License". -->
+<title>wc invocation (GNU Coreutils 9.12)</title>
+
+<meta name="description" content="wc invocation (GNU Coreutils 9.12)">
+<meta name="keywords" content="wc invocation (GNU Coreutils 9.12)">
+<meta name="resource-type" content="document">
+<meta name="distribution" content="global">
+<meta name="Generator" content="makeinfo">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+
+<link href="index.html" rel="start" title="Top">
+<link href="Concept-index.html" rel="index" title="Concept index">
+<link href="index.html#SEC_Contents" rel="contents" title="Table of Contents">
+<link href="Summarizing-files.html" rel="up" title="Summarizing files">
+<link href="sum-invocation.html" rel="next" title="sum invocation">
+<style type="text/css">
+<!--
+a.copiable-link {visibility: hidden; text-decoration: none; line-height: 0em}
+div.example {margin-left: 3.2em}
+span:hover a.copiable-link {visibility: visible}
+ul.mark-bullet {list-style-type: disc}
+-->
+</style>
+<link rel="stylesheet" type="text/css" href="https://www.gnu.org/software/gnulib/manual.css">
+
+
+</head>
+
+<body lang="en">
+<div class="section-level-extent" id="wc-invocation">
+<div class="nav-panel">
+<p>
+Next: <a href="sum-invocation.html" accesskey="n" rel="next"><code class="command">sum</code>: Print checksum and block counts</a>, Up: <a href="Summarizing-files.html" accesskey="u" rel="up">Summarizing files</a> &nbsp; [<a href="index.html#SEC_Contents" title="Table of contents" rel="contents">Contents</a>][<a href="Concept-index.html" title="Index" rel="index">Index</a>]</p>
+</div>
+<hr>
+<h3 class="section" id="wc_003a-Print-newline_002c-word_002c-and-byte-or-character-counts"><span>6.1 <code class="command">wc</code>: Print newline, word, and byte or character counts<a class="copiable-link" href="#wc_003a-Print-newline_002c-word_002c-and-byte-or-character-counts"> &para;</a></span></h3>
+
+<a class="index-entry-id" id="index-wc"></a>
+<a class="index-entry-id" id="index-byte-count"></a>
+<a class="index-entry-id" id="index-character-count"></a>
+<a class="index-entry-id" id="index-word-count"></a>
+<a class="index-entry-id" id="index-line-count"></a>
+
+<p><code class="command">wc</code> counts the number of bytes, characters, words, and newlines
+in each given <var class="var">file</var>, or standard input if none are given
+or for a <var class="var">file</var> of &lsquo;<samp class="samp">-</samp>&rsquo;.  A word is a nonempty sequence of non white
+space delimited by white space characters or by start or end of input.
+Synopsis:
+</p>
+<div class="example">
+<pre class="example-preformatted">wc [<var class="var">option</var>]... [<var class="var">file</var>]...
+</pre></div>
+
+<a class="index-entry-id" id="index-total-counts"></a>
+<p><code class="command">wc</code> prints one line of counts for each file, and if the file was
+given as an argument, it prints the file name following the counts. By default
+if more than one <var class="var">file</var> is given, <code class="command">wc</code> prints a final line
+containing the cumulative counts, with the file name <samp class="file">total</samp>.
+This &lsquo;<samp class="samp">total</samp>&rsquo; line can be controlled with the <samp class="option">--total</samp> option,
+which is a GNU extension.
+The counts are printed in this order: newlines, words, characters, bytes,
+maximum line length.
+Each count is printed right-justified in a field with at least one
+space between fields so that the numbers and file names normally line
+up nicely in columns.  The width of the count fields varies depending
+on the inputs, so you should not depend on a particular field width.
+However, as a GNU extension, if only one count is printed,
+it is guaranteed to be printed without leading spaces.
+</p>
+<p>By default, <code class="command">wc</code> prints three counts: the newline, words, and byte
+counts.  Options can specify that only certain counts be printed.
+Options do not undo others previously given, so
+</p>
+<div class="example">
+<pre class="example-preformatted">wc --bytes --words
+</pre></div>
+
+<p>prints both the byte counts and the word counts.
+</p>
+<p>With the <samp class="option">--max-line-length</samp> option, <code class="command">wc</code> prints the length
+of the longest line per file, and if there is more than one file it
+prints the maximum (not the sum) of those lengths.  The line lengths here
+are measured in screen columns, according to the current locale and
+assuming tab positions in every 8th column.
+</p>
+<p>The program accepts the following options.  Also see <a class="ref" href="Common-options.html">Common options</a>.
+</p>
+<dl class="table">
+<dd>
+<a class="anchor" id="wc-c"></a></dd>
+<dt><a id="index-_002d_002dbytes-4"></a><span>&lsquo;<samp class="samp">-c</samp>&rsquo;<a class="copiable-link" href="#index-_002d_002dbytes-4"> &para;</a></span></dt>
+<dd><a class="index-entry-id" id="index-_002dc-6"></a>
+<a class="anchor" id="wc--bytes"></a></dd>
+<dt>&lsquo;<samp class="samp">--bytes</samp>&rsquo;</dt>
+<dd><p>Print only the byte counts.
+</p>
+<a class="anchor" id="wc-m"></a></dd>
+<dt><a id="index-_002d_002dchars"></a><span>&lsquo;<samp class="samp">-m</samp>&rsquo;<a class="copiable-link" href="#index-_002d_002dchars"> &para;</a></span></dt>
+<dd><a class="index-entry-id" id="index-_002dm-1"></a>
+<a class="anchor" id="wc--chars"></a></dd>
+<dt>&lsquo;<samp class="samp">--chars</samp>&rsquo;</dt>
+<dd><p>Print only the character counts, as per the current locale.
+Encoding errors are not counted.
+</p>
+<a class="anchor" id="wc-w"></a></dd>
+<dt><a id="index-_002d_002dwords"></a><span>&lsquo;<samp class="samp">-w</samp>&rsquo;<a class="copiable-link" href="#index-_002d_002dwords"> &para;</a></span></dt>
+<dd><a class="index-entry-id" id="index-_002dw-6"></a>
+<a class="anchor" id="wc--words"></a></dd>
+<dt>&lsquo;<samp class="samp">--words</samp>&rsquo;</dt>
+<dd><p>Print only the word counts.  A word is a nonempty sequence of non white
+space delimited by white space characters or by start or end of input.
+The current locale determines which characters are white space.
+GNU <code class="command">wc</code> treats encoding errors as non white space.
+</p>
+<a class="index-entry-id" id="index-POSIXLY_005fCORRECT-3"></a>
+<p>Unless the environment variable <code class="env">POSIXLY_CORRECT</code> is set,
+GNU <code class="command">wc</code> treats the following Unicode characters as white
+space even if the current locale does not: U+00A0 NO-BREAK SPACE,
+U+2007 FIGURE SPACE, U+202F NARROW NO-BREAK SPACE, and U+2060 WORD
+JOINER.
+</p>
+<a class="anchor" id="wc-l"></a></dd>
+<dt><a id="index-_002d_002dlines-3"></a><span>&lsquo;<samp class="samp">-l</samp>&rsquo;<a class="copiable-link" href="#index-_002d_002dlines-3"> &para;</a></span></dt>
+<dd><a class="index-entry-id" id="index-_002dl-4"></a>
+<a class="anchor" id="wc--lines"></a></dd>
+<dt>&lsquo;<samp class="samp">--lines</samp>&rsquo;</dt>
+<dd><p>Print only the newline character counts.
+If a file ends in a non-newline character,
+its trailing partial line is not counted.
+</p>
+<a class="anchor" id="wc--debug"></a></dd>
+<dt><a id="index-_002d_002ddebug-1"></a><span>&lsquo;<samp class="samp">--debug</samp>&rsquo;<a class="copiable-link" href="#index-_002d_002ddebug-1"> &para;</a></span></dt>
+<dd><p>Output extra information to standard error.
+Currently; print the line count acceleration implementation being used.
+</p>
+<a class="anchor" id="wc-L"></a></dd>
+<dt><a id="index-_002d_002dmax_002dline_002dlength"></a><span>&lsquo;<samp class="samp">-L</samp>&rsquo;<a class="copiable-link" href="#index-_002d_002dmax_002dline_002dlength"> &para;</a></span></dt>
+<dd><a class="index-entry-id" id="index-_002dL-1"></a>
+<a class="anchor" id="wc--max-line-length"></a></dd>
+<dt>&lsquo;<samp class="samp">--max-line-length</samp>&rsquo;</dt>
+<dd><p>Print only the maximum display widths.
+Tabs are set at every 8th column.
+Display widths of wide characters are considered.
+Non-printable characters are given 0 width.
+</p>
+<a class="anchor" id="wc--total"></a></dd>
+<dt><a id="index-_002d_002dtotal"></a><span>&lsquo;<samp class="samp">--total</samp>&rsquo;<a class="copiable-link" href="#index-_002d_002dtotal"> &para;</a></span></dt>
+<dd><p>Control when and how the final line with cumulative counts is printed.
+<var class="var">when</var> is one of:
+</p><ul class="itemize mark-bullet">
+<li>auto
+<a class="index-entry-id" id="index-auto-total-option"></a>
+- This is the default mode of <code class="command">wc</code> when no <samp class="option">--total</samp>
+option is specified.  Output a total line if more than one <var class="var">file</var>
+is specified.
+</li><li>always
+<a class="index-entry-id" id="index-always-total-option"></a>
+- Always output a total line, irrespective of the number of files processed.
+</li><li>only
+<a class="index-entry-id" id="index-only-total-option"></a>
+- Only output total counts.  I.e., don&rsquo;t print individual file counts,
+suppress any leading spaces, and don&rsquo;t print the &lsquo;<samp class="samp">total</samp>&rsquo; word itself,
+to simplify subsequent processing.
+</li><li>never
+<a class="index-entry-id" id="index-none-total-option"></a>
+- Never output a total line.
+</li></ul>
+
+<a class="anchor" id="wc--files0-from"></a></dd>
+<dt><a id="index-_002d_002dfiles0_002dfrom"></a><span>&lsquo;<samp class="samp">--files0-from=<var class="var">file</var></samp>&rsquo;<a class="copiable-link" href="#index-_002d_002dfiles0_002dfrom"> &para;</a></span></dt>
+<dd><p>Disallow processing files named on the command line, and instead process
+those named in file <var class="var">file</var>; each name being terminated by a zero byte
+(ASCII NUL).
+This is useful 
+when the list of file names is so long that it may exceed a command line
+length limitation.
+In such cases, running <code class="command">wc</code> via <code class="command">xargs</code> is undesirable
+because it splits the list into pieces and makes <code class="command">wc</code> print
+a total for each sublist rather than for the entire list.
+One way to produce a list of ASCII NUL terminated file
+names is with GNU
+<code class="command">find</code>, using its <samp class="option">-print0</samp> predicate.
+If <var class="var">file</var> is &lsquo;<samp class="samp">-</samp>&rsquo; then the ASCII NUL terminated
+file names are read from standard input.
+</p>
+<p>For example, to find the length of the longest line in any <samp class="file">.c</samp> or
+<samp class="file">.h</samp> file in the current hierarchy, do this:
+</p>
+<div class="example">
+<pre class="example-preformatted">find . -name '*.[ch]' -print0 |
+  wc -L --files0-from=- | tail -n1
+</pre></div>
+
+</dd>
+</dl>
+
+<p>An exit status of zero indicates success,
+and a nonzero value indicates failure.
+</p>
+
+</div>
+<hr>
+<div class="nav-panel">
+<p>
+Next: <a href="sum-invocation.html"><code class="command">sum</code>: Print checksum and block counts</a>, Up: <a href="Summarizing-files.html">Summarizing files</a> &nbsp; [<a href="index.html#SEC_Contents" title="Table of contents" rel="contents">Contents</a>][<a href="Concept-index.html" title="Index" rel="index">Index</a>]</p>
+</div>
+
+
+
+</body>
+</html>

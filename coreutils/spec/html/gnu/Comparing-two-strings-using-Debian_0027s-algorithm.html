@@ -1,0 +1,120 @@
+<!DOCTYPE html>
+<html>
+<!-- Created by GNU Texinfo 7.2, https://www.gnu.org/software/texinfo/ -->
+<head>
+<meta http-equiv="Content-Type" content="text/html; charset=utf-8">
+<!-- This manual documents version 9.12 of the GNU core
+utilities, including the standard programs for text and file manipulation.
+
+Copyright © 1994-2026 Free Software Foundation, Inc.
+
+Permission is granted to copy, distribute and/or modify this document
+under the terms of the GNU Free Documentation License, Version 1.3 or
+any later version published by the Free Software Foundation; with no
+Invariant Sections, with no Front-Cover Texts, and with no Back-Cover
+Texts.  A copy of the license is included in the section entitled "GNU
+Free Documentation License". -->
+<title>Comparing two strings using Debian's algorithm (GNU Coreutils 9.12)</title>
+
+<meta name="description" content="Comparing two strings using Debian's algorithm (GNU Coreutils 9.12)">
+<meta name="keywords" content="Comparing two strings using Debian's algorithm (GNU Coreutils 9.12)">
+<meta name="resource-type" content="document">
+<meta name="distribution" content="global">
+<meta name="Generator" content="makeinfo">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+
+<link href="index.html" rel="start" title="Top">
+<link href="Concept-index.html" rel="index" title="Concept index">
+<link href="index.html#SEC_Contents" rel="contents" title="Table of Contents">
+<link href="Differences-from-Debian-version-sort.html" rel="up" title="Differences from Debian version sort">
+<link href="Special-handling-of-file-extensions.html" rel="prev" title="Special handling of file extensions">
+<style type="text/css">
+<!--
+a.copiable-link {visibility: hidden; text-decoration: none; line-height: 0em}
+div.example {margin-left: 3.2em}
+span:hover a.copiable-link {visibility: visible}
+-->
+</style>
+<link rel="stylesheet" type="text/css" href="https://www.gnu.org/software/gnulib/manual.css">
+
+
+</head>
+
+<body lang="en">
+<div class="subsection-level-extent" id="Comparing-two-strings-using-Debian_0027s-algorithm">
+<div class="nav-panel">
+<p>
+Previous: <a href="Special-handling-of-file-extensions.html" accesskey="p" rel="prev">Special handling of file extensions</a>, Up: <a href="Differences-from-Debian-version-sort.html" accesskey="u" rel="up">Differences from Debian version sort</a> &nbsp; [<a href="index.html#SEC_Contents" title="Table of contents" rel="contents">Contents</a>][<a href="Concept-index.html" title="Index" rel="index">Index</a>]</p>
+</div>
+<hr>
+<h4 class="subsection" id="Comparing-two-strings-using-Debian_0027s-algorithm-1"><span>30.3.4 Comparing two strings using Debian&rsquo;s algorithm<a class="copiable-link" href="#Comparing-two-strings-using-Debian_0027s-algorithm-1"> &para;</a></span></h4>
+
+<p>The Debian program <code class="command">dpkg</code> (available on all Debian and Ubuntu
+installations) can compare two strings using the <samp class="option">--compare-versions</samp>
+option.
+</p>
+<p>To use it, create a helper shell function (simply copy &amp; paste the
+following snippet to your shell command-prompt):
+</p>
+<div class="example">
+<pre class="example-preformatted">compver() {
+  if dpkg --compare-versions &quot;$1&quot; lt &quot;$2&quot;
+  then printf '%s\n' &quot;$1&quot; &quot;$2&quot;
+  else printf '%s\n' &quot;$2&quot; &quot;$1&quot;
+  fi
+}
+</pre></div>
+
+<p>Then compare two strings by calling <code class="command">compver</code>:
+</p>
+<div class="example">
+<pre class="example-preformatted">$ compver 8.49 8.5
+8.5
+8.49
+</pre></div>
+
+<p>Note that <code class="command">dpkg</code> will warn if the strings have invalid syntax:
+</p>
+<div class="example">
+<pre class="example-preformatted">$ compver &quot;foo07.7z&quot; &quot;foo7a.7z&quot;
+dpkg: warning: version 'foo07.7z' has bad syntax:
+               version number does not start with digit
+dpkg: warning: version 'foo7a.7z' has bad syntax:
+               version number does not start with digit
+foo7a.7z
+foo07.7z
+$ compver &quot;3.0/&quot; &quot;3.0.5&quot;
+dpkg: warning: version '3.0/' has bad syntax:
+               invalid character in version number
+3.0.5
+3.0/
+</pre></div>
+
+<p>To illustrate the different handling of hyphens between Debian and
+Coreutils algorithms (see
+<a class="ref" href="Hyphen_002dminus-and-colon.html">Hyphen-minus &lsquo;<samp class="samp">-</samp>&rsquo; and colon &lsquo;<samp class="samp">:</samp>&rsquo;</a>):
+</p>
+<div class="example">
+<pre class="example-preformatted">$ compver abb ab-cd 2&gt;/dev/null     $ printf 'abb\nab-cd\n' | sort -V
+ab-cd                               abb
+abb                                 ab-cd
+</pre></div>
+
+<p>To illustrate the different handling of file extension: (see <a class="ref" href="Special-handling-of-file-extensions.html">Special handling of file extensions</a>):
+</p>
+<div class="example">
+<pre class="example-preformatted">$ compver hello-8.txt hello-8.2.txt 2&gt;/dev/null
+hello-8.2.txt
+hello-8.txt
+$ printf '%s\n' hello-8.txt hello-8.2.txt | sort -V
+hello-8.txt
+hello-8.2.txt
+</pre></div>
+
+
+</div>
+
+
+
+</body>
+</html>

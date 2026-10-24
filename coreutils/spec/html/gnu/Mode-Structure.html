@@ -1,0 +1,164 @@
+<!DOCTYPE html>
+<html>
+<!-- Created by GNU Texinfo 7.2, https://www.gnu.org/software/texinfo/ -->
+<head>
+<meta http-equiv="Content-Type" content="text/html; charset=utf-8">
+<!-- This manual documents version 9.12 of the GNU core
+utilities, including the standard programs for text and file manipulation.
+
+Copyright © 1994-2026 Free Software Foundation, Inc.
+
+Permission is granted to copy, distribute and/or modify this document
+under the terms of the GNU Free Documentation License, Version 1.3 or
+any later version published by the Free Software Foundation; with no
+Invariant Sections, with no Front-Cover Texts, and with no Back-Cover
+Texts.  A copy of the license is included in the section entitled "GNU
+Free Documentation License". -->
+<title>Mode Structure (GNU Coreutils 9.12)</title>
+
+<meta name="description" content="Mode Structure (GNU Coreutils 9.12)">
+<meta name="keywords" content="Mode Structure (GNU Coreutils 9.12)">
+<meta name="resource-type" content="document">
+<meta name="distribution" content="global">
+<meta name="Generator" content="makeinfo">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+
+<link href="index.html" rel="start" title="Top">
+<link href="Concept-index.html" rel="index" title="Concept index">
+<link href="index.html#SEC_Contents" rel="contents" title="Table of Contents">
+<link href="File-permissions.html" rel="up" title="File permissions">
+<link href="Symbolic-Modes.html" rel="next" title="Symbolic Modes">
+<style type="text/css">
+<!--
+a.copiable-link {visibility: hidden; text-decoration: none; line-height: 0em}
+span:hover a.copiable-link {visibility: visible}
+ul.mark-bullet {list-style-type: disc}
+-->
+</style>
+<link rel="stylesheet" type="text/css" href="https://www.gnu.org/software/gnulib/manual.css">
+
+
+</head>
+
+<body lang="en">
+<div class="section-level-extent" id="Mode-Structure">
+<div class="nav-panel">
+<p>
+Next: <a href="Symbolic-Modes.html" accesskey="n" rel="next">Symbolic Modes</a>, Up: <a href="File-permissions.html" accesskey="u" rel="up">File permissions</a> &nbsp; [<a href="index.html#SEC_Contents" title="Table of contents" rel="contents">Contents</a>][<a href="Concept-index.html" title="Index" rel="index">Index</a>]</p>
+</div>
+<hr>
+<h3 class="section" id="Structure-of-File-Mode-Bits"><span>27.1 Structure of File Mode Bits<a class="copiable-link" href="#Structure-of-File-Mode-Bits"> &para;</a></span></h3>
+
+<p>The file mode bits have two parts: the <em class="dfn">file permission bits</em>,
+which control ordinary access to the file, and <em class="dfn">special mode
+bits</em>, which affect only some files.
+</p>
+<p>There are three kinds of permissions that a user can have for a file:
+</p>
+<ol class="enumerate">
+<li> <a class="index-entry-id" id="index-read-permission"></a>
+permission to read the file.  For directories, this means permission to
+list the contents of the directory.
+</li><li> <a class="index-entry-id" id="index-write-permission"></a>
+permission to write to (change) the file.  For directories, this means
+permission to create and remove files in the directory.
+</li><li> <a class="index-entry-id" id="index-execute_002fsearch-permission"></a>
+permission to execute the file (run it as a program).  For directories,
+this means permission to access files in the directory.
+</li></ol>
+
+<p>There are three categories of users who may have different permissions
+to perform any of the above operations on a file:
+</p>
+<ol class="enumerate">
+<li> the file&rsquo;s owner;
+</li><li> other users who are in the file&rsquo;s group;
+</li><li> everyone else.
+</li></ol>
+
+<a class="index-entry-id" id="index-owner_002c-default"></a>
+<a class="index-entry-id" id="index-group-owner_002c-default"></a>
+<p>Files are given an owner and group when they are created.  Usually the
+owner is the current user and the group is the group of the directory
+the file is in, but this varies with the operating system, the
+file system the file is created on, and the way the file is created.  You
+can change the owner and group of a file by using the <code class="command">chown</code> and
+<code class="command">chgrp</code> commands.
+</p>
+<p>In addition to the three sets of three permissions listed above, the
+file mode bits have three special components, which affect only
+executable files (programs) and, on most systems, directories:
+</p>
+<dl class="table">
+<dt><a class="index-entry-id" id="index-setuid"></a>
+<a id="index-set_002duser_002dID"></a><span>The <em class="dfn">set-user-ID bit</em> (<em class="dfn">setuid bit</em>).<a class="copiable-link" href="#index-set_002duser_002dID"> &para;</a></span></dt>
+<dd><p>On execution, set the process&rsquo;s effective user ID to that of the file.
+For directories on a few systems, give files created in the directory
+the same owner as the directory, no matter who creates them, and set
+the set-user-ID bit of newly-created subdirectories.
+</p>
+</dd>
+<dt><a class="index-entry-id" id="index-setgid"></a>
+<a id="index-set_002dgroup_002dID"></a><span>The <em class="dfn">set-group-ID bit</em> (<em class="dfn">setgid bit</em>).<a class="copiable-link" href="#index-set_002dgroup_002dID"> &para;</a></span></dt>
+<dd><p>On execution, set the process&rsquo;s effective group ID to that of the file.
+For directories on most systems, give files created in the directory
+the same group as the directory, no matter what group the user who
+creates them is in, and set the set-group-ID bit of newly-created
+subdirectories.
+</p>
+</dd>
+<dt><a class="index-entry-id" id="index-swap-space_002c-saving-text-image-in"></a>
+<a class="index-entry-id" id="index-text-image_002c-saving-in-swap-space"></a>
+<a class="index-entry-id" id="index-restricted-deletion-flag"></a>
+<a id="index-sticky"></a><span>The <em class="dfn">restricted deletion flag</em> or <em class="dfn">sticky bit</em>.<a class="copiable-link" href="#index-sticky"> &para;</a></span></dt>
+<dd><p>Prevent unprivileged users from removing or renaming a file in a directory
+unless they own the file or the directory; this is commonly
+found on world-writable directories like <samp class="file">/tmp</samp>.
+For regular files on some older systems, save the program&rsquo;s text image on the
+swap device so it will load more quickly when run, so that the image
+is &ldquo;sticky&rdquo;.
+</p></dd>
+</dl>
+
+<p>In addition to the file mode bits listed above, there may be file attributes
+specific to the file system, e.g., access control lists (ACLs), whether a
+file is compressed, whether a file can be modified (immutability), and whether
+a file can be dumped.  These are usually set using programs
+specific to the file system.  For example:
+</p>
+<dl class="table">
+<dt>ext2</dt>
+<dd><p>On GNU and GNU/Linux the file attributes specific to
+the ext2 file system are set using <code class="command">chattr</code>.
+</p>
+</dd>
+<dt>FFS</dt>
+<dd><p>On FreeBSD the file flags specific to the FFS
+file system are set using <code class="command">chflags</code>.
+</p></dd>
+</dl>
+
+<p>Even if a file&rsquo;s mode bits allow an operation on that file,
+that operation may still fail, because:
+</p>
+<ul class="itemize mark-bullet">
+<li>the file-system-specific attributes or flags do not permit it; or
+
+</li><li>the file system is mounted as read-only.
+</li></ul>
+
+<p>For example, if the immutable attribute is set on a file,
+it cannot be modified, regardless of the fact that you
+may have just run <code class="code">chmod a+w FILE</code>.
+</p>
+</div>
+<hr>
+<div class="nav-panel">
+<p>
+Next: <a href="Symbolic-Modes.html">Symbolic Modes</a>, Up: <a href="File-permissions.html">File permissions</a> &nbsp; [<a href="index.html#SEC_Contents" title="Table of contents" rel="contents">Contents</a>][<a href="Concept-index.html" title="Index" rel="index">Index</a>]</p>
+</div>
+
+
+
+</body>
+</html>

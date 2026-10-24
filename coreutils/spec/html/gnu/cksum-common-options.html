@@ -1,0 +1,217 @@
+<!DOCTYPE html>
+<html>
+<!-- Created by GNU Texinfo 7.2, https://www.gnu.org/software/texinfo/ -->
+<head>
+<meta http-equiv="Content-Type" content="text/html; charset=utf-8">
+<!-- This manual documents version 9.12 of the GNU core
+utilities, including the standard programs for text and file manipulation.
+
+Copyright © 1994-2026 Free Software Foundation, Inc.
+
+Permission is granted to copy, distribute and/or modify this document
+under the terms of the GNU Free Documentation License, Version 1.3 or
+any later version published by the Free Software Foundation; with no
+Invariant Sections, with no Front-Cover Texts, and with no Back-Cover
+Texts.  A copy of the license is included in the section entitled "GNU
+Free Documentation License". -->
+<title>cksum common options (GNU Coreutils 9.12)</title>
+
+<meta name="description" content="cksum common options (GNU Coreutils 9.12)">
+<meta name="keywords" content="cksum common options (GNU Coreutils 9.12)">
+<meta name="resource-type" content="document">
+<meta name="distribution" content="global">
+<meta name="Generator" content="makeinfo">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+
+<link href="index.html" rel="start" title="Top">
+<link href="Concept-index.html" rel="index" title="Concept index">
+<link href="index.html#SEC_Contents" rel="contents" title="Table of Contents">
+<link href="cksum-invocation.html" rel="up" title="cksum invocation">
+<link href="cksum-general-options.html" rel="prev" title="cksum general options">
+<style type="text/css">
+<!--
+a.copiable-link {visibility: hidden; text-decoration: none; line-height: 0em}
+span:hover a.copiable-link {visibility: visible}
+-->
+</style>
+<link rel="stylesheet" type="text/css" href="https://www.gnu.org/software/gnulib/manual.css">
+
+
+</head>
+
+<body lang="en">
+<div class="subsection-level-extent" id="cksum-common-options">
+<div class="nav-panel">
+<p>
+Previous: <a href="cksum-general-options.html" accesskey="p" rel="prev">cksum general options</a>, Up: <a href="cksum-invocation.html" accesskey="u" rel="up"><code class="command">cksum</code>: Print and verify file checksums</a> &nbsp; [<a href="index.html#SEC_Contents" title="Table of contents" rel="contents">Contents</a>][<a href="Concept-index.html" title="Index" rel="index">Index</a>]</p>
+</div>
+<hr>
+<h4 class="subsection" id="cksum-common-options-1"><span>6.3.3 cksum common options<a class="copiable-link" href="#cksum-common-options-1"> &para;</a></span></h4>
+
+<dl class="table">
+<dd>
+<a class="anchor" id="cksum-b"></a></dd>
+<dt><a class="index-entry-id" id="index-binary-input-files"></a>
+<a id="index-_002d_002dbinary"></a><span>&lsquo;<samp class="samp">-b</samp>&rsquo;<a class="copiable-link" href="#index-_002d_002dbinary"> &para;</a></span></dt>
+<dd><a class="index-entry-id" id="index-_002db-8"></a>
+<a class="anchor" id="cksum--binary"></a></dd>
+<dt>&lsquo;<samp class="samp">--binary</samp>&rsquo;</dt>
+<dd><p>Treat each input file as binary, by reading it in binary mode and
+outputting a &lsquo;<samp class="samp">*</samp>&rsquo; flag.  This is the inverse of <samp class="option">--text</samp>.
+On systems like GNU that do not distinguish between binary
+and text files, this option merely flags each input mode as binary:
+the checksum is unaffected.  This option is the default on systems
+like MS-DOS that distinguish between binary and text files, except
+for reading standard input when standard input is a terminal.
+This option is deprecated and not documented in <code class="command">cksum --help</code>.
+It is only supported by the <code class="command">cksum</code> command to support emulation
+of the legacy standalone checksumming utilities.
+</p>
+<a class="anchor" id="cksum-c"></a></dd>
+<dt><a id="index-_002d_002dcheck"></a><span>&lsquo;<samp class="samp">-c</samp>&rsquo;<a class="copiable-link" href="#index-_002d_002dcheck"> &para;</a></span></dt>
+<dd><a class="index-entry-id" id="index-_002dc-7"></a>
+<a class="anchor" id="cksum--check"></a></dd>
+<dt>&lsquo;<samp class="samp">--check</samp>&rsquo;</dt>
+<dd><p>Read file names and checksum information (not data) from each
+<var class="var">file</var> (or from standard input if no <var class="var">file</var> was specified) and report
+whether the checksums match the contents of the named files.
+The input to this mode is usually the output of a prior,
+checksum-generating run of the command.  However the
+<code class="command">cksum</code> command does not support <samp class="option">--check</samp>
+with the legacy output format from the &lsquo;<samp class="samp">sysv</samp>&rsquo;, &lsquo;<samp class="samp">bsd</samp>&rsquo;,
+&lsquo;<samp class="samp">crc</samp>&rsquo; or &lsquo;<samp class="samp">crc32b</samp>&rsquo; algorithms.
+</p>
+<p>Three input formats are supported.  Either the &ldquo;untagged&rdquo; output format,
+the &ldquo;tagged&rdquo; output format, or the BSD reversed mode format
+which is similar to the &ldquo;untagged&rdquo; output format
+but doesn&rsquo;t use a character to distinguish binary and text modes.
+See <a class="xref" href="cksum-output-modes.html">cksum output modes</a> for details of these formats.
+</p>
+<p>For the <code class="command">cksum</code> command, the <samp class="option">--check</samp> option
+supports auto-detecting the digest algorithm to use,
+when presented with checksum information in the <samp class="option">--tag</samp> output format.
+</p>
+<p>Also for the <code class="command">cksum</code> command, the <samp class="option">--check</samp> option
+auto-detects the digest encoding, accepting both standard hexadecimal
+checksums and those generated via <code class="command">cksum</code> with its
+<samp class="option">--base64</samp> option.
+</p>
+<p>Output with <samp class="option">--zero</samp> enabled is not supported by <samp class="option">--check</samp>.
+</p><br>
+<p>For each such line, <code class="command">cksum</code> reads the named file and computes its
+checksum.  Then, if the computed message digest does not match the
+one on the line with the file name, the file is noted as having
+failed the test.  Otherwise, the file passes the test.
+By default, for each valid line, one line is written to standard
+output indicating whether the named file passed the test.
+After all checks have been performed, if there were any failures,
+a warning is issued to standard error.
+If file names contain problematic characters,
+they will be quoted in a way suitable for POSIX-compatible shells,
+so that any file name is represented unambiguously and safely.
+</p>
+<p>Use the <samp class="option">--status</samp> option to inhibit the output described above.
+If any listed file cannot be opened or read, if any valid line has
+a checksum inconsistent with the associated file, or if no valid
+line is found, <code class="command">cksum</code> exits with nonzero status.  Otherwise,
+it exits successfully.
+</p>
+<a class="anchor" id="cksum--ignore-missing"></a></dd>
+<dt><a class="index-entry-id" id="index-verifying-checksums"></a>
+<a id="index-_002d_002dignore_002dmissing"></a><span>&lsquo;<samp class="samp">--ignore-missing</samp>&rsquo;<a class="copiable-link" href="#index-_002d_002dignore_002dmissing"> &para;</a></span></dt>
+<dd><p>This option is useful only when verifying checksums.
+When verifying checksums, don&rsquo;t fail or report any status
+for missing files.  This is useful when verifying a subset
+of downloaded files given a larger list of checksums.
+</p>
+<a class="anchor" id="cksum--quiet"></a></dd>
+<dt><a class="index-entry-id" id="index-verifying-checksums-1"></a>
+<a id="index-_002d_002dquiet-3"></a><span>&lsquo;<samp class="samp">--quiet</samp>&rsquo;<a class="copiable-link" href="#index-_002d_002dquiet-3"> &para;</a></span></dt>
+<dd><p>This option is useful only when verifying checksums.
+When verifying checksums, don&rsquo;t generate an &rsquo;OK&rsquo; message per successfully
+checked file.  Files that fail the verification are reported in the
+default one-line-per-file format.  If there is any checksum mismatch,
+print a warning summarizing the failures to standard error.
+</p>
+<a class="anchor" id="cksum--status"></a></dd>
+<dt><a class="index-entry-id" id="index-verifying-checksums-2"></a>
+<a id="index-_002d_002dstatus"></a><span>&lsquo;<samp class="samp">--status</samp>&rsquo;<a class="copiable-link" href="#index-_002d_002dstatus"> &para;</a></span></dt>
+<dd><p>This option is useful only when verifying checksums.
+When verifying checksums, don&rsquo;t generate the default one-line-per-file
+diagnostic and don&rsquo;t output the warning summarizing any failures.
+Failures to open or read a file still evoke individual diagnostics to
+standard error.
+If all listed files are readable and are consistent with the associated
+checksums, exit successfully.  Otherwise exit with a status code
+indicating there was a failure.
+</p>
+<a class="anchor" id="cksum--tag"></a></dd>
+<dt><a class="index-entry-id" id="index-BSD-output"></a>
+<a id="index-_002d_002dtag"></a><span>&lsquo;<samp class="samp">--tag</samp>&rsquo;<a class="copiable-link" href="#index-_002d_002dtag"> &para;</a></span></dt>
+<dd><p>Output BSD style checksums, which indicate the checksum algorithm used.
+As a GNU extension, if <samp class="option">--zero</samp> is not used, file names with problematic
+characters are escaped as described above, using the same escaping indicator of
+&lsquo;<samp class="samp">\</samp>&rsquo; at the start of the line, as used with the other output format.
+The <samp class="option">--tag</samp> option implies binary mode, and is disallowed with
+<samp class="option">--text</samp> mode as supporting that would unnecessarily complicate
+the output format, while providing little benefit.
+See <a class="xref" href="cksum-output-modes.html">cksum output modes</a> for details of this format.
+The <code class="command">cksum</code> command, uses <samp class="option">--tag</samp> as its default output format.
+</p>
+<a class="anchor" id="cksum-t"></a></dd>
+<dt><a class="index-entry-id" id="index-text-input-files"></a>
+<a id="index-_002d_002dtext"></a><span>&lsquo;<samp class="samp">-t</samp>&rsquo;<a class="copiable-link" href="#index-_002d_002dtext"> &para;</a></span></dt>
+<dd><a class="index-entry-id" id="index-_002dt-5"></a>
+<a class="anchor" id="cksum--text"></a></dd>
+<dt>&lsquo;<samp class="samp">--text</samp>&rsquo;</dt>
+<dd><p>Treat each input file as text, by reading it in text mode and
+outputting a &lsquo;<samp class="samp"> </samp>&rsquo; flag.  This is the inverse of <samp class="option">--binary</samp>.
+This option is the default on systems like GNU that do not
+distinguish between binary and text files.  On other systems, it is
+the default for reading standard input when standard input is a
+terminal.  This mode is never defaulted to if <samp class="option">--tag</samp> is used.
+This option is deprecated and not documented in <code class="command">cksum --help</code>.
+It is only supported by the <code class="command">cksum</code> command to support emulation
+of the legacy standalone checksumming utilities.
+</p>
+<a class="anchor" id="cksum-w"></a></dd>
+<dt><a class="index-entry-id" id="index-verifying-checksums-3"></a>
+<a id="index-_002d_002dwarn"></a><span>&lsquo;<samp class="samp">-w</samp>&rsquo;<a class="copiable-link" href="#index-_002d_002dwarn"> &para;</a></span></dt>
+<dd><a class="index-entry-id" id="index-_002dw-7"></a>
+<a class="anchor" id="cksum--warn"></a></dd>
+<dt>&lsquo;<samp class="samp">--warn</samp>&rsquo;</dt>
+<dd><p>When verifying checksums, warn about improperly formatted checksum lines.
+This option is useful only if all but a few lines in the checked input
+are valid.
+</p>
+<a class="anchor" id="cksum--strict"></a></dd>
+<dt><a class="index-entry-id" id="index-verifying-checksums-4"></a>
+<a id="index-_002d_002dstrict"></a><span>&lsquo;<samp class="samp">--strict</samp>&rsquo;<a class="copiable-link" href="#index-_002d_002dstrict"> &para;</a></span></dt>
+<dd><p>When verifying checksums,
+if one or more input line is invalid,
+exit nonzero after all warnings have been issued.
+</p>
+<a class="anchor" id="cksum-z"></a></dd>
+<dt><a class="index-entry-id" id="index-output-NUL_002dbyte_002dterminated-lines"></a>
+<a id="index-_002d_002dzero"></a><span>&lsquo;<samp class="samp">-z</samp>&rsquo;<a class="copiable-link" href="#index-_002d_002dzero"> &para;</a></span></dt>
+<dd><a class="index-entry-id" id="index-_002dz-3"></a>
+<a class="anchor" id="cksum--zero"></a></dd>
+<dt>&lsquo;<samp class="samp">--zero</samp>&rsquo;</dt>
+<dd><p>Output a zero byte (ASCII NUL) at the end of each line,
+rather than a newline.  This option enables other programs to parse the
+output even when that output would contain data with embedded newlines.
+Also file name escaping is not used.
+</p></dd>
+</dl>
+
+</div>
+<hr>
+<div class="nav-panel">
+<p>
+Previous: <a href="cksum-general-options.html">cksum general options</a>, Up: <a href="cksum-invocation.html"><code class="command">cksum</code>: Print and verify file checksums</a> &nbsp; [<a href="index.html#SEC_Contents" title="Table of contents" rel="contents">Contents</a>][<a href="Concept-index.html" title="Index" rel="index">Index</a>]</p>
+</div>
+
+
+
+</body>
+</html>

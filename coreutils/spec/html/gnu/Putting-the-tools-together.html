@@ -1,0 +1,416 @@
+<!DOCTYPE html>
+<html>
+<!-- Created by GNU Texinfo 7.2, https://www.gnu.org/software/texinfo/ -->
+<head>
+<meta http-equiv="Content-Type" content="text/html; charset=utf-8">
+<!-- This manual documents version 9.12 of the GNU core
+utilities, including the standard programs for text and file manipulation.
+
+Copyright © 1994-2026 Free Software Foundation, Inc.
+
+Permission is granted to copy, distribute and/or modify this document
+under the terms of the GNU Free Documentation License, Version 1.3 or
+any later version published by the Free Software Foundation; with no
+Invariant Sections, with no Front-Cover Texts, and with no Back-Cover
+Texts.  A copy of the license is included in the section entitled "GNU
+Free Documentation License". -->
+<title>Putting the tools together (GNU Coreutils 9.12)</title>
+
+<meta name="description" content="Putting the tools together (GNU Coreutils 9.12)">
+<meta name="keywords" content="Putting the tools together (GNU Coreutils 9.12)">
+<meta name="resource-type" content="document">
+<meta name="distribution" content="global">
+<meta name="Generator" content="makeinfo">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+
+<link href="index.html" rel="start" title="Top">
+<link href="Concept-index.html" rel="index" title="Concept index">
+<link href="index.html#SEC_Contents" rel="contents" title="Table of Contents">
+<link href="Opening-the-software-toolbox.html" rel="up" title="Opening the software toolbox">
+<link href="The-uniq-command.html" rel="prev" title="The uniq command">
+<style type="text/css">
+<!--
+a.copiable-link {visibility: hidden; text-decoration: none; line-height: 0em}
+div.example {margin-left: 3.2em}
+span:hover a.copiable-link {visibility: visible}
+-->
+</style>
+<link rel="stylesheet" type="text/css" href="https://www.gnu.org/software/gnulib/manual.css">
+
+
+</head>
+
+<body lang="en">
+<div class="unnumberedsec-level-extent" id="Putting-the-tools-together">
+<div class="nav-panel">
+<p>
+Previous: <a href="The-uniq-command.html" accesskey="p" rel="prev">The <code class="command">uniq</code> Command</a>, Up: <a href="Opening-the-software-toolbox.html" accesskey="u" rel="up">Opening the Software Toolbox</a> &nbsp; [<a href="index.html#SEC_Contents" title="Table of contents" rel="contents">Contents</a>][<a href="Concept-index.html" title="Index" rel="index">Index</a>]</p>
+</div>
+<hr>
+<h3 class="unnumberedsec" id="Putting-the-Tools-Together"><span>Putting the Tools Together<a class="copiable-link" href="#Putting-the-Tools-Together"> &para;</a></span></h3>
+
+<p>Now, let&rsquo;s suppose this is a large ISP server system with dozens of users
+logged in.  The management wants the system administrator to write a
+program that will
+generate a sorted list of logged in users.  Furthermore, even if a user
+is logged in multiple times, his or her name should only show up in the
+output once.
+</p>
+<p>The administrator could sit down with the system documentation and write a C
+program that did this.  It would take perhaps a couple of hundred lines
+of code and about two hours to write it, test it, and debug it.
+However, knowing the software toolbox, the administrator can instead start out
+by generating just a list of logged on users:
+</p>
+<div class="example">
+<pre class="example-preformatted">$ who | cut -c1-8
+-| arnold
+-| miriam
+-| bill
+-| arnold
+</pre></div>
+
+<p>Next, sort the list:
+</p>
+<div class="example">
+<pre class="example-preformatted">$ who | cut -c1-8 | sort
+-| arnold
+-| arnold
+-| bill
+-| miriam
+</pre></div>
+
+<p>Finally, run the sorted list through <code class="command">uniq</code>, to weed out duplicates:
+</p>
+<div class="example">
+<pre class="example-preformatted">$ who | cut -c1-8 | sort | uniq
+-| arnold
+-| bill
+-| miriam
+</pre></div>
+
+<p>The <code class="command">sort</code> command actually has a <samp class="option">-u</samp> option that does what
+<code class="command">uniq</code> does.  However, <code class="command">uniq</code> has other uses for which one
+cannot substitute &lsquo;<samp class="samp">sort -u</samp>&rsquo;.
+</p>
+<p>The administrator puts this pipeline into a shell script, and makes it
+available for
+all the users on the system (&lsquo;<samp class="samp">#</samp>&rsquo; is the system administrator,
+or <code class="code">root</code>, prompt):
+</p>
+<div class="example">
+<pre class="example-preformatted"># cat &gt; /usr/local/bin/listusers
+who | cut -c1-8 | sort | uniq
+^D
+# chmod +x /usr/local/bin/listusers
+</pre></div>
+
+<p>There are four major points to note here.  First, with just four
+programs, on one command line, the administrator was able to save about two
+hours worth of work.  Furthermore, the shell pipeline is just about as
+efficient as the C program would be, and it is much more efficient in
+terms of programmer time.  People time is much more expensive than
+computer time, and in our modern &ldquo;there&rsquo;s never enough time to do
+everything&rdquo; society, saving two hours of programmer time is no mean
+feat.
+</p>
+<p>Second, it is also important to emphasize that with the
+<em class="emph">combination</em> of the tools, it is possible to do a special
+purpose job never imagined by the authors of the individual programs.
+</p>
+<p>Third, it is also valuable to build up your pipeline in stages, as we did here.
+This allows you to view the data at each stage in the pipeline, which helps
+you acquire the confidence that you are indeed using these tools correctly.
+</p>
+<p>Finally, by bundling the pipeline in a shell script, other users can use
+your command, without having to remember the fancy plumbing you set up for
+them.  In terms of how you run them, shell scripts and compiled programs are
+indistinguishable.
+</p>
+<p>After the previous warm-up exercise, we&rsquo;ll look at two additional, more
+complicated pipelines.  For them, we need to introduce two more tools.
+</p>
+<p>The first is the <code class="command">tr</code> command, which stands for &ldquo;transliterate.&rdquo;
+The <code class="command">tr</code> command works on a character-by-character basis, changing
+characters.  Normally it is used for things like mapping upper case to
+lower case:
+</p>
+<div class="example">
+<pre class="example-preformatted">$ echo ThIs ExAmPlE HaS MIXED case! | tr '[:upper:]' '[:lower:]'
+-| this example has mixed case!
+</pre></div>
+
+<p>There are several options of interest:
+</p>
+<dl class="table">
+<dt><code class="code">-c</code></dt>
+<dd><p>work on the complement of the listed characters, i.e.,
+operations apply to characters not in the given set
+</p>
+</dd>
+<dt><code class="code">-d</code></dt>
+<dd><p>delete characters in the first set from the output
+</p>
+</dd>
+<dt><code class="code">-s</code></dt>
+<dd><p>squeeze repeated characters in the output into just one character.
+</p></dd>
+</dl>
+
+<p>We will be using all three options in a moment.
+</p>
+<p>The other command we&rsquo;ll look at is <code class="command">comm</code>.  The <code class="command">comm</code>
+command takes two sorted input files as input data, and prints out the
+files&rsquo; lines in three columns.  The output columns are the data lines
+unique to the first file, the data lines unique to the second file, and
+the data lines that are common to both.  The <samp class="option">-1</samp>, <samp class="option">-2</samp>, and
+<samp class="option">-3</samp> command line options <em class="emph">omit</em> the respective columns.  (This is
+non-intuitive and takes a little getting used to.)  For example:
+</p>
+<div class="example">
+<pre class="example-preformatted">$ cat f1
+-| 11111
+-| 22222
+-| 33333
+-| 44444
+$ cat f2
+-| 00000
+-| 22222
+-| 33333
+-| 55555
+$ comm f1 f2
+-|         00000
+-| 11111
+-|                 22222
+-|                 33333
+-| 44444
+-|         55555
+</pre></div>
+
+<p>The file name <samp class="file">-</samp> tells <code class="command">comm</code> to read standard input
+instead of a regular file.
+</p>
+<p>Now we&rsquo;re ready to build a fancy pipeline.  The first application is a word
+frequency counter.  This helps an author determine if he or she is over-using
+certain words.
+</p>
+<p>The first step is to change the case of all the letters in our input file
+to one case.  &ldquo;The&rdquo; and &ldquo;the&rdquo; are the same word when doing counting.
+</p>
+<div class="example">
+<pre class="example-preformatted">$ tr '[:upper:]' '[:lower:]' &lt; whats.gnu | ...
+</pre></div>
+
+<p>The next step is to get rid of punctuation.  Quoted words and unquoted words
+should be treated identically; it&rsquo;s easiest to just get the punctuation out of
+the way.
+</p>
+<div class="example">
+<pre class="example-preformatted">$ tr '[:upper:]' '[:lower:]' &lt; whats.gnu | tr -cd '[:alnum:]_ \n' | ...
+</pre></div>
+
+<p>The second <code class="command">tr</code> command operates on the complement of the listed
+characters, which are all the letters, the digits, the underscore, and
+the blank.  The &lsquo;<samp class="samp">\n</samp>&rsquo; represents the newline character; it has to
+be left alone.  (The ASCII tab character should also be included for
+good measure in a production script.)
+</p>
+<p>At this point, we have data consisting of words separated by blank space.
+The words only contain alphanumeric characters (and the underscore).  The
+next step is break the data apart so that we have one word per line.  This
+makes the counting operation much easier, as we will see shortly.
+</p>
+<div class="example">
+<pre class="example-preformatted">$ tr '[:upper:]' '[:lower:]' &lt; whats.gnu | tr -cd '[:alnum:]_ \n' |
+&gt; tr -s ' ' '\n' | ...
+</pre></div>
+
+<p>This command turns blanks into newlines.  The <samp class="option">-s</samp> option squeezes
+multiple newline characters in the output into just one, removing
+blank lines.  (The &lsquo;<samp class="samp">&gt;</samp>&rsquo; is the shell&rsquo;s &ldquo;secondary prompt.&rdquo;
+This is what the shell prints when it notices you haven&rsquo;t finished
+typing in all of a command.)
+</p>
+<p>We now have data consisting of one word per line, no punctuation, all one
+case.  We&rsquo;re ready to count each word:
+</p>
+<div class="example">
+<pre class="example-preformatted">$ tr '[:upper:]' '[:lower:]' &lt; whats.gnu | tr -cd '[:alnum:]_ \n' |
+&gt; tr -s ' ' '\n' | sort | uniq -c | ...
+</pre></div>
+
+<p>At this point, the data might look something like this:
+</p>
+<div class="example">
+<pre class="example-preformatted">     60 a
+      2 able
+      6 about
+      1 above
+      2 accomplish
+      1 acquire
+      1 actually
+      2 additional
+</pre></div>
+
+<p>The output is sorted by word, not by count!  What we want is the most
+frequently used words first.  Fortunately, this is easy to accomplish,
+with the help of two more <code class="command">sort</code> options:
+</p>
+<dl class="table">
+<dt><code class="code">-n</code></dt>
+<dd><p>do a numeric sort, not a textual one
+</p>
+</dd>
+<dt><code class="code">-r</code></dt>
+<dd><p>reverse the order of the sort
+</p></dd>
+</dl>
+
+<p>The final pipeline looks like this:
+</p>
+<div class="example">
+<pre class="example-preformatted">$ tr '[:upper:]' '[:lower:]' &lt; whats.gnu | tr -cd '[:alnum:]_ \n' |
+&gt; tr -s ' ' '\n' | sort | uniq -c | sort -n -r
+-|    156 the
+-|     60 a
+-|     58 to
+-|     51 of
+-|     51 and
+...
+</pre></div>
+
+<p>Whew!  That&rsquo;s a lot to digest.  Yet, the same principles apply.  With six
+commands, on two lines (really one long one split for convenience), we&rsquo;ve
+created a program that does something interesting and useful, in much
+less time than we could have written a C program to do the same thing.
+</p>
+<p>A minor modification to the above pipeline can give us a simple spelling
+checker!  To determine if you&rsquo;ve spelled a word correctly, all you have to
+do is look it up in a dictionary.  If it is not there, then chances are
+that your spelling is incorrect.  So, we need a dictionary.
+The conventional location for a dictionary is <samp class="file">/usr/share/dict/words</samp>.
+</p>
+<p>Now, how to compare our file with the dictionary?  As before, we generate
+a sorted list of words, one per line:
+</p>
+<div class="example">
+<pre class="example-preformatted">$ tr '[:upper:]' '[:lower:]' &lt; whats.gnu | tr -cd '[:alnum:]_ \n' |
+&gt; tr -s ' ' '\n' | sort -u | ...
+</pre></div>
+
+<p>Now, all we need is a list of words that are <em class="emph">not</em> in the
+dictionary.  Here is where the <code class="command">comm</code> command comes in.
+Unfortunately <code class="command">comm</code> operates on sorted input and
+<samp class="file">/usr/share/dict/words</samp> is not sorted the way that <code class="command">sort</code>
+and <code class="command">comm</code> normally use, so we first create a properly-sorted
+copy of the dictionary and then run a pipeline that uses the copy.
+</p>
+<div class="example">
+<pre class="example-preformatted">$ sort /usr/share/dict/words &gt; sorted-words
+$ tr '[:upper:]' '[:lower:]' &lt; whats.gnu | tr -cd '[:alnum:]_ \n' |
+&gt; tr -s ' ' '\n' | sort -u |
+&gt; comm -23 - sorted-words
+</pre></div>
+
+<p>The <samp class="option">-2</samp> and <samp class="option">-3</samp> options eliminate lines that are only in the
+dictionary (the second file), and lines that are in both files.  Lines
+only in the first file (standard input, our stream of words), are
+words that are not in the dictionary.  These are likely candidates for
+spelling errors.  This pipeline was the first cut at a production
+spelling checker on Unix.
+</p>
+<p>There are some other tools that deserve brief mention.
+</p>
+<dl class="table">
+<dt><code class="command">grep</code></dt>
+<dd><p>search files for text that matches a regular expression
+</p>
+</dd>
+<dt><code class="command">wc</code></dt>
+<dd><p>count lines, words, characters
+</p>
+</dd>
+<dt><code class="command">tee</code></dt>
+<dd><p>a T-fitting for data pipes, copies data to files and to standard output
+</p>
+</dd>
+<dt><code class="command">sed</code></dt>
+<dd><p>the stream editor, an advanced tool
+</p>
+</dd>
+<dt><code class="command">awk</code></dt>
+<dd><p>a data manipulation language, another advanced tool
+</p></dd>
+</dl>
+
+<p>The software tools philosophy also espoused the following bit of
+advice: &ldquo;Let someone else do the hard part.&rdquo;  This means, take
+something that gives you most of what you need, and then massage it the
+rest of the way until it&rsquo;s in the form that you want.
+</p>
+<p>To summarize:
+</p>
+<ol class="enumerate">
+<li> Each program should do one thing well.  No more, no less.
+
+</li><li> Combining programs with appropriate plumbing leads to results where
+the whole is greater than the sum of the parts.  It also leads to novel
+uses of programs that the authors might never have imagined.
+
+</li><li> Programs should never print extraneous header or trailer data, since these
+could get sent on down a pipeline.  (A point we didn&rsquo;t mention earlier.)
+
+</li><li> Let someone else do the hard part.
+
+</li><li> Know your toolbox!  Use each program appropriately.  If you don&rsquo;t have an
+appropriate tool, build one.
+</li></ol>
+
+<p>All the programs discussed are available as described in
+<a class="uref" href="https://www.gnu.org/software/coreutils/coreutils.html">GNU core utilities</a>.
+</p>
+<p>None of what I have presented in this column is new.  The Software Tools
+philosophy was first introduced in the book <cite class="cite">Software Tools</cite>, by
+Brian Kernighan and P.J. Plauger (Addison-Wesley, ISBN 0-201-03669-X).
+This book showed how to write and use software tools.  It was written in
+1976, using a preprocessor for FORTRAN named <code class="command">ratfor</code> (RATional
+FORtran).  At the time, C was not as ubiquitous as it is now; FORTRAN
+was.  The last chapter presented a <code class="command">ratfor</code> to FORTRAN
+processor, written in <code class="command">ratfor</code>.  <code class="command">ratfor</code> looks an awful
+lot like C; if you know C, you won&rsquo;t have any problem following the
+code.
+</p>
+<p>In 1981, the book was updated and made available as <cite class="cite">Software Tools
+in Pascal</cite> (Addison-Wesley, ISBN 0-201-10342-7).  Both books are
+still in print and are well worth
+reading if you&rsquo;re a programmer.  They certainly made a major change in
+how I view programming.
+</p>
+<p>The programs in both books are available from
+<a class="uref" href="https://www.cs.princeton.edu/~bwk/">Brian Kernighan&rsquo;s home page</a>.
+For a number of years, there was an active
+Software Tools Users Group, whose members had ported the original
+<code class="command">ratfor</code> programs to essentially every computer system with a
+FORTRAN compiler.  The popularity of the group waned in the middle 1980s
+as Unix began to spread beyond universities.
+</p>
+<p>With the current proliferation of GNU code and other clones of Unix programs,
+these programs now receive little attention; modern C versions are
+much more efficient and do more than these programs do.  Nevertheless, as
+exposition of good programming style, and evangelism for a still-valuable
+philosophy, these books are unparalleled, and I recommend them highly.
+</p>
+<p>Acknowledgment: I would like to express my gratitude to Brian Kernighan
+of Bell Labs, the original Software Toolsmith, for reviewing this column.
+</p>
+</div>
+<hr>
+<div class="nav-panel">
+<p>
+Previous: <a href="The-uniq-command.html">The <code class="command">uniq</code> Command</a>, Up: <a href="Opening-the-software-toolbox.html">Opening the Software Toolbox</a> &nbsp; [<a href="index.html#SEC_Contents" title="Table of contents" rel="contents">Contents</a>][<a href="Concept-index.html" title="Index" rel="index">Index</a>]</p>
+</div>
+
+
+
+</body>
+</html>

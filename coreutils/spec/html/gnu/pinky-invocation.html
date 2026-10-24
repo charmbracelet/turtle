@@ -1,0 +1,128 @@
+<!DOCTYPE html>
+<html>
+<!-- Created by GNU Texinfo 7.2, https://www.gnu.org/software/texinfo/ -->
+<head>
+<meta http-equiv="Content-Type" content="text/html; charset=utf-8">
+<!-- This manual documents version 9.12 of the GNU core
+utilities, including the standard programs for text and file manipulation.
+
+Copyright © 1994-2026 Free Software Foundation, Inc.
+
+Permission is granted to copy, distribute and/or modify this document
+under the terms of the GNU Free Documentation License, Version 1.3 or
+any later version published by the Free Software Foundation; with no
+Invariant Sections, with no Front-Cover Texts, and with no Back-Cover
+Texts.  A copy of the license is included in the section entitled "GNU
+Free Documentation License". -->
+<title>pinky invocation (GNU Coreutils 9.12)</title>
+
+<meta name="description" content="pinky invocation (GNU Coreutils 9.12)">
+<meta name="keywords" content="pinky invocation (GNU Coreutils 9.12)">
+<meta name="resource-type" content="document">
+<meta name="distribution" content="global">
+<meta name="Generator" content="makeinfo">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+
+<link href="index.html" rel="start" title="Top">
+<link href="Concept-index.html" rel="index" title="Concept index">
+<link href="index.html#SEC_Contents" rel="contents" title="Table of Contents">
+<link href="User-information.html" rel="up" title="User information">
+<link href="who-invocation.html" rel="prev" title="who invocation">
+<style type="text/css">
+<!--
+a.copiable-link {visibility: hidden; text-decoration: none; line-height: 0em}
+div.example {margin-left: 3.2em}
+span:hover a.copiable-link {visibility: visible}
+-->
+</style>
+<link rel="stylesheet" type="text/css" href="https://www.gnu.org/software/gnulib/manual.css">
+
+
+</head>
+
+<body lang="en">
+<div class="section-level-extent" id="pinky-invocation">
+<div class="nav-panel">
+<p>
+Previous: <a href="who-invocation.html" accesskey="p" rel="prev"><code class="command">who</code>: Print who is currently logged in</a>, Up: <a href="User-information.html" accesskey="u" rel="up">User information</a> &nbsp; [<a href="index.html#SEC_Contents" title="Table of contents" rel="contents">Contents</a>][<a href="Concept-index.html" title="Index" rel="index">Index</a>]</p>
+</div>
+<hr>
+<h3 class="section" id="pinky_003a-Print-information-about-users"><span>20.7 <code class="command">pinky</code>: Print information about users<a class="copiable-link" href="#pinky_003a-Print-information-about-users"> &para;</a></span></h3>
+
+<p><code class="command">pinky</code> is a lightweight implementation of the <code class="command">finger</code> command.
+Synopsis:
+</p>
+<div class="example">
+<pre class="example-preformatted">pinky [<var class="var">option</var>]... [<var class="var">username</var>]...
+</pre></div>
+
+<p>The program accepts the following options.  Also see <a class="ref" href="Common-options.html">Common options</a>.
+</p>
+<dl class="table">
+<dd>
+<a class="anchor" id="pinky-l"></a></dd>
+<dt><a id="index-_002dl-12"></a><span>&lsquo;<samp class="samp">-l</samp>&rsquo;<a class="copiable-link" href="#index-_002dl-12"> &para;</a></span></dt>
+<dd><p>Produce long format output.
+</p>
+<p>When producing long output at least one <var class="var">username</var> must be given.
+If <var class="var">username</var> cannot be found, the real name is printed as
+&lsquo;<samp class="samp">???</samp>&rsquo; and the home directory and shell are omitted.
+</p>
+<a class="anchor" id="pinky-b"></a></dd>
+<dt><a id="index-_002db-21"></a><span>&lsquo;<samp class="samp">-b</samp>&rsquo;<a class="copiable-link" href="#index-_002db-21"> &para;</a></span></dt>
+<dd><p>Omit the user&rsquo;s home directory and shell when printing in long format.
+</p>
+<a class="anchor" id="pinky-h"></a></dd>
+<dt><a id="index-_002dh-12"></a><span>&lsquo;<samp class="samp">-h</samp>&rsquo;<a class="copiable-link" href="#index-_002dh-12"> &para;</a></span></dt>
+<dd><p>Omit the user&rsquo;s project file when printing in long format.
+</p>
+<a class="anchor" id="pinky-p"></a></dd>
+<dt><a id="index-_002dp-13"></a><span>&lsquo;<samp class="samp">-p</samp>&rsquo;<a class="copiable-link" href="#index-_002dp-13"> &para;</a></span></dt>
+<dd><p>Omit the user&rsquo;s plan file when printing in long format.
+</p>
+<a class="anchor" id="pinky-s"></a></dd>
+<dt><a id="index-_002ds-28"></a><span>&lsquo;<samp class="samp">-s</samp>&rsquo;<a class="copiable-link" href="#index-_002ds-28"> &para;</a></span></dt>
+<dd><p>Produce short format output. This is the default behavior when no
+options are given.
+</p>
+<a class="anchor" id="pinky-f"></a></dd>
+<dt><a id="index-_002df-23"></a><span>&lsquo;<samp class="samp">-f</samp>&rsquo;<a class="copiable-link" href="#index-_002df-23"> &para;</a></span></dt>
+<dd><p>Omit the column headings when printing in short format.
+</p>
+<a class="anchor" id="pinky-w"></a></dd>
+<dt><a id="index-_002dw-14"></a><span>&lsquo;<samp class="samp">-w</samp>&rsquo;<a class="copiable-link" href="#index-_002dw-14"> &para;</a></span></dt>
+<dd><p>Omit the user&rsquo;s full name when printing in short format.
+</p>
+<a class="anchor" id="pinky-i"></a></dd>
+<dt><a id="index-_002di-17"></a><span>&lsquo;<samp class="samp">-i</samp>&rsquo;<a class="copiable-link" href="#index-_002di-17"> &para;</a></span></dt>
+<dd><p>Omit the user&rsquo;s full name and remote host when printing in short
+format.
+</p>
+<a class="anchor" id="pinky-q"></a></dd>
+<dt><a id="index-_002dq-8"></a><span>&lsquo;<samp class="samp">-q</samp>&rsquo;<a class="copiable-link" href="#index-_002dq-8"> &para;</a></span></dt>
+<dd><p>Omit the user&rsquo;s full name, remote host, and idle time when printing in
+short format.
+</p>
+<a class="anchor" id="pinky--lookup"></a></dd>
+<dt><a id="index-_002d_002dlookup-1"></a><span>&lsquo;<samp class="samp">--lookup</samp>&rsquo;<a class="copiable-link" href="#index-_002d_002dlookup-1"> &para;</a></span></dt>
+<dd><p>Attempt to canonicalize hostnames found in utmp through a DNS lookup.
+This is not the default because of potential delays.
+</p>
+</dd>
+</dl>
+
+<p>An exit status of zero indicates success,
+and a nonzero value indicates failure.
+</p>
+
+</div>
+<hr>
+<div class="nav-panel">
+<p>
+Previous: <a href="who-invocation.html"><code class="command">who</code>: Print who is currently logged in</a>, Up: <a href="User-information.html">User information</a> &nbsp; [<a href="index.html#SEC_Contents" title="Table of contents" rel="contents">Contents</a>][<a href="Concept-index.html" title="Index" rel="index">Index</a>]</p>
+</div>
+
+
+
+</body>
+</html>

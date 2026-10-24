@@ -1,0 +1,156 @@
+<!DOCTYPE html>
+<html>
+<!-- Created by GNU Texinfo 7.2, https://www.gnu.org/software/texinfo/ -->
+<head>
+<meta http-equiv="Content-Type" content="text/html; charset=utf-8">
+<!-- This manual documents version 9.12 of the GNU core
+utilities, including the standard programs for text and file manipulation.
+
+Copyright © 1994-2026 Free Software Foundation, Inc.
+
+Permission is granted to copy, distribute and/or modify this document
+under the terms of the GNU Free Documentation License, Version 1.3 or
+any later version published by the Free Software Foundation; with no
+Invariant Sections, with no Front-Cover Texts, and with no Back-Cover
+Texts.  A copy of the license is included in the section entitled "GNU
+Free Documentation License". -->
+<title>Time conversion specifiers (GNU Coreutils 9.12)</title>
+
+<meta name="description" content="Time conversion specifiers (GNU Coreutils 9.12)">
+<meta name="keywords" content="Time conversion specifiers (GNU Coreutils 9.12)">
+<meta name="resource-type" content="document">
+<meta name="distribution" content="global">
+<meta name="Generator" content="makeinfo">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+
+<link href="index.html" rel="start" title="Top">
+<link href="Concept-index.html" rel="index" title="Concept index">
+<link href="index.html#SEC_Contents" rel="contents" title="Table of Contents">
+<link href="Date-format-specifiers.html" rel="up" title="Date format specifiers">
+<link href="Date-conversion-specifiers.html" rel="next" title="Date conversion specifiers">
+<style type="text/css">
+<!--
+a.copiable-link {visibility: hidden; text-decoration: none; line-height: 0em}
+span:hover a.copiable-link {visibility: visible}
+-->
+</style>
+<link rel="stylesheet" type="text/css" href="https://www.gnu.org/software/gnulib/manual.css">
+
+
+</head>
+
+<body lang="en">
+<div class="subsubsection-level-extent" id="Time-conversion-specifiers">
+<div class="nav-panel">
+<p>
+Next: <a href="Date-conversion-specifiers.html" accesskey="n" rel="next">Date conversion specifiers</a>, Up: <a href="Date-format-specifiers.html" accesskey="u" rel="up">Specifying the format of <code class="command">date</code> output</a> &nbsp; [<a href="index.html#SEC_Contents" title="Table of contents" rel="contents">Contents</a>][<a href="Concept-index.html" title="Index" rel="index">Index</a>]</p>
+</div>
+<hr>
+<h4 class="subsubsection" id="Time-conversion-specifiers-1"><span>21.1.1.1 Time conversion specifiers<a class="copiable-link" href="#Time-conversion-specifiers-1"> &para;</a></span></h4>
+
+<a class="index-entry-id" id="index-time-conversion-specifiers"></a>
+<a class="index-entry-id" id="index-conversion-specifiers_002c-time"></a>
+
+<p><code class="command">date</code> conversion specifiers related to times.
+</p>
+<dl class="table">
+<dt>&lsquo;<samp class="samp">%H</samp>&rsquo;</dt>
+<dd><p>hour (&lsquo;<samp class="samp">00</samp>&rsquo;&hellip;&lsquo;<samp class="samp">23</samp>&rsquo;)
+</p></dd>
+<dt>&lsquo;<samp class="samp">%I</samp>&rsquo;</dt>
+<dd><p>hour (&lsquo;<samp class="samp">01</samp>&rsquo;&hellip;&lsquo;<samp class="samp">12</samp>&rsquo;)
+</p></dd>
+<dt>&lsquo;<samp class="samp">%k</samp>&rsquo;</dt>
+<dd><p>hour, space padded (&lsquo;<samp class="samp"> 0</samp>&rsquo;&hellip;&lsquo;<samp class="samp">23</samp>&rsquo;); equivalent to &lsquo;<samp class="samp">%_H</samp>&rsquo;.
+This is a GNU extension.
+</p></dd>
+<dt>&lsquo;<samp class="samp">%l</samp>&rsquo;</dt>
+<dd><p>hour, space padded (&lsquo;<samp class="samp"> 1</samp>&rsquo;&hellip;&lsquo;<samp class="samp">12</samp>&rsquo;); equivalent to &lsquo;<samp class="samp">%_I</samp>&rsquo;.
+This is a GNU extension.
+</p></dd>
+<dt>&lsquo;<samp class="samp">%M</samp>&rsquo;</dt>
+<dd><p>minute (&lsquo;<samp class="samp">00</samp>&rsquo;&hellip;&lsquo;<samp class="samp">59</samp>&rsquo;)
+</p></dd>
+<dt>&lsquo;<samp class="samp">%N</samp>&rsquo;</dt>
+<dd><p>nanoseconds (&lsquo;<samp class="samp">000000000</samp>&rsquo;&hellip;&lsquo;<samp class="samp">999999999</samp>&rsquo;).
+This is a GNU extension.
+</p></dd>
+<dt>&lsquo;<samp class="samp">%p</samp>&rsquo;</dt>
+<dd><p>locale&rsquo;s equivalent of either &lsquo;<samp class="samp">AM</samp>&rsquo; or &lsquo;<samp class="samp">PM</samp>&rsquo;;
+blank in many locales.
+Noon is treated as &lsquo;<samp class="samp">PM</samp>&rsquo; and midnight as &lsquo;<samp class="samp">AM</samp>&rsquo;.
+</p></dd>
+<dt>&lsquo;<samp class="samp">%P</samp>&rsquo;</dt>
+<dd><p>like &lsquo;<samp class="samp">%p</samp>&rsquo;, except lower case.
+This is a GNU extension.
+</p></dd>
+<dt>&lsquo;<samp class="samp">%r</samp>&rsquo;</dt>
+<dd><p>locale&rsquo;s 12-hour clock time (e.g., &lsquo;<samp class="samp">11:11:04 PM</samp>&rsquo;)
+</p></dd>
+<dt>&lsquo;<samp class="samp">%R</samp>&rsquo;</dt>
+<dd><p>24-hour hour and minute.  Same as &lsquo;<samp class="samp">%H:%M</samp>&rsquo;.
+</p></dd>
+<dt><a class="index-entry-id" id="index-seconds-since-the-Epoch"></a>
+<a class="index-entry-id" id="index-beginning-of-time"></a>
+<a class="index-entry-id" id="index-leap-seconds-1"></a>
+<a id="index-Epoch_002c-seconds-since"></a><span>&lsquo;<samp class="samp">%s</samp>&rsquo;<a class="copiable-link" href="#index-Epoch_002c-seconds-since"> &para;</a></span></dt>
+<dd><p>seconds since the Epoch, i.e., since 1970-01-01 00:00 UTC.
+Leap seconds are not counted unless leap second support is available.
+See <a class="xref" href="Examples-of-date.html#g_t_0025s_002dexamples">%s-examples</a>, for examples.
+This is a GNU extension.
+</p></dd>
+<dt><a id="index-leap-seconds-2"></a><span>&lsquo;<samp class="samp">%S</samp>&rsquo;<a class="copiable-link" href="#index-leap-seconds-2"> &para;</a></span></dt>
+<dd><p>second (&lsquo;<samp class="samp">00</samp>&rsquo;&hellip;&lsquo;<samp class="samp">60</samp>&rsquo;).
+This may be &lsquo;<samp class="samp">60</samp>&rsquo; if leap seconds are supported.
+</p></dd>
+<dt>&lsquo;<samp class="samp">%T</samp>&rsquo;</dt>
+<dd><p>24-hour hour, minute, and second.  Same as &lsquo;<samp class="samp">%H:%M:%S</samp>&rsquo;.
+</p></dd>
+<dt>&lsquo;<samp class="samp">%X</samp>&rsquo;</dt>
+<dd><p>locale&rsquo;s time representation (e.g., &lsquo;<samp class="samp">23:13:48</samp>&rsquo;)
+</p></dd>
+<dt>&lsquo;<samp class="samp">%z</samp>&rsquo;</dt>
+<dd><p>Four-digit numeric time zone, e.g., &lsquo;<samp class="samp">-0600</samp>&rsquo; or &lsquo;<samp class="samp">+0530</samp>&rsquo;, or
+&lsquo;<samp class="samp">-0000</samp>&rsquo; if no
+time zone is determinable.  This value reflects the numeric time zone
+appropriate for the current time, using the time zone rules specified
+by the <code class="env">TZ</code> environment variable.  A time zone is not determinable if
+its numeric offset is zero and its abbreviation begins with &lsquo;<samp class="samp">-</samp>&rsquo;.
+The time (and optionally, the time zone rules) can be overridden
+by the <samp class="option">--date</samp> option.
+</p></dd>
+<dt>&lsquo;<samp class="samp">%:z</samp>&rsquo;</dt>
+<dd><p>Numeric time zone with &lsquo;<samp class="samp">:</samp>&rsquo;, e.g., &lsquo;<samp class="samp">-06:00</samp>&rsquo; or
+&lsquo;<samp class="samp">+05:30</samp>&rsquo;), or &lsquo;<samp class="samp">-00:00</samp>&rsquo; if no time zone is determinable.
+This is a GNU extension.
+</p></dd>
+<dt>&lsquo;<samp class="samp">%::z</samp>&rsquo;</dt>
+<dd><p>Numeric time zone to the nearest second with &lsquo;<samp class="samp">:</samp>&rsquo; (e.g.,
+&lsquo;<samp class="samp">-06:00:00</samp>&rsquo; or &lsquo;<samp class="samp">+05:30:00</samp>&rsquo;), or &lsquo;<samp class="samp">-00:00:00</samp>&rsquo; if no time zone is
+determinable.
+This is a GNU extension.
+</p></dd>
+<dt>&lsquo;<samp class="samp">%:::z</samp>&rsquo;</dt>
+<dd><p>Numeric time zone with &lsquo;<samp class="samp">:</samp>&rsquo; using the minimum necessary precision
+(e.g., &lsquo;<samp class="samp">-06</samp>&rsquo;, &lsquo;<samp class="samp">+05:30</samp>&rsquo;, or &lsquo;<samp class="samp">-04:56:02</samp>&rsquo;), or &lsquo;<samp class="samp">-00</samp>&rsquo; if
+no time zone is determinable.
+This is a GNU extension.
+</p></dd>
+<dt>&lsquo;<samp class="samp">%Z</samp>&rsquo;</dt>
+<dd><p>alphabetic time zone abbreviation (e.g., &lsquo;<samp class="samp">EDT</samp>&rsquo;), or nothing if no
+time zone is determinable.  See &lsquo;<samp class="samp">%z</samp>&rsquo; for how it is determined.
+</p></dd>
+</dl>
+
+
+</div>
+<hr>
+<div class="nav-panel">
+<p>
+Next: <a href="Date-conversion-specifiers.html">Date conversion specifiers</a>, Up: <a href="Date-format-specifiers.html">Specifying the format of <code class="command">date</code> output</a> &nbsp; [<a href="index.html#SEC_Contents" title="Table of contents" rel="contents">Contents</a>][<a href="Concept-index.html" title="Index" rel="index">Index</a>]</p>
+</div>
+
+
+
+</body>
+</html>

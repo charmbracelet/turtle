@@ -1,0 +1,130 @@
+<!DOCTYPE html>
+<html>
+<!-- Created by GNU Texinfo 7.2, https://www.gnu.org/software/texinfo/ -->
+<head>
+<meta http-equiv="Content-Type" content="text/html; charset=utf-8">
+<!-- This manual documents version 9.12 of the GNU core
+utilities, including the standard programs for text and file manipulation.
+
+Copyright © 1994-2026 Free Software Foundation, Inc.
+
+Permission is granted to copy, distribute and/or modify this document
+under the terms of the GNU Free Documentation License, Version 1.3 or
+any later version published by the Free Software Foundation; with no
+Invariant Sections, with no Front-Cover Texts, and with no Back-Cover
+Texts.  A copy of the license is included in the section entitled "GNU
+Free Documentation License". -->
+<title>Backup options (GNU Coreutils 9.12)</title>
+
+<meta name="description" content="Backup options (GNU Coreutils 9.12)">
+<meta name="keywords" content="Backup options (GNU Coreutils 9.12)">
+<meta name="resource-type" content="document">
+<meta name="distribution" content="global">
+<meta name="Generator" content="makeinfo">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+
+<link href="index.html" rel="start" title="Top">
+<link href="Concept-index.html" rel="index" title="Concept index">
+<link href="index.html#SEC_Contents" rel="contents" title="Table of Contents">
+<link href="Common-options.html" rel="up" title="Common options">
+<link href="Block-size.html" rel="next" title="Block size">
+<style type="text/css">
+<!--
+a.copiable-link {visibility: hidden; text-decoration: none; line-height: 0em}
+span:hover a.copiable-link {visibility: visible}
+-->
+</style>
+<link rel="stylesheet" type="text/css" href="https://www.gnu.org/software/gnulib/manual.css">
+
+
+</head>
+
+<body lang="en">
+<div class="section-level-extent" id="Backup-options">
+<div class="nav-panel">
+<p>
+Next: <a href="Block-size.html" accesskey="n" rel="next">Block size</a>, Up: <a href="Common-options.html" accesskey="u" rel="up">Common options</a> &nbsp; [<a href="index.html#SEC_Contents" title="Table of contents" rel="contents">Contents</a>][<a href="Concept-index.html" title="Index" rel="index">Index</a>]</p>
+</div>
+<hr>
+<h3 class="section" id="Backup-options-1"><span>2.1 Backup options<a class="copiable-link" href="#Backup-options-1"> &para;</a></span></h3>
+
+<a class="index-entry-id" id="index-backup-options"></a>
+
+<p>Some GNU programs (at least <code class="command">cp</code>, <code class="command">install</code>,
+<code class="command">ln</code>, and <code class="command">mv</code>) optionally make backups of files
+before writing new versions.
+These options control the details of these backups.  The options are also
+briefly mentioned in the descriptions of the particular programs.
+</p>
+<dl class="table">
+<dt><a class="index-entry-id" id="index-_002d_002dbackup"></a>
+<a class="index-entry-id" id="index-VERSION_005fCONTROL"></a>
+<a class="index-entry-id" id="index-backups_002c-making"></a>
+<a id="index-_002db"></a><span>&lsquo;<samp class="samp">-b</samp>&rsquo;<a class="copiable-link" href="#index-_002db"> &para;</a></span></dt>
+<dt>&lsquo;<samp class="samp">--backup[=<var class="var">method</var>]</samp>&rsquo;</dt>
+<dd><p>Make a backup of each file that would otherwise be overwritten or removed.
+Without this option, the original versions are destroyed.
+Use <var class="var">method</var> to determine the type of backups to make.
+When this option is used but <var class="var">method</var> is not specified,
+then the value of the <code class="env">VERSION_CONTROL</code>
+environment variable is used.  And if <code class="env">VERSION_CONTROL</code> is not set,
+the default backup type is &lsquo;<samp class="samp">existing</samp>&rsquo;.
+</p>
+<p>Using <samp class="option">-b</samp> is equivalent to using <samp class="option">--backup=existing</samp>;
+<samp class="option">-b</samp> does not accept any argument.
+</p>
+<a class="index-entry-id" id="index-version_002dcontrol-Emacs-variable"></a>
+<p>This option corresponds to the Emacs variable &lsquo;<samp class="samp">version-control</samp>&rsquo;;
+the values for <var class="var">method</var> are the same as those used in Emacs.
+This option also accepts more descriptive names.
+The valid <var class="var">method</var>s are (unique abbreviations are accepted):
+</p>
+<dl class="table">
+<dt><a id="index-none-backup-method"></a><span>&lsquo;<samp class="samp">none</samp>&rsquo;<a class="copiable-link" href="#index-none-backup-method"> &para;</a></span></dt>
+<dt>&lsquo;<samp class="samp">off</samp>&rsquo;</dt>
+<dd><p>Never make backups.
+</p>
+</dd>
+<dt><a id="index-numbered-backup-method"></a><span>&lsquo;<samp class="samp">numbered</samp>&rsquo;<a class="copiable-link" href="#index-numbered-backup-method"> &para;</a></span></dt>
+<dt>&lsquo;<samp class="samp">t</samp>&rsquo;</dt>
+<dd><p>Always make numbered backups.
+</p>
+</dd>
+<dt><a id="index-existing-backup-method"></a><span>&lsquo;<samp class="samp">existing</samp>&rsquo;<a class="copiable-link" href="#index-existing-backup-method"> &para;</a></span></dt>
+<dt>&lsquo;<samp class="samp">nil</samp>&rsquo;</dt>
+<dd><p>Make numbered backups of files that already have them, simple backups
+of the others.
+</p>
+</dd>
+<dt><a id="index-simple-backup-method"></a><span>&lsquo;<samp class="samp">simple</samp>&rsquo;<a class="copiable-link" href="#index-simple-backup-method"> &para;</a></span></dt>
+<dt>&lsquo;<samp class="samp">never</samp>&rsquo;</dt>
+<dd><p>Always make simple backups.  Do not confuse &lsquo;<samp class="samp">never</samp>&rsquo; with &lsquo;<samp class="samp">none</samp>&rsquo;.
+</p>
+</dd>
+</dl>
+
+</dd>
+<dt><a class="index-entry-id" id="index-_002d_002dsuffix"></a>
+<a class="index-entry-id" id="index-backup-suffix"></a>
+<a class="index-entry-id" id="index-SIMPLE_005fBACKUP_005fSUFFIX"></a>
+<a id="index-_002dS"></a><span>&lsquo;<samp class="samp">-S <var class="var">suffix</var></samp>&rsquo;<a class="copiable-link" href="#index-_002dS"> &para;</a></span></dt>
+<dt>&lsquo;<samp class="samp">--suffix=<var class="var">suffix</var></samp>&rsquo;</dt>
+<dd><p>Append <var class="var">suffix</var> to each backup file made with <samp class="option">-b</samp>.  If this
+option is not specified, the value of the <code class="env">SIMPLE_BACKUP_SUFFIX</code>
+environment variable is used.  And if <code class="env">SIMPLE_BACKUP_SUFFIX</code> is not
+set, the default is &lsquo;<samp class="samp">~</samp>&rsquo;, just as in Emacs.
+</p>
+</dd>
+</dl>
+
+</div>
+<hr>
+<div class="nav-panel">
+<p>
+Next: <a href="Block-size.html">Block size</a>, Up: <a href="Common-options.html">Common options</a> &nbsp; [<a href="index.html#SEC_Contents" title="Table of contents" rel="contents">Contents</a>][<a href="Concept-index.html" title="Index" rel="index">Index</a>]</p>
+</div>
+
+
+
+</body>
+</html>

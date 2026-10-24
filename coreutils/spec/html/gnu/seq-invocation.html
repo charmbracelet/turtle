@@ -1,0 +1,206 @@
+<!DOCTYPE html>
+<html>
+<!-- Created by GNU Texinfo 7.2, https://www.gnu.org/software/texinfo/ -->
+<head>
+<meta http-equiv="Content-Type" content="text/html; charset=utf-8">
+<!-- This manual documents version 9.12 of the GNU core
+utilities, including the standard programs for text and file manipulation.
+
+Copyright © 1994-2026 Free Software Foundation, Inc.
+
+Permission is granted to copy, distribute and/or modify this document
+under the terms of the GNU Free Documentation License, Version 1.3 or
+any later version published by the Free Software Foundation; with no
+Invariant Sections, with no Front-Cover Texts, and with no Back-Cover
+Texts.  A copy of the license is included in the section entitled "GNU
+Free Documentation License". -->
+<title>seq invocation (GNU Coreutils 9.12)</title>
+
+<meta name="description" content="seq invocation (GNU Coreutils 9.12)">
+<meta name="keywords" content="seq invocation (GNU Coreutils 9.12)">
+<meta name="resource-type" content="document">
+<meta name="distribution" content="global">
+<meta name="Generator" content="makeinfo">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+
+<link href="index.html" rel="start" title="Top">
+<link href="Concept-index.html" rel="index" title="Concept index">
+<link href="index.html#SEC_Contents" rel="contents" title="Table of Contents">
+<link href="Numeric-operations.html" rel="up" title="Numeric operations">
+<link href="numfmt-invocation.html" rel="prev" title="numfmt invocation">
+<style type="text/css">
+<!--
+a.copiable-link {visibility: hidden; text-decoration: none; line-height: 0em}
+div.example {margin-left: 3.2em}
+span:hover a.copiable-link {visibility: visible}
+-->
+</style>
+<link rel="stylesheet" type="text/css" href="https://www.gnu.org/software/gnulib/manual.css">
+
+
+</head>
+
+<body lang="en">
+<div class="section-level-extent" id="seq-invocation">
+<div class="nav-panel">
+<p>
+Previous: <a href="numfmt-invocation.html" accesskey="p" rel="prev"><code class="command">numfmt</code>: Reformat numbers</a>, Up: <a href="Numeric-operations.html" accesskey="u" rel="up">Numeric operations</a> &nbsp; [<a href="index.html#SEC_Contents" title="Table of contents" rel="contents">Contents</a>][<a href="Concept-index.html" title="Index" rel="index">Index</a>]</p>
+</div>
+<hr>
+<h3 class="section" id="seq_003a-Print-numeric-sequences"><span>26.3 <code class="command">seq</code>: Print numeric sequences<a class="copiable-link" href="#seq_003a-Print-numeric-sequences"> &para;</a></span></h3>
+
+<a class="index-entry-id" id="index-seq"></a>
+<a class="index-entry-id" id="index-numeric-sequences"></a>
+<a class="index-entry-id" id="index-sequence-of-numbers"></a>
+
+<p><code class="command">seq</code> prints a sequence of numbers to standard output.  Synopses:
+</p>
+<div class="example">
+<pre class="example-preformatted">seq [<var class="var">option</var>]... <var class="var">last</var>
+seq [<var class="var">option</var>]... <var class="var">first</var> <var class="var">last</var>
+seq [<var class="var">option</var>]... <var class="var">first</var> <var class="var">increment</var> <var class="var">last</var>
+</pre></div>
+
+<p><code class="command">seq</code> prints the numbers from <var class="var">first</var> to <var class="var">last</var> by
+<var class="var">increment</var>.  By default, each number is printed on a separate line.
+When <var class="var">increment</var> is not specified, it defaults to &lsquo;<samp class="samp">1</samp>&rsquo;,
+even when <var class="var">first</var> is larger than <var class="var">last</var>.
+<var class="var">first</var> also defaults to &lsquo;<samp class="samp">1</samp>&rsquo;.  So <code class="code">seq 1</code> prints
+&lsquo;<samp class="samp">1</samp>&rsquo;, but <code class="code">seq 0</code> and <code class="code">seq 10 5</code> produce no output.
+The sequence of numbers ends when the sum of the current number and
+<var class="var">increment</var> would become greater than <var class="var">last</var>,
+so <code class="code">seq 1 10 10</code> only produces &lsquo;<samp class="samp">1</samp>&rsquo;.
+<var class="var">increment</var> must not be &lsquo;<samp class="samp">0</samp>&rsquo;; use the tool <code class="command">yes</code> to get
+repeated output of a constant number.
+<var class="var">first</var>, <var class="var">increment</var> and <var class="var">last</var> must not be <code class="code">NaN</code>,
+but <code class="code">inf</code> is supported.
+Floating-point numbers may be specified in either the current or
+the C locale.  See <a class="xref" href="Floating-point.html">Floating point numbers</a>.
+</p>
+<p>The program accepts the following options.  Also see <a class="ref" href="Common-options.html">Common options</a>.
+Options must precede operands.
+</p>
+<dl class="table">
+<dd><a class="anchor" id="seq-f"></a></dd>
+<dt><a class="index-entry-id" id="index-formatting-of-numbers-in-seq"></a>
+<a id="index-_002d_002dformat-9"></a><span>&lsquo;<samp class="samp">-f&nbsp;<!-- /@w --><var class="var">format</var></samp>&rsquo;<a class="copiable-link" href="#index-_002d_002dformat-9"> &para;</a></span></dt>
+<dd><a class="index-entry-id" id="index-_002df-26"></a>
+<a class="anchor" id="seq--format"></a></dd>
+<dt>&lsquo;<samp class="samp">--format=<var class="var">format</var></samp>&rsquo;</dt>
+<dd><p>Print all numbers using <var class="var">format</var>.
+<var class="var">format</var> must contain exactly one of the &lsquo;<samp class="samp">printf</samp>&rsquo;-style
+floating point conversion specifications &lsquo;<samp class="samp">%a</samp>&rsquo;, &lsquo;<samp class="samp">%e</samp>&rsquo;,
+&lsquo;<samp class="samp">%f</samp>&rsquo;, &lsquo;<samp class="samp">%g</samp>&rsquo;, &lsquo;<samp class="samp">%A</samp>&rsquo;, &lsquo;<samp class="samp">%E</samp>&rsquo;, &lsquo;<samp class="samp">%F</samp>&rsquo;, &lsquo;<samp class="samp">%G</samp>&rsquo;.
+The &lsquo;<samp class="samp">%</samp>&rsquo; may be followed by zero or more flags taken from the set
+&lsquo;<samp class="samp">-+#0 '</samp>&rsquo;, then an optional width containing one or more digits,
+then an optional precision consisting of a &lsquo;<samp class="samp">.</samp>&rsquo; followed by zero
+or more digits.  <var class="var">format</var> may also contain any number of &lsquo;<samp class="samp">%%</samp>&rsquo;
+conversion specifications.  All conversion specifications have the
+same meaning as with &lsquo;<samp class="samp">printf</samp>&rsquo;.
+</p>
+<p>The default format is derived from <var class="var">first</var>, <var class="var">step</var>, and
+<var class="var">last</var>.  If these all use a fixed point decimal representation,
+the default format is &lsquo;<samp class="samp">%.<var class="var">p</var>f</samp>&rsquo;, where <var class="var">p</var> is the minimum
+precision that can represent the output numbers exactly.  Otherwise,
+the default format is &lsquo;<samp class="samp">%g</samp>&rsquo;.
+</p>
+<a class="anchor" id="seq-s"></a></dd>
+<dt><a class="index-entry-id" id="index-separator-for-numbers-in-seq"></a>
+<a id="index-_002d_002dseparator-3"></a><span>&lsquo;<samp class="samp">-s&nbsp;<!-- /@w --><var class="var">string</var></samp>&rsquo;<a class="copiable-link" href="#index-_002d_002dseparator-3"> &para;</a></span></dt>
+<dd><a class="index-entry-id" id="index-_002ds-33"></a>
+<a class="anchor" id="seq--separator"></a></dd>
+<dt>&lsquo;<samp class="samp">--separator=<var class="var">string</var></samp>&rsquo;</dt>
+<dd><p>Separate numbers with <var class="var">string</var>; default is a newline.
+The output always terminates with a newline.
+</p>
+<a class="anchor" id="seq-w"></a></dd>
+<dt><a id="index-_002d_002dequal_002dwidth"></a><span>&lsquo;<samp class="samp">-w</samp>&rsquo;<a class="copiable-link" href="#index-_002d_002dequal_002dwidth"> &para;</a></span></dt>
+<dd><a class="index-entry-id" id="index-_002dw-15"></a>
+<a class="anchor" id="seq--equal-width"></a></dd>
+<dt>&lsquo;<samp class="samp">--equal-width</samp>&rsquo;</dt>
+<dd><p>Print all numbers with the same width, by padding with leading zeros.
+<var class="var">first</var>, <var class="var">step</var>, and <var class="var">last</var> should all use a fixed point
+decimal representation.
+(To have other kinds of padding, use <samp class="option">--format</samp>).
+</p>
+</dd>
+</dl>
+
+<p>You can get finer-grained control over output with <samp class="option">-f</samp>:
+</p>
+<div class="example">
+<pre class="example-preformatted">$ seq -f '(%9.2E)' -9e5 1.1e6 1.3e6
+(-9.00E+05)
+( 2.00E+05)
+( 1.30E+06)
+</pre></div>
+
+<p>If you want hexadecimal integer output, you can use <code class="command">printf</code>
+to perform the conversion:
+</p>
+<div class="example">
+<pre class="example-preformatted">$ printf '%x\n' $(seq 1048575 1024 1050623)
+fffff
+1003ff
+1007ff
+</pre></div>
+
+<p>For very long lists of numbers, use xargs to avoid
+system limitations on the length of an argument list:
+</p>
+<div class="example">
+<pre class="example-preformatted">$ seq 1000000 | xargs printf '%x\n' | tail -n 3
+f423e
+f423f
+f4240
+</pre></div>
+
+<p>To generate octal output, use the printf <code class="code">%o</code> format instead
+of <code class="code">%x</code>.
+</p>
+<p>On most systems, seq can produce whole-number output for values up to
+at least <em class="math">2^{53}</em>.  Larger integers are approximated.  The details
+differ depending on your floating-point implementation.
+See <a class="xref" href="Floating-point.html">Floating point numbers</a>.  A common
+case is that <code class="command">seq</code> works with integers through <em class="math">2^{64}</em>,
+and larger integers may not be numerically correct:
+</p>
+<div class="example">
+<pre class="example-preformatted">$ seq 50000000000000000000 2 50000000000000000004
+50000000000000000000
+50000000000000000000
+50000000000000000004
+</pre></div>
+
+<p>However, when limited to non-negative whole numbers,
+an increment of less than 200, and no format-specifying option,
+seq can print arbitrarily large numbers.
+Therefore <code class="command">seq inf</code> can be used to
+generate an infinite sequence of numbers.
+</p>
+<p>Be careful when using <code class="command">seq</code> with outlandish values: otherwise
+you may see surprising results, as <code class="command">seq</code> uses floating point
+internally.  For example, on the x86 platform, where the internal
+representation uses a 64-bit fraction, the command:
+</p>
+<div class="example">
+<pre class="example-preformatted">seq 1 0.0000000000000000001 1.0000000000000000009
+</pre></div>
+
+<p>outputs 1.0000000000000000007 twice and skips 1.0000000000000000008.
+</p>
+<p>An exit status of zero indicates success,
+and a nonzero value indicates failure.
+</p>
+
+</div>
+<hr>
+<div class="nav-panel">
+<p>
+Previous: <a href="numfmt-invocation.html"><code class="command">numfmt</code>: Reformat numbers</a>, Up: <a href="Numeric-operations.html">Numeric operations</a> &nbsp; [<a href="index.html#SEC_Contents" title="Table of contents" rel="contents">Contents</a>][<a href="Concept-index.html" title="Index" rel="index">Index</a>]</p>
+</div>
+
+
+
+</body>
+</html>

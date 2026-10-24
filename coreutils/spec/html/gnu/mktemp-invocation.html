@@ -1,0 +1,237 @@
+<!DOCTYPE html>
+<html>
+<!-- Created by GNU Texinfo 7.2, https://www.gnu.org/software/texinfo/ -->
+<head>
+<meta http-equiv="Content-Type" content="text/html; charset=utf-8">
+<!-- This manual documents version 9.12 of the GNU core
+utilities, including the standard programs for text and file manipulation.
+
+Copyright © 1994-2026 Free Software Foundation, Inc.
+
+Permission is granted to copy, distribute and/or modify this document
+under the terms of the GNU Free Documentation License, Version 1.3 or
+any later version published by the Free Software Foundation; with no
+Invariant Sections, with no Front-Cover Texts, and with no Back-Cover
+Texts.  A copy of the license is included in the section entitled "GNU
+Free Documentation License". -->
+<title>mktemp invocation (GNU Coreutils 9.12)</title>
+
+<meta name="description" content="mktemp invocation (GNU Coreutils 9.12)">
+<meta name="keywords" content="mktemp invocation (GNU Coreutils 9.12)">
+<meta name="resource-type" content="document">
+<meta name="distribution" content="global">
+<meta name="Generator" content="makeinfo">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+
+<link href="index.html" rel="start" title="Top">
+<link href="Concept-index.html" rel="index" title="Concept index">
+<link href="index.html#SEC_Contents" rel="contents" title="Table of Contents">
+<link href="File-name-manipulation.html" rel="up" title="File name manipulation">
+<link href="realpath-invocation.html" rel="next" title="realpath invocation">
+<link href="pathchk-invocation.html" rel="prev" title="pathchk invocation">
+<style type="text/css">
+<!--
+a.copiable-link {visibility: hidden; text-decoration: none; line-height: 0em}
+div.display {margin-left: 3.2em}
+div.example {margin-left: 3.2em}
+pre.display-preformatted {font-family: inherit}
+span:hover a.copiable-link {visibility: visible}
+ul.mark-bullet {list-style-type: disc}
+-->
+</style>
+<link rel="stylesheet" type="text/css" href="https://www.gnu.org/software/gnulib/manual.css">
+
+
+</head>
+
+<body lang="en">
+<div class="section-level-extent" id="mktemp-invocation">
+<div class="nav-panel">
+<p>
+Next: <a href="realpath-invocation.html" accesskey="n" rel="next"><code class="command">realpath</code>: Print the resolved file name.</a>, Previous: <a href="pathchk-invocation.html" accesskey="p" rel="prev"><code class="command">pathchk</code>: Check file name validity and portability</a>, Up: <a href="File-name-manipulation.html" accesskey="u" rel="up">File name manipulation</a> &nbsp; [<a href="index.html#SEC_Contents" title="Table of contents" rel="contents">Contents</a>][<a href="Concept-index.html" title="Index" rel="index">Index</a>]</p>
+</div>
+<hr>
+<h3 class="section" id="mktemp_003a-Create-temporary-file-or-directory"><span>18.4 <code class="command">mktemp</code>: Create temporary file or directory<a class="copiable-link" href="#mktemp_003a-Create-temporary-file-or-directory"> &para;</a></span></h3>
+
+<a class="index-entry-id" id="index-mktemp"></a>
+<a class="index-entry-id" id="index-file-names_002c-creating-temporary"></a>
+<a class="index-entry-id" id="index-directory_002c-creating-temporary"></a>
+<a class="index-entry-id" id="index-temporary-files-and-directories"></a>
+
+<p><code class="command">mktemp</code> manages the creation of temporary files and
+directories.  Synopsis:
+</p>
+<div class="example">
+<pre class="example-preformatted">mktemp [<var class="var">option</var>]... [<var class="var">template</var>]
+</pre></div>
+
+<p>Safely create a temporary file or directory based on <var class="var">template</var>,
+and print its name.  If given, <var class="var">template</var> must include at least
+three consecutive &lsquo;<samp class="samp">X</samp>&rsquo;s in the last component.  If omitted, the template
+&lsquo;<samp class="samp">tmp.XXXXXXXXXX</samp>&rsquo; is used, and option <samp class="option">--tmpdir</samp> is
+implied.  The final run of &lsquo;<samp class="samp">X</samp>&rsquo;s in the <var class="var">template</var> will be replaced
+by alphanumeric characters; thus, on a case-sensitive file system,
+and with a <var class="var">template</var> including a run of <var class="var">n</var> instances of &lsquo;<samp class="samp">X</samp>&rsquo;,
+there are &lsquo;<samp class="samp">62**<var class="var">n</var></samp>&rsquo; potential file names.
+</p>
+<p>Older scripts used to create temporary files by simply joining the
+name of the program with the process id (&lsquo;<samp class="samp">$$</samp>&rsquo;) as a suffix.
+However, that naming scheme is easily predictable, and suffers from a
+race condition where the attacker can create an appropriately named
+symbolic link, such that when the script then opens a handle to what
+it thought was an unused file, it is instead modifying an existing
+file.  Using the same scheme to create a directory is slightly safer,
+since the <code class="command">mkdir</code> will fail if the target already exists, but
+it is still inferior because it allows for denial of service attacks.
+Therefore, modern scripts should use the <code class="command">mktemp</code> command to
+guarantee that the generated name will be unpredictable, and that
+knowledge of the temporary file name implies that the file was created
+by the current script and cannot be modified by other users.
+</p>
+<p>When creating a file, the resulting file has read and write
+permissions for the current user, but no permissions for the group or
+others; these permissions are reduced if the current umask is more
+restrictive.
+</p>
+<p>Here are some examples (although if you try them, you
+will most likely get different file names):
+</p>
+<ul class="itemize mark-bullet">
+<li>Create a temporary file in the current directory.
+<div class="example">
+<pre class="example-preformatted">$ mktemp file.XXXX
+file.H47c
+</pre></div>
+
+</li><li>Create a temporary file with a known suffix.
+<div class="example">
+<pre class="example-preformatted">$ mktemp --suffix=.txt file-XXXX
+file-H08W.txt
+$ mktemp file-XXXX-XXXX.txt
+file-XXXX-eI9L.txt
+</pre></div>
+
+</li><li>Create a secure fifo relative to the user&rsquo;s choice of <code class="env">TMPDIR</code>,
+but falling back to the current directory rather than <samp class="file">/tmp</samp>.
+Although <code class="command">mktemp</code> does not create fifos, it can create a
+secure directory in which fifos can live.  Exit the shell if the
+directory or fifo could not be created.
+<div class="example">
+<pre class="example-preformatted">$ dir=$(mktemp -p &quot;${TMPDIR:-.}&quot; -d dir-XXXX) || exit 1
+$ fifo=$dir/fifo
+$ mkfifo &quot;$fifo&quot; || { rmdir &quot;$dir&quot;; exit 1; }
+</pre></div>
+
+</li><li>Create and use a temporary file if possible, but ignore failure.  The
+file will reside in the directory named by <code class="env">TMPDIR</code>, if specified,
+or else in <samp class="file">/tmp</samp>.
+<div class="example">
+<pre class="example-preformatted">$ file=$(mktemp -q) &amp;&amp; {
+&gt;   # Safe to use $file only within this block.  Use quotes,
+&gt;   # since $TMPDIR, and thus $file, may contain whitespace.
+&gt;   echo ... &gt; &quot;$file&quot;
+&gt;   rm &quot;$file&quot;
+&gt; }
+</pre></div>
+
+</li><li>Act as a semi-random character generator (it is not fully random,
+since it is impacted by the contents of the current directory).  To
+avoid security holes, do not use the resulting names to create a file.
+<div class="example">
+<pre class="example-preformatted">$ mktemp -u XXX
+Gb9
+$ mktemp -u XXX
+nzC
+</pre></div>
+
+</li></ul>
+
+<p>The program accepts the following options.  Also see <a class="ref" href="Common-options.html">Common options</a>.
+</p>
+<dl class="table">
+<dd>
+<a class="anchor" id="mktemp-d"></a></dd>
+<dt><a id="index-_002d_002ddirectory-3"></a><span>&lsquo;<samp class="samp">-d</samp>&rsquo;<a class="copiable-link" href="#index-_002d_002ddirectory-3"> &para;</a></span></dt>
+<dd><a class="index-entry-id" id="index-_002dd-19"></a>
+<a class="anchor" id="mktemp--directory"></a></dd>
+<dt>&lsquo;<samp class="samp">--directory</samp>&rsquo;</dt>
+<dd><p>Create a directory rather than a file.  The directory will have read,
+write, and search permissions for the current user, but no permissions
+for the group or others; these permissions are reduced if the current
+umask is more restrictive.
+</p>
+<a class="anchor" id="mktemp-q"></a></dd>
+<dt><a id="index-_002d_002dquiet-8"></a><span>&lsquo;<samp class="samp">-q</samp>&rsquo;<a class="copiable-link" href="#index-_002d_002dquiet-8"> &para;</a></span></dt>
+<dd><a class="index-entry-id" id="index-_002dq-5"></a>
+<a class="anchor" id="mktemp--quiet"></a></dd>
+<dt>&lsquo;<samp class="samp">--quiet</samp>&rsquo;</dt>
+<dd><p>Suppress diagnostics about failure to create a file or directory.  The
+exit status will still reflect whether a file was created.
+</p>
+<a class="anchor" id="mktemp-u"></a></dd>
+<dt><a id="index-_002d_002ddry_002drun"></a><span>&lsquo;<samp class="samp">-u</samp>&rsquo;<a class="copiable-link" href="#index-_002d_002ddry_002drun"> &para;</a></span></dt>
+<dd><a class="index-entry-id" id="index-_002du-10"></a>
+<a class="anchor" id="mktemp--dry-run"></a></dd>
+<dt>&lsquo;<samp class="samp">--dry-run</samp>&rsquo;</dt>
+<dd><p>Generate a temporary name that does not name an existing file, without
+changing the file system contents.  Using the output of this command
+to create a new file is inherently unsafe, as there is a window of
+time between generating the name and using it where another process
+can create an object by the same name.
+</p>
+<a class="anchor" id="mktemp-p"></a></dd>
+<dt><a id="index-_002d_002dtmpdir"></a><span>&lsquo;<samp class="samp">-p&nbsp;<!-- /@w --><var class="var">dir</var></samp>&rsquo;<a class="copiable-link" href="#index-_002d_002dtmpdir"> &para;</a></span></dt>
+<dd><a class="index-entry-id" id="index-_002dp-11"></a>
+<a class="anchor" id="mktemp--tmpdir"></a></dd>
+<dt>&lsquo;<samp class="samp">--tmpdir[=<var class="var">dir</var>]</samp>&rsquo;</dt>
+<dd><p>Treat <var class="var">template</var> relative to the directory <var class="var">dir</var>.  If
+<var class="var">dir</var> is not specified (only possible with the long option
+<samp class="option">--tmpdir</samp>) or is the empty string, use the value of
+<code class="env">TMPDIR</code> if available, otherwise use &lsquo;<samp class="samp">/tmp</samp>&rsquo;.  If this is
+specified, <var class="var">template</var> must not be absolute.  However,
+<var class="var">template</var> can still contain slashes, although intermediate
+directories must already exist.
+</p>
+<a class="anchor" id="mktemp--suffix"></a></dd>
+<dt><a id="index-_002d_002dsuffix-6"></a><span>&lsquo;<samp class="samp">--suffix=<var class="var">suffix</var></samp>&rsquo;<a class="copiable-link" href="#index-_002d_002dsuffix-6"> &para;</a></span></dt>
+<dd><p>Append <var class="var">suffix</var> to the <var class="var">template</var>.  <var class="var">suffix</var> must not
+contain slash.  If <samp class="option">--suffix</samp> is specified, <var class="var">template</var> must
+end in &lsquo;<samp class="samp">X</samp>&rsquo;; if it is not specified, then an appropriate
+<samp class="option">--suffix</samp> is inferred by finding the last &lsquo;<samp class="samp">X</samp>&rsquo; in
+<var class="var">template</var>.  This option exists for use with the default
+<var class="var">template</var> and for the creation of a <var class="var">suffix</var> that starts with
+&lsquo;<samp class="samp">X</samp>&rsquo;.
+</p>
+<a class="anchor" id="mktemp-t"></a></dd>
+<dt><a id="index-_002dt-22"></a><span>&lsquo;<samp class="samp">-t</samp>&rsquo;<a class="copiable-link" href="#index-_002dt-22"> &para;</a></span></dt>
+<dd><p>Treat <var class="var">template</var> as a single file relative to the value of
+<code class="env">TMPDIR</code> if available, or to the directory specified by
+<samp class="option">-p</samp>, otherwise to &lsquo;<samp class="samp">/tmp</samp>&rsquo;.  <var class="var">template</var> must not
+contain slashes.  This option is deprecated; the use of <samp class="option">-p</samp>
+without <samp class="option">-t</samp> offers better defaults (by favoring the command
+line over <code class="env">TMPDIR</code>) and more flexibility (by allowing intermediate
+directories).
+</p>
+</dd>
+</dl>
+
+<a class="index-entry-id" id="index-exit-status-of-mktemp"></a>
+<p>Exit status:
+</p>
+<div class="display">
+<pre class="display-preformatted">0 if the file was created,
+1 otherwise.
+</pre></div>
+
+
+</div>
+<hr>
+<div class="nav-panel">
+<p>
+Next: <a href="realpath-invocation.html"><code class="command">realpath</code>: Print the resolved file name.</a>, Previous: <a href="pathchk-invocation.html"><code class="command">pathchk</code>: Check file name validity and portability</a>, Up: <a href="File-name-manipulation.html">File name manipulation</a> &nbsp; [<a href="index.html#SEC_Contents" title="Table of contents" rel="contents">Contents</a>][<a href="Concept-index.html" title="Index" rel="index">Index</a>]</p>
+</div>
+
+
+
+</body>
+</html>

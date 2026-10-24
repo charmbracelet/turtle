@@ -1,0 +1,36 @@
+# sum invocation (GNU Coreutils 9.12)
+### 6.2 `sum`: Print checksum and block counts
+
+`sum` computes a 16-bit checksum for each given file, or
+standard input if none are given or for a file of ‘`-`’. Synopsis:
+
+```
+sum [option]... [file]...
+```
+
+`sum` prints the checksum for each file followed by the
+number of blocks in the file (rounded up). If at least one file
+is given, file names are also printed.
+
+By default, GNU `sum` computes checksums using an algorithm
+compatible with BSD `sum` and prints file sizes in units of
+1024-byte blocks.
+
+The program accepts the following options. Also see [Common options](Common-options.md).
+
+‘`-r`’
+:   Use the default (BSD compatible) algorithm. This option is included for
+    compatibility with the System V `sum`. Unless `-s` was also
+    given, it has no effect.
+
+‘`-s`’
+
+‘`--sysv`’
+:   Compute checksums using an algorithm compatible with System V
+    `sum`’s default, and print file sizes in units of 512-byte blocks.
+
+`sum` is provided for compatibility; the `cksum` program (see
+next section) is preferable in new applications.
+
+An exit status of zero indicates success,
+and a nonzero value indicates failure.
