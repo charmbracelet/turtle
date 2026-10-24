@@ -1,0 +1,151 @@
+<!DOCTYPE html>
+<html>
+<!-- Created by GNU Texinfo 7.2, https://www.gnu.org/software/texinfo/ -->
+<head>
+<meta http-equiv="Content-Type" content="text/html; charset=utf-8">
+<!-- This manual documents version 9.12 of the GNU core
+utilities, including the standard programs for text and file manipulation.
+
+Copyright © 1994-2026 Free Software Foundation, Inc.
+
+Permission is granted to copy, distribute and/or modify this document
+under the terms of the GNU Free Documentation License, Version 1.3 or
+any later version published by the Free Software Foundation; with no
+Invariant Sections, with no Front-Cover Texts, and with no Back-Cover
+Texts.  A copy of the license is included in the section entitled "GNU
+Free Documentation License". -->
+<title>Version-sort ordering rules (GNU Coreutils 9.12)</title>
+
+<meta name="description" content="Version-sort ordering rules (GNU Coreutils 9.12)">
+<meta name="keywords" content="Version-sort ordering rules (GNU Coreutils 9.12)">
+<meta name="resource-type" content="document">
+<meta name="distribution" content="global">
+<meta name="Generator" content="makeinfo">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+
+<link href="index.html" rel="start" title="Top">
+<link href="Concept-index.html" rel="index" title="Concept index">
+<link href="index.html#SEC_Contents" rel="contents" title="Table of Contents">
+<link href="Version-sort-implementation.html" rel="up" title="Version sort implementation">
+<link href="Version-sort-is-not-the-same-as-numeric-sort.html" rel="next" title="Version sort is not the same as numeric sort">
+<style type="text/css">
+<!--
+a.copiable-link {visibility: hidden; text-decoration: none; line-height: 0em}
+div.example {margin-left: 3.2em}
+span.r {font-family: initial; font-weight: normal; font-style: normal}
+span:hover a.copiable-link {visibility: visible}
+-->
+</style>
+<link rel="stylesheet" type="text/css" href="https://www.gnu.org/software/gnulib/manual.css">
+
+
+</head>
+
+<body lang="en">
+<div class="subsection-level-extent" id="Version_002dsort-ordering-rules">
+<div class="nav-panel">
+<p>
+Next: <a href="Version-sort-is-not-the-same-as-numeric-sort.html" accesskey="n" rel="next">Version sort is not the same as numeric sort</a>, Up: <a href="Version-sort-implementation.html" accesskey="u" rel="up">Version sort implementation</a> &nbsp; [<a href="index.html#SEC_Contents" title="Table of contents" rel="contents">Contents</a>][<a href="Concept-index.html" title="Index" rel="index">Index</a>]</p>
+</div>
+<hr>
+<h4 class="subsection" id="Version_002dsort-ordering-rules-1"><span>30.2.1 Version-sort ordering rules<a class="copiable-link" href="#Version_002dsort-ordering-rules-1"> &para;</a></span></h4>
+
+<p>The version sort ordering rules are:
+</p>
+<ol class="enumerate">
+<li> The strings are compared from left to right.
+
+</li><li> First the initial part of each string consisting entirely of non-digit
+bytes is determined.
+
+<ol class="enumerate" type="A" start="1">
+<li> These two parts (either of which may be empty) are compared lexically.
+If a difference is found it is returned.
+
+</li><li> The lexical comparison is a lexicographic comparison of byte strings,
+except that:
+
+<ol class="enumerate" type="a" start="1">
+<li> ASCII letters sort before other bytes.
+</li><li> A tilde sorts before anything, even an empty string.
+</li></ol>
+</li></ol>
+
+</li><li> Then the initial part of the remainder of each string that contains
+all the leading digits is determined. The numerical values represented by
+these two parts are compared, and any difference found is returned as
+the result of the comparison.
+
+<ol class="enumerate" type="A" start="1">
+<li> For these purposes an empty string (which can only occur at the end of
+one or both version strings being compared) counts as zero.
+
+</li><li> Because the numerical value is used, non-identical strings can compare
+equal.  For example, &lsquo;<samp class="samp">123</samp>&rsquo; compares equal to &lsquo;<samp class="samp">00123</samp>&rsquo;, and
+the empty string compares equal to &lsquo;<samp class="samp">0</samp>&rsquo;.
+</li></ol>
+
+</li><li> These two steps (comparing and removing initial non-digit strings and
+initial digit strings) are repeated until a difference is found or
+both strings are exhausted.
+</li></ol>
+
+<p>Consider the version-sort comparison of two file names:
+<samp class="file">foo07.7z</samp> and <samp class="file">foo7a.7z</samp>. The two strings will be broken
+down to the following parts, and the parts compared respectively from
+each string:
+</p>
+<div class="example">
+<pre class="example-preformatted">foo  <span class="r">vs</span>  foo   <span class="r">(rule 2, non-digits)</span>
+07   <span class="r">vs</span>  7     <span class="r">(rule 3, digits)</span>
+.    <span class="r">vs</span>  a.    <span class="r">(rule 2)</span>
+7    <span class="r">vs</span>  7     <span class="r">(rule 3)</span>
+z    <span class="r">vs</span>  z     <span class="r">(rule 2)</span>
+</pre></div>
+
+<p>Comparison flow based on above algorithm:
+</p>
+<ol class="enumerate">
+<li> The first parts (&lsquo;<samp class="samp">foo</samp>&rsquo;) are identical.
+
+</li><li> The second parts (&lsquo;<samp class="samp">07</samp>&rsquo; and &lsquo;<samp class="samp">7</samp>&rsquo;) are compared numerically,
+and compare equal.
+
+</li><li> The third parts (&lsquo;<samp class="samp">.</samp>&rsquo; vs &lsquo;<samp class="samp">a.</samp>&rsquo;) are compared
+lexically by ASCII value (rule 2.B).
+
+</li><li> The first byte of the first string (&lsquo;<samp class="samp">.</samp>&rsquo;) is compared
+to the first byte of the second string (&lsquo;<samp class="samp">a</samp>&rsquo;).
+
+</li><li> Rule 2.B.a says letters sorts before non-letters.
+Hence, &lsquo;<samp class="samp">a</samp>&rsquo; comes before &lsquo;<samp class="samp">.</samp>&rsquo;.
+
+</li><li> The returned result is that <samp class="file">foo7a.7z</samp> comes before <samp class="file">foo07.7z</samp>.
+</li></ol>
+
+<p>Result when using sort:
+</p>
+<div class="example">
+<pre class="example-preformatted">$ cat input3
+foo07.7z
+foo7a.7z
+$ sort -V input3
+foo7a.7z
+foo07.7z
+</pre></div>
+
+<p>See <a class="ref" href="Differences-from-Debian-version-sort.html">Differences from Debian version sort</a> for
+additional rules that extend the Debian algorithm in Coreutils.
+</p>
+
+</div>
+<hr>
+<div class="nav-panel">
+<p>
+Next: <a href="Version-sort-is-not-the-same-as-numeric-sort.html">Version sort is not the same as numeric sort</a>, Up: <a href="Version-sort-implementation.html">Version sort implementation</a> &nbsp; [<a href="index.html#SEC_Contents" title="Table of contents" rel="contents">Contents</a>][<a href="Concept-index.html" title="Index" rel="index">Index</a>]</p>
+</div>
+
+
+
+</body>
+</html>

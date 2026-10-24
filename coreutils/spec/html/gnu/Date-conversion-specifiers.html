@@ -1,0 +1,179 @@
+<!DOCTYPE html>
+<html>
+<!-- Created by GNU Texinfo 7.2, https://www.gnu.org/software/texinfo/ -->
+<head>
+<meta http-equiv="Content-Type" content="text/html; charset=utf-8">
+<!-- This manual documents version 9.12 of the GNU core
+utilities, including the standard programs for text and file manipulation.
+
+Copyright © 1994-2026 Free Software Foundation, Inc.
+
+Permission is granted to copy, distribute and/or modify this document
+under the terms of the GNU Free Documentation License, Version 1.3 or
+any later version published by the Free Software Foundation; with no
+Invariant Sections, with no Front-Cover Texts, and with no Back-Cover
+Texts.  A copy of the license is included in the section entitled "GNU
+Free Documentation License". -->
+<title>Date conversion specifiers (GNU Coreutils 9.12)</title>
+
+<meta name="description" content="Date conversion specifiers (GNU Coreutils 9.12)">
+<meta name="keywords" content="Date conversion specifiers (GNU Coreutils 9.12)">
+<meta name="resource-type" content="document">
+<meta name="distribution" content="global">
+<meta name="Generator" content="makeinfo">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+
+<link href="index.html" rel="start" title="Top">
+<link href="Concept-index.html" rel="index" title="Concept index">
+<link href="index.html#SEC_Contents" rel="contents" title="Table of Contents">
+<link href="Date-format-specifiers.html" rel="up" title="Date format specifiers">
+<link href="Literal-conversion-specifiers.html" rel="next" title="Literal conversion specifiers">
+<link href="Time-conversion-specifiers.html" rel="prev" title="Time conversion specifiers">
+<style type="text/css">
+<!--
+a.copiable-link {visibility: hidden; text-decoration: none; line-height: 0em}
+span:hover a.copiable-link {visibility: visible}
+-->
+</style>
+<link rel="stylesheet" type="text/css" href="https://www.gnu.org/software/gnulib/manual.css">
+
+
+</head>
+
+<body lang="en">
+<div class="subsubsection-level-extent" id="Date-conversion-specifiers">
+<div class="nav-panel">
+<p>
+Next: <a href="Literal-conversion-specifiers.html" accesskey="n" rel="next">Literal conversion specifiers</a>, Previous: <a href="Time-conversion-specifiers.html" accesskey="p" rel="prev">Time conversion specifiers</a>, Up: <a href="Date-format-specifiers.html" accesskey="u" rel="up">Specifying the format of <code class="command">date</code> output</a> &nbsp; [<a href="index.html#SEC_Contents" title="Table of contents" rel="contents">Contents</a>][<a href="Concept-index.html" title="Index" rel="index">Index</a>]</p>
+</div>
+<hr>
+<h4 class="subsubsection" id="Date-conversion-specifiers-1"><span>21.1.1.2 Date conversion specifiers<a class="copiable-link" href="#Date-conversion-specifiers-1"> &para;</a></span></h4>
+
+<a class="index-entry-id" id="index-date-conversion-specifiers"></a>
+<a class="index-entry-id" id="index-conversion-specifiers_002c-date"></a>
+
+<p><code class="command">date</code> conversion specifiers related to dates.
+</p>
+<dl class="table">
+<dt>&lsquo;<samp class="samp">%a</samp>&rsquo;</dt>
+<dd><p>locale&rsquo;s abbreviated weekday name (e.g., &lsquo;<samp class="samp">Sun</samp>&rsquo;)
+</p></dd>
+<dt>&lsquo;<samp class="samp">%A</samp>&rsquo;</dt>
+<dd><p>locale&rsquo;s full weekday name, variable length (e.g., &lsquo;<samp class="samp">Sunday</samp>&rsquo;)
+</p></dd>
+<dt>&lsquo;<samp class="samp">%b</samp>&rsquo;</dt>
+<dd><p>locale&rsquo;s abbreviated month name (e.g., &lsquo;<samp class="samp">Jan</samp>&rsquo;)
+</p></dd>
+<dt>&lsquo;<samp class="samp">%B</samp>&rsquo;</dt>
+<dd><p>locale&rsquo;s full month name, variable length (e.g., &lsquo;<samp class="samp">January</samp>&rsquo;)
+</p></dd>
+<dt>&lsquo;<samp class="samp">%c</samp>&rsquo;</dt>
+<dd><p>locale&rsquo;s date and time (e.g., &lsquo;<samp class="samp">Thu Mar &nbsp;3 23:05:25 2020</samp>&rsquo;)
+</p></dd>
+<dt>&lsquo;<samp class="samp">%C</samp>&rsquo;</dt>
+<dd><p>century.  This is like &lsquo;<samp class="samp">%Y</samp>&rsquo;, except the last two digits are omitted.
+For example, it is &lsquo;<samp class="samp">20</samp>&rsquo; if &lsquo;<samp class="samp">%Y</samp>&rsquo; is &lsquo;<samp class="samp">2019</samp>&rsquo;,
+and is &lsquo;<samp class="samp">-0</samp>&rsquo; if &lsquo;<samp class="samp">%Y</samp>&rsquo; is &lsquo;<samp class="samp">-001</samp>&rsquo;.
+It is normally at least two characters, but it may be more.
+</p></dd>
+<dt>&lsquo;<samp class="samp">%d</samp>&rsquo;</dt>
+<dd><p>day of month (e.g., &lsquo;<samp class="samp">01</samp>&rsquo;)
+</p></dd>
+<dt>&lsquo;<samp class="samp">%D</samp>&rsquo;</dt>
+<dd><p>date; same as &lsquo;<samp class="samp">%m/%d/%y</samp>&rsquo;.
+Although commonly used in the US, this format is confusing elsewhere,
+and it is ambiguous for dates in different centuries.
+</p></dd>
+<dt>&lsquo;<samp class="samp">%e</samp>&rsquo;</dt>
+<dd><p>day of month, space padded; same as &lsquo;<samp class="samp">%_d</samp>&rsquo;
+</p></dd>
+<dt>&lsquo;<samp class="samp">%F</samp>&rsquo;</dt>
+<dd><p>full date in ISO 8601 format; like &lsquo;<samp class="samp">%+4Y-%m-%d</samp>&rsquo;
+except that any flags or field width override the &lsquo;<samp class="samp">+</samp>&rsquo;
+and (after subtracting 6) the &lsquo;<samp class="samp">4</samp>&rsquo;.
+This is a good choice for a date format, as it is standard and
+is easy to sort in the usual case where years are in the range
+0000&hellip;9999.
+</p></dd>
+<dt>&lsquo;<samp class="samp">%g</samp>&rsquo;</dt>
+<dd><p>year corresponding to the ISO week number, but without the century
+(range &lsquo;<samp class="samp">00</samp>&rsquo; through &lsquo;<samp class="samp">99</samp>&rsquo;).  This has the same format and value
+as &lsquo;<samp class="samp">%y</samp>&rsquo;, except that if the ISO week number (see
+&lsquo;<samp class="samp">%V</samp>&rsquo;) belongs
+to the previous or next year, that year is used instead.
+This format is ambiguous for dates in different centuries.
+</p></dd>
+<dt>&lsquo;<samp class="samp">%G</samp>&rsquo;</dt>
+<dd><p>year corresponding to the ISO week number.  This has the
+same format and value as &lsquo;<samp class="samp">%Y</samp>&rsquo;, except that if the ISO
+week number (see
+&lsquo;<samp class="samp">%V</samp>&rsquo;) belongs to the previous or next year, that year is used
+instead.
+It is normally useful only if &lsquo;<samp class="samp">%V</samp>&rsquo; is also used;
+for example, the format &lsquo;<samp class="samp">%G-%m-%d</samp>&rsquo; is probably a mistake,
+since it combines the ISO week number year with the conventional month and day.
+</p></dd>
+<dt>&lsquo;<samp class="samp">%h</samp>&rsquo;</dt>
+<dd><p>same as &lsquo;<samp class="samp">%b</samp>&rsquo;
+</p></dd>
+<dt>&lsquo;<samp class="samp">%j</samp>&rsquo;</dt>
+<dd><p>day of year (&lsquo;<samp class="samp">001</samp>&rsquo;&hellip;&lsquo;<samp class="samp">366</samp>&rsquo;)
+</p></dd>
+<dt>&lsquo;<samp class="samp">%m</samp>&rsquo;</dt>
+<dd><p>month (&lsquo;<samp class="samp">01</samp>&rsquo;&hellip;&lsquo;<samp class="samp">12</samp>&rsquo;)
+</p></dd>
+<dt>&lsquo;<samp class="samp">%q</samp>&rsquo;</dt>
+<dd><p>quarter of year (&lsquo;<samp class="samp">1</samp>&rsquo;&hellip;&lsquo;<samp class="samp">4</samp>&rsquo;)
+</p></dd>
+<dt>&lsquo;<samp class="samp">%u</samp>&rsquo;</dt>
+<dd><p>day of week (&lsquo;<samp class="samp">1</samp>&rsquo;&hellip;&lsquo;<samp class="samp">7</samp>&rsquo;) with &lsquo;<samp class="samp">1</samp>&rsquo; corresponding to Monday
+</p></dd>
+<dt>&lsquo;<samp class="samp">%U</samp>&rsquo;</dt>
+<dd><p>week number of year, with Sunday as the first day of the week
+(&lsquo;<samp class="samp">00</samp>&rsquo;&hellip;&lsquo;<samp class="samp">53</samp>&rsquo;).
+Days in a new year preceding the first Sunday are in week zero.
+</p></dd>
+<dt>&lsquo;<samp class="samp">%V</samp>&rsquo;</dt>
+<dd><p>ISO week number, that is, the
+week number of year, with Monday as the first day of the week
+(&lsquo;<samp class="samp">01</samp>&rsquo;&hellip;&lsquo;<samp class="samp">53</samp>&rsquo;).
+If the week containing January 1 has four or more days in
+the new year, then it is considered week 1; otherwise, it is week 53 of
+the previous year, and the next week is week 1.  (See the ISO 8601
+standard.)
+</p></dd>
+<dt>&lsquo;<samp class="samp">%w</samp>&rsquo;</dt>
+<dd><p>day of week (&lsquo;<samp class="samp">0</samp>&rsquo;&hellip;&lsquo;<samp class="samp">6</samp>&rsquo;) with 0 corresponding to Sunday
+</p></dd>
+<dt>&lsquo;<samp class="samp">%W</samp>&rsquo;</dt>
+<dd><p>week number of year, with Monday as first day of week
+(&lsquo;<samp class="samp">00</samp>&rsquo;&hellip;&lsquo;<samp class="samp">53</samp>&rsquo;).
+Days in a new year preceding the first Monday are in week zero.
+</p></dd>
+<dt>&lsquo;<samp class="samp">%x</samp>&rsquo;</dt>
+<dd><p>locale&rsquo;s date representation (e.g., &lsquo;<samp class="samp">12/31/99</samp>&rsquo;).
+This format can be ambiguous for dates in different centuries.
+</p></dd>
+<dt>&lsquo;<samp class="samp">%y</samp>&rsquo;</dt>
+<dd><p>last two digits of year (&lsquo;<samp class="samp">00</samp>&rsquo;&hellip;&lsquo;<samp class="samp">99</samp>&rsquo;).
+This format is ambiguous for dates in different centuries.
+</p></dd>
+<dt>&lsquo;<samp class="samp">%Y</samp>&rsquo;</dt>
+<dd><p>year.  This is normally at least four characters, but it may be more.
+Year &lsquo;<samp class="samp">0000</samp>&rsquo; precedes year &lsquo;<samp class="samp">0001</samp>&rsquo;, and year &lsquo;<samp class="samp">-001</samp>&rsquo;
+precedes year &lsquo;<samp class="samp">0000</samp>&rsquo;.
+</p></dd>
+</dl>
+
+
+</div>
+<hr>
+<div class="nav-panel">
+<p>
+Next: <a href="Literal-conversion-specifiers.html">Literal conversion specifiers</a>, Previous: <a href="Time-conversion-specifiers.html">Time conversion specifiers</a>, Up: <a href="Date-format-specifiers.html">Specifying the format of <code class="command">date</code> output</a> &nbsp; [<a href="index.html#SEC_Contents" title="Table of contents" rel="contents">Contents</a>][<a href="Concept-index.html" title="Index" rel="index">Index</a>]</p>
+</div>
+
+
+
+</body>
+</html>

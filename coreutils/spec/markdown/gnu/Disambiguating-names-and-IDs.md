@@ -1,0 +1,33 @@
+# Disambiguating names and IDs (GNU Coreutils 9.12)
+### 2.4 chown, chgrp, chroot, id: Disambiguating user names and IDs
+
+Since the user and group arguments to these commands
+may be specified as names or numeric IDs, there is an
+apparent ambiguity.
+What if a user or group *name* is a string of digits?
+Should the command interpret it as a user name or as an ID?
+(Using a number as a user name is common in some environments.)
+POSIX requires that these commands
+first attempt to resolve the specified string as a name, and
+only once that fails, then try to interpret it as an ID.
+This is troublesome when you want to specify a numeric ID, say 42,
+and it must work even in a pathological situation where
+‘`42`’ is a user name that maps to some other user ID, say 1000.
+Simply invoking `chown 42 F`, will set `F`s owner ID to
+1000 – not what you intended.
+
+GNU `chown`, `chgrp`, `chroot`, and `id`
+provide a way to work around this, that at the same time may result in a
+significant performance improvement by eliminating a database look-up.
+Simply precede each numeric user ID and/or group ID with a ‘`+`’,
+in order to force its interpretation as an integer:
+
+```
+chown +42 F
+chgrp +$numeric_group_id another-file
+chown +0:+0 /
+```
+
+The name look-up process is skipped for each ‘`+`’-prefixed string,
+because a string containing ‘`+`’ is never a valid user or group name.
+This syntax is accepted on most common Unix systems, but not on Solaris 10.

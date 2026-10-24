@@ -1,0 +1,654 @@
+<!DOCTYPE html>
+<html>
+<!-- Created by GNU Texinfo 7.2, https://www.gnu.org/software/texinfo/ -->
+<head>
+<meta http-equiv="Content-Type" content="text/html; charset=utf-8">
+<!-- This manual documents version 9.12 of the GNU core
+utilities, including the standard programs for text and file manipulation.
+
+Copyright © 1994-2026 Free Software Foundation, Inc.
+
+Permission is granted to copy, distribute and/or modify this document
+under the terms of the GNU Free Documentation License, Version 1.3 or
+any later version published by the Free Software Foundation; with no
+Invariant Sections, with no Front-Cover Texts, and with no Back-Cover
+Texts.  A copy of the license is included in the section entitled "GNU
+Free Documentation License". -->
+<title>dd invocation (GNU Coreutils 9.12)</title>
+
+<meta name="description" content="dd invocation (GNU Coreutils 9.12)">
+<meta name="keywords" content="dd invocation (GNU Coreutils 9.12)">
+<meta name="resource-type" content="document">
+<meta name="distribution" content="global">
+<meta name="Generator" content="makeinfo">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+
+<link href="index.html" rel="start" title="Top">
+<link href="Concept-index.html" rel="index" title="Concept index">
+<link href="index.html#SEC_Contents" rel="contents" title="Table of Contents">
+<link href="Basic-operations.html" rel="up" title="Basic operations">
+<link href="install-invocation.html" rel="next" title="install invocation">
+<link href="cp-invocation.html" rel="prev" title="cp invocation">
+<style type="text/css">
+<!--
+a.copiable-link {visibility: hidden; text-decoration: none; line-height: 0em}
+div.example {margin-left: 3.2em}
+span:hover a.copiable-link {visibility: visible}
+-->
+</style>
+<link rel="stylesheet" type="text/css" href="https://www.gnu.org/software/gnulib/manual.css">
+
+
+</head>
+
+<body lang="en">
+<div class="section-level-extent" id="dd-invocation">
+<div class="nav-panel">
+<p>
+Next: <a href="install-invocation.html" accesskey="n" rel="next"><code class="command">install</code>: Copy files and set attributes</a>, Previous: <a href="cp-invocation.html" accesskey="p" rel="prev"><code class="command">cp</code>: Copy files and directories</a>, Up: <a href="Basic-operations.html" accesskey="u" rel="up">Basic operations</a> &nbsp; [<a href="index.html#SEC_Contents" title="Table of contents" rel="contents">Contents</a>][<a href="Concept-index.html" title="Index" rel="index">Index</a>]</p>
+</div>
+<hr>
+<h3 class="section" id="dd_003a-Convert-and-copy-a-file"><span>11.2 <code class="command">dd</code>: Convert and copy a file<a class="copiable-link" href="#dd_003a-Convert-and-copy-a-file"> &para;</a></span></h3>
+
+<a class="index-entry-id" id="index-dd"></a>
+<a class="index-entry-id" id="index-converting-while-copying-a-file"></a>
+
+<p><code class="command">dd</code> copies input to output with a changeable I/O block size,
+while optionally performing conversions on the data.  Synopses:
+</p>
+<div class="example">
+<pre class="example-preformatted">dd [<var class="var">operand</var>]...
+dd <var class="var">option</var>
+</pre></div>
+
+<p>The only options are <samp class="option">--help</samp> and <samp class="option">--version</samp>.
+See <a class="xref" href="Common-options.html">Common options</a>.
+</p>
+<p>By default, <code class="command">dd</code> copies standard input to standard output.
+To copy, <code class="command">dd</code> repeatedly does the following steps in order:
+</p>
+<ol class="enumerate">
+<li> Read an input block.
+
+</li><li> If converting via &lsquo;<samp class="samp">sync</samp>&rsquo;, pad as needed to meet the input block size.
+Pad with spaces if converting via &lsquo;<samp class="samp">block</samp>&rsquo; or &lsquo;<samp class="samp">unblock</samp>&rsquo;, NUL
+bytes otherwise.
+
+</li><li> If &lsquo;<samp class="samp">bs=</samp>&rsquo; is given and no conversion mentioned in steps (4) or (5)
+is given, output the data as a single block and skip all remaining steps.
+
+</li><li> If the &lsquo;<samp class="samp">swab</samp>&rsquo; conversion is given, swap each pair of input bytes.
+If the input data length is odd, preserve the last input byte
+(since there is nothing to swap it with).
+
+</li><li> If any of the conversions &lsquo;<samp class="samp">swab</samp>&rsquo;, &lsquo;<samp class="samp">block</samp>&rsquo;, &lsquo;<samp class="samp">unblock</samp>&rsquo;,
+&lsquo;<samp class="samp">lcase</samp>&rsquo;, &lsquo;<samp class="samp">ucase</samp>&rsquo;, &lsquo;<samp class="samp">ascii</samp>&rsquo;, &lsquo;<samp class="samp">ebcdic</samp>&rsquo; and &lsquo;<samp class="samp">ibm</samp>&rsquo;
+are given, do these conversions.  These conversions operate
+independently of input blocking, and might deal with records that span
+block boundaries.
+
+</li><li> Aggregate the resulting data into output blocks of the specified size,
+and output each output block in turn.  Do not pad the last output block;
+it can be shorter than usual.
+</li></ol>
+
+<p><code class="command">dd</code> accepts the following operands,
+whose syntax was inspired by the DD (data definition) statement of
+OS/360 JCL.
+</p>
+<dl class="table">
+<dd>
+<a class="anchor" id="ddif"></a></dd>
+<dt><a id="index-if"></a><span>&lsquo;<samp class="samp">if=<var class="var">file</var></samp>&rsquo;<a class="copiable-link" href="#index-if"> &para;</a></span></dt>
+<dd><p>Read from <var class="var">file</var> instead of standard input.
+</p>
+<a class="anchor" id="ddof"></a></dd>
+<dt><a id="index-of"></a><span>&lsquo;<samp class="samp">of=<var class="var">file</var></samp>&rsquo;<a class="copiable-link" href="#index-of"> &para;</a></span></dt>
+<dd><p>Write to <var class="var">file</var> instead of standard output.  Unless
+&lsquo;<samp class="samp">conv=notrunc</samp>&rsquo; is given, truncate <var class="var">file</var> before writing it.
+</p>
+<a class="anchor" id="ddibs"></a></dd>
+<dt><a class="index-entry-id" id="index-block-size-of-input"></a>
+<a class="index-entry-id" id="index-input-block-size"></a>
+<a id="index-ibs"></a><span>&lsquo;<samp class="samp">ibs=<var class="var">bytes</var></samp>&rsquo;<a class="copiable-link" href="#index-ibs"> &para;</a></span></dt>
+<dd><p>Set the input block size to <var class="var">bytes</var>.
+This makes <code class="command">dd</code> read <var class="var">bytes</var> per block.
+The default is 512 bytes.
+</p>
+<a class="anchor" id="ddobs"></a></dd>
+<dt><a class="index-entry-id" id="index-block-size-of-output"></a>
+<a class="index-entry-id" id="index-output-block-size"></a>
+<a id="index-obs"></a><span>&lsquo;<samp class="samp">obs=<var class="var">bytes</var></samp>&rsquo;<a class="copiable-link" href="#index-obs"> &para;</a></span></dt>
+<dd><p>Set the output block size to <var class="var">bytes</var>.
+This makes <code class="command">dd</code> write <var class="var">bytes</var> per block.
+The default is 512 bytes.
+</p>
+<a class="anchor" id="ddbs"></a></dd>
+<dt><a class="index-entry-id" id="index-block-size-1"></a>
+<a id="index-bs"></a><span>&lsquo;<samp class="samp">bs=<var class="var">bytes</var></samp>&rsquo;<a class="copiable-link" href="#index-bs"> &para;</a></span></dt>
+<dd><p>Set both input and output block sizes to <var class="var">bytes</var>.
+This makes <code class="command">dd</code> read and write <var class="var">bytes</var> per block,
+overriding any &lsquo;<samp class="samp">ibs</samp>&rsquo; and &lsquo;<samp class="samp">obs</samp>&rsquo; settings.
+In addition, if no data-transforming <samp class="option">conv</samp> operand is specified,
+input is copied to the output as soon as it&rsquo;s read,
+even if it is smaller than the block size.
+</p>
+<a class="anchor" id="ddcbs"></a></dd>
+<dt><a class="index-entry-id" id="index-block-size-of-conversion"></a>
+<a class="index-entry-id" id="index-conversion-block-size"></a>
+<a class="index-entry-id" id="index-fixed_002dlength-records_002c-converting-to-variable_002dlength"></a>
+<a class="index-entry-id" id="index-variable_002dlength-records_002c-converting-to-fixed_002dlength"></a>
+<a id="index-cbs"></a><span>&lsquo;<samp class="samp">cbs=<var class="var">bytes</var></samp>&rsquo;<a class="copiable-link" href="#index-cbs"> &para;</a></span></dt>
+<dd><p>Set the conversion block size to <var class="var">bytes</var>.
+When converting variable-length records to fixed-length ones
+(<samp class="option">conv=block</samp>) or the reverse (<samp class="option">conv=unblock</samp>),
+use <var class="var">bytes</var> as the fixed record length.
+</p>
+<a class="anchor" id="ddskip"></a></dd>
+<dt><a id="index-iseek"></a><span>&lsquo;<samp class="samp">skip=<var class="var">n</var></samp>&rsquo;<a class="copiable-link" href="#index-iseek"> &para;</a></span></dt>
+<dd><a class="index-entry-id" id="index-skip"></a>
+<a class="anchor" id="ddiseek"></a></dd>
+<dt>&lsquo;<samp class="samp">iseek=<var class="var">n</var></samp>&rsquo;</dt>
+<dd><p>Skip <var class="var">n</var> &lsquo;<samp class="samp">ibs</samp>&rsquo;-byte blocks in the input file before copying.
+If <var class="var">n</var> ends in the letter &lsquo;<samp class="samp">B</samp>&rsquo;, interpret <var class="var">n</var>
+as a byte count rather than a block count.
+(&lsquo;<samp class="samp">B</samp>&rsquo; and the &lsquo;<samp class="samp">iseek=</samp>&rsquo; spelling are GNU extensions to POSIX.)
+</p>
+<a class="anchor" id="ddseek"></a></dd>
+<dt><a id="index-oseek"></a><span>&lsquo;<samp class="samp">seek=<var class="var">n</var></samp>&rsquo;<a class="copiable-link" href="#index-oseek"> &para;</a></span></dt>
+<dd><a class="index-entry-id" id="index-seek"></a>
+<a class="anchor" id="ddoseek"></a></dd>
+<dt>&lsquo;<samp class="samp">oseek=<var class="var">n</var></samp>&rsquo;</dt>
+<dd><p>Skip <var class="var">n</var> &lsquo;<samp class="samp">obs</samp>&rsquo;-byte blocks in the output file before
+truncating or copying.
+If <var class="var">n</var> ends in the letter &lsquo;<samp class="samp">B</samp>&rsquo;, interpret <var class="var">n</var>
+as a byte count rather than a block count.
+(&lsquo;<samp class="samp">B</samp>&rsquo; and the &lsquo;<samp class="samp">oseek=</samp>&rsquo; spelling are GNU extensions to POSIX.)
+</p>
+<a class="anchor" id="ddcount"></a></dd>
+<dt><a id="index-count"></a><span>&lsquo;<samp class="samp">count=<var class="var">n</var></samp>&rsquo;<a class="copiable-link" href="#index-count"> &para;</a></span></dt>
+<dd><p>Copy <var class="var">n</var> &lsquo;<samp class="samp">ibs</samp>&rsquo;-byte blocks from the input file, instead
+of everything until the end of the file.
+If <var class="var">n</var> ends in the letter &lsquo;<samp class="samp">B</samp>&rsquo;,
+interpret <var class="var">n</var> as a byte count rather than a block count;
+this is a GNU extension to POSIX.
+If short reads occur, as could be the case
+when reading from a pipe for example, &lsquo;<samp class="samp">iflag=fullblock</samp>&rsquo;
+ensures that &lsquo;<samp class="samp">count=</samp>&rsquo; counts complete input blocks
+rather than input read operations.
+As an extension to POSIX, &lsquo;<samp class="samp">count=0</samp>&rsquo; copies zero blocks
+instead of copying all blocks.
+</p>
+<a class="anchor" id="ddstatus"></a></dd>
+<dt><a id="index-status"></a><span>&lsquo;<samp class="samp">status=<var class="var">level</var></samp>&rsquo;<a class="copiable-link" href="#index-status"> &para;</a></span></dt>
+<dd><p>Specify the amount of information printed.
+If this operand is given multiple times, the last one takes precedence.
+The <var class="var">level</var> value can be one of the following:
+</p>
+<dl class="table">
+<dt><a id="index-none-dd-status_003d"></a><span>&lsquo;<samp class="samp">none</samp>&rsquo;<a class="copiable-link" href="#index-none-dd-status_003d"> &para;</a></span></dt>
+<dd><p>Do not print any informational or warning messages to standard error.
+Error messages are output as normal.
+</p>
+</dd>
+<dt><a id="index-noxfer-dd-status_003d"></a><span>&lsquo;<samp class="samp">noxfer</samp>&rsquo;<a class="copiable-link" href="#index-noxfer-dd-status_003d"> &para;</a></span></dt>
+<dd><p>Do not print the final transfer rate and volume statistics
+that normally make up the last status line.
+</p>
+</dd>
+<dt><a id="index-progress-dd-status_003d"></a><span>&lsquo;<samp class="samp">progress</samp>&rsquo;<a class="copiable-link" href="#index-progress-dd-status_003d"> &para;</a></span></dt>
+<dd><p>Print the transfer rate and volume statistics on standard error,
+when processing each input block.  Statistics are output
+on a single line at most once every second, but updates
+can be delayed when waiting on I/O.
+</p>
+</dd>
+</dl>
+
+<p>Transfer information is normally output to standard error upon
+receipt of the &lsquo;<samp class="samp">INFO</samp>&rsquo; signal or when <code class="command">dd</code> exits,
+and defaults to the following form in the C locale:
+</p>
+<div class="example">
+<pre class="example-preformatted">7287+1 records in
+116608+0 records out
+59703296 bytes (60 MB, 57 MiB) copied, 0.0427974 s, 1.4 GB/s
+</pre></div>
+
+<p>The notation &lsquo;<samp class="samp"><var class="var">w</var>+<var class="var">p</var></samp>&rsquo; stands for <var class="var">w</var> whole blocks
+and <var class="var">p</var> partial blocks.  A partial block occurs when a read or
+write operation succeeds but transfers less data than the block size.
+An additional line like &lsquo;<samp class="samp">1 truncated record</samp>&rsquo; or &lsquo;<samp class="samp">10
+truncated records</samp>&rsquo; is output after the &lsquo;<samp class="samp">records out</samp>&rsquo; line if
+&lsquo;<samp class="samp">conv=block</samp>&rsquo; processing truncated one or more input records.
+</p>
+<p>The &lsquo;<samp class="samp">status=</samp>&rsquo; operand is a GNU extension to POSIX.
+</p>
+<a class="anchor" id="ddconv"></a></dd>
+<dt><a id="index-conv"></a><span>&lsquo;<samp class="samp">conv=<var class="var">conversion</var>[,<var class="var">conversion</var>]&hellip;</samp>&rsquo;<a class="copiable-link" href="#index-conv"> &para;</a></span></dt>
+<dd><p>Convert the file as specified by the <var class="var">conversion</var> argument(s).
+(No spaces around any comma(s).)
+</p>
+<p>Conversions:
+</p>
+<dl class="table">
+<dt><a id="index-ascii_002c-converting-to"></a><span>&lsquo;<samp class="samp">ascii</samp>&rsquo;<a class="copiable-link" href="#index-ascii_002c-converting-to"> &para;</a></span></dt>
+<dd><p>Convert EBCDIC to ASCII,
+using the conversion table specified by POSIX.
+This provides a 1:1 translation for all 256 bytes.
+This implies &lsquo;<samp class="samp">conv=unblock</samp>&rsquo;; input is converted to
+ASCII before trailing spaces are deleted.
+</p>
+</dd>
+<dt><a id="index-ebcdic_002c-converting-to"></a><span>&lsquo;<samp class="samp">ebcdic</samp>&rsquo;<a class="copiable-link" href="#index-ebcdic_002c-converting-to"> &para;</a></span></dt>
+<dd><p>Convert ASCII to EBCDIC.
+This is the inverse of the &lsquo;<samp class="samp">ascii</samp>&rsquo; conversion.
+This implies &lsquo;<samp class="samp">conv=block</samp>&rsquo;; trailing spaces are added
+before being converted to EBCDIC.
+</p>
+</dd>
+<dt><a id="index-alternate-ebcdic_002c-converting-to"></a><span>&lsquo;<samp class="samp">ibm</samp>&rsquo;<a class="copiable-link" href="#index-alternate-ebcdic_002c-converting-to"> &para;</a></span></dt>
+<dd><p>This acts like &lsquo;<samp class="samp">conv=ebcdic</samp>&rsquo;, except it
+uses the alternate conversion table specified by POSIX.
+This is not a 1:1 translation, but reflects common historical practice
+for &lsquo;<samp class="samp">~</samp>&rsquo;, &lsquo;<samp class="samp">[</samp>&rsquo;, and &lsquo;<samp class="samp">]</samp>&rsquo;.
+</p>
+<p>The &lsquo;<samp class="samp">ascii</samp>&rsquo;, &lsquo;<samp class="samp">ebcdic</samp>&rsquo;, and &lsquo;<samp class="samp">ibm</samp>&rsquo; conversions are
+mutually exclusive.  If you use any of these conversions, you should also
+use the &lsquo;<samp class="samp">cbs=</samp>&rsquo; operand.
+</p>
+</dd>
+<dt><a id="index-block-_0028space_002dpadding_0029"></a><span>&lsquo;<samp class="samp">block</samp>&rsquo;<a class="copiable-link" href="#index-block-_0028space_002dpadding_0029"> &para;</a></span></dt>
+<dd><p>For each line in the input, output &lsquo;<samp class="samp">cbs</samp>&rsquo; bytes, replacing the
+input newline with a space and truncating or padding input lines with
+spaces as necessary.
+</p>
+</dd>
+<dt><a id="index-unblock"></a><span>&lsquo;<samp class="samp">unblock</samp>&rsquo;<a class="copiable-link" href="#index-unblock"> &para;</a></span></dt>
+<dd><p>Remove any trailing spaces in each &lsquo;<samp class="samp">cbs</samp>&rsquo;-sized input block,
+and append a newline.
+</p>
+<p>The &lsquo;<samp class="samp">block</samp>&rsquo; and &lsquo;<samp class="samp">unblock</samp>&rsquo; conversions are mutually exclusive.
+If you use either of these conversions, you should also use the
+&lsquo;<samp class="samp">cbs=</samp>&rsquo; operand.
+</p>
+</dd>
+<dt><a id="index-lcase_002c-converting-to"></a><span>&lsquo;<samp class="samp">lcase</samp>&rsquo;<a class="copiable-link" href="#index-lcase_002c-converting-to"> &para;</a></span></dt>
+<dd><p>Change uppercase letters to lowercase.
+</p>
+</dd>
+<dt><a id="index-ucase_002c-converting-to"></a><span>&lsquo;<samp class="samp">ucase</samp>&rsquo;<a class="copiable-link" href="#index-ucase_002c-converting-to"> &para;</a></span></dt>
+<dd><p>Change lowercase letters to uppercase.
+</p>
+<p>The &lsquo;<samp class="samp">lcase</samp>&rsquo; and &lsquo;<samp class="samp">ucase</samp>&rsquo; conversions are mutually exclusive.
+</p>
+<p>POSIX leaves the behavior of &lsquo;<samp class="samp">lcase</samp>&rsquo; and &lsquo;<samp class="samp">ucase</samp>&rsquo; unspecified
+on multibyte characters.  GNU <code class="command">dd</code> supports only unibyte
+conversion, because multibyte characters may cross block boundaries and
+case conversion may change the length of characters.
+</p>
+<p>POSIX also leaves the behavior of &lsquo;<samp class="samp">lcase</samp>&rsquo; and &lsquo;<samp class="samp">ucase</samp>&rsquo;
+unspecified if used with &lsquo;<samp class="samp">ascii</samp>&rsquo;, &lsquo;<samp class="samp">ebcdic</samp>&rsquo;, or &lsquo;<samp class="samp">ibm</samp>&rsquo;.
+GNU <code class="command">dd</code> will perform the case conversion and then perform the
+character set conversion.
+</p>
+</dd>
+<dt><a id="index-sparse"></a><span>&lsquo;<samp class="samp">sparse</samp>&rsquo;<a class="copiable-link" href="#index-sparse"> &para;</a></span></dt>
+<dd><p>Try to seek rather than write NUL output blocks.
+On a file system that supports sparse files, this will create
+sparse output when extending the output file.
+Be careful when using this conversion in conjunction with
+&lsquo;<samp class="samp">conv=notrunc</samp>&rsquo; or &lsquo;<samp class="samp">oflag=append</samp>&rsquo;.
+With &lsquo;<samp class="samp">conv=notrunc</samp>&rsquo;, existing data in the output file
+corresponding to NUL blocks from the input, will be untouched.
+With &lsquo;<samp class="samp">oflag=append</samp>&rsquo; the seeks performed will be ineffective.
+Similarly, when the output is a device rather than a file,
+NUL input blocks are not copied, and therefore this conversion
+is most useful with virtual or pre zeroed devices.
+</p>
+<p>The &lsquo;<samp class="samp">sparse</samp>&rsquo; conversion is a GNU extension to POSIX.
+</p>
+</dd>
+<dt><a class="index-entry-id" id="index-byte_002dswapping-1"></a>
+<a id="index-swab-_0028byte_002dswapping_0029"></a><span>&lsquo;<samp class="samp">swab</samp>&rsquo;<a class="copiable-link" href="#index-swab-_0028byte_002dswapping_0029"> &para;</a></span></dt>
+<dd><p>Swap every pair of input bytes.
+</p>
+</dd>
+<dt><a id="index-sync-_0028padding-with-ASCII-NULs_0029"></a><span>&lsquo;<samp class="samp">sync</samp>&rsquo;<a class="copiable-link" href="#index-sync-_0028padding-with-ASCII-NULs_0029"> &para;</a></span></dt>
+<dd><p>Pad every input block to size of &lsquo;<samp class="samp">ibs</samp>&rsquo; with trailing zero bytes.
+When used with &lsquo;<samp class="samp">block</samp>&rsquo; or &lsquo;<samp class="samp">unblock</samp>&rsquo;, pad with spaces instead of
+zero bytes.
+</p>
+</dd>
+</dl>
+
+<p>The following &ldquo;conversions&rdquo; are really file flags
+and don&rsquo;t affect internal processing:
+</p>
+<dl class="table">
+<dt><a class="index-entry-id" id="index-creating-output-file_002c-requiring"></a>
+<a id="index-excl"></a><span>&lsquo;<samp class="samp">excl</samp>&rsquo;<a class="copiable-link" href="#index-excl"> &para;</a></span></dt>
+<dd><p>Fail if the output file already exists; <code class="command">dd</code> must create the
+output file itself.
+</p>
+</dd>
+<dt><a class="index-entry-id" id="index-creating-output-file_002c-avoiding"></a>
+<a id="index-nocreat"></a><span>&lsquo;<samp class="samp">nocreat</samp>&rsquo;<a class="copiable-link" href="#index-nocreat"> &para;</a></span></dt>
+<dd><p>Do not create the output file; the output file must already exist.
+</p>
+<p>The &lsquo;<samp class="samp">excl</samp>&rsquo; and &lsquo;<samp class="samp">nocreat</samp>&rsquo; conversions are mutually exclusive,
+and are GNU extensions to POSIX.
+</p>
+</dd>
+<dt><a class="index-entry-id" id="index-truncating-output-file_002c-avoiding"></a>
+<a id="index-notrunc"></a><span>&lsquo;<samp class="samp">notrunc</samp>&rsquo;<a class="copiable-link" href="#index-notrunc"> &para;</a></span></dt>
+<dd><p>Do not truncate the output file.
+</p>
+</dd>
+<dt><a class="index-entry-id" id="index-read-errors_002c-ignoring"></a>
+<a id="index-noerror"></a><span>&lsquo;<samp class="samp">noerror</samp>&rsquo;<a class="copiable-link" href="#index-noerror"> &para;</a></span></dt>
+<dd><p>Continue after read errors.
+</p>
+</dd>
+<dt><a class="index-entry-id" id="index-synchronized-data-writes_002c-before-finishing"></a>
+<a id="index-fdatasync"></a><span>&lsquo;<samp class="samp">fdatasync</samp>&rsquo;<a class="copiable-link" href="#index-fdatasync"> &para;</a></span></dt>
+<dd><p>Synchronize output data just before finishing,
+even if there were write errors.
+This forces a physical write of output data,
+so that even if power is lost the output data will be preserved.
+If neither this nor &lsquo;<samp class="samp">fsync</samp>&rsquo; are specified, output is treated as
+usual with file systems, i.e., output data and metadata may be cached
+in primary memory for some time before the operating system physically
+writes it, and thus output data and metadata may be lost if power is lost.
+See <a class="xref" href="sync-invocation.html"><code class="command">sync</code>: Synchronize cached writes to persistent storage</a>.
+This conversion is a GNU extension to POSIX.
+</p>
+</dd>
+<dt><a class="index-entry-id" id="index-synchronized-data-and-metadata-writes_002c-before-finishing"></a>
+<a id="index-fsync"></a><span>&lsquo;<samp class="samp">fsync</samp>&rsquo;<a class="copiable-link" href="#index-fsync"> &para;</a></span></dt>
+<dd><p>Synchronize output data and metadata just before finishing,
+even if there were write errors.
+This acts like &lsquo;<samp class="samp">fdatasync</samp>&rsquo; except it also preserves output metadata,
+such as the last-modified time of the output file; for this reason it
+may be a bit slower than &lsquo;<samp class="samp">fdatasync</samp>&rsquo; although the performance
+difference is typically insignificant for <code class="command">dd</code>.
+This conversion is a GNU extension to POSIX.
+</p>
+</dd>
+</dl>
+
+<a class="anchor" id="ddiflag"></a></dd>
+<dt><a id="index-iflag"></a><span>&lsquo;<samp class="samp">iflag=<var class="var">flag</var>[,<var class="var">flag</var>]&hellip;</samp>&rsquo;<a class="copiable-link" href="#index-iflag"> &para;</a></span></dt>
+<dd><p>Access the input file using the flags specified by the <var class="var">flag</var>
+argument(s).  (No spaces around any comma(s).)
+</p>
+<a class="anchor" id="ddoflag"></a></dd>
+<dt><a id="index-oflag"></a><span>&lsquo;<samp class="samp">oflag=<var class="var">flag</var>[,<var class="var">flag</var>]&hellip;</samp>&rsquo;<a class="copiable-link" href="#index-oflag"> &para;</a></span></dt>
+<dd><p>Access the output file using the flags specified by the <var class="var">flag</var>
+argument(s).  (No spaces around any comma(s).)
+</p>
+<p>Here are the flags.
+</p>
+<dl class="table">
+<dt><a class="index-entry-id" id="index-appending-to-the-output-file"></a>
+<a id="index-append"></a><span>&lsquo;<samp class="samp">append</samp>&rsquo;<a class="copiable-link" href="#index-append"> &para;</a></span></dt>
+<dd><p>Write in append mode, so that even if some other process is writing to
+this file, every <code class="command">dd</code> write will append to the current
+contents of the file.  This flag makes sense only for output.
+If you combine this flag with the &lsquo;<samp class="samp">of=<var class="var">file</var></samp>&rsquo; operand,
+you should also specify &lsquo;<samp class="samp">conv=notrunc</samp>&rsquo; unless you want the
+output file to be truncated before being appended to.
+</p>
+</dd>
+<dt><a class="index-entry-id" id="index-concurrent-I_002fO"></a>
+<a id="index-cio"></a><span>&lsquo;<samp class="samp">cio</samp>&rsquo;<a class="copiable-link" href="#index-cio"> &para;</a></span></dt>
+<dd><p>Use concurrent I/O mode for data.  This mode performs direct I/O
+and drops the POSIX requirement to serialize all I/O to the same file.
+A file cannot be opened in CIO mode and with a standard open at the
+same time.
+</p>
+</dd>
+<dt><a class="index-entry-id" id="index-direct-I_002fO"></a>
+<a id="index-direct"></a><span>&lsquo;<samp class="samp">direct</samp>&rsquo;<a class="copiable-link" href="#index-direct"> &para;</a></span></dt>
+<dd><p>Use direct I/O for data, avoiding the buffer cache.
+The kernel may impose restrictions on read or write buffer sizes.
+For example, with an ext4 destination file system and a Linux-based kernel,
+using &lsquo;<samp class="samp">oflag=direct</samp>&rsquo; will cause writes to fail with <code class="code">EINVAL</code> if the
+output buffer size is not a multiple of 512.
+</p>
+</dd>
+<dt><a class="index-entry-id" id="index-directory-I_002fO"></a>
+<a id="index-directory"></a><span>&lsquo;<samp class="samp">directory</samp>&rsquo;<a class="copiable-link" href="#index-directory"> &para;</a></span></dt>
+<dd>
+<p>Fail unless the file is a directory.  Most operating systems do not
+allow I/O to a directory, so this flag has limited utility.
+</p>
+</dd>
+<dt><a class="index-entry-id" id="index-synchronized-data-reads"></a>
+<a id="index-dsync"></a><span>&lsquo;<samp class="samp">dsync</samp>&rsquo;<a class="copiable-link" href="#index-dsync"> &para;</a></span></dt>
+<dd><p>Use synchronized I/O for data.  For the output file, this forces a
+physical write of output data on each write.  For the input file,
+this flag can matter when reading from a remote file that has been
+written to synchronously by some other process.  Metadata (e.g.,
+last-access and last-modified time) is not necessarily synchronized.
+</p>
+</dd>
+<dt><a class="index-entry-id" id="index-synchronized-data-and-metadata-I_002fO"></a>
+<a id="index-sync"></a><span>&lsquo;<samp class="samp">sync</samp>&rsquo;<a class="copiable-link" href="#index-sync"> &para;</a></span></dt>
+<dd><p>Use synchronized I/O for both data and metadata.
+</p>
+</dd>
+<dt><a class="index-entry-id" id="index-discarding-file-cache"></a>
+<a id="index-nocache"></a><span>&lsquo;<samp class="samp">nocache</samp>&rsquo;<a class="copiable-link" href="#index-nocache"> &para;</a></span></dt>
+<dd><p>Request to discard the system data cache for a file.
+When count=0 all cached data for the file is specified,
+otherwise the cache is dropped for the processed
+portion of the file.  Also when count=0,
+failure to discard the cache is diagnosed
+and reflected in the exit status.
+</p>
+<p>Because data not already persisted to storage is not discarded from the cache,
+the &lsquo;<samp class="samp">sync</samp>&rsquo; conversions in the following examples maximize the
+effectiveness of the &lsquo;<samp class="samp">nocache</samp>&rsquo; flag.
+</p>
+<p>Here are some usage examples:
+</p>
+<div class="example">
+<pre class="example-preformatted"># Advise to drop cache for whole file
+dd if=ifile iflag=nocache count=0
+
+# Ensure drop cache for the whole file
+dd of=ofile oflag=nocache conv=notrunc,fdatasync count=0
+
+# Advise to drop cache for part of file
+# The kernel will consider only complete and
+# already persisted pages.
+dd if=ifile iflag=nocache skip=10 count=10 of=/dev/null
+
+# Stream data using just the read-ahead cache.
+# See also the &lsquo;<samp class="samp">direct</samp>&rsquo; flag.
+dd if=ifile of=ofile iflag=nocache oflag=nocache,sync
+</pre></div>
+
+</dd>
+<dt><a class="index-entry-id" id="index-nonblocking-I_002fO"></a>
+<a id="index-nonblock"></a><span>&lsquo;<samp class="samp">nonblock</samp>&rsquo;<a class="copiable-link" href="#index-nonblock"> &para;</a></span></dt>
+<dd><p>Use non-blocking I/O.
+</p>
+</dd>
+<dt><a class="index-entry-id" id="index-access-timestamp"></a>
+<a id="index-noatime"></a><span>&lsquo;<samp class="samp">noatime</samp>&rsquo;<a class="copiable-link" href="#index-noatime"> &para;</a></span></dt>
+<dd><p>Do not update the file&rsquo;s access timestamp.
+See <a class="xref" href="File-timestamps.html">File timestamps</a>.
+Some older file systems silently ignore this flag, so it is a good
+idea to test it on your files before relying on it.
+</p>
+</dd>
+<dt><a class="index-entry-id" id="index-controlling-terminal"></a>
+<a id="index-noctty"></a><span>&lsquo;<samp class="samp">noctty</samp>&rsquo;<a class="copiable-link" href="#index-noctty"> &para;</a></span></dt>
+<dd><p>Do not assign the file to be a controlling terminal for <code class="command">dd</code>.
+This has no effect when the file is not a terminal.
+On many hosts (e.g., GNU/Linux hosts), this flag has no effect
+at all.
+</p>
+</dd>
+<dt><a class="index-entry-id" id="index-symbolic-links_002c-following"></a>
+<a id="index-nofollow"></a><span>&lsquo;<samp class="samp">nofollow</samp>&rsquo;<a class="copiable-link" href="#index-nofollow"> &para;</a></span></dt>
+<dd><p>Do not follow symbolic links.
+</p>
+</dd>
+<dt><a class="index-entry-id" id="index-hard-links"></a>
+<a id="index-nolinks"></a><span>&lsquo;<samp class="samp">nolinks</samp>&rsquo;<a class="copiable-link" href="#index-nolinks"> &para;</a></span></dt>
+<dd><p>Fail if the file has multiple hard links.
+</p>
+</dd>
+<dt><a class="index-entry-id" id="index-binary-I_002fO"></a>
+<a id="index-binary"></a><span>&lsquo;<samp class="samp">binary</samp>&rsquo;<a class="copiable-link" href="#index-binary"> &para;</a></span></dt>
+<dd><p>Use binary I/O.  This flag has an effect only on nonstandard
+platforms that distinguish binary from text I/O.
+</p>
+</dd>
+<dt><a class="index-entry-id" id="index-text-I_002fO"></a>
+<a id="index-text"></a><span>&lsquo;<samp class="samp">text</samp>&rsquo;<a class="copiable-link" href="#index-text"> &para;</a></span></dt>
+<dd><p>Use text I/O.  Like &lsquo;<samp class="samp">binary</samp>&rsquo;, this flag has no effect on
+standard platforms.
+</p>
+</dd>
+<dt><a id="index-fullblock"></a><span>&lsquo;<samp class="samp">fullblock</samp>&rsquo;<a class="copiable-link" href="#index-fullblock"> &para;</a></span></dt>
+<dd><p>Accumulate full blocks from input.  The <code class="code">read</code> system call
+may return early if a full block is not available.
+When that happens, continue calling <code class="code">read</code> to fill the remainder
+of the block.
+This flag can be used only with <code class="code">iflag</code>.
+This flag is useful with pipes for example
+as they may return short reads. In that case,
+this flag is needed to ensure that a &lsquo;<samp class="samp">count=</samp>&rsquo; argument is
+interpreted as a block count rather than a count of read operations.
+</p>
+</dd>
+</dl>
+
+<p>These flags are all GNU extensions to POSIX, except for &lsquo;<samp class="samp">fullblock</samp>&rsquo;
+which was added by POSIX.1-2024.
+They are not supported on all systems, and &lsquo;<samp class="samp">dd</samp>&rsquo; rejects
+attempts to use them when they are not supported.  When reading from
+standard input or writing to standard output, the &lsquo;<samp class="samp">nofollow</samp>&rsquo; and
+&lsquo;<samp class="samp">noctty</samp>&rsquo; flags should not be specified, and the other flags
+(e.g., &lsquo;<samp class="samp">nonblock</samp>&rsquo;) can affect how other processes behave with the
+affected file descriptors, even after <code class="command">dd</code> exits.
+</p>
+</dd>
+</dl>
+
+<p>The behavior of <code class="command">dd</code> is unspecified if operands other than
+&lsquo;<samp class="samp">conv=</samp>&rsquo;, &lsquo;<samp class="samp">iflag=</samp>&rsquo;, &lsquo;<samp class="samp">oflag=</samp>&rsquo;, and &lsquo;<samp class="samp">status=</samp>&rsquo; are
+specified more than once.
+</p>
+<a class="index-entry-id" id="index-multipliers-after-numbers"></a>
+<p>The numeric-valued strings above (<var class="var">n</var> and <var class="var">bytes</var>)
+are unsigned decimal integers that
+can be followed by a multiplier: &lsquo;<samp class="samp">b</samp>&rsquo;=512, &lsquo;<samp class="samp">c</samp>&rsquo;=1,
+&lsquo;<samp class="samp">w</samp>&rsquo;=2, &lsquo;<samp class="samp">x<var class="var">m</var></samp>&rsquo;=<var class="var">m</var>, or any of the
+standard block size suffixes like &lsquo;<samp class="samp">k</samp>&rsquo;=1024 (see <a class="pxref" href="Block-size.html">Block size</a>).
+These multipliers are GNU extensions to POSIX, except that
+POSIX allows <var class="var">bytes</var> to be followed by &lsquo;<samp class="samp">k</samp>&rsquo;, &lsquo;<samp class="samp">b</samp>&rsquo;, and
+&lsquo;<samp class="samp">x<var class="var">m</var></samp>&rsquo;. An &lsquo;<samp class="samp">x<var class="var">m</var></samp>&rsquo; can be used more than once in a number.
+Block sizes (i.e., specified by <var class="var">bytes</var> strings) must be nonzero.
+</p>
+<p>Any block size you specify via &lsquo;<samp class="samp">bs=</samp>&rsquo;, &lsquo;<samp class="samp">ibs=</samp>&rsquo;, &lsquo;<samp class="samp">obs=</samp>&rsquo;, &lsquo;<samp class="samp">cbs=</samp>&rsquo;
+should not be too large &ndash; values larger than a few megabytes
+are generally wasteful or (as in the gigabyte..exabyte case) downright
+counterproductive or error-inducing.
+</p>
+<p>To process data with offset or size that is not a multiple of the I/O
+block size, you can use a numeric string <var class="var">n</var> that ends in the
+letter &lsquo;<samp class="samp">B</samp>&rsquo;.
+For example, the following shell commands copy data
+in 1 MiB blocks between a flash drive and a tape, but do not save
+or restore a 512-byte area at the start of the flash drive:
+</p>
+<div class="example">
+<pre class="example-preformatted">flash=/dev/sda
+tape=/dev/st0
+
+# Copy all but the initial 512 bytes from flash to tape.
+dd if=$flash iseek=512B bs=1MiB of=$tape
+
+# Copy from tape back to flash, leaving initial 512 bytes alone.
+dd if=$tape bs=1MiB of=$flash oseek=512B
+</pre></div>
+
+<a class="index-entry-id" id="index-ddrescue"></a>
+<a class="index-entry-id" id="index-storage-devices_002c-failing"></a>
+<p>For failing storage devices, other tools come with a great variety of extra
+functionality to ease the saving of as much data as possible before the
+device finally dies, e.g.
+<a class="uref" href="https://www.gnu.org/software/ddrescue/">GNU <code class="command">ddrescue</code></a>.
+However, in some cases such a tool is not available or the administrator
+feels more comfortable with the handling of <code class="command">dd</code>.
+As a simple rescue method, call <code class="command">dd</code> as shown in the following
+example: the operand &lsquo;<samp class="samp">conv=noerror,sync</samp>&rsquo; is used to continue
+after read errors and to pad out bad reads with NULs, while
+&lsquo;<samp class="samp">iflag=fullblock</samp>&rsquo; caters for short reads (which traditionally never
+occur on flash or similar devices):
+</p>
+<div class="example">
+<pre class="example-preformatted"># Rescue data from an (unmounted!) partition of a failing device.
+dd conv=noerror,sync iflag=fullblock &lt;/dev/sda1 &gt; /mnt/rescue.img
+</pre></div>
+
+<p>Sending an &lsquo;<samp class="samp">INFO</samp>&rsquo; signal (or &lsquo;<samp class="samp">USR1</samp>&rsquo; signal where that is unavailable)
+to a running <code class="command">dd</code> process makes it print I/O statistics to
+standard error and then resume copying.   In the example below,
+<code class="command">dd</code> is run in the background to copy 5GB of data.
+The <code class="command">kill</code> command makes it output intermediate I/O statistics,
+and when <code class="command">dd</code> completes normally or is killed by the
+<code class="code">SIGINT</code> signal, it outputs the final statistics.
+</p>
+<div class="example">
+<pre class="example-preformatted"># Ignore the signal so we never inadvertently terminate the dd child.
+# (This is not needed when SIGINFO is available.)
+trap '' USR1
+
+# Run dd with the fullblock iflag to avoid short reads
+# which can be triggered by reception of signals.
+dd iflag=fullblock if=/dev/zero of=/dev/null count=5000000 bs=1000 &amp; pid=$!
+
+# Output stats every second.
+while kill -s USR1 $pid 2&gt;/dev/null; do sleep 1; done
+</pre></div>
+
+<p>The above script will output in the following format:
+</p>
+<div class="example">
+<pre class="example-preformatted">3441325+0 records in
+3441325+0 records out
+3441325000 bytes (3.4 GB, 3.2 GiB) copied, 1.00036 s, 3.4 GB/s
+5000000+0 records in
+5000000+0 records out
+5000000000 bytes (5.0 GB, 4.7 GiB) copied, 1.44433 s, 3.5 GB/s
+</pre></div>
+
+<p>The &lsquo;<samp class="samp">status=progress</samp>&rsquo; operand periodically updates the last line
+of the transfer statistics above.
+</p>
+<a class="index-entry-id" id="index-POSIXLY_005fCORRECT-6"></a>
+<p>On systems lacking the &lsquo;<samp class="samp">INFO</samp>&rsquo; signal <code class="command">dd</code> responds to the
+&lsquo;<samp class="samp">USR1</samp>&rsquo; signal instead, unless the <code class="env">POSIXLY_CORRECT</code>
+environment variable is set.
+</p>
+<p>An exit status of zero indicates success,
+and a nonzero value indicates failure.
+</p>
+
+</div>
+<hr>
+<div class="nav-panel">
+<p>
+Next: <a href="install-invocation.html"><code class="command">install</code>: Copy files and set attributes</a>, Previous: <a href="cp-invocation.html"><code class="command">cp</code>: Copy files and directories</a>, Up: <a href="Basic-operations.html">Basic operations</a> &nbsp; [<a href="index.html#SEC_Contents" title="Table of contents" rel="contents">Contents</a>][<a href="Concept-index.html" title="Index" rel="index">Index</a>]</p>
+</div>
+
+
+
+</body>
+</html>

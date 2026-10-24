@@ -1,0 +1,147 @@
+<!DOCTYPE html>
+<html>
+<!-- Created by GNU Texinfo 7.2, https://www.gnu.org/software/texinfo/ -->
+<head>
+<meta http-equiv="Content-Type" content="text/html; charset=utf-8">
+<!-- This manual documents version 9.12 of the GNU core
+utilities, including the standard programs for text and file manipulation.
+
+Copyright © 1994-2026 Free Software Foundation, Inc.
+
+Permission is granted to copy, distribute and/or modify this document
+under the terms of the GNU Free Documentation License, Version 1.3 or
+any later version published by the Free Software Foundation; with no
+Invariant Sections, with no Front-Cover Texts, and with no Back-Cover
+Texts.  A copy of the license is included in the section entitled "GNU
+Free Documentation License". -->
+<title>runcon invocation (GNU Coreutils 9.12)</title>
+
+<meta name="description" content="runcon invocation (GNU Coreutils 9.12)">
+<meta name="keywords" content="runcon invocation (GNU Coreutils 9.12)">
+<meta name="resource-type" content="document">
+<meta name="distribution" content="global">
+<meta name="Generator" content="makeinfo">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+
+<link href="index.html" rel="start" title="Top">
+<link href="Concept-index.html" rel="index" title="Concept index">
+<link href="index.html#SEC_Contents" rel="contents" title="Table of Contents">
+<link href="SELinux-context.html" rel="up" title="SELinux context">
+<link href="chcon-invocation.html" rel="prev" title="chcon invocation">
+<style type="text/css">
+<!--
+a.copiable-link {visibility: hidden; text-decoration: none; line-height: 0em}
+div.display {margin-left: 3.2em}
+div.example {margin-left: 3.2em}
+pre.display-preformatted {font-family: inherit}
+span:hover a.copiable-link {visibility: visible}
+-->
+</style>
+<link rel="stylesheet" type="text/css" href="https://www.gnu.org/software/gnulib/manual.css">
+
+
+</head>
+
+<body lang="en">
+<div class="section-level-extent" id="runcon-invocation">
+<div class="nav-panel">
+<p>
+Previous: <a href="chcon-invocation.html" accesskey="p" rel="prev"><code class="command">chcon</code>: Change SELinux context of file</a>, Up: <a href="SELinux-context.html" accesskey="u" rel="up">SELinux context</a> &nbsp; [<a href="index.html#SEC_Contents" title="Table of contents" rel="contents">Contents</a>][<a href="Concept-index.html" title="Index" rel="index">Index</a>]</p>
+</div>
+<hr>
+<h3 class="section" id="runcon_003a-Run-a-command-in-specified-SELinux-context"><span>22.2 <code class="command">runcon</code>: Run a command in specified SELinux context<a class="copiable-link" href="#runcon_003a-Run-a-command-in-specified-SELinux-context"> &para;</a></span></h3>
+
+<a class="index-entry-id" id="index-runcon"></a>
+<a class="index-entry-id" id="index-run-with-security-context"></a>
+
+
+<p><code class="command">runcon</code> runs file in specified SELinux security context.
+</p>
+<p>Synopses:
+</p><div class="example">
+<pre class="example-preformatted">runcon [<var class="var">context</var> <var class="var">command</var> [<var class="var">arg</var>]...]
+runcon [-c] [-u <var class="var">user</var>] [-r <var class="var">role</var>] [-t <var class="var">type</var>] [-l <var class="var">range</var>] <var class="var">command</var> [<var class="var">arg</var>...]
+</pre></div>
+
+<p>Run <var class="var">command</var> with completely-specified <var class="var">context</var>, or with
+current or transitioned security context modified by one or more of <var class="var">level</var>,
+<var class="var">role</var>, <var class="var">type</var> and <var class="var">user</var>.
+</p>
+<p>If none of <samp class="option">-c</samp>, <samp class="option">-t</samp>, <samp class="option">-u</samp>, <samp class="option">-r</samp>, or <samp class="option">-l</samp>
+is specified, the first argument is used as the complete context.
+Any additional arguments after <var class="var">command</var>
+are interpreted as arguments to the command.
+</p>
+<p>With neither <var class="var">context</var> nor <var class="var">command</var>, print the current
+security context.
+</p>
+<a class="index-entry-id" id="index-restricted-security-context"></a>
+<a class="index-entry-id" id="index-NO_005fNEW_005fPRIVS"></a>
+<p>The <code class="command">setpriv</code> command can be used to set the
+NO_NEW_PRIVS bit using <code class="command">setpriv --no-new-privs runcon ...</code>,
+thus disallowing usage of a security context with more privileges
+than the process would normally have.
+</p>
+<p><code class="command">runcon</code> accepts the following options.  Also see <a class="ref" href="Common-options.html">Common options</a>.
+</p>
+<dl class="table">
+<dd>
+<a class="anchor" id="runcon-c"></a></dd>
+<dt><a id="index-_002d_002dcompute"></a><span>&lsquo;<samp class="samp">-c</samp>&rsquo;<a class="copiable-link" href="#index-_002d_002dcompute"> &para;</a></span></dt>
+<dd><a class="index-entry-id" id="index-_002dc-23"></a>
+<a class="anchor" id="runcon--compute"></a></dd>
+<dt>&lsquo;<samp class="samp">--compute</samp>&rsquo;</dt>
+<dd><p>Compute process transition context before modifying.
+</p>
+<a class="anchor" id="runcon-u"></a></dd>
+<dt><a id="index-_002d_002duser-2"></a><span>&lsquo;<samp class="samp">-u&nbsp;<!-- /@w --><var class="var">user</var></samp>&rsquo;<a class="copiable-link" href="#index-_002d_002duser-2"> &para;</a></span></dt>
+<dd><a class="index-entry-id" id="index-_002du-15"></a>
+<a class="anchor" id="runcon--user"></a></dd>
+<dt>&lsquo;<samp class="samp">--user=<var class="var">user</var></samp>&rsquo;</dt>
+<dd><p>Set user <var class="var">user</var> in the target security context.
+</p>
+<a class="anchor" id="runcon-r"></a></dd>
+<dt><a id="index-_002d_002drole-1"></a><span>&lsquo;<samp class="samp">-r&nbsp;<!-- /@w --><var class="var">role</var></samp>&rsquo;<a class="copiable-link" href="#index-_002d_002drole-1"> &para;</a></span></dt>
+<dd><a class="index-entry-id" id="index-_002dr-18"></a>
+<a class="anchor" id="runcon--role"></a></dd>
+<dt>&lsquo;<samp class="samp">--role=<var class="var">role</var></samp>&rsquo;</dt>
+<dd><p>Set role <var class="var">role</var> in the target security context.
+</p>
+<a class="anchor" id="runcon-t"></a></dd>
+<dt><a id="index-_002d_002dtype-2"></a><span>&lsquo;<samp class="samp">-t&nbsp;<!-- /@w --><var class="var">type</var></samp>&rsquo;<a class="copiable-link" href="#index-_002d_002dtype-2"> &para;</a></span></dt>
+<dd><a class="index-entry-id" id="index-_002dt-25"></a>
+<a class="anchor" id="runcon--type"></a></dd>
+<dt>&lsquo;<samp class="samp">--type=<var class="var">type</var></samp>&rsquo;</dt>
+<dd><p>Set type <var class="var">type</var> in the target security context.
+</p>
+<a class="anchor" id="runcon-l"></a></dd>
+<dt><a id="index-_002d_002drange-1"></a><span>&lsquo;<samp class="samp">-l&nbsp;<!-- /@w --><var class="var">range</var></samp>&rsquo;<a class="copiable-link" href="#index-_002d_002drange-1"> &para;</a></span></dt>
+<dd><a class="index-entry-id" id="index-_002dl-14"></a>
+<a class="anchor" id="runcon--range"></a></dd>
+<dt>&lsquo;<samp class="samp">--range=<var class="var">range</var></samp>&rsquo;</dt>
+<dd><p>Set range <var class="var">range</var> in the target security context.
+</p>
+</dd>
+</dl>
+
+<a class="index-entry-id" id="index-exit-status-of-runcon"></a>
+<p>Exit status:
+</p>
+<div class="display">
+<pre class="display-preformatted">125 if <code class="command">runcon</code> itself fails
+126 if <var class="var">command</var> is found but cannot be invoked
+127 if <var class="var">command</var> cannot be found
+the exit status of <var class="var">command</var> otherwise
+</pre></div>
+
+</div>
+<hr>
+<div class="nav-panel">
+<p>
+Previous: <a href="chcon-invocation.html"><code class="command">chcon</code>: Change SELinux context of file</a>, Up: <a href="SELinux-context.html">SELinux context</a> &nbsp; [<a href="index.html#SEC_Contents" title="Table of contents" rel="contents">Contents</a>][<a href="Concept-index.html" title="Index" rel="index">Index</a>]</p>
+</div>
+
+
+
+</body>
+</html>

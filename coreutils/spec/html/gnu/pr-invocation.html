@@ -1,0 +1,425 @@
+<!DOCTYPE html>
+<html>
+<!-- Created by GNU Texinfo 7.2, https://www.gnu.org/software/texinfo/ -->
+<head>
+<meta http-equiv="Content-Type" content="text/html; charset=utf-8">
+<!-- This manual documents version 9.12 of the GNU core
+utilities, including the standard programs for text and file manipulation.
+
+Copyright © 1994-2026 Free Software Foundation, Inc.
+
+Permission is granted to copy, distribute and/or modify this document
+under the terms of the GNU Free Documentation License, Version 1.3 or
+any later version published by the Free Software Foundation; with no
+Invariant Sections, with no Front-Cover Texts, and with no Back-Cover
+Texts.  A copy of the license is included in the section entitled "GNU
+Free Documentation License". -->
+<title>pr invocation (GNU Coreutils 9.12)</title>
+
+<meta name="description" content="pr invocation (GNU Coreutils 9.12)">
+<meta name="keywords" content="pr invocation (GNU Coreutils 9.12)">
+<meta name="resource-type" content="document">
+<meta name="distribution" content="global">
+<meta name="Generator" content="makeinfo">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+
+<link href="index.html" rel="start" title="Top">
+<link href="Concept-index.html" rel="index" title="Concept index">
+<link href="index.html#SEC_Contents" rel="contents" title="Table of Contents">
+<link href="Formatting-file-contents.html" rel="up" title="Formatting file contents">
+<link href="fold-invocation.html" rel="next" title="fold invocation">
+<link href="fmt-invocation.html" rel="prev" title="fmt invocation">
+<style type="text/css">
+<!--
+a.copiable-link {visibility: hidden; text-decoration: none; line-height: 0em}
+div.example {margin-left: 3.2em}
+span:hover a.copiable-link {visibility: visible}
+-->
+</style>
+<link rel="stylesheet" type="text/css" href="https://www.gnu.org/software/gnulib/manual.css">
+
+
+</head>
+
+<body lang="en">
+<div class="section-level-extent" id="pr-invocation">
+<div class="nav-panel">
+<p>
+Next: <a href="fold-invocation.html" accesskey="n" rel="next"><code class="command">fold</code>: Wrap input lines to fit in specified width</a>, Previous: <a href="fmt-invocation.html" accesskey="p" rel="prev"><code class="command">fmt</code>: Reformat paragraph text</a>, Up: <a href="Formatting-file-contents.html" accesskey="u" rel="up">Formatting file contents</a> &nbsp; [<a href="index.html#SEC_Contents" title="Table of contents" rel="contents">Contents</a>][<a href="Concept-index.html" title="Index" rel="index">Index</a>]</p>
+</div>
+<hr>
+<h3 class="section" id="pr_003a-Paginate-or-columnate-files-for-printing"><span>4.2 <code class="command">pr</code>: Paginate or columnate files for printing<a class="copiable-link" href="#pr_003a-Paginate-or-columnate-files-for-printing"> &para;</a></span></h3>
+
+<a class="index-entry-id" id="index-pr"></a>
+<a class="index-entry-id" id="index-printing_002c-preparing-files-for"></a>
+<a class="index-entry-id" id="index-multicolumn-output_002c-generating"></a>
+<a class="index-entry-id" id="index-merging-files-in-parallel"></a>
+
+<p><code class="command">pr</code> writes each <var class="var">file</var> (&lsquo;<samp class="samp">-</samp>&rsquo; means standard input), or
+standard input if none are given, to standard output, paginating and
+optionally outputting in multicolumn format; optionally merges all
+<var class="var">file</var>s, printing all in parallel, one per column.  Synopsis:
+</p>
+<div class="example">
+<pre class="example-preformatted">pr [<var class="var">option</var>]... [<var class="var">file</var>]...
+</pre></div>
+
+<a class="index-entry-id" id="index-LC_005fMESSAGES"></a>
+<p>By default, a 5-line header is printed at each page: two blank lines;
+a line with the date, the file name, and the page count; and two more
+blank lines.  A footer of five blank lines is also printed.
+The default <var class="var">page_length</var> is 66
+lines.  The default number of text lines is therefore 56.
+The text line of the header takes the form
+&lsquo;<samp class="samp"><var class="var">date</var> <var class="var">string</var> <var class="var">page</var></samp>&rsquo;, with spaces inserted around
+<var class="var">string</var> so that the line takes up the full <var class="var">page_width</var>.  Here,
+<var class="var">date</var> is the date (see the <samp class="option">-D</samp> or <samp class="option">--date-format</samp>
+option for details), <var class="var">string</var> is the centered header string, and
+<var class="var">page</var> identifies the page number.  The <code class="env">LC_MESSAGES</code> locale
+category affects the spelling of <var class="var">page</var>; in the default C locale, it
+is &lsquo;<samp class="samp">Page <var class="var">number</var></samp>&rsquo; where <var class="var">number</var> is the decimal page
+number.
+</p>
+<p>Form feeds in the input cause page breaks in the output.  Multiple form
+feeds produce empty pages.
+</p>
+<p>Columns are of equal width, separated by an optional string (default
+is &lsquo;<samp class="samp">space</samp>&rsquo;).  For multicolumn output, lines will always be truncated to
+<var class="var">page_width</var> (default 72), unless you use the <samp class="option">-J</samp> option.
+For single
+column output no line truncation occurs by default.  Use <samp class="option">-W</samp> option to
+truncate lines in that case.
+</p>
+<p>The program accepts the following options.  Also see <a class="ref" href="Common-options.html">Common options</a>.
+</p>
+<dl class="table">
+<dd>
+<a class="anchor" id="pr--pages"></a></dd>
+<dt>&lsquo;<samp class="samp">+<var class="var">first_page</var>[:<var class="var">last_page</var>]</samp>&rsquo;</dt>
+<dt>&lsquo;<samp class="samp">--pages=<var class="var">first_page</var>[:<var class="var">last_page</var>]</samp>&rsquo;</dt>
+<dd><a class="index-entry-id" id="index-_002bpage_005frange"></a>
+<a class="index-entry-id" id="index-_002d_002dpages_003dpage_005frange"></a>
+<p>Begin printing with page <var class="var">first_page</var> and stop with <var class="var">last_page</var>.
+Missing &lsquo;<samp class="samp">:<var class="var">last_page</var></samp>&rsquo; implies end of file.  While estimating
+the number of skipped pages each form feed in the input file results
+in a new page.  Page counting with and without &lsquo;<samp class="samp">+<var class="var">first_page</var></samp>&rsquo;
+is identical.  By default, counting starts with the first page of input
+file (not first page printed).  Line numbering may be altered by <samp class="option">-N</samp>
+option.
+</p>
+<a class="anchor" id="pr-COLS"></a><a class="anchor" id="pr-column"></a></dd>
+<dt><a class="index-entry-id" id="index-down-columns"></a>
+<a id="index-_002d_002dcolumns"></a><span>&lsquo;<samp class="samp">-<var class="var">column</var></samp>&rsquo;<a class="copiable-link" href="#index-_002d_002dcolumns"> &para;</a></span></dt>
+<dd><a class="index-entry-id" id="index-_002dcolumn"></a>
+<a class="anchor" id="pr--columns"></a></dd>
+<dt>&lsquo;<samp class="samp">--columns=<var class="var">column</var></samp>&rsquo;</dt>
+<dd><p>With each single <var class="var">file</var>, produce <var class="var">column</var> columns of output
+(default is 1) and print columns down, unless <samp class="option">-a</samp> is used.  The
+column width is automatically decreased as <var class="var">column</var> increases; unless
+you use the <samp class="option">-W/-w</samp> option to increase <var class="var">page_width</var> as well.
+This option might well cause some lines to be truncated.  The number of
+lines in the columns on each page are balanced.  The options <samp class="option">-e</samp>
+and <samp class="option">-i</samp> are on for multiple text-column output.  Together with
+<samp class="option">-J</samp> option column alignment and line truncation is turned off.
+Since spaces are converted to TABs in multicolumn output, they can be converted
+back by further processing through <code class="command">pr -t -e</code> or <code class="command">expand</code>.
+Lines of full length are joined in a free field format and <samp class="option">-S</samp>
+option may set field separators.  <samp class="option">-<var class="var">column</var></samp> may not be used
+with the <samp class="option">-m</samp> option.
+</p>
+<a class="anchor" id="pr-a"></a></dd>
+<dt><a class="index-entry-id" id="index-across-columns"></a>
+<a id="index-_002d_002dacross"></a><span>&lsquo;<samp class="samp">-a</samp>&rsquo;<a class="copiable-link" href="#index-_002d_002dacross"> &para;</a></span></dt>
+<dd><a class="index-entry-id" id="index-_002da-1"></a>
+<a class="anchor" id="pr--across"></a></dd>
+<dt>&lsquo;<samp class="samp">--across</samp>&rsquo;</dt>
+<dd><p>With each single <var class="var">file</var>, print columns across rather than down.  The
+<samp class="option">-<var class="var">column</var></samp> option must be given with <var class="var">column</var> greater than one.
+If a line is too long to fit in a column, it is truncated.
+</p>
+<a class="anchor" id="pr-c"></a></dd>
+<dt><a id="index-_002d_002dshow_002dcontrol_002dchars"></a><span>&lsquo;<samp class="samp">-c</samp>&rsquo;<a class="copiable-link" href="#index-_002d_002dshow_002dcontrol_002dchars"> &para;</a></span></dt>
+<dd><a class="index-entry-id" id="index-_002dc-2"></a>
+<a class="anchor" id="pr--show-control-chars"></a></dd>
+<dt>&lsquo;<samp class="samp">--show-control-chars</samp>&rsquo;</dt>
+<dd><p>Print control characters using hat notation (e.g., &lsquo;<samp class="samp">^G</samp>&rsquo;); print
+other nonprinting characters in octal backslash notation.  By default,
+nonprinting characters are not changed.
+</p>
+<a class="anchor" id="pr-d"></a></dd>
+<dt><a class="index-entry-id" id="index-double-spacing"></a>
+<a id="index-_002d_002ddouble_002dspace"></a><span>&lsquo;<samp class="samp">-d</samp>&rsquo;<a class="copiable-link" href="#index-_002d_002ddouble_002dspace"> &para;</a></span></dt>
+<dd><a class="index-entry-id" id="index-_002dd-3"></a>
+<a class="anchor" id="pr--double-space"></a></dd>
+<dt>&lsquo;<samp class="samp">--double-space</samp>&rsquo;</dt>
+<dd><p>Double space the output.
+</p>
+<a class="anchor" id="pr-D"></a></dd>
+<dt><a class="index-entry-id" id="index-time-formats"></a>
+<a class="index-entry-id" id="index-formatting-times"></a>
+<a id="index-_002d_002ddate_002dformat"></a><span>&lsquo;<samp class="samp">-D&nbsp;<!-- /@w --><var class="var">format</var></samp>&rsquo;<a class="copiable-link" href="#index-_002d_002ddate_002dformat"> &para;</a></span></dt>
+<dd><a class="index-entry-id" id="index-_002dD"></a>
+<a class="anchor" id="pr--date-format"></a></dd>
+<dt>&lsquo;<samp class="samp">--date-format=<var class="var">format</var></samp>&rsquo;</dt>
+<dd><p>Format header dates using <var class="var">format</var>, using the same conventions as
+for the command &lsquo;<samp class="samp">date +<var class="var">format</var></samp>&rsquo;.  See <a class="xref" href="date-invocation.html"><code class="command">date</code>: Print or set system date and time</a>.
+Except for directives, which start with
+&lsquo;<samp class="samp">%</samp>&rsquo;, characters in <var class="var">format</var> are printed unchanged.  You can use
+this option to specify an arbitrary string in place of the header date,
+e.g., <samp class="option">--date-format=&quot;Monday morning&quot;</samp>.
+</p>
+<a class="index-entry-id" id="index-POSIXLY_005fCORRECT-2"></a>
+<a class="index-entry-id" id="index-LC_005fTIME"></a>
+<p>The default date format is &lsquo;<samp class="samp">%Y-%m-%d %H:%M</samp>&rsquo; (for example,
+&lsquo;<samp class="samp">2020-07-09 23:59</samp>&rsquo;);
+but if the <code class="env">POSIXLY_CORRECT</code> environment variable is set
+and the <code class="env">LC_TIME</code> locale category specifies the POSIX
+locale, the default is &lsquo;<samp class="samp">%b %e %H:%M %Y</samp>&rsquo; (for example,
+&lsquo;<samp class="samp">Jul&nbsp;&nbsp;9 23:59 2020</samp>&rsquo;.
+</p>
+<a class="index-entry-id" id="index-TZ"></a>
+<p>Timestamps are listed according to the time zone rules specified by
+the <code class="env">TZ</code> environment variable, or by the system default rules if
+<code class="env">TZ</code> is not set.  See <a data-manual="libc" href="https://www.gnu.org/software/libc/manual/html_node/TZ-Variable.html#TZ-Variable">Specifying the Time Zone
+with <code class="env">TZ</code></a> in <cite class="cite">The GNU C Library Reference Manual</cite>.
+</p>
+<a class="anchor" id="pr-e"></a></dd>
+<dt><a class="index-entry-id" id="index-input-tabs"></a>
+<a id="index-_002d_002dexpand_002dtabs"></a><span>&lsquo;<samp class="samp">-e[<var class="var">in-tabchar</var>[<var class="var">in-tabwidth</var>]]</samp>&rsquo;<a class="copiable-link" href="#index-_002d_002dexpand_002dtabs"> &para;</a></span></dt>
+<dd><a class="index-entry-id" id="index-_002de-1"></a>
+<a class="anchor" id="pr--expand-tabs"></a></dd>
+<dt>&lsquo;<samp class="samp">--expand-tabs[=<var class="var">in-tabchar</var>[<var class="var">in-tabwidth</var>]]</samp>&rsquo;</dt>
+<dd><p>Expand <var class="var">tab</var>s to spaces on input.  Optional argument <var class="var">in-tabchar</var> is
+the input tab character (default is the TAB character).  Second optional
+argument <var class="var">in-tabwidth</var> is the input tab character&rsquo;s width (default
+is 8).
+</p>
+<a class="anchor" id="pr-f"></a></dd>
+<dt><a id="index-_002d_002dform_002dfeed"></a><span>&lsquo;<samp class="samp">-f</samp>&rsquo;<a class="copiable-link" href="#index-_002d_002dform_002dfeed"> &para;</a></span></dt>
+<dd><a class="index-entry-id" id="index-_002df-2"></a>
+<a class="anchor" id="pr-F"></a></dd>
+<dt>&lsquo;<samp class="samp">-F</samp>&rsquo;</dt>
+<dd><a class="index-entry-id" id="index-_002dF"></a>
+<a class="anchor" id="pr--form-feed"></a></dd>
+<dt>&lsquo;<samp class="samp">--form-feed</samp>&rsquo;</dt>
+<dd><p>Use a form feed instead of newlines to separate output pages.  This does
+not alter the default page length of 66 lines.
+</p>
+<a class="anchor" id="pr-h"></a></dd>
+<dt><a id="index-_002d_002dheader"></a><span>&lsquo;<samp class="samp">-h&nbsp;<!-- /@w --><var class="var">header</var></samp>&rsquo;<a class="copiable-link" href="#index-_002d_002dheader"> &para;</a></span></dt>
+<dd><a class="index-entry-id" id="index-_002dh-2"></a>
+<a class="anchor" id="pr--header"></a></dd>
+<dt>&lsquo;<samp class="samp">--header=<var class="var">header</var></samp>&rsquo;</dt>
+<dd><p>Replace the file name in the header with the centered string <var class="var">header</var>.
+When using the shell, <var class="var">header</var> should be quoted and should be
+separated from <samp class="option">-h</samp> by a space.
+</p>
+<a class="anchor" id="pr-i"></a></dd>
+<dt><a class="index-entry-id" id="index-output-tabs"></a>
+<a id="index-_002d_002doutput_002dtabs"></a><span>&lsquo;<samp class="samp">-i&nbsp;<!-- /@w -->[<var class="var">out-tabchar</var>[<var class="var">out-tabwidth</var>]]</samp>&rsquo;<a class="copiable-link" href="#index-_002d_002doutput_002dtabs"> &para;</a></span></dt>
+<dd><a class="index-entry-id" id="index-_002di-3"></a>
+<a class="anchor" id="pr--output-tabs"></a></dd>
+<dt>&lsquo;<samp class="samp">--output-tabs=[<var class="var">out-tabchar</var>[<var class="var">out-tabwidth</var>]]</samp>&rsquo;</dt>
+<dd><p>Replace spaces with <var class="var">tab</var>s on output.  Optional argument <var class="var">out-tabchar</var>
+is the output tab character (default is the TAB character).  Second optional
+argument <var class="var">out-tabwidth</var> is the output tab character&rsquo;s width (default
+is 8).
+</p>
+<a class="anchor" id="pr-J"></a></dd>
+<dt><a id="index-_002d_002djoin_002dlines"></a><span>&lsquo;<samp class="samp">-J</samp>&rsquo;<a class="copiable-link" href="#index-_002d_002djoin_002dlines"> &para;</a></span></dt>
+<dd><a class="index-entry-id" id="index-_002dJ"></a>
+<a class="anchor" id="pr--join-lines"></a></dd>
+<dt>&lsquo;<samp class="samp">--join-lines</samp>&rsquo;</dt>
+<dd><p>Merge lines of full length.  Used together with the column options
+<samp class="option">-<var class="var">column</var></samp>, <samp class="option">-a -<var class="var">column</var></samp> or <samp class="option">-m</samp>.  Turns off
+<samp class="option">-W/-w</samp> line truncation;
+no column alignment used; may be used with
+<samp class="option">--sep-string[=<var class="var">string</var>]</samp>.  <samp class="option">-J</samp> has been introduced
+(together with <samp class="option">-W</samp> and <samp class="option">--sep-string</samp>)
+to disentangle the old (POSIX-compliant) options <samp class="option">-w</samp> and
+<samp class="option">-s</samp> along with the three column options.
+</p>
+
+<a class="anchor" id="pr-l"></a></dd>
+<dt><a id="index-_002d_002dlength"></a><span>&lsquo;<samp class="samp">-l&nbsp;<!-- /@w --><var class="var">page_length</var></samp>&rsquo;<a class="copiable-link" href="#index-_002d_002dlength"> &para;</a></span></dt>
+<dd><a class="index-entry-id" id="index-_002dl-2"></a>
+<a class="anchor" id="pr--length"></a></dd>
+<dt>&lsquo;<samp class="samp">--length=<var class="var">page_length</var></samp>&rsquo;</dt>
+<dd><p>Set the page length to <var class="var">page_length</var> (default 66) lines, including
+the lines of the header [and the footer].  If <var class="var">page_length</var> is less
+than or equal to 10, the header and footer are omitted, as if the
+<samp class="option">-t</samp> option had been given.
+</p>
+<a class="anchor" id="pr-m"></a></dd>
+<dt><a id="index-_002d_002dmerge"></a><span>&lsquo;<samp class="samp">-m</samp>&rsquo;<a class="copiable-link" href="#index-_002d_002dmerge"> &para;</a></span></dt>
+<dd><a class="index-entry-id" id="index-_002dm"></a>
+<a class="anchor" id="pr--merge"></a></dd>
+<dt>&lsquo;<samp class="samp">--merge</samp>&rsquo;</dt>
+<dd><p>Merge and print all <var class="var">file</var>s in parallel, one in each column.  If a
+line is too long to fit in a column, it is truncated, unless the <samp class="option">-J</samp>
+option is used.  <samp class="option">--sep-string[=<var class="var">string</var>]</samp> may be used.
+Empty pages in
+some <var class="var">file</var>s (form feeds set) produce empty columns, still marked
+by <var class="var">string</var>.  The result is a continuous line numbering and column
+marking throughout the whole merged file.  Completely empty merged pages
+show no separators or line numbers.  The default header becomes
+&lsquo;<samp class="samp"><var class="var">date</var> <var class="var">page</var></samp>&rsquo; with spaces inserted in the middle; this
+may be used with the <samp class="option">-h</samp> or <samp class="option">--header</samp> option to fill up
+the middle blank part.
+</p>
+<a class="anchor" id="pr-n"></a></dd>
+<dt><a id="index-_002d_002dnumber_002dlines"></a><span>&lsquo;<samp class="samp">-n[<var class="var">number-separator</var>[<var class="var">digits</var>]]</samp>&rsquo;<a class="copiable-link" href="#index-_002d_002dnumber_002dlines"> &para;</a></span></dt>
+<dd><a class="index-entry-id" id="index-_002dn-2"></a>
+<a class="anchor" id="pr--number-lines"></a></dd>
+<dt>&lsquo;<samp class="samp">--number-lines[=<var class="var">number-separator</var>[<var class="var">digits</var>]]</samp>&rsquo;</dt>
+<dd><p>Provide <var class="var">digits</var> digit line numbering (default for <var class="var">digits</var> is
+5).  With multicolumn output the number occupies the first <var class="var">digits</var>
+column positions of each text column or only each line of <samp class="option">-m</samp>
+output.  With single column output the number precedes each line just as
+<samp class="option">-m</samp> does.  Default counting of the line numbers starts with the
+first line of the input file (not the first line printed, compare the
+<samp class="option">--page</samp> option and <samp class="option">-N</samp> option).
+Optional argument <var class="var">number-separator</var> is the character appended to
+the line number to separate it from the text followed.  The default
+separator is the TAB character.  In a strict sense a TAB is always
+printed with single column output only.  The TAB width varies
+with the TAB position, e.g., with the left <var class="var">margin</var> specified
+by <samp class="option">-o</samp> option.  With multicolumn output priority is given to
+&lsquo;<samp class="samp">equal width of output columns</samp>&rsquo; (a POSIX specification).
+The TAB width is fixed to the value of the first column and does
+not change with different values of left <var class="var">margin</var>.  That means a
+fixed number of spaces is always printed in the place of the
+<var class="var">number-separator</var> TAB.  The tabification depends upon the output
+position.
+</p>
+<a class="anchor" id="pr-N"></a></dd>
+<dt><a id="index-_002d_002dfirst_002dline_002dnumber"></a><span>&lsquo;<samp class="samp">-N&nbsp;<!-- /@w --><var class="var">line_number</var></samp>&rsquo;<a class="copiable-link" href="#index-_002d_002dfirst_002dline_002dnumber"> &para;</a></span></dt>
+<dd><a class="index-entry-id" id="index-_002dN-1"></a>
+<a class="anchor" id="pr--first-line-number"></a></dd>
+<dt>&lsquo;<samp class="samp">--first-line-number=<var class="var">line_number</var></samp>&rsquo;</dt>
+<dd><p>Start line counting with the number <var class="var">line_number</var> at first line of
+first page printed (in most cases not the first line of the input file).
+</p>
+<a class="anchor" id="pr-o"></a></dd>
+<dt><a class="index-entry-id" id="index-indenting-lines"></a>
+<a class="index-entry-id" id="index-left-margin"></a>
+<a id="index-_002d_002dindent"></a><span>&lsquo;<samp class="samp">-o&nbsp;<!-- /@w --><var class="var">margin</var></samp>&rsquo;<a class="copiable-link" href="#index-_002d_002dindent"> &para;</a></span></dt>
+<dd><a class="index-entry-id" id="index-_002do-1"></a>
+<a class="anchor" id="pr--indent"></a></dd>
+<dt>&lsquo;<samp class="samp">--indent=<var class="var">margin</var></samp>&rsquo;</dt>
+<dd><p>Indent each line with a margin <var class="var">margin</var> spaces wide (default is zero).
+The total page width is the size of the margin plus the <var class="var">page_width</var>
+set with the <samp class="option">-W/-w</samp> option.  A limited overflow may occur with
+numbered single column output (compare <samp class="option">-n</samp> option).
+</p>
+<a class="anchor" id="pr-r"></a></dd>
+<dt><a id="index-_002d_002dno_002dfile_002dwarnings"></a><span>&lsquo;<samp class="samp">-r</samp>&rsquo;<a class="copiable-link" href="#index-_002d_002dno_002dfile_002dwarnings"> &para;</a></span></dt>
+<dd><a class="index-entry-id" id="index-_002dr-1"></a>
+<a class="anchor" id="pr--no-file-warnings"></a></dd>
+<dt>&lsquo;<samp class="samp">--no-file-warnings</samp>&rsquo;</dt>
+<dd><p>Do not print a warning message when an argument <var class="var">file</var> cannot be
+opened.  (The exit status will still be nonzero, however.)
+</p>
+<a class="anchor" id="pr-s"></a></dd>
+<dt><a id="index-_002d_002dseparator-1"></a><span>&lsquo;<samp class="samp">-s&nbsp;<!-- /@w --><var class="var">char</var></samp>&rsquo;<a class="copiable-link" href="#index-_002d_002dseparator-1"> &para;</a></span></dt>
+<dd><a class="index-entry-id" id="index-_002ds-5"></a>
+<a class="anchor" id="pr--separator"></a></dd>
+<dt>&lsquo;<samp class="samp">--separator=<var class="var">char</var></samp>&rsquo;</dt>
+<dd><p>Separate columns by a single character <var class="var">char</var>.  The default for
+<var class="var">char</var> is the TAB character without <samp class="option">-w</samp> and &lsquo;<samp class="samp">no
+character</samp>&rsquo; with <samp class="option">-w</samp>.  Without <samp class="option">-s</samp> the default separator
+&lsquo;<samp class="samp">space</samp>&rsquo; is set.  <samp class="option">-s[char]</samp> turns off line truncation of all
+three column options (<samp class="option">-COLUMN</samp>|<samp class="option">-a -COLUMN</samp>|<samp class="option">-m</samp>) unless
+<samp class="option">-w</samp> is set.  This is a POSIX-compliant formulation.
+</p>
+<a class="anchor" id="pr-S"></a></dd>
+<dt><a id="index-_002d_002dsep_002dstring"></a><span>&lsquo;<samp class="samp">-S[<var class="var">string</var>]</samp>&rsquo;<a class="copiable-link" href="#index-_002d_002dsep_002dstring"> &para;</a></span></dt>
+<dd><a class="index-entry-id" id="index-_002dS-2"></a>
+<a class="anchor" id="pr--sep-string"></a></dd>
+<dt>&lsquo;<samp class="samp">--sep-string[=<var class="var">string</var>]</samp>&rsquo;</dt>
+<dd><p>Use <var class="var">string</var> to separate output columns.  The <samp class="option">-S</samp> option doesn&rsquo;t
+affect the <samp class="option">-W/-w</samp> option, unlike the <samp class="option">-s</samp> option which does.  It
+does not affect line truncation or column alignment.
+Without <samp class="option">-S</samp>, and with <samp class="option">-J</samp>, <code class="command">pr</code> uses the default output
+separator, TAB.
+Without <samp class="option">-S</samp> or <samp class="option">-J</samp>, <code class="command">pr</code> uses a &lsquo;<samp class="samp">space</samp>&rsquo;
+(same as <samp class="option">-S&quot;&nbsp;<!-- /@w -->&quot;</samp>).
+If no &lsquo;<samp class="samp"><var class="var">string</var></samp>&rsquo; argument is specified, &lsquo;<samp class="samp">&quot;&quot;</samp>&rsquo; is assumed.
+</p>
+<a class="anchor" id="pr-t"></a></dd>
+<dt><a id="index-_002d_002domit_002dheader"></a><span>&lsquo;<samp class="samp">-t</samp>&rsquo;<a class="copiable-link" href="#index-_002d_002domit_002dheader"> &para;</a></span></dt>
+<dd><a class="index-entry-id" id="index-_002dt-3"></a>
+<a class="anchor" id="pr--omit-header"></a></dd>
+<dt>&lsquo;<samp class="samp">--omit-header</samp>&rsquo;</dt>
+<dd><p>Do not print the usual header [and footer] on each page, and do not fill
+out the bottom of pages (with blank lines or a form feed).  No page
+structure is produced, but form feeds set in the input files are retained.
+The predefined pagination is not changed.  <samp class="option">-t</samp> or <samp class="option">-T</samp> may be
+useful together with other options; e.g.: <samp class="option">-t -e4</samp>, expand TAB characters
+in the input file to 4 spaces but don&rsquo;t make any other changes.  Use of
+<samp class="option">-t</samp> overrides <samp class="option">-h</samp>.
+</p>
+<a class="anchor" id="pr-T"></a></dd>
+<dt><a id="index-_002d_002domit_002dpagination"></a><span>&lsquo;<samp class="samp">-T</samp>&rsquo;<a class="copiable-link" href="#index-_002d_002domit_002dpagination"> &para;</a></span></dt>
+<dd><a class="index-entry-id" id="index-_002dT-1"></a>
+<a class="anchor" id="pr--omit-pagination"></a></dd>
+<dt>&lsquo;<samp class="samp">--omit-pagination</samp>&rsquo;</dt>
+<dd><p>Do not print header [and footer].  In addition eliminate all form feeds
+set in the input files.
+</p>
+<a class="anchor" id="pr-v"></a></dd>
+<dt><a id="index-_002d_002dshow_002dnonprinting-1"></a><span>&lsquo;<samp class="samp">-v</samp>&rsquo;<a class="copiable-link" href="#index-_002d_002dshow_002dnonprinting-1"> &para;</a></span></dt>
+<dd><a class="index-entry-id" id="index-_002dv-3"></a>
+<a class="anchor" id="pr--show-nonprinting"></a></dd>
+<dt>&lsquo;<samp class="samp">--show-nonprinting</samp>&rsquo;</dt>
+<dd><p>Print nonprinting characters in octal backslash notation.
+</p>
+<a class="anchor" id="pr-w"></a></dd>
+<dt><a id="index-_002d_002dwidth-2"></a><span>&lsquo;<samp class="samp">-w&nbsp;<!-- /@w --><var class="var">page_width</var></samp>&rsquo;<a class="copiable-link" href="#index-_002d_002dwidth-2"> &para;</a></span></dt>
+<dd><a class="index-entry-id" id="index-_002dw-4"></a>
+<a class="anchor" id="pr--width"></a></dd>
+<dt>&lsquo;<samp class="samp">--width=<var class="var">page_width</var></samp>&rsquo;</dt>
+<dd><p>Set page width to <var class="var">page_width</var> characters for multiple text-column
+output only (default for <var class="var">page_width</var> is 72).  The specified
+<var class="var">page_width</var> is rounded down so that columns have equal width.
+<samp class="option">-s[CHAR]</samp> turns off the default page width and any line truncation
+and column alignment.
+Lines of full length are merged, regardless of the column options
+set.  No <var class="var">page_width</var> setting is possible with single column output.
+A POSIX-compliant formulation.
+</p>
+<a class="anchor" id="pr-W"></a></dd>
+<dt><a id="index-_002d_002dpage_002dwidth"></a><span>&lsquo;<samp class="samp">-W&nbsp;<!-- /@w --><var class="var">page_width</var></samp>&rsquo;<a class="copiable-link" href="#index-_002d_002dpage_002dwidth"> &para;</a></span></dt>
+<dd><a class="index-entry-id" id="index-_002dW"></a>
+<a class="anchor" id="pr--page-width"></a></dd>
+<dt>&lsquo;<samp class="samp">--page-width=<var class="var">page_width</var></samp>&rsquo;</dt>
+<dd><p>Set the page width to <var class="var">page_width</var> characters, honored with and
+without a column option.  With a column option, the specified <var class="var">page_width</var>
+is rounded down so that columns have equal width.  Text lines are truncated,
+unless <samp class="option">-J</samp> is used. Together with one of the three column options
+(<samp class="option">-<var class="var">column</var></samp>, <samp class="option">-a -<var class="var">column</var></samp> or <samp class="option">-m</samp>) column
+alignment is always used.  The separator options <samp class="option">-S</samp> or <samp class="option">-s</samp>
+don&rsquo;t disable the <samp class="option">-W</samp> option.  Default is 72 characters.  Without
+<samp class="option">-W <var class="var">page_width</var></samp> and without any of the column options NO line
+truncation is used (defined to keep downward compatibility and to meet
+most frequent tasks).  That&rsquo;s equivalent to <samp class="option">-W 72 -J</samp>.  The header
+line is never truncated.
+</p>
+</dd>
+</dl>
+
+<p>An exit status of zero indicates success,
+and a nonzero value indicates failure.
+</p>
+
+</div>
+<hr>
+<div class="nav-panel">
+<p>
+Next: <a href="fold-invocation.html"><code class="command">fold</code>: Wrap input lines to fit in specified width</a>, Previous: <a href="fmt-invocation.html"><code class="command">fmt</code>: Reformat paragraph text</a>, Up: <a href="Formatting-file-contents.html">Formatting file contents</a> &nbsp; [<a href="index.html#SEC_Contents" title="Table of contents" rel="contents">Contents</a>][<a href="Concept-index.html" title="Index" rel="index">Index</a>]</p>
+</div>
+
+
+
+</body>
+</html>

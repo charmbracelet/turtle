@@ -1,0 +1,123 @@
+<!DOCTYPE html>
+<html>
+<!-- Created by GNU Texinfo 7.2, https://www.gnu.org/software/texinfo/ -->
+<head>
+<meta http-equiv="Content-Type" content="text/html; charset=utf-8">
+<!-- This manual documents version 9.12 of the GNU core
+utilities, including the standard programs for text and file manipulation.
+
+Copyright © 1994-2026 Free Software Foundation, Inc.
+
+Permission is granted to copy, distribute and/or modify this document
+under the terms of the GNU Free Documentation License, Version 1.3 or
+any later version published by the Free Software Foundation; with no
+Invariant Sections, with no Front-Cover Texts, and with no Back-Cover
+Texts.  A copy of the license is included in the section entitled "GNU
+Free Documentation License". -->
+<title>expr invocation (GNU Coreutils 9.12)</title>
+
+<meta name="description" content="expr invocation (GNU Coreutils 9.12)">
+<meta name="keywords" content="expr invocation (GNU Coreutils 9.12)">
+<meta name="resource-type" content="document">
+<meta name="distribution" content="global">
+<meta name="Generator" content="makeinfo">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+
+<link href="index.html" rel="start" title="Top">
+<link href="Concept-index.html" rel="index" title="Concept index">
+<link href="index.html#SEC_Contents" rel="contents" title="Table of Contents">
+<link href="Conditions.html" rel="up" title="Conditions">
+<link href="test-invocation.html" rel="prev" title="test invocation">
+<style type="text/css">
+<!--
+a.copiable-link {visibility: hidden; text-decoration: none; line-height: 0em}
+div.display {margin-left: 3.2em}
+pre.display-preformatted {font-family: inherit}
+span:hover a.copiable-link {visibility: visible}
+-->
+</style>
+<link rel="stylesheet" type="text/css" href="https://www.gnu.org/software/gnulib/manual.css">
+
+
+</head>
+
+<body lang="en">
+<div class="section-level-extent" id="expr-invocation">
+<div class="nav-panel">
+<p>
+Previous: <a href="test-invocation.html" accesskey="p" rel="prev"><code class="command">test</code>: Check file types and compare values</a>, Up: <a href="Conditions.html" accesskey="u" rel="up">Conditions</a> &nbsp; [<a href="index.html#SEC_Contents" title="Table of contents" rel="contents">Contents</a>][<a href="Concept-index.html" title="Index" rel="index">Index</a>]</p>
+</div>
+<hr>
+<h3 class="section" id="expr_003a-Evaluate-expressions"><span>16.4 <code class="command">expr</code>: Evaluate expressions<a class="copiable-link" href="#expr_003a-Evaluate-expressions"> &para;</a></span></h3>
+
+<a class="index-entry-id" id="index-expr"></a>
+<a class="index-entry-id" id="index-expression-evaluation-1"></a>
+<a class="index-entry-id" id="index-evaluation-of-expressions"></a>
+
+<p><code class="command">expr</code> evaluates an expression and writes the result on standard
+output.  Each token of the expression must be a separate argument.
+</p>
+<p>Operands are either integers or strings.  Integers consist of one or
+more decimal digits, with an optional leading &lsquo;<samp class="samp">-</samp>&rsquo;.
+<code class="command">expr</code> converts
+anything appearing in an operand position to an integer or a string
+depending on the operation being applied to it.
+</p>
+<p>Strings are not quoted for <code class="command">expr</code> itself, though you may need to
+quote them to protect characters with special meaning to the shell,
+e.g., spaces.  However, regardless of whether it is quoted, a string
+operand should not be a parenthesis or any of <code class="command">expr</code>&rsquo;s
+operators like <code class="code">+</code>, so you cannot safely pass an arbitrary string
+<code class="code">$str</code> to expr merely by quoting it to the shell.  One way to
+work around this is to use the GNU extension <code class="code">+</code>,
+(e.g., <code class="code">+ &quot;$str&quot; = foo</code>); a more portable way is to use
+<code class="code">&quot;&nbsp;$str&quot;<!-- /@w --></code> and to adjust the rest of the expression to take
+the leading space into account (e.g., <code class="code">&quot;&nbsp;$str&quot;&nbsp;=&nbsp;&quot;&nbsp;foo&quot;<!-- /@w --></code>).
+</p>
+<p>You should not pass a negative integer or a string with leading
+&lsquo;<samp class="samp">-</samp>&rsquo; as <code class="command">expr</code>&rsquo;s first argument, as it might be
+misinterpreted as an option; this can be avoided by parenthesization.
+Also, portable scripts should not use a string operand that happens to
+take the form of an integer; this can be worked around by inserting
+leading spaces as mentioned above.
+</p>
+<a class="index-entry-id" id="index-parentheses-for-grouping"></a>
+<p>Operators may be given as infix symbols or prefix keywords.  Parentheses
+may be used for grouping in the usual manner.  You must quote
+parentheses and many operators to avoid the shell evaluating them,
+however.
+</p>
+<p>Because <code class="command">expr</code> uses multiple-precision arithmetic, it works
+with integers wider than those of machine registers.
+</p>
+<p>The only options are <samp class="option">--help</samp> and <samp class="option">--version</samp>.  See <a class="xref" href="Common-options.html">Common options</a>.  Options must precede operands.
+</p>
+<a class="index-entry-id" id="index-exit-status-of-expr"></a>
+<p>Exit status:
+</p>
+<div class="display">
+<pre class="display-preformatted">0 if the expression is neither null nor 0,
+1 if the expression is null or 0,
+2 if the expression is invalid,
+3 if an internal error occurred (e.g., arithmetic overflow).
+</pre></div>
+
+
+
+<ul class="mini-toc">
+<li><a href="String-expressions.html" accesskey="1">String expressions</a></li>
+<li><a href="Numeric-expressions.html" accesskey="2">Numeric expressions</a></li>
+<li><a href="Relations-for-expr.html" accesskey="3">Relations for <code class="command">expr</code></a></li>
+<li><a href="Examples-of-expr.html" accesskey="4">Examples of using <code class="command">expr</code></a></li>
+</ul>
+</div>
+<hr>
+<div class="nav-panel">
+<p>
+Previous: <a href="test-invocation.html"><code class="command">test</code>: Check file types and compare values</a>, Up: <a href="Conditions.html">Conditions</a> &nbsp; [<a href="index.html#SEC_Contents" title="Table of contents" rel="contents">Contents</a>][<a href="Concept-index.html" title="Index" rel="index">Index</a>]</p>
+</div>
+
+
+
+</body>
+</html>

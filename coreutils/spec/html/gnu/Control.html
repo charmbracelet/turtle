@@ -1,0 +1,132 @@
+<!DOCTYPE html>
+<html>
+<!-- Created by GNU Texinfo 7.2, https://www.gnu.org/software/texinfo/ -->
+<head>
+<meta http-equiv="Content-Type" content="text/html; charset=utf-8">
+<!-- This manual documents version 9.12 of the GNU core
+utilities, including the standard programs for text and file manipulation.
+
+Copyright © 1994-2026 Free Software Foundation, Inc.
+
+Permission is granted to copy, distribute and/or modify this document
+under the terms of the GNU Free Documentation License, Version 1.3 or
+any later version published by the Free Software Foundation; with no
+Invariant Sections, with no Front-Cover Texts, and with no Back-Cover
+Texts.  A copy of the license is included in the section entitled "GNU
+Free Documentation License". -->
+<title>Control (GNU Coreutils 9.12)</title>
+
+<meta name="description" content="Control (GNU Coreutils 9.12)">
+<meta name="keywords" content="Control (GNU Coreutils 9.12)">
+<meta name="resource-type" content="document">
+<meta name="distribution" content="global">
+<meta name="Generator" content="makeinfo">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+
+<link href="index.html" rel="start" title="Top">
+<link href="Concept-index.html" rel="index" title="Concept index">
+<link href="index.html#SEC_Contents" rel="contents" title="Table of Contents">
+<link href="stty-invocation.html" rel="up" title="stty invocation">
+<link href="Input.html" rel="next" title="Input">
+<style type="text/css">
+<!--
+a.copiable-link {visibility: hidden; text-decoration: none; line-height: 0em}
+span:hover a.copiable-link {visibility: visible}
+-->
+</style>
+<link rel="stylesheet" type="text/css" href="https://www.gnu.org/software/gnulib/manual.css">
+
+
+</head>
+
+<body lang="en">
+<div class="subsection-level-extent" id="Control">
+<div class="nav-panel">
+<p>
+Next: <a href="Input.html" accesskey="n" rel="next">Input settings</a>, Up: <a href="stty-invocation.html" accesskey="u" rel="up"><code class="command">stty</code>: Print or change terminal characteristics</a> &nbsp; [<a href="index.html#SEC_Contents" title="Table of contents" rel="contents">Contents</a>][<a href="Concept-index.html" title="Index" rel="index">Index</a>]</p>
+</div>
+<hr>
+<h4 class="subsection" id="Control-settings"><span>19.2.1 Control settings<a class="copiable-link" href="#Control-settings"> &para;</a></span></h4>
+
+<a class="index-entry-id" id="index-control-settings"></a>
+<p>Control settings:
+</p>
+<dl class="table">
+<dt><a class="index-entry-id" id="index-two_002dway-parity"></a>
+<a id="index-parenb"></a><span>&lsquo;<samp class="samp">parenb</samp>&rsquo;<a class="copiable-link" href="#index-parenb"> &para;</a></span></dt>
+<dd><p>Generate parity bit in output and expect parity bit in input.
+May be negated.
+</p>
+</dd>
+<dt><a class="index-entry-id" id="index-odd-parity"></a>
+<a class="index-entry-id" id="index-even-parity"></a>
+<a id="index-parodd"></a><span>&lsquo;<samp class="samp">parodd</samp>&rsquo;<a class="copiable-link" href="#index-parodd"> &para;</a></span></dt>
+<dd><p>Set odd parity (even if negated).  May be negated.
+</p>
+</dd>
+<dt><a class="index-entry-id" id="index-constant-parity"></a>
+<a class="index-entry-id" id="index-stick-parity"></a>
+<a class="index-entry-id" id="index-mark-parity"></a>
+<a class="index-entry-id" id="index-space-parity"></a>
+<a id="index-cmspar"></a><span>&lsquo;<samp class="samp">cmspar</samp>&rsquo;<a class="copiable-link" href="#index-cmspar"> &para;</a></span></dt>
+<dd><p>Use &ldquo;stick&rdquo; (mark/space) parity.  If parodd is set, the parity bit is
+always 1; if parodd is not set, the parity bit is always zero.
+Non-POSIX.  May be negated.
+</p>
+</dd>
+<dt><a class="index-entry-id" id="index-character-size"></a>
+<a class="index-entry-id" id="index-eight_002dbit-characters"></a>
+<a id="index-csn"></a><span>&lsquo;<samp class="samp">cs5</samp>&rsquo;<a class="copiable-link" href="#index-csn"> &para;</a></span></dt>
+<dt>&lsquo;<samp class="samp">cs6</samp>&rsquo;</dt>
+<dt>&lsquo;<samp class="samp">cs7</samp>&rsquo;</dt>
+<dt>&lsquo;<samp class="samp">cs8</samp>&rsquo;</dt>
+<dd><p>Set character size to 5, 6, 7, or 8 bits.
+</p>
+</dd>
+<dt><a id="index-hup_005bcl_005d"></a><span>&lsquo;<samp class="samp">hup</samp>&rsquo;<a class="copiable-link" href="#index-hup_005bcl_005d"> &para;</a></span></dt>
+<dt>&lsquo;<samp class="samp">hupcl</samp>&rsquo;</dt>
+<dd><p>Send a hangup signal when the last process closes the tty.  May be
+negated.
+</p>
+</dd>
+<dt><a class="index-entry-id" id="index-stop-bits"></a>
+<a id="index-cstopb"></a><span>&lsquo;<samp class="samp">cstopb</samp>&rsquo;<a class="copiable-link" href="#index-cstopb"> &para;</a></span></dt>
+<dd><p>Use two stop bits per character (one if negated).  May be negated.
+</p>
+</dd>
+<dt><a id="index-cread"></a><span>&lsquo;<samp class="samp">cread</samp>&rsquo;<a class="copiable-link" href="#index-cread"> &para;</a></span></dt>
+<dd><p>Allow input to be received.  May be negated.
+</p>
+</dd>
+<dt><a class="index-entry-id" id="index-modem-control"></a>
+<a id="index-clocal"></a><span>&lsquo;<samp class="samp">clocal</samp>&rsquo;<a class="copiable-link" href="#index-clocal"> &para;</a></span></dt>
+<dd><p>Disable modem control signals.  May be negated.
+</p>
+</dd>
+<dt><a class="index-entry-id" id="index-hardware-flow-control"></a>
+<a class="index-entry-id" id="index-flow-control_002c-hardware"></a>
+<a class="index-entry-id" id="index-RTS_002fCTS-flow-control"></a>
+<a id="index-crtscts"></a><span>&lsquo;<samp class="samp">crtscts</samp>&rsquo;<a class="copiable-link" href="#index-crtscts"> &para;</a></span></dt>
+<dd><p>Enable RTS/CTS flow control.  Non-POSIX.  May be negated.
+</p>
+</dd>
+<dt><a class="index-entry-id" id="index-hardware-flow-control-1"></a>
+<a class="index-entry-id" id="index-flow-control_002c-hardware-1"></a>
+<a class="index-entry-id" id="index-DTR_002fDSR-flow-control"></a>
+<a id="index-cdtrdsr"></a><span>&lsquo;<samp class="samp">cdtrdsr</samp>&rsquo;<a class="copiable-link" href="#index-cdtrdsr"> &para;</a></span></dt>
+<dd><p>Enable DTR/DSR flow control. Non-POSIX.  May be negated.
+</p></dd>
+</dl>
+
+
+</div>
+<hr>
+<div class="nav-panel">
+<p>
+Next: <a href="Input.html">Input settings</a>, Up: <a href="stty-invocation.html"><code class="command">stty</code>: Print or change terminal characteristics</a> &nbsp; [<a href="index.html#SEC_Contents" title="Table of contents" rel="contents">Contents</a>][<a href="Concept-index.html" title="Index" rel="index">Index</a>]</p>
+</div>
+
+
+
+</body>
+</html>

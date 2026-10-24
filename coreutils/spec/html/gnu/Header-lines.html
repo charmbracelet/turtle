@@ -1,0 +1,90 @@
+<!DOCTYPE html>
+<html>
+<!-- Created by GNU Texinfo 7.2, https://www.gnu.org/software/texinfo/ -->
+<head>
+<meta http-equiv="Content-Type" content="text/html; charset=utf-8">
+<!-- This manual documents version 9.12 of the GNU core
+utilities, including the standard programs for text and file manipulation.
+
+Copyright © 1994-2026 Free Software Foundation, Inc.
+
+Permission is granted to copy, distribute and/or modify this document
+under the terms of the GNU Free Documentation License, Version 1.3 or
+any later version published by the Free Software Foundation; with no
+Invariant Sections, with no Front-Cover Texts, and with no Back-Cover
+Texts.  A copy of the license is included in the section entitled "GNU
+Free Documentation License". -->
+<title>Header lines (GNU Coreutils 9.12)</title>
+
+<meta name="description" content="Header lines (GNU Coreutils 9.12)">
+<meta name="keywords" content="Header lines (GNU Coreutils 9.12)">
+<meta name="resource-type" content="document">
+<meta name="distribution" content="global">
+<meta name="Generator" content="makeinfo">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+
+<link href="index.html" rel="start" title="Top">
+<link href="Concept-index.html" rel="index" title="Concept index">
+<link href="index.html#SEC_Contents" rel="contents" title="Table of Contents">
+<link href="join-invocation.html" rel="up" title="join invocation">
+<link href="Set-operations.html" rel="next" title="Set operations">
+<link href="Paired-and-unpaired-lines.html" rel="prev" title="Paired and unpaired lines">
+<style type="text/css">
+<!--
+a.copiable-link {visibility: hidden; text-decoration: none; line-height: 0em}
+div.example {margin-left: 3.2em}
+span:hover a.copiable-link {visibility: visible}
+-->
+</style>
+<link rel="stylesheet" type="text/css" href="https://www.gnu.org/software/gnulib/manual.css">
+
+
+</head>
+
+<body lang="en">
+<div class="subsection-level-extent" id="Header-lines">
+<div class="nav-panel">
+<p>
+Next: <a href="Set-operations.html" accesskey="n" rel="next">Union, Intersection and Difference of files</a>, Previous: <a href="Paired-and-unpaired-lines.html" accesskey="p" rel="prev">Controlling <code class="command">join</code>&rsquo;s field matching</a>, Up: <a href="join-invocation.html" accesskey="u" rel="up"><code class="command">join</code>: Join lines on a common field</a> &nbsp; [<a href="index.html#SEC_Contents" title="Table of contents" rel="contents">Contents</a>][<a href="Concept-index.html" title="Index" rel="index">Index</a>]</p>
+</div>
+<hr>
+<h4 class="subsection" id="Header-lines-1"><span>8.3.5 Header lines<a class="copiable-link" href="#Header-lines-1"> &para;</a></span></h4>
+
+<p>The <samp class="option">--header</samp> option can be used when the files to join
+have a header line which is not sorted:
+</p>
+<div class="example">
+<div class="group"><pre class="example-preformatted">$ cat file1
+Name     Age
+Alice    25
+Charlie  34
+
+$ cat file2
+Name   Country
+Alice  France
+Bob    Spain
+
+$ join --header -o auto -e NA -a1 -a2 file1 file2
+Name     Age   Country
+Alice    25    France
+Bob      NA    Spain
+Charlie  34    NA
+</pre></div></div>
+
+
+<p>To sort a file with a header line, use GNU <code class="command">sed -u</code>.
+The following example sort the files but keeps the first line of each
+file in place:
+</p>
+<div class="example">
+<div class="group"><pre class="example-preformatted">$ ( sed -u 1q ; sort -k2b,2 ) &lt; file1 &gt; file1.sorted
+$ ( sed -u 1q ; sort -k2b,2 ) &lt; file2 &gt; file2.sorted
+$ join --header -o auto -e NA -a1 -a2 file1.sorted file2.sorted &gt; file3
+</pre></div></div>
+
+</div>
+
+
+
+</body>
+</html>

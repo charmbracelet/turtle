@@ -1,0 +1,129 @@
+<!DOCTYPE html>
+<html>
+<!-- Created by GNU Texinfo 7.2, https://www.gnu.org/software/texinfo/ -->
+<head>
+<meta http-equiv="Content-Type" content="text/html; charset=utf-8">
+<!-- This manual documents version 9.12 of the GNU core
+utilities, including the standard programs for text and file manipulation.
+
+Copyright © 1994-2026 Free Software Foundation, Inc.
+
+Permission is granted to copy, distribute and/or modify this document
+under the terms of the GNU Free Documentation License, Version 1.3 or
+any later version published by the Free Software Foundation; with no
+Invariant Sections, with no Front-Cover Texts, and with no Back-Cover
+Texts.  A copy of the license is included in the section entitled "GNU
+Free Documentation License". -->
+<title>Calendars (GNU Coreutils 9.12)</title>
+
+<meta name="description" content="Calendars (GNU Coreutils 9.12)">
+<meta name="keywords" content="Calendars (GNU Coreutils 9.12)">
+<meta name="resource-type" content="document">
+<meta name="distribution" content="global">
+<meta name="Generator" content="makeinfo">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+
+<link href="index.html" rel="start" title="Top">
+<link href="Concept-index.html" rel="index" title="Concept index">
+<link href="index.html#SEC_Contents" rel="contents" title="Table of Contents">
+<link href="date-invocation.html" rel="up" title="date invocation">
+<link href="Setting-the-time.html" rel="next" title="Setting the time">
+<link href="Date-format-specifiers.html" rel="prev" title="Date format specifiers">
+<style type="text/css">
+<!--
+a.copiable-link {visibility: hidden; text-decoration: none; line-height: 0em}
+div.example {margin-left: 3.2em}
+span:hover a.copiable-link {visibility: visible}
+ul.mark-bullet {list-style-type: disc}
+-->
+</style>
+<link rel="stylesheet" type="text/css" href="https://www.gnu.org/software/gnulib/manual.css">
+
+
+</head>
+
+<body lang="en">
+<div class="subsection-level-extent" id="Calendars">
+<div class="nav-panel">
+<p>
+Next: <a href="Setting-the-time.html" accesskey="n" rel="next">Setting the time</a>, Previous: <a href="Date-format-specifiers.html" accesskey="p" rel="prev">Specifying the format of <code class="command">date</code> output</a>, Up: <a href="date-invocation.html" accesskey="u" rel="up"><code class="command">date</code>: Print or set system date and time</a> &nbsp; [<a href="index.html#SEC_Contents" title="Table of contents" rel="contents">Contents</a>][<a href="Concept-index.html" title="Index" rel="index">Index</a>]</p>
+</div>
+<hr>
+<h4 class="subsection" id="Calendars-1"><span>21.1.2 Calendars<a class="copiable-link" href="#Calendars-1"> &para;</a></span></h4>
+
+<a class="index-entry-id" id="index-calendar"></a>
+<p>A calendar is a system that groups some sequences of days into &ldquo;months&rdquo;,
+and some sequences of months into &ldquo;years&rdquo;.
+In most countries, the calendar in use is the Gregorian calendar,
+with months ranging from January (the first month) to December (the 12th month).
+</p>
+<a class="index-entry-id" id="index-calendars_002c-non_002dGregorian"></a>
+<p>In some specific countries, other calendars are in effect, and
+GNU <code class="command">date</code> supports them in its output.
+The calendar depends on the <code class="code">LC_TIME</code> category of the current locale:
+</p><ul class="itemize mark-bullet">
+<li>In the locale of Thailand (<code class="code">th_TH.UTF-8</code>),
+the Thai solar calendar is used.
+</li><li>In the locale of Iran (<code class="code">fa_IR</code>),
+the Persian solar Hijri calendar is used.
+</li><li>In the locale of Ethiopia (<code class="code">am_ET</code>),
+the Ethiopian / Ge&rsquo;ez calendar is used.
+</li></ul>
+
+<p>The dates in these calendars look different.
+For example, the day the GNU project was announced:
+</p><div class="example">
+<pre class="example-preformatted">$ LC_ALL=en_US.UTF-8 date +%Y-%m-%d -d 1983-09-27
+1983-09-27
+$ LC_ALL=th_TH.UTF-8 date +%Y-%m-%d -d 1983-09-27
+2526-09-27
+$ LC_ALL=fa_IR date +%Y-%m-%d -d 1983-09-27
+1362-07-05
+$ LC_ALL=am_ET date +%Y-%m-%d -d 1983-09-27
+1976-01-16
+</pre></div>
+
+<p>In these locales, when a non-Gregorian calendar is in use,
+a few date conversion specifiers should not be used,
+because they don&rsquo;t apply in the expected way:
+</p><ul class="itemize mark-bullet">
+<li>&lsquo;<samp class="samp">%C</samp>&rsquo; for the century,
+</li><li>&lsquo;<samp class="samp">%y</samp>&rsquo; for a two-digit year,
+</li><li>&lsquo;<samp class="samp">%G</samp>&rsquo; and &lsquo;<samp class="samp">%g</samp>&rsquo; for a week-based year,
+</li><li>&lsquo;<samp class="samp">%U</samp>&rsquo;, &lsquo;<samp class="samp">%W</samp>&rsquo;, and &lsquo;<samp class="samp">%V</samp>&rsquo; for the week in the year,
+</li><li>&lsquo;<samp class="samp">%j</samp>&rsquo; for the day in the year,
+</li><li>and &lsquo;<samp class="samp">%D</samp>&rsquo; for the date in U.S. formatting convention.
+</li></ul>
+
+<p>If you are using one of these locales
+and want to see Gregorian dates nevertheless,
+you can achieve that by
+</p><ol class="enumerate">
+<li> making sure that you use the <code class="code">LANG</code> environment variable,
+not the <code class="code">LC_ALL</code> environment variable,
+for specifying your general locale, and
+</li><li> setting the <code class="code">LC_TIME</code> environment variable to a locale
+that uses the Gregorian calendar.
+</li></ol>
+<p>For example:
+</p><div class="example">
+<pre class="example-preformatted">$ unset LC_ALL
+$ LANG=fa_IR LC_TIME=en_US.UTF-8 date +%Y-%m-%d -d 1983-09-27
+1983-09-27
+</pre></div>
+
+<p>For more information on how to set your locale, see the GNU gettext manual at
+<a class="uref" href="https://www.gnu.org/software/gettext/manual/html_node/Users.html">https://www.gnu.org/software/gettext/manual/html_node/Users.html</a>.
+</p>
+
+</div>
+<hr>
+<div class="nav-panel">
+<p>
+Next: <a href="Setting-the-time.html">Setting the time</a>, Previous: <a href="Date-format-specifiers.html">Specifying the format of <code class="command">date</code> output</a>, Up: <a href="date-invocation.html"><code class="command">date</code>: Print or set system date and time</a> &nbsp; [<a href="index.html#SEC_Contents" title="Table of contents" rel="contents">Contents</a>][<a href="Concept-index.html" title="Index" rel="index">Index</a>]</p>
+</div>
+
+
+
+</body>
+</html>

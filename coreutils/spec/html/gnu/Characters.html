@@ -1,0 +1,154 @@
+<!DOCTYPE html>
+<html>
+<!-- Created by GNU Texinfo 7.2, https://www.gnu.org/software/texinfo/ -->
+<head>
+<meta http-equiv="Content-Type" content="text/html; charset=utf-8">
+<!-- This manual documents version 9.12 of the GNU core
+utilities, including the standard programs for text and file manipulation.
+
+Copyright © 1994-2026 Free Software Foundation, Inc.
+
+Permission is granted to copy, distribute and/or modify this document
+under the terms of the GNU Free Documentation License, Version 1.3 or
+any later version published by the Free Software Foundation; with no
+Invariant Sections, with no Front-Cover Texts, and with no Back-Cover
+Texts.  A copy of the license is included in the section entitled "GNU
+Free Documentation License". -->
+<title>Characters (GNU Coreutils 9.12)</title>
+
+<meta name="description" content="Characters (GNU Coreutils 9.12)">
+<meta name="keywords" content="Characters (GNU Coreutils 9.12)">
+<meta name="resource-type" content="document">
+<meta name="distribution" content="global">
+<meta name="Generator" content="makeinfo">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+
+<link href="index.html" rel="start" title="Top">
+<link href="Concept-index.html" rel="index" title="Concept index">
+<link href="index.html#SEC_Contents" rel="contents" title="Table of Contents">
+<link href="stty-invocation.html" rel="up" title="stty invocation">
+<link href="Special.html" rel="next" title="Special">
+<link href="Combination.html" rel="prev" title="Combination">
+<style type="text/css">
+<!--
+a.copiable-link {visibility: hidden; text-decoration: none; line-height: 0em}
+kbd.key {font-style: normal}
+span:hover a.copiable-link {visibility: visible}
+-->
+</style>
+<link rel="stylesheet" type="text/css" href="https://www.gnu.org/software/gnulib/manual.css">
+
+
+</head>
+
+<body lang="en">
+<div class="subsection-level-extent" id="Characters">
+<div class="nav-panel">
+<p>
+Next: <a href="Special.html" accesskey="n" rel="next">Special settings</a>, Previous: <a href="Combination.html" accesskey="p" rel="prev">Combination settings</a>, Up: <a href="stty-invocation.html" accesskey="u" rel="up"><code class="command">stty</code>: Print or change terminal characteristics</a> &nbsp; [<a href="index.html#SEC_Contents" title="Table of contents" rel="contents">Contents</a>][<a href="Concept-index.html" title="Index" rel="index">Index</a>]</p>
+</div>
+<hr>
+<h4 class="subsection" id="Special-characters"><span>19.2.6 Special characters<a class="copiable-link" href="#Special-characters"> &para;</a></span></h4>
+
+<a class="index-entry-id" id="index-special-characters"></a>
+<a class="index-entry-id" id="index-characters_002c-special"></a>
+
+<p>The special characters&rsquo; default values vary from system to system.
+They are set with the syntax &lsquo;<samp class="samp">name value</samp>&rsquo;, where the names are
+listed below and the value can be given either literally, in hat
+notation (&lsquo;<samp class="samp">^<var class="var">c</var></samp>&rsquo;), or as an integer which may start with
+&lsquo;<samp class="samp">0x</samp>&rsquo; to indicate hexadecimal, &lsquo;<samp class="samp">0</samp>&rsquo; to indicate octal, or
+any other digit to indicate decimal.
+</p>
+<a class="index-entry-id" id="index-disabling-special-characters"></a>
+<a class="index-entry-id" id="index-u_002c-and-disabling-special-characters"></a>
+<p>For GNU stty, giving a value of <code class="code">^-</code> or <code class="code">undef</code> disables that
+special character.  (This is incompatible with Ultrix <code class="command">stty</code>,
+which uses  a value of &lsquo;<samp class="samp">u</samp>&rsquo; to disable a special character.  GNU
+<code class="command">stty</code> treats a value &lsquo;<samp class="samp">u</samp>&rsquo; like any other, namely to set that
+special character to <kbd class="key">U</kbd>.)
+</p>
+<dl class="table">
+<dt><a id="index-intr"></a><span>&lsquo;<samp class="samp">intr</samp>&rsquo;<a class="copiable-link" href="#index-intr"> &para;</a></span></dt>
+<dd><p>Send an interrupt signal.
+</p>
+</dd>
+<dt><a id="index-quit"></a><span>&lsquo;<samp class="samp">quit</samp>&rsquo;<a class="copiable-link" href="#index-quit"> &para;</a></span></dt>
+<dd><p>Send a quit signal.
+</p>
+</dd>
+<dt><a id="index-erase"></a><span>&lsquo;<samp class="samp">erase</samp>&rsquo;<a class="copiable-link" href="#index-erase"> &para;</a></span></dt>
+<dd><p>Erase the last character typed.
+</p>
+</dd>
+<dt><a id="index-kill"></a><span>&lsquo;<samp class="samp">kill</samp>&rsquo;<a class="copiable-link" href="#index-kill"> &para;</a></span></dt>
+<dd><p>Erase the current line.
+</p>
+</dd>
+<dt><a id="index-eof"></a><span>&lsquo;<samp class="samp">eof</samp>&rsquo;<a class="copiable-link" href="#index-eof"> &para;</a></span></dt>
+<dd><p>Send an end of file (terminate the input).
+</p>
+</dd>
+<dt><a id="index-eol"></a><span>&lsquo;<samp class="samp">eol</samp>&rsquo;<a class="copiable-link" href="#index-eol"> &para;</a></span></dt>
+<dd><p>End the line.
+</p>
+</dd>
+<dt><a id="index-eol2"></a><span>&lsquo;<samp class="samp">eol2</samp>&rsquo;<a class="copiable-link" href="#index-eol2"> &para;</a></span></dt>
+<dd><p>Alternate character to end the line.  Non-POSIX.
+</p>
+</dd>
+<dt><a class="index-entry-id" id="index-flush"></a>
+<a id="index-discard"></a><span>&lsquo;<samp class="samp">discard</samp>&rsquo;<a class="copiable-link" href="#index-discard"> &para;</a></span></dt>
+<dd><p>Alternate character to toggle discarding of output.  Non-POSIX.
+</p>
+</dd>
+<dt><a id="index-swtch"></a><span>&lsquo;<samp class="samp">swtch</samp>&rsquo;<a class="copiable-link" href="#index-swtch"> &para;</a></span></dt>
+<dd><p>Switch to a different shell layer.  Non-POSIX.
+</p>
+</dd>
+<dt><a id="index-status-1"></a><span>&lsquo;<samp class="samp">status</samp>&rsquo;<a class="copiable-link" href="#index-status-1"> &para;</a></span></dt>
+<dd><p>Send an info signal.  Not currently supported on GNU/Linux.  Non-POSIX.
+</p>
+</dd>
+<dt><a id="index-start"></a><span>&lsquo;<samp class="samp">start</samp>&rsquo;<a class="copiable-link" href="#index-start"> &para;</a></span></dt>
+<dd><p>Restart the output after stopping it.
+</p>
+</dd>
+<dt><a id="index-stop"></a><span>&lsquo;<samp class="samp">stop</samp>&rsquo;<a class="copiable-link" href="#index-stop"> &para;</a></span></dt>
+<dd><p>Stop the output.
+</p>
+</dd>
+<dt><a id="index-susp"></a><span>&lsquo;<samp class="samp">susp</samp>&rsquo;<a class="copiable-link" href="#index-susp"> &para;</a></span></dt>
+<dd><p>Send a terminal stop signal.
+</p>
+</dd>
+<dt><a id="index-dsusp"></a><span>&lsquo;<samp class="samp">dsusp</samp>&rsquo;<a class="copiable-link" href="#index-dsusp"> &para;</a></span></dt>
+<dd><p>Send a terminal stop signal after flushing the input.  Non-POSIX.
+</p>
+</dd>
+<dt><a id="index-rprnt"></a><span>&lsquo;<samp class="samp">rprnt</samp>&rsquo;<a class="copiable-link" href="#index-rprnt"> &para;</a></span></dt>
+<dd><p>Redraw the current line.  Non-POSIX.
+</p>
+</dd>
+<dt><a id="index-werase"></a><span>&lsquo;<samp class="samp">werase</samp>&rsquo;<a class="copiable-link" href="#index-werase"> &para;</a></span></dt>
+<dd><p>Erase the last word typed.  Non-POSIX.
+</p>
+</dd>
+<dt><a id="index-lnext"></a><span>&lsquo;<samp class="samp">lnext</samp>&rsquo;<a class="copiable-link" href="#index-lnext"> &para;</a></span></dt>
+<dd><p>Enter the next character typed literally, even if it is a special
+character.  Non-POSIX.
+</p></dd>
+</dl>
+
+
+</div>
+<hr>
+<div class="nav-panel">
+<p>
+Next: <a href="Special.html">Special settings</a>, Previous: <a href="Combination.html">Combination settings</a>, Up: <a href="stty-invocation.html"><code class="command">stty</code>: Print or change terminal characteristics</a> &nbsp; [<a href="index.html#SEC_Contents" title="Table of contents" rel="contents">Contents</a>][<a href="Concept-index.html" title="Index" rel="index">Index</a>]</p>
+</div>
+
+
+
+</body>
+</html>

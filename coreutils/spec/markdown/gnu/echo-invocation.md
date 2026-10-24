@@ -1,0 +1,101 @@
+# echo invocation (GNU Coreutils 9.12)
+### 15.1 `echo`: Print a line of text
+
+`echo` writes each given string to standard output, with a
+space between each and a newline after the last one. Synopsis:
+
+```
+echo [option]... [string]...
+```
+
+Due to shell aliases and built-in `echo` functions, using an
+unadorned `echo` interactively or in a script may get you
+different functionality than that described here. Invoke it via
+`env` (i.e., `env echo …`) to avoid interference
+from the shell.
+
+Due to historical and backwards compatibility reasons, certain bare option-like
+strings cannot be passed to `echo` as non-option arguments.
+It is therefore not advisable to use `echo` for printing unknown or
+variable arguments. The `printf` command is recommended as a more
+portable and flexible replacement for tasks historically performed by
+`echo`. See [`printf`: Format and print data](printf-invocation.md).
+
+The program accepts the following options. Also see [Common options](Common-options.md).
+Options must precede operands, and the normally-special argument
+‘`--`’ has no special meaning and is treated like any other
+string.
+
+‘`-n`’
+:   Do not output the trailing newline.
+
+‘`-e`’
+:   Enable interpretation of the following backslash-escaped characters in
+    each string:
+
+    ‘`\\`’
+    :   backslash
+
+    ‘`\a`’
+    :   alert (bell)
+
+    ‘`\b`’
+    :   backspace
+
+    ‘`\c`’
+    :   produce no further output
+
+    ‘`\e`’
+    :   escape
+
+    ‘`\f`’
+    :   form feed
+
+    ‘`\n`’
+    :   newline
+
+    ‘`\r`’
+    :   carriage return
+
+    ‘`\t`’
+    :   horizontal tab
+
+    ‘`\v`’
+    :   vertical tab
+
+    ‘`\0nnn`’
+    :   the eight-bit value that is the octal number nnn
+        (zero to three octal digits), if nnn is
+        a nine-bit value, the ninth bit is ignored
+
+    ‘`\nnn`’
+    :   the eight-bit value that is the octal number nnn
+        (one to three octal digits), if nnn is
+        a nine-bit value, the ninth bit is ignored
+
+    ‘`\xhh`’
+    :   the eight-bit value that is the hexadecimal number hh
+        (one or two hexadecimal digits)
+
+‘`-E`’
+:   Disable interpretation of backslash escapes in each string.
+    This is the default. If `-e` and `-E` are both
+    specified, the last one given takes effect.
+
+If the `POSIXLY_CORRECT` environment variable is set, then when
+`echo`’s first argument is not `-n` it outputs
+option-like arguments instead of treating them as options. For
+example, `echo -ne hello` outputs ‘`-ne hello`’ instead of
+plain ‘`hello`’. Also backslash escapes are always enabled.
+To echo the string ‘`-n`’, one of the characters
+can be escaped in either octal or hexadecimal representation.
+For example, `echo -e '\x2dn'`.
+
+POSIX does not require support for any options, and says
+that the behavior of `echo` is implementation-defined if any
+string contains a backslash or if the first argument is `-n`.
+Portable programs should use the `printf` command instead.
+See [`printf`: Format and print data](printf-invocation.md).
+
+An exit status of zero indicates success,
+and a nonzero value indicates failure.

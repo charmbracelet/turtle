@@ -1,0 +1,424 @@
+<!DOCTYPE html>
+<html>
+<!-- Created by GNU Texinfo 7.2, https://www.gnu.org/software/texinfo/ -->
+<head>
+<meta http-equiv="Content-Type" content="text/html; charset=utf-8">
+<!-- This manual documents version 9.12 of the GNU core
+utilities, including the standard programs for text and file manipulation.
+
+Copyright © 1994-2026 Free Software Foundation, Inc.
+
+Permission is granted to copy, distribute and/or modify this document
+under the terms of the GNU Free Documentation License, Version 1.3 or
+any later version published by the Free Software Foundation; with no
+Invariant Sections, with no Front-Cover Texts, and with no Back-Cover
+Texts.  A copy of the license is included in the section entitled "GNU
+Free Documentation License". -->
+<title>What information is listed (GNU Coreutils 9.12)</title>
+
+<meta name="description" content="What information is listed (GNU Coreutils 9.12)">
+<meta name="keywords" content="What information is listed (GNU Coreutils 9.12)">
+<meta name="resource-type" content="document">
+<meta name="distribution" content="global">
+<meta name="Generator" content="makeinfo">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+
+<link href="index.html" rel="start" title="Top">
+<link href="Concept-index.html" rel="index" title="Concept index">
+<link href="index.html#SEC_Contents" rel="contents" title="Table of Contents">
+<link href="ls-invocation.html" rel="up" title="ls invocation">
+<link href="Sorting-the-output.html" rel="next" title="Sorting the output">
+<link href="Which-files-are-listed.html" rel="prev" title="Which files are listed">
+<style type="text/css">
+<!--
+a.copiable-link {visibility: hidden; text-decoration: none; line-height: 0em}
+div.example {margin-left: 3.2em}
+span:hover a.copiable-link {visibility: visible}
+-->
+</style>
+<link rel="stylesheet" type="text/css" href="https://www.gnu.org/software/gnulib/manual.css">
+
+
+</head>
+
+<body lang="en">
+<div class="subsection-level-extent" id="What-information-is-listed">
+<div class="nav-panel">
+<p>
+Next: <a href="Sorting-the-output.html" accesskey="n" rel="next">Sorting the output</a>, Previous: <a href="Which-files-are-listed.html" accesskey="p" rel="prev">Which files are listed</a>, Up: <a href="ls-invocation.html" accesskey="u" rel="up"><code class="command">ls</code>: List directory contents</a> &nbsp; [<a href="index.html#SEC_Contents" title="Table of contents" rel="contents">Contents</a>][<a href="Concept-index.html" title="Index" rel="index">Index</a>]</p>
+</div>
+<hr>
+<h4 class="subsection" id="What-information-is-listed-1"><span>10.1.2 What information is listed<a class="copiable-link" href="#What-information-is-listed-1"> &para;</a></span></h4>
+
+<p>These options affect the information that <code class="command">ls</code> displays.  By
+default, only file names are shown.
+</p>
+<dl class="table">
+<dd>
+<a class="anchor" id="ls--author"></a></dd>
+<dt><a class="index-entry-id" id="index-hurd_002c-author_002c-printing"></a>
+<a id="index-_002d_002dauthor"></a><span>&lsquo;<samp class="samp">--author</samp>&rsquo;<a class="copiable-link" href="#index-_002d_002dauthor"> &para;</a></span></dt>
+<dd><p>In long format, list each file&rsquo;s author.
+In GNU/Hurd, file authors can differ from their owners, but in other
+operating systems the two are the same.
+</p>
+<a class="anchor" id="ls-D"></a></dd>
+<dt><a class="index-entry-id" id="index-dired-Emacs-mode-support"></a>
+<a id="index-_002d_002ddired"></a><span>&lsquo;<samp class="samp">-D</samp>&rsquo;<a class="copiable-link" href="#index-_002d_002ddired"> &para;</a></span></dt>
+<dd><a class="index-entry-id" id="index-_002dD-2"></a>
+<a class="anchor" id="ls--dired"></a></dd>
+<dt>&lsquo;<samp class="samp">--dired</samp>&rsquo;</dt>
+<dd><p>Print an additional line after the main output:
+</p>
+<div class="example">
+<pre class="example-preformatted">//DIRED// <var class="var">beg1</var> <var class="var">end1</var> <var class="var">beg2</var> <var class="var">end2</var> ...
+</pre></div>
+
+<p>The <var class="var">begn</var> and <var class="var">endn</var> are unsigned integers that record the
+byte position of the beginning and end of each file name in the output.
+This makes it easy for Emacs to find the names, even when they contain
+unusual characters such as space or newline, without fancy searching.
+</p>
+<p>If directories are being listed recursively via
+<samp class="option">--recursive</samp> (<samp class="option">-R</samp>), output a similar
+line with offsets for each subdirectory name:
+</p>
+<div class="example">
+<pre class="example-preformatted">//SUBDIRED// <var class="var">beg1</var> <var class="var">end1</var> ...
+</pre></div>
+
+<p>Finally, output a line of the form:
+</p>
+<div class="example">
+<pre class="example-preformatted">//DIRED-OPTIONS// --quoting-style=<var class="var">word</var>
+</pre></div>
+
+<p>where <var class="var">word</var> is the quoting style (see <a class="pxref" href="Formatting-the-file-names.html">Formatting the file names</a>).
+</p>
+<p>Here is an actual example:
+</p>
+<div class="example">
+<pre class="example-preformatted">$ mkdir -p a/sub/deeper a/sub2
+$ touch a/f1 a/f2
+$ touch a/sub/deeper/file
+$ ls -gloRF --dired a
+  a:
+  total 8
+  -rw-r--r-- 1    0 Jun 10 12:27 f1
+  -rw-r--r-- 1    0 Jun 10 12:27 f2
+  drwxr-xr-x 3 4096 Jun 10 12:27 sub/
+  drwxr-xr-x 2 4096 Jun 10 12:27 sub2/
+
+  a/sub:
+  total 4
+  drwxr-xr-x 2 4096 Jun 10 12:27 deeper/
+
+  a/sub/deeper:
+  total 0
+  -rw-r--r-- 1 0 Jun 10 12:27 file
+
+  a/sub2:
+  total 0
+//DIRED// 48 50 84 86 120 123 158 162 217 223 282 286
+//SUBDIRED// 2 3 167 172 228 240 290 296
+//DIRED-OPTIONS// --quoting-style=literal
+</pre></div>
+
+<p>The pairs of offsets on the &lsquo;<samp class="samp">//DIRED//</samp>&rsquo; line above delimit
+these names: <samp class="file">f1</samp>, <samp class="file">f2</samp>, <samp class="file">sub</samp>, <samp class="file">sub2</samp>, <samp class="file">deeper</samp>,
+<samp class="file">file</samp>.
+The offsets on the &lsquo;<samp class="samp">//SUBDIRED//</samp>&rsquo; line delimit the following
+directory names: <samp class="file">a</samp>, <samp class="file">a/sub</samp>, <samp class="file">a/sub/deeper</samp>, <samp class="file">a/sub2</samp>.
+</p>
+<p>Here is an example of how to extract the fifth entry name, &lsquo;<samp class="samp">deeper</samp>&rsquo;,
+corresponding to the pair of offsets, 222 and 228:
+</p>
+<div class="example">
+<pre class="example-preformatted">$ ls -gloRF --dired a &gt; out
+$ dd bs=1 skip=222 count=6 &lt; out 2&gt;/dev/null; echo
+deeper
+</pre></div>
+
+<p>Although the listing above includes a trailing slash
+for the &lsquo;<samp class="samp">deeper</samp>&rsquo; entry, the offsets select the name without
+the trailing slash.  However, if you invoke <code class="command">ls</code> with <samp class="option">--dired</samp>
+(<samp class="option">-D</samp>) along with an option like
+<samp class="option">--escape</samp> (<samp class="option">-b</samp>) and operate
+on a file whose name contains special characters, the backslash
+<em class="emph">is</em> included:
+</p>
+<div class="example">
+<pre class="example-preformatted">$ touch 'a b'
+$ ls -blog --dired 'a b'
+  -rw-r--r-- 1 0 Jun 10 12:28 a\ b
+//DIRED// 30 34
+//DIRED-OPTIONS// --quoting-style=escape
+</pre></div>
+
+<p>If you use a quoting style like <samp class="option">--quoting-style=c</samp> (<samp class="option">-Q</samp>)
+that adds quote marks, then the offsets include the quote marks.
+So beware that the user may select the quoting style via the environment
+variable <code class="env">QUOTING_STYLE</code>.  Hence, applications using <samp class="option">--dired</samp>
+should either specify an explicit <samp class="option">--quoting-style=literal</samp>
+(<samp class="option">-N</samp>) option on the command line, or else be
+prepared to parse the escaped names.
+</p>
+<p>The <samp class="option">--dired</samp> (<samp class="option">-D</samp>) option implies long format output
+with hyperlinks disabled, and takes precedence over previously specified
+output formats or hyperlink mode.
+</p>
+<a class="anchor" id="ls--full-time"></a></dd>
+<dt><a id="index-_002d_002dfull_002dtime"></a><span>&lsquo;<samp class="samp">--full-time</samp>&rsquo;<a class="copiable-link" href="#index-_002d_002dfull_002dtime"> &para;</a></span></dt>
+<dd><p>Produce long format, and list times in full.  It is
+equivalent to using <samp class="option">--format=long</samp> (<samp class="option">-l</samp>) with
+<samp class="option">--time-style=full-iso</samp> (see <a class="pxref" href="Formatting-file-timestamps.html">Formatting file timestamps</a>).
+</p>
+<a class="anchor" id="ls-g"></a></dd>
+<dt><a id="index-_002dg-3"></a><span>&lsquo;<samp class="samp">-g</samp>&rsquo;<a class="copiable-link" href="#index-_002dg-3"> &para;</a></span></dt>
+<dd><p>Produce long format, but omit owner information.
+</p>
+<a class="anchor" id="ls-G"></a></dd>
+<dt><a id="index-_002d_002dno_002dgroup"></a><span>&lsquo;<samp class="samp">-G</samp>&rsquo;<a class="copiable-link" href="#index-_002d_002dno_002dgroup"> &para;</a></span></dt>
+<dd><a class="index-entry-id" id="index-_002dG-1"></a>
+<a class="anchor" id="ls--no-group"></a></dd>
+<dt>&lsquo;<samp class="samp">--no-group</samp>&rsquo;</dt>
+<dd><p>Inhibit display of group information in long format.
+(This is the default in some non-GNU versions of <code class="command">ls</code>, so we
+provide this option for compatibility.)
+</p>
+<a class="anchor" id="ls--block-size"></a></dd>
+<dt><a class="index-entry-id" id="index-file-sizes"></a>
+<a id="index-_002d_002dblock_002dsize-1"></a><span>&lsquo;<samp class="samp">--block-size=<var class="var">size</var></samp>&rsquo;<a class="copiable-link" href="#index-_002d_002dblock_002dsize-1"> &para;</a></span></dt>
+<dd><p>With <samp class="option">-l</samp>, scale sizes by <var class="var">size</var> before printing them
+(see <a class="pxref" href="Block-size.html">Block size</a>).  For example,
+<samp class="option">--block-size=G</samp> prints sizes in units of 1,073,741,824 bytes.
+</p>
+<a class="anchor" id="ls-h"></a></dd>
+<dt><a class="index-entry-id" id="index-human_002dreadable-output-1"></a>
+<a id="index-_002d_002dhuman_002dreadable-1"></a><span>&lsquo;<samp class="samp">-h</samp>&rsquo;<a class="copiable-link" href="#index-_002d_002dhuman_002dreadable-1"> &para;</a></span></dt>
+<dd><a class="index-entry-id" id="index-_002dh-4"></a>
+<a class="anchor" id="ls--human-readable"></a></dd>
+<dt>&lsquo;<samp class="samp">--human-readable</samp>&rsquo;</dt>
+<dd><p>Append a size letter to each size, such as &lsquo;<samp class="samp">M</samp>&rsquo; for mebibytes.
+Powers of 1024 are used, not 1000; &lsquo;<samp class="samp">M</samp>&rsquo; stands for 1,048,576 bytes.
+This option is equivalent to <samp class="option">--block-size=human-readable</samp>.
+Use the <samp class="option">--si</samp> option if you prefer powers of 1000.
+</p>
+<a class="anchor" id="ls-i"></a></dd>
+<dt><a class="index-entry-id" id="index-inode-number_002c-printing"></a>
+<a id="index-_002d_002dinode"></a><span>&lsquo;<samp class="samp">-i</samp>&rsquo;<a class="copiable-link" href="#index-_002d_002dinode"> &para;</a></span></dt>
+<dd><a class="index-entry-id" id="index-_002di-10"></a>
+<a class="anchor" id="ls--inode"></a></dd>
+<dt>&lsquo;<samp class="samp">--inode</samp>&rsquo;</dt>
+<dd><p>Print the inode number (also called the file serial number and index
+number) of each file to the left of the file name.  (This number
+uniquely identifies each file within a particular file system.)
+</p>
+<a class="anchor" id="ls-l"></a></dd>
+<dt><a class="index-entry-id" id="index-verbose-ls-format"></a>
+<a id="index-long-ls-format"></a><span>&lsquo;<samp class="samp">-l</samp>&rsquo;<a class="copiable-link" href="#index-long-ls-format"> &para;</a></span></dt>
+<dd><a class="index-entry-id" id="index-_002dl-7"></a>
+<a class="anchor" id="ls--format"></a></dd>
+<dt>&lsquo;<samp class="samp">--format=long</samp>&rsquo;</dt>
+<dd><a class="index-entry-id" id="index-_002d_002dformat-2"></a>
+</dd>
+<dt>&lsquo;<samp class="samp">--format=verbose</samp>&rsquo;</dt>
+<dd><p>Produce long format.
+In addition to the name of each file, print the file type, file mode bits,
+number of hard links, owner name, group name, size, and
+timestamp (see <a class="pxref" href="Formatting-file-timestamps.html">Formatting file timestamps</a>), normally
+the modification timestamp (the mtime, see <a class="pxref" href="File-timestamps.html">File timestamps</a>).
+If the owner or group name cannot be determined, print
+the owner or group ID instead, right-justified as a cue
+that it is a number rather than a textual name.
+Print question marks for other information that
+cannot be determined.
+</p>
+<p>For block special files and character special files, the size field is
+replaced by the corresponding device major and minor numbers as two decimal
+numbers separated by a comma and at least one space.
+</p>
+<p>Normally the size is printed as a byte count without punctuation, but
+this can be overridden (see <a class="pxref" href="Block-size.html">Block size</a>).
+For example, <samp class="option">--human-readable</samp> (<samp class="option">-h</samp>)
+prints an abbreviated, human-readable count, and
+&lsquo;<samp class="samp">--block-size=&quot;'1&quot;</samp>&rsquo; prints a byte count with the thousands
+separator of the current locale.
+</p>
+<p>For each directory that is listed, preface the files with a line
+&lsquo;<samp class="samp">total <var class="var">blocks</var></samp>&rsquo;, where <var class="var">blocks</var> is the file system allocation
+for all files in that directory.  The block size currently defaults to 1024
+bytes, but this can be overridden (see <a class="pxref" href="Block-size.html">Block size</a>).
+The <var class="var">blocks</var> computed counts each hard link separately;
+this is arguably a deficiency.
+</p>
+<p>The file type is one of the following characters:
+</p>
+
+<dl class="table">
+<dt>&lsquo;<samp class="samp">-</samp>&rsquo;</dt>
+<dd><p>regular file
+</p></dd>
+<dt>&lsquo;<samp class="samp">b</samp>&rsquo;</dt>
+<dd><p>block special file
+</p></dd>
+<dt>&lsquo;<samp class="samp">c</samp>&rsquo;</dt>
+<dd><p>character special file
+</p></dd>
+<dt>&lsquo;<samp class="samp">C</samp>&rsquo;</dt>
+<dd><p>high performance (&ldquo;contiguous data&rdquo;) file
+</p></dd>
+<dt>&lsquo;<samp class="samp">d</samp>&rsquo;</dt>
+<dd><p>directory
+</p></dd>
+<dt>&lsquo;<samp class="samp">D</samp>&rsquo;</dt>
+<dd><p>door (Solaris)
+</p></dd>
+<dt>&lsquo;<samp class="samp">l</samp>&rsquo;</dt>
+<dd><p>symbolic link
+</p></dd>
+<dt>&lsquo;<samp class="samp">M</samp>&rsquo;</dt>
+<dd><p>off-line (&ldquo;migrated&rdquo;) file (Cray DMF)
+</p></dd>
+<dt>&lsquo;<samp class="samp">n</samp>&rsquo;</dt>
+<dd><p>network special file (HP-UX)
+</p></dd>
+<dt>&lsquo;<samp class="samp">p</samp>&rsquo;</dt>
+<dd><p>FIFO (named pipe)
+</p></dd>
+<dt>&lsquo;<samp class="samp">P</samp>&rsquo;</dt>
+<dd><p>port (Solaris)
+</p></dd>
+<dt>&lsquo;<samp class="samp">s</samp>&rsquo;</dt>
+<dd><p>socket
+</p></dd>
+<dt>&lsquo;<samp class="samp">?</samp>&rsquo;</dt>
+<dd><p>some other file type
+</p></dd>
+</dl>
+
+<a class="index-entry-id" id="index-permissions_002c-output-by-ls"></a>
+<p>The file mode bits listed are similar to symbolic mode specifications
+(see <a class="pxref" href="Symbolic-Modes.html">Symbolic Modes</a>).  But <code class="command">ls</code> combines multiple bits into the
+third character of each set of permissions as follows:
+</p>
+<dl class="table">
+<dt>&lsquo;<samp class="samp">s</samp>&rsquo;</dt>
+<dd><p>If the set-user-ID or set-group-ID bit and the corresponding executable bit
+are both set.
+</p>
+</dd>
+<dt>&lsquo;<samp class="samp">S</samp>&rsquo;</dt>
+<dd><p>If the set-user-ID or set-group-ID bit is set but the corresponding
+executable bit is not set.
+</p>
+</dd>
+<dt>&lsquo;<samp class="samp">t</samp>&rsquo;</dt>
+<dd><p>If the restricted deletion flag or sticky bit, and the
+other-executable bit, are both set.  The restricted deletion flag is
+another name for the sticky bit.  See <a class="xref" href="Mode-Structure.html">Structure of File Mode Bits</a>.
+</p>
+</dd>
+<dt>&lsquo;<samp class="samp">T</samp>&rsquo;</dt>
+<dd><p>If the restricted deletion flag or sticky bit is set but the
+other-executable bit is not set.
+</p>
+</dd>
+<dt>&lsquo;<samp class="samp">x</samp>&rsquo;</dt>
+<dd><p>If the executable bit is set and none of the above apply.
+</p>
+</dd>
+<dt>&lsquo;<samp class="samp">-</samp>&rsquo;</dt>
+<dd><p>Otherwise.
+</p></dd>
+</dl>
+
+<p>Following the file mode bits is a single character that specifies
+whether an alternate access method such as an access control list
+applies to the file.  When the character following the file mode bits is a
+space, there is no alternate access method.  When it is a printing
+character, then there is such a method.
+</p>
+<p>GNU <code class="command">ls</code> uses a &lsquo;<samp class="samp">.</samp>&rsquo; character to indicate a file
+with a security context, but no other alternate access method.
+</p>
+<p>A file with any other combination of alternate access methods
+is marked with a &lsquo;<samp class="samp">+</samp>&rsquo; character.
+</p>
+<p><code class="command">ls</code> uses a &lsquo;<samp class="samp">?</samp>&rsquo; character to indicate it is unable to determine
+whether alternate access methods apply to the file, which may happen for
+example with some NFS setups with files without read permission.
+</p>
+<a class="anchor" id="ls-n"></a></dd>
+<dt><a class="index-entry-id" id="index-numeric-uid-and-gid"></a>
+<a class="index-entry-id" id="index-numeric-user-and-group-IDs"></a>
+<a id="index-_002d_002dnumeric_002duid_002dgid"></a><span>&lsquo;<samp class="samp">-n</samp>&rsquo;<a class="copiable-link" href="#index-_002d_002dnumeric_002duid_002dgid"> &para;</a></span></dt>
+<dd><a class="index-entry-id" id="index-_002dn-10"></a>
+<a class="anchor" id="ls--numeric-uid-gid"></a></dd>
+<dt>&lsquo;<samp class="samp">--numeric-uid-gid</samp>&rsquo;</dt>
+<dd><p>Produce long format, but
+display right-justified numeric user and group IDs
+instead of left-justified owner and group names.
+</p>
+<a class="anchor" id="ls-o"></a></dd>
+<dt><a id="index-_002do-6"></a><span>&lsquo;<samp class="samp">-o</samp>&rsquo;<a class="copiable-link" href="#index-_002do-6"> &para;</a></span></dt>
+<dd><p>Produce long format, but omit group information.
+It is equivalent to using <samp class="option">--format=long</samp> (<samp class="option">-l</samp>)
+with <samp class="option">--no-group</samp> (<samp class="option">-G</samp>).
+</p>
+<a class="anchor" id="ls-s"></a></dd>
+<dt><a class="index-entry-id" id="index-file-system-allocation"></a>
+<a class="index-entry-id" id="index-size-of-files_002c-reporting"></a>
+<a id="index-_002d_002dsize"></a><span>&lsquo;<samp class="samp">-s</samp>&rsquo;<a class="copiable-link" href="#index-_002d_002dsize"> &para;</a></span></dt>
+<dd><a class="index-entry-id" id="index-_002ds-15"></a>
+<a class="anchor" id="ls--size"></a></dd>
+<dt>&lsquo;<samp class="samp">--size</samp>&rsquo;</dt>
+<dd><p>Print the file system allocation of each file to the left of the file name.
+This is the amount of file system space used by the file, which is usually a
+bit more than the file&rsquo;s size, but it can be less if the file has holes.
+</p>
+<p>Normally the allocation is printed in units of
+1024 bytes, but this can be overridden (see <a class="pxref" href="Block-size.html">Block size</a>).
+</p>
+<a class="index-entry-id" id="index-NFS-mounts-from-BSD-to-HP_002dUX"></a>
+<p>For files that are NFS-mounted from an HP-UX system to a BSD system,
+this option reports sizes that are half the correct values.  On HP-UX
+systems, it reports sizes that are twice the correct values for files
+that are NFS-mounted from BSD systems.  This is due to a flaw in HP-UX;
+it also affects the HP-UX <code class="command">ls</code> program.
+</p>
+<a class="anchor" id="ls--si"></a></dd>
+<dt><a class="index-entry-id" id="index-SI-output-1"></a>
+<a id="index-_002d_002dsi-1"></a><span>&lsquo;<samp class="samp">--si</samp>&rsquo;<a class="copiable-link" href="#index-_002d_002dsi-1"> &para;</a></span></dt>
+<dd><p>Append an SI-style abbreviation to each size, such as &lsquo;<samp class="samp">M</samp>&rsquo; for
+megabytes.  Powers of 1000 are used, not 1024; &lsquo;<samp class="samp">M</samp>&rsquo; stands for
+1,000,000 bytes.  This option is equivalent to
+<samp class="option">--block-size=si</samp>.  Use the <samp class="option">-h</samp> or
+<samp class="option">--human-readable</samp> option if
+you prefer powers of 1024.
+</p>
+<a class="anchor" id="ls-Z"></a></dd>
+<dt><a class="index-entry-id" id="index-SELinux"></a>
+<a class="index-entry-id" id="index-security-context"></a>
+<a id="index-_002d_002dcontext"></a><span>&lsquo;<samp class="samp">-Z</samp>&rsquo;<a class="copiable-link" href="#index-_002d_002dcontext"> &para;</a></span></dt>
+<dd><a class="index-entry-id" id="index-_002dZ"></a>
+<a class="anchor" id="ls--context"></a></dd>
+<dt>&lsquo;<samp class="samp">--context</samp>&rsquo;</dt>
+<dd><p>Display the SELinux security context or &lsquo;<samp class="samp">?</samp>&rsquo; if none is found.
+In long format, print the security context to the left of the size column.
+</p>
+</dd>
+</dl>
+
+
+</div>
+<hr>
+<div class="nav-panel">
+<p>
+Next: <a href="Sorting-the-output.html">Sorting the output</a>, Previous: <a href="Which-files-are-listed.html">Which files are listed</a>, Up: <a href="ls-invocation.html"><code class="command">ls</code>: List directory contents</a> &nbsp; [<a href="index.html#SEC_Contents" title="Table of contents" rel="contents">Contents</a>][<a href="Concept-index.html" title="Index" rel="index">Index</a>]</p>
+</div>
+
+
+
+</body>
+</html>

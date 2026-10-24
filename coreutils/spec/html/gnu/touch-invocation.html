@@ -1,0 +1,251 @@
+<!DOCTYPE html>
+<html>
+<!-- Created by GNU Texinfo 7.2, https://www.gnu.org/software/texinfo/ -->
+<head>
+<meta http-equiv="Content-Type" content="text/html; charset=utf-8">
+<!-- This manual documents version 9.12 of the GNU core
+utilities, including the standard programs for text and file manipulation.
+
+Copyright © 1994-2026 Free Software Foundation, Inc.
+
+Permission is granted to copy, distribute and/or modify this document
+under the terms of the GNU Free Documentation License, Version 1.3 or
+any later version published by the Free Software Foundation; with no
+Invariant Sections, with no Front-Cover Texts, and with no Back-Cover
+Texts.  A copy of the license is included in the section entitled "GNU
+Free Documentation License". -->
+<title>touch invocation (GNU Coreutils 9.12)</title>
+
+<meta name="description" content="touch invocation (GNU Coreutils 9.12)">
+<meta name="keywords" content="touch invocation (GNU Coreutils 9.12)">
+<meta name="resource-type" content="document">
+<meta name="distribution" content="global">
+<meta name="Generator" content="makeinfo">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+
+<link href="index.html" rel="start" title="Top">
+<link href="Concept-index.html" rel="index" title="Concept index">
+<link href="index.html#SEC_Contents" rel="contents" title="Table of Contents">
+<link href="Changing-file-attributes.html" rel="up" title="Changing file attributes">
+<link href="chmod-invocation.html" rel="prev" title="chmod invocation">
+<style type="text/css">
+<!--
+a.copiable-link {visibility: hidden; text-decoration: none; line-height: 0em}
+div.example {margin-left: 3.2em}
+span:hover a.copiable-link {visibility: visible}
+-->
+</style>
+<link rel="stylesheet" type="text/css" href="https://www.gnu.org/software/gnulib/manual.css">
+
+
+</head>
+
+<body lang="en">
+<div class="section-level-extent" id="touch-invocation">
+<div class="nav-panel">
+<p>
+Previous: <a href="chmod-invocation.html" accesskey="p" rel="prev"><code class="command">chmod</code>: Change access permissions</a>, Up: <a href="Changing-file-attributes.html" accesskey="u" rel="up">Changing file attributes</a> &nbsp; [<a href="index.html#SEC_Contents" title="Table of contents" rel="contents">Contents</a>][<a href="Concept-index.html" title="Index" rel="index">Index</a>]</p>
+</div>
+<hr>
+<h3 class="section" id="touch_003a-Change-file-timestamps"><span>13.4 <code class="command">touch</code>: Change file timestamps<a class="copiable-link" href="#touch_003a-Change-file-timestamps"> &para;</a></span></h3>
+
+<a class="index-entry-id" id="index-touch"></a>
+<a class="index-entry-id" id="index-changing-file-timestamps"></a>
+<a class="index-entry-id" id="index-file-timestamps_002c-changing"></a>
+<a class="index-entry-id" id="index-timestamps_002c-changing-file"></a>
+
+<p><code class="command">touch</code> changes the access and/or modification timestamps of the
+specified files.  Synopsis:
+</p>
+<div class="example">
+<pre class="example-preformatted">touch [<var class="var">option</var>]... <var class="var">file</var>...
+</pre></div>
+
+<a class="index-entry-id" id="index-empty-files_002c-creating"></a>
+<p>Any <var class="var">file</var> argument that does not exist is created empty, unless
+option <samp class="option">--no-create</samp> (<samp class="option">-c</samp>) or <samp class="option">--no-dereference</samp>
+(<samp class="option">-h</samp>) was in effect.
+</p>
+<p>A <var class="var">file</var> argument string of &lsquo;<samp class="samp">-</samp>&rsquo; is handled specially and
+causes <code class="command">touch</code> to change the times of the file associated with
+standard output.
+</p>
+<p>By default, <code class="command">touch</code> sets file timestamps to the current time.
+Because <code class="command">touch</code> acts on its operands left to right, the
+resulting timestamps of earlier and later operands may disagree.
+</p>
+<a class="index-entry-id" id="index-permissions_002c-for-changing-file-timestamps"></a>
+<p>When setting file timestamps to the current time, <code class="command">touch</code> can
+change the timestamps for files that the user does not own but has
+write permission for.  Otherwise, the user must own the files.  Some
+older systems have a further restriction: the user must own the files
+unless both the access and modification timestamps are being set to the
+current time.
+</p>
+<p>The <code class="command">touch</code> command cannot set a file&rsquo;s status change timestamp to
+a user-specified value, and cannot change the file&rsquo;s birth time (if
+supported) at all.  Also, <code class="command">touch</code> has issues similar to those
+affecting all programs that update file timestamps.  For example,
+<code class="command">touch</code> may set a file&rsquo;s timestamp to a value that differs
+slightly from the requested time.  See <a class="xref" href="File-timestamps.html">File timestamps</a>.
+</p>
+<a class="index-entry-id" id="index-TZ-2"></a>
+<p>Timestamps assume the time zone rules specified by the <code class="env">TZ</code>
+environment variable, or by the system default rules if <code class="env">TZ</code> is
+not set.  See <a data-manual="libc" href="https://www.gnu.org/software/libc/manual/html_node/TZ-Variable.html#TZ-Variable">Specifying the Time Zone with <code class="env">TZ</code></a> in <cite class="cite">The GNU C Library Reference Manual</cite>.
+You can avoid ambiguities during
+daylight saving transitions by using UTC timestamps.
+</p>
+<p>The program accepts the following options.  Also see <a class="ref" href="Common-options.html">Common options</a>.
+</p>
+<dl class="table">
+<dd>
+<a class="anchor" id="touch-a"></a></dd>
+<dt><a class="index-entry-id" id="index-access-time_002c-changing"></a>
+<a class="index-entry-id" id="index-use-time_002c-changing"></a>
+<a id="index-atime_002c-changing"></a><span>&lsquo;<samp class="samp">-a</samp>&rsquo;<a class="copiable-link" href="#index-atime_002c-changing"> &para;</a></span></dt>
+<dd><a class="index-entry-id" id="index-_002da-8"></a>
+<a class="anchor" id="touch--time"></a></dd>
+<dt>&lsquo;<samp class="samp">--time=atime</samp>&rsquo;</dt>
+<dd><a class="index-entry-id" id="index-_002d_002dtime-4"></a>
+</dd>
+<dt>&lsquo;<samp class="samp">--time=access</samp>&rsquo;</dt>
+<dt>&lsquo;<samp class="samp">--time=use</samp>&rsquo;</dt>
+<dd><p>Change the access timestamp only.  See <a class="xref" href="File-timestamps.html">File timestamps</a>.
+</p>
+<a class="anchor" id="touch-c"></a></dd>
+<dt><a id="index-_002d_002dno_002dcreate"></a><span>&lsquo;<samp class="samp">-c</samp>&rsquo;<a class="copiable-link" href="#index-_002d_002dno_002dcreate"> &para;</a></span></dt>
+<dd><a class="index-entry-id" id="index-_002dc-18"></a>
+<a class="anchor" id="touch--no-create"></a></dd>
+<dt>&lsquo;<samp class="samp">--no-create</samp>&rsquo;</dt>
+<dd><p>Do not warn about or create files that do not exist.
+</p>
+<a class="anchor" id="touch-d"></a></dd>
+<dt><a class="index-entry-id" id="index-time"></a>
+<a id="index-_002d_002ddate"></a><span>&lsquo;<samp class="samp">-d&nbsp;<!-- /@w --><var class="var">time</var></samp>&rsquo;<a class="copiable-link" href="#index-_002d_002ddate"> &para;</a></span></dt>
+<dd><a class="index-entry-id" id="index-_002dd-15"></a>
+<a class="anchor" id="touch--date"></a></dd>
+<dt>&lsquo;<samp class="samp">--date=<var class="var">time</var></samp>&rsquo;</dt>
+<dd><p>Use <var class="var">time</var> instead of the current time.
+The standard format for <var class="var">time</var> is:
+</p>
+<div class="example">
+<pre class="example-preformatted"><var class="var">yyyy</var>-<var class="var">mm</var>-<var class="var">dd</var>T<var class="var">hh</var>:<var class="var">mm</var>:<var class="var">ss</var>[.<var class="var">frac</var>][Z]
+</pre></div>
+
+<p>giving the year, month, day, hours, minutes, seconds,
+along with optional fractional seconds and trailing
+letter &lsquo;<samp class="samp">Z</samp>&rsquo; denoting UTC rather than local time;
+also, &lsquo;<samp class="samp">,</samp>&rsquo; can separate <var class="var">ss</var> from <var class="var">frac</var> instead of &lsquo;<samp class="samp">.</samp>&rsquo;.
+<var class="var">yyyy</var> must have at least four digits;
+<var class="var">frac</var>, if present, must have at least one digit;
+and the other numbers must have exactly two digits
+and must be in their usual ranges.
+GNU <code class="command">touch</code> allows <var class="var">ss</var> to be 60 only for a leap second
+on the rare non-POSIX platforms where <code class="code">time_t</code> counts leap seconds.
+</p>
+<p>As a GNU extension, <var class="var">time</var> can use a space rather than &lsquo;<samp class="samp">T</samp>&rsquo;,
+and can also contain month names, other
+time zones, &lsquo;<samp class="samp">am</samp>&rsquo; and &lsquo;<samp class="samp">pm</samp>&rsquo;, &lsquo;<samp class="samp">yesterday</samp>&rsquo;, etc.  For
+example, <samp class="option">--date=&quot;2020-07-21 14:19:13.489392193 +0530&quot;</samp>
+specifies the instant of time that is 489,392,193 nanoseconds after
+July 21, 2020 at 2:19:13 PM in a time zone that is 5 hours and 30
+minutes east of UTC.  See <a class="xref" href="Date-input-formats.html">Date input formats</a>.
+</p>
+<p>File systems that do not support high-resolution timestamps
+silently ignore any excess precision here.
+</p>
+<a class="anchor" id="touch-f"></a></dd>
+<dt><a class="index-entry-id" id="index-BSD-touch-compatibility"></a>
+<a id="index-_002df-19"></a><span>&lsquo;<samp class="samp">-f</samp>&rsquo;<a class="copiable-link" href="#index-_002df-19"> &para;</a></span></dt>
+<dd><p>Ignored; for compatibility with BSD versions of <code class="command">touch</code>.
+</p>
+<a class="anchor" id="touch-h"></a></dd>
+<dt><a class="index-entry-id" id="index-symbolic-links_002c-changing-time"></a>
+<a class="index-entry-id" id="index-lutimes"></a>
+<a id="index-_002d_002dno_002ddereference-5"></a><span>&lsquo;<samp class="samp">-h</samp>&rsquo;<a class="copiable-link" href="#index-_002d_002dno_002ddereference-5"> &para;</a></span></dt>
+<dd><a class="index-entry-id" id="index-_002dh-8"></a>
+<a class="anchor" id="touch--no-dereference"></a></dd>
+<dt>&lsquo;<samp class="samp">--no-dereference</samp>&rsquo;</dt>
+<dd><p>Attempt to change the timestamps of a symbolic link, rather than what
+the link refers to.  When using this option, empty files are not
+created, but option <samp class="option">-c</samp> must also be used to avoid warning
+about files that do not exist.  Not all systems support changing the
+timestamps of symlinks, since underlying system support for this
+action was not required until POSIX 2008.  Also, on some
+systems, the mere act of examining a symbolic link changes the access
+timestamp, such that only changes to the modification timestamp will persist
+long enough to be observable.  When coupled with option <samp class="option">-r</samp>, a
+reference timestamp is taken from a symbolic link rather than the file
+it refers to.
+</p>
+<a class="anchor" id="touch-m"></a></dd>
+<dt><a class="index-entry-id" id="index-mtime_002c-changing"></a>
+<a class="index-entry-id" id="index-modify-time_002c-changing"></a>
+<a id="index-_002d_002dtime-5"></a><span>&lsquo;<samp class="samp">-m</samp>&rsquo;<a class="copiable-link" href="#index-_002d_002dtime-5"> &para;</a></span></dt>
+<dd><a class="index-entry-id" id="index-_002dm-9"></a>
+</dd>
+<dt>&lsquo;<samp class="samp">--time=mtime</samp>&rsquo;</dt>
+<dt>&lsquo;<samp class="samp">--time=modify</samp>&rsquo;</dt>
+<dd><p>Change the modification timestamp only.
+</p>
+<a class="anchor" id="touch-r"></a></dd>
+<dt><a id="index-_002d_002dreference-3"></a><span>&lsquo;<samp class="samp">-r&nbsp;<!-- /@w --><var class="var">file</var></samp>&rsquo;<a class="copiable-link" href="#index-_002d_002dreference-3"> &para;</a></span></dt>
+<dd><a class="index-entry-id" id="index-_002dr-10"></a>
+<a class="anchor" id="touch--reference"></a></dd>
+<dt>&lsquo;<samp class="samp">--reference=<var class="var">file</var></samp>&rsquo;</dt>
+<dd><p>Use the times of the reference <var class="var">file</var> instead of the current time.
+If this option is combined with the <samp class="option">--date=<var class="var">time</var></samp>
+(<samp class="option">-d <var class="var">time</var></samp>) option, the reference <var class="var">file</var>&rsquo;s time is
+the origin for any relative <var class="var">time</var>s given, but is otherwise ignored.
+For example, &lsquo;<samp class="samp">-r foo -d '-5 seconds'</samp>&rsquo; specifies a timestamp
+equal to five seconds before the corresponding timestamp for <samp class="file">foo</samp>.
+If <var class="var">file</var> is a symbolic link, the reference timestamp is taken
+from the target of the symlink, unless <samp class="option">-h</samp> was also in effect.
+</p>
+<a class="anchor" id="touch-t"></a></dd>
+<dt><a class="index-entry-id" id="index-leap-seconds"></a>
+<a id="index-_002dt-17"></a><span>&lsquo;<samp class="samp">-t&nbsp;<!-- /@w -->[[<var class="var">cc</var>]<var class="var">yy</var>]<var class="var">mmddhhmm</var>[.<var class="var">ss</var>]</samp>&rsquo;<a class="copiable-link" href="#index-_002dt-17"> &para;</a></span></dt>
+<dd><p>Use the argument (optional four-digit or two-digit years, months,
+days, hours, minutes, optional seconds) instead of the current time.
+If the year is specified with only two digits, then <var class="var">cc</var>
+is 20 for years in the range 0 &hellip; 68, and 19 for years in
+69 &hellip; 99.  If no digits of the year are specified,
+the argument is interpreted as a date in the current year.
+On the atypical systems that support leap seconds, <var class="var">ss</var> may be
+&lsquo;<samp class="samp">60</samp>&rsquo;.
+</p>
+</dd>
+</dl>
+
+<a class="index-entry-id" id="index-_005fPOSIX2_005fVERSION-4"></a>
+<p>On systems predating POSIX 1003.1-2001,
+<code class="command">touch</code> supports an obsolete syntax, as follows.
+If no timestamp is given with any of the <samp class="option">-d</samp>, <samp class="option">-r</samp>, or
+<samp class="option">-t</samp> options, and if there are two or more <var class="var">file</var>s and the
+first <var class="var">file</var> is of the form &lsquo;<samp class="samp"><var class="var">mmddhhmm</var>[<var class="var">yy</var>]</samp>&rsquo; and this
+would be a valid argument to the <samp class="option">-t</samp> option (if the <var class="var">yy</var>, if
+any, were moved to the front), and if the represented year
+is in the range 1969&ndash;1999, that argument is interpreted as the time
+for the other files instead of as a file name.
+Although this obsolete behavior can be controlled with the
+<code class="env">_POSIX2_VERSION</code> environment variable (see <a class="pxref" href="Standards-conformance.html">Standards conformance</a>), portable scripts should avoid commands whose
+behavior depends on this variable.
+For example, use &lsquo;<samp class="samp">touch ./12312359 main.c</samp>&rsquo; or &lsquo;<samp class="samp">touch -t
+12312359 main.c</samp>&rsquo; rather than the ambiguous &lsquo;<samp class="samp">touch 12312359 main.c</samp>&rsquo;.
+</p>
+<p>An exit status of zero indicates success,
+and a nonzero value indicates failure.
+</p>
+
+</div>
+<hr>
+<div class="nav-panel">
+<p>
+Previous: <a href="chmod-invocation.html"><code class="command">chmod</code>: Change access permissions</a>, Up: <a href="Changing-file-attributes.html">Changing file attributes</a> &nbsp; [<a href="index.html#SEC_Contents" title="Table of contents" rel="contents">Contents</a>][<a href="Concept-index.html" title="Index" rel="index">Index</a>]</p>
+</div>
+
+
+
+</body>
+</html>

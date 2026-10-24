@@ -1,0 +1,86 @@
+<!DOCTYPE html>
+<html>
+<!-- Created by GNU Texinfo 7.2, https://www.gnu.org/software/texinfo/ -->
+<head>
+<meta http-equiv="Content-Type" content="text/html; charset=utf-8">
+<!-- This manual documents version 9.12 of the GNU core
+utilities, including the standard programs for text and file manipulation.
+
+Copyright © 1994-2026 Free Software Foundation, Inc.
+
+Permission is granted to copy, distribute and/or modify this document
+under the terms of the GNU Free Documentation License, Version 1.3 or
+any later version published by the Free Software Foundation; with no
+Invariant Sections, with no Front-Cover Texts, and with no Back-Cover
+Texts.  A copy of the license is included in the section entitled "GNU
+Free Documentation License". -->
+<title>Version sort ignores locale (GNU Coreutils 9.12)</title>
+
+<meta name="description" content="Version sort ignores locale (GNU Coreutils 9.12)">
+<meta name="keywords" content="Version sort ignores locale (GNU Coreutils 9.12)">
+<meta name="resource-type" content="document">
+<meta name="distribution" content="global">
+<meta name="Generator" content="makeinfo">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+
+<link href="index.html" rel="start" title="Top">
+<link href="Concept-index.html" rel="index" title="Concept index">
+<link href="index.html#SEC_Contents" rel="contents" title="Table of Contents">
+<link href="Version-sort-implementation.html" rel="up" title="Version sort implementation">
+<link href="The-tilde-_007e.html" rel="prev" title="The tilde ~">
+<style type="text/css">
+<!--
+a.copiable-link {visibility: hidden; text-decoration: none; line-height: 0em}
+div.example {margin-left: 3.2em}
+span:hover a.copiable-link {visibility: visible}
+-->
+</style>
+<link rel="stylesheet" type="text/css" href="https://www.gnu.org/software/gnulib/manual.css">
+
+
+</head>
+
+<body lang="en">
+<div class="subsection-level-extent" id="Version-sort-ignores-locale">
+<div class="nav-panel">
+<p>
+Previous: <a href="The-tilde-_007e.html" accesskey="p" rel="prev">The tilde &lsquo;<samp class="samp">~</samp>&rsquo;</a>, Up: <a href="Version-sort-implementation.html" accesskey="u" rel="up">Version sort implementation</a> &nbsp; [<a href="index.html#SEC_Contents" title="Table of contents" rel="contents">Contents</a>][<a href="Concept-index.html" title="Index" rel="index">Index</a>]</p>
+</div>
+<hr>
+<h4 class="subsection" id="Version-sort-ignores-locale-1"><span>30.2.6 Version sort ignores locale<a class="copiable-link" href="#Version-sort-ignores-locale-1"> &para;</a></span></h4>
+
+<p>In version sort, Unicode characters are compared byte-by-byte according
+to their binary representation, ignoring their Unicode value or the
+current locale.
+</p>
+<p>Most commonly, Unicode characters are encoded as UTF-8 bytes; for
+example, GREEK SMALL LETTER ALPHA (U+03B1, &lsquo;<samp class="samp">α</samp>&rsquo;) is encoded as the
+UTF-8 sequence &lsquo;<samp class="samp">0xCE 0xB1</samp>&rsquo;).  The encoding is compared
+byte-by-byte, e.g., first &lsquo;<samp class="samp">0xCE</samp>&rsquo; (decimal value 206) then
+&lsquo;<samp class="samp">0xB1</samp>&rsquo; (decimal value 177).
+</p>
+<div class="example">
+<pre class="example-preformatted">$ touch aa az &quot;a%&quot; &quot;aα&quot;
+$ ls -1 -v
+aa
+az
+a%
+aα
+</pre></div>
+
+<p>Ignoring the first letter (&lsquo;<samp class="samp">a</samp>&rsquo;) which is identical in all
+strings, the compared values are:
+</p>
+<p>&lsquo;<samp class="samp">a</samp>&rsquo; and &lsquo;<samp class="samp">z</samp>&rsquo; are letters, and sort before
+all other non-digits.
+</p>
+<p>Then, percent sign &lsquo;<samp class="samp">%</samp>&rsquo; (ASCII value 37) is compared to the
+first byte of the UTF-8 sequence of &lsquo;<samp class="samp">α</samp>&rsquo;, which is 0xCE or 206). The
+value 37 is smaller, hence &lsquo;<samp class="samp">a%</samp>&rsquo; is listed before &lsquo;<samp class="samp">aα</samp>&rsquo;.
+</p>
+</div>
+
+
+
+</body>
+</html>

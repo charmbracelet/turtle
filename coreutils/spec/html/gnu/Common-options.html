@@ -1,0 +1,160 @@
+<!DOCTYPE html>
+<html>
+<!-- Created by GNU Texinfo 7.2, https://www.gnu.org/software/texinfo/ -->
+<head>
+<meta http-equiv="Content-Type" content="text/html; charset=utf-8">
+<!-- This manual documents version 9.12 of the GNU core
+utilities, including the standard programs for text and file manipulation.
+
+Copyright © 1994-2026 Free Software Foundation, Inc.
+
+Permission is granted to copy, distribute and/or modify this document
+under the terms of the GNU Free Documentation License, Version 1.3 or
+any later version published by the Free Software Foundation; with no
+Invariant Sections, with no Front-Cover Texts, and with no Back-Cover
+Texts.  A copy of the license is included in the section entitled "GNU
+Free Documentation License". -->
+<title>Common options (GNU Coreutils 9.12)</title>
+
+<meta name="description" content="Common options (GNU Coreutils 9.12)">
+<meta name="keywords" content="Common options (GNU Coreutils 9.12)">
+<meta name="resource-type" content="document">
+<meta name="distribution" content="global">
+<meta name="Generator" content="makeinfo">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+
+<link href="index.html" rel="start" title="Top">
+<link href="Concept-index.html" rel="index" title="Concept index">
+<link href="index.html#SEC_Contents" rel="contents" title="Table of Contents">
+<link href="index.html" rel="up" title="Top">
+<link href="Output-of-entire-files.html" rel="next" title="Output of entire files">
+<link href="Introduction.html" rel="prev" title="Introduction">
+<style type="text/css">
+<!--
+a.copiable-link {visibility: hidden; text-decoration: none; line-height: 0em}
+span:hover a.copiable-link {visibility: visible}
+-->
+</style>
+<link rel="stylesheet" type="text/css" href="https://www.gnu.org/software/gnulib/manual.css">
+
+
+</head>
+
+<body lang="en">
+<div class="chapter-level-extent" id="Common-options">
+<div class="nav-panel">
+<p>
+Next: <a href="Output-of-entire-files.html" accesskey="n" rel="next">Output of entire files</a>, Previous: <a href="Introduction.html" accesskey="p" rel="prev">Introduction</a>, Up: <a href="index.html" accesskey="u" rel="up">GNU Coreutils</a> &nbsp; [<a href="index.html#SEC_Contents" title="Table of contents" rel="contents">Contents</a>][<a href="Concept-index.html" title="Index" rel="index">Index</a>]</p>
+</div>
+<hr>
+<h2 class="chapter" id="Common-options-1"><span>2 Common options<a class="copiable-link" href="#Common-options-1"> &para;</a></span></h2>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+<a class="index-entry-id" id="index-common-options"></a>
+
+<p>Certain options are available in all of these programs.  Rather than
+writing identical descriptions for each of the programs, they are
+described here.  (In fact, every GNU program accepts (or should accept)
+these options.)
+</p>
+<a class="index-entry-id" id="index-POSIXLY_005fCORRECT"></a>
+<p>Normally options and operands can appear in any order, and programs act
+as if all the options appear before any operands.  For example,
+&lsquo;<samp class="samp">sort -r passwd -t :</samp>&rsquo; acts like &lsquo;<samp class="samp">sort -r -t : passwd</samp>&rsquo;, since
+&lsquo;<samp class="samp">:</samp>&rsquo; is an option-argument of <samp class="option">-t</samp>.  However, if the
+<code class="env">POSIXLY_CORRECT</code> environment variable is set, options must appear
+before operands, unless otherwise specified for a particular command.
+</p>
+<p>A few programs can usefully have trailing operands with leading
+&lsquo;<samp class="samp">-</samp>&rsquo;.  With such a program, options must precede operands even if
+<code class="env">POSIXLY_CORRECT</code> is not set, and this fact is noted in the
+program description.  For example, the <code class="command">env</code> command&rsquo;s options
+must appear before its operands, since in some cases the operands
+specify a command that itself contains options.
+</p>
+<p>Most programs that accept long options recognize unambiguous
+abbreviations of those options.  For example, &lsquo;<samp class="samp">rmdir
+--ignore-fail-on-non-empty</samp>&rsquo; can be invoked as &lsquo;<samp class="samp">rmdir
+--ignore-fail</samp>&rsquo; or even &lsquo;<samp class="samp">rmdir --i</samp>&rsquo;.  Ambiguous options, such as
+&lsquo;<samp class="samp">ls --h</samp>&rsquo;, are identified as such.
+</p>
+<p>Some of these programs recognize the <samp class="option">--help</samp> and <samp class="option">--version</samp>
+options only when one of them is the sole command line argument.  For
+these programs, abbreviations of the long options are not always recognized.
+</p>
+<dl class="table">
+<dt><a class="index-entry-id" id="index-TERM"></a>
+<a class="index-entry-id" id="index-help_002c-online"></a>
+<a id="index-_002d_002dhelp"></a><span>&lsquo;<samp class="samp">--help</samp>&rsquo;<a class="copiable-link" href="#index-_002d_002dhelp"> &para;</a></span></dt>
+<dd><p>Print a usage message listing all available options, then exit successfully.
+Help output may be marked up with terminal codes for formatting or
+hyperlinks, which can be disabled by unsetting the <code class="env">TERM</code> environment
+variable, or setting it to the value &lsquo;<samp class="samp">dumb</samp>&rsquo;.
+</p>
+</dd>
+<dt><a class="index-entry-id" id="index-version-number_002c-finding"></a>
+<a id="index-_002d_002dversion"></a><span>&lsquo;<samp class="samp">--version</samp>&rsquo;<a class="copiable-link" href="#index-_002d_002dversion"> &para;</a></span></dt>
+<dd><p>Print the version number, then exit successfully.
+</p>
+</dd>
+<dt><a class="index-entry-id" id="index-option-delimiter"></a>
+<a id="index-_002d_002d"></a><span>&lsquo;<samp class="samp">--</samp>&rsquo;<a class="copiable-link" href="#index-_002d_002d"> &para;</a></span></dt>
+<dd><p>Delimit the option list.  Later arguments, if any, are treated as
+operands even if they begin with &lsquo;<samp class="samp">-</samp>&rsquo;.  For example, &lsquo;<samp class="samp">sort --
+-r</samp>&rsquo; reads from the file named <samp class="file">-r</samp>.
+</p>
+</dd>
+</dl>
+
+<a class="index-entry-id" id="index-standard-input"></a>
+<a class="index-entry-id" id="index-standard-output"></a>
+<p>A single &lsquo;<samp class="samp">-</samp>&rsquo; operand is not really an option, though it looks like one.  It
+stands for a file operand, and some tools treat it as standard input, or as
+standard output if that is clear from the context.  For example, &lsquo;<samp class="samp">sort -</samp>&rsquo;
+reads from standard input, and is equivalent to plain &lsquo;<samp class="samp">sort</samp>&rsquo;.  Unless
+otherwise specified, a &lsquo;<samp class="samp">-</samp>&rsquo; can appear as any operand that requires a file
+name.
+</p>
+
+
+<ul class="mini-toc">
+<li><a href="Backup-options.html" accesskey="1">Backup options</a></li>
+<li><a href="Block-size.html" accesskey="2">Block size</a></li>
+<li><a href="Signal-specifications.html" accesskey="3">Signal specifications</a></li>
+<li><a href="Disambiguating-names-and-IDs.html" accesskey="4">chown, chgrp, chroot, id: Disambiguating user names and IDs</a></li>
+<li><a href="Random-sources.html" accesskey="5">Sources of random data</a></li>
+<li><a href="Target-directory.html" accesskey="6">Target directory</a></li>
+<li><a href="Trailing-slashes.html" accesskey="7">Trailing slashes</a></li>
+<li><a href="Traversing-symlinks.html" accesskey="8">Traversing symlinks</a></li>
+<li><a href="Treating-_002f-specially.html" accesskey="9">Treating <samp class="file">/</samp> specially</a></li>
+<li><a href="Special-built_002din-utilities.html">Special built-in utilities</a></li>
+<li><a href="Exit-status.html">Exit status</a></li>
+<li><a href="Floating-point.html">Floating point numbers</a></li>
+<li><a href="Hardware-Acceleration.html">Hardware Acceleration Configuration</a></li>
+<li><a href="Standards-conformance.html">Standards conformance</a></li>
+<li><a href="Multi_002dcall-invocation.html"><code class="command">coreutils</code>: Multi-call program</a></li>
+</ul>
+</div>
+<hr>
+<div class="nav-panel">
+<p>
+Next: <a href="Output-of-entire-files.html">Output of entire files</a>, Previous: <a href="Introduction.html">Introduction</a>, Up: <a href="index.html">GNU Coreutils</a> &nbsp; [<a href="index.html#SEC_Contents" title="Table of contents" rel="contents">Contents</a>][<a href="Concept-index.html" title="Index" rel="index">Index</a>]</p>
+</div>
+
+
+
+</body>
+</html>

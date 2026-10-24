@@ -1,0 +1,134 @@
+<!DOCTYPE html>
+<html>
+<!-- Created by GNU Texinfo 7.2, https://www.gnu.org/software/texinfo/ -->
+<head>
+<meta http-equiv="Content-Type" content="text/html; charset=utf-8">
+<!-- This manual documents version 9.12 of the GNU core
+utilities, including the standard programs for text and file manipulation.
+
+Copyright © 1994-2026 Free Software Foundation, Inc.
+
+Permission is granted to copy, distribute and/or modify this document
+under the terms of the GNU Free Documentation License, Version 1.3 or
+any later version published by the Free Software Foundation; with no
+Invariant Sections, with no Front-Cover Texts, and with no Back-Cover
+Texts.  A copy of the license is included in the section entitled "GNU
+Free Documentation License". -->
+<title>test invocation (GNU Coreutils 9.12)</title>
+
+<meta name="description" content="test invocation (GNU Coreutils 9.12)">
+<meta name="keywords" content="test invocation (GNU Coreutils 9.12)">
+<meta name="resource-type" content="document">
+<meta name="distribution" content="global">
+<meta name="Generator" content="makeinfo">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+
+<link href="index.html" rel="start" title="Top">
+<link href="Concept-index.html" rel="index" title="Concept index">
+<link href="index.html#SEC_Contents" rel="contents" title="Table of Contents">
+<link href="Conditions.html" rel="up" title="Conditions">
+<link href="expr-invocation.html" rel="next" title="expr invocation">
+<link href="true-invocation.html" rel="prev" title="true invocation">
+<style type="text/css">
+<!--
+a.copiable-link {visibility: hidden; text-decoration: none; line-height: 0em}
+div.display {margin-left: 3.2em}
+div.example {margin-left: 3.2em}
+pre.display-preformatted {font-family: inherit}
+span:hover a.copiable-link {visibility: visible}
+-->
+</style>
+<link rel="stylesheet" type="text/css" href="https://www.gnu.org/software/gnulib/manual.css">
+
+
+</head>
+
+<body lang="en">
+<div class="section-level-extent" id="test-invocation">
+<div class="nav-panel">
+<p>
+Next: <a href="expr-invocation.html" accesskey="n" rel="next"><code class="command">expr</code>: Evaluate expressions</a>, Previous: <a href="true-invocation.html" accesskey="p" rel="prev"><code class="command">true</code>: Do nothing, successfully</a>, Up: <a href="Conditions.html" accesskey="u" rel="up">Conditions</a> &nbsp; [<a href="index.html#SEC_Contents" title="Table of contents" rel="contents">Contents</a>][<a href="Concept-index.html" title="Index" rel="index">Index</a>]</p>
+</div>
+<hr>
+<h3 class="section" id="test_003a-Check-file-types-and-compare-values"><span>16.3 <code class="command">test</code>: Check file types and compare values<a class="copiable-link" href="#test_003a-Check-file-types-and-compare-values"> &para;</a></span></h3>
+
+<a class="index-entry-id" id="index-test"></a>
+<a class="index-entry-id" id="index-_005b"></a>
+<a class="index-entry-id" id="index-check-file-types"></a>
+<a class="index-entry-id" id="index-compare-values"></a>
+<a class="index-entry-id" id="index-expression-evaluation"></a>
+
+<p><code class="command">test</code> returns a status of 0 (true) or 1 (false) depending on the
+evaluation of the conditional expression <var class="var">expr</var>.  Each part of the
+expression must be a separate argument.
+</p>
+<p><code class="command">test</code> has file status checks, string operators, and numeric
+comparison operators.
+</p>
+<p><code class="command">test</code> has an alternate form that uses opening and closing
+square brackets instead a leading &lsquo;<samp class="samp">test</samp>&rsquo;.  For example, instead
+of &lsquo;<samp class="samp">test -d /</samp>&rsquo;, you can write &lsquo;<samp class="samp">[ -d / ]</samp>&rsquo;.  The square
+brackets must be separate arguments; for example, &lsquo;<samp class="samp">[-d /]</samp>&rsquo; does
+not have the desired effect.  Since &lsquo;<samp class="samp">test <var class="var">expr</var></samp>&rsquo; and &lsquo;<samp class="samp">[
+<var class="var">expr</var> ]</samp>&rsquo; have the same meaning, only the former form is discussed
+below.
+</p>
+<p>Synopses:
+</p>
+<div class="example">
+<pre class="example-preformatted">test <var class="var">expression</var>
+test
+[ <var class="var">expression</var> ]
+[ ]
+[ <var class="var">option</var>
+</pre></div>
+
+<a class="index-entry-id" id="index-conflicts-with-shell-built_002dins-4"></a>
+<a class="index-entry-id" id="index-built_002din-shell-commands_002c-conflicts-with-4"></a>
+<p>Due to shell aliases and built-in <code class="command">test</code> functions, using an
+unadorned <code class="command">test</code> interactively or in a script may get you
+different functionality than that described here.  Invoke it via
+<code class="command">env</code> (i.e., <code class="code">env test &hellip;</code>) to avoid interference
+from the shell.
+</p>
+
+<p>If <var class="var">expression</var> is omitted, <code class="command">test</code> returns false.
+If <var class="var">expression</var> is a single argument,
+<code class="command">test</code> returns false if the argument is null and true
+otherwise.  The argument
+can be any string, including strings like &lsquo;<samp class="samp">-d</samp>&rsquo;, &lsquo;<samp class="samp">-1</samp>&rsquo;,
+&lsquo;<samp class="samp">--</samp>&rsquo;, &lsquo;<samp class="samp">--help</samp>&rsquo;, and &lsquo;<samp class="samp">--version</samp>&rsquo; that most other
+programs would treat as options.  To get help and version information,
+invoke the commands &lsquo;<samp class="samp">[ --help</samp>&rsquo; and &lsquo;<samp class="samp">[ --version</samp>&rsquo;, without
+the usual closing brackets.  See <a class="xref" href="Common-options.html">Common options</a>.
+</p>
+<a class="index-entry-id" id="index-exit-status-of-test"></a>
+<p>Exit status:
+</p>
+<div class="display">
+<pre class="display-preformatted">0 if the expression is true,
+1 if the expression is false,
+2 if an error occurred.
+</pre></div>
+
+
+
+<ul class="mini-toc">
+<li><a href="File-type-tests.html" accesskey="1">File type tests</a></li>
+<li><a href="Access-permission-tests.html" accesskey="2">Access permission tests</a></li>
+<li><a href="File-characteristic-tests.html" accesskey="3">File characteristic tests</a></li>
+<li><a href="String-tests.html" accesskey="4">String tests</a></li>
+<li><a href="Numeric-tests.html" accesskey="5">Numeric tests</a></li>
+<li><a href="Connectives-for-test.html" accesskey="6">Connectives for <code class="command">test</code></a></li>
+</ul>
+</div>
+<hr>
+<div class="nav-panel">
+<p>
+Next: <a href="expr-invocation.html"><code class="command">expr</code>: Evaluate expressions</a>, Previous: <a href="true-invocation.html"><code class="command">true</code>: Do nothing, successfully</a>, Up: <a href="Conditions.html">Conditions</a> &nbsp; [<a href="index.html#SEC_Contents" title="Table of contents" rel="contents">Contents</a>][<a href="Concept-index.html" title="Index" rel="index">Index</a>]</p>
+</div>
+
+
+
+</body>
+</html>

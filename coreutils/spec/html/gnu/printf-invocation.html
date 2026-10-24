@@ -1,0 +1,312 @@
+<!DOCTYPE html>
+<html>
+<!-- Created by GNU Texinfo 7.2, https://www.gnu.org/software/texinfo/ -->
+<head>
+<meta http-equiv="Content-Type" content="text/html; charset=utf-8">
+<!-- This manual documents version 9.12 of the GNU core
+utilities, including the standard programs for text and file manipulation.
+
+Copyright © 1994-2026 Free Software Foundation, Inc.
+
+Permission is granted to copy, distribute and/or modify this document
+under the terms of the GNU Free Documentation License, Version 1.3 or
+any later version published by the Free Software Foundation; with no
+Invariant Sections, with no Front-Cover Texts, and with no Back-Cover
+Texts.  A copy of the license is included in the section entitled "GNU
+Free Documentation License". -->
+<title>printf invocation (GNU Coreutils 9.12)</title>
+
+<meta name="description" content="printf invocation (GNU Coreutils 9.12)">
+<meta name="keywords" content="printf invocation (GNU Coreutils 9.12)">
+<meta name="resource-type" content="document">
+<meta name="distribution" content="global">
+<meta name="Generator" content="makeinfo">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+
+<link href="index.html" rel="start" title="Top">
+<link href="Concept-index.html" rel="index" title="Concept index">
+<link href="index.html#SEC_Contents" rel="contents" title="Table of Contents">
+<link href="Printing-text.html" rel="up" title="Printing text">
+<link href="yes-invocation.html" rel="next" title="yes invocation">
+<link href="echo-invocation.html" rel="prev" title="echo invocation">
+<style type="text/css">
+<!--
+a.copiable-link {visibility: hidden; text-decoration: none; line-height: 0em}
+blockquote.indentedblock {margin-right: 0em}
+div.example {margin-left: 3.2em}
+span:hover a.copiable-link {visibility: visible}
+ul.mark-bullet {list-style-type: disc}
+-->
+</style>
+<link rel="stylesheet" type="text/css" href="https://www.gnu.org/software/gnulib/manual.css">
+
+
+</head>
+
+<body lang="en">
+<div class="section-level-extent" id="printf-invocation">
+<div class="nav-panel">
+<p>
+Next: <a href="yes-invocation.html" accesskey="n" rel="next"><code class="command">yes</code>: Print a string until interrupted</a>, Previous: <a href="echo-invocation.html" accesskey="p" rel="prev"><code class="command">echo</code>: Print a line of text</a>, Up: <a href="Printing-text.html" accesskey="u" rel="up">Printing text</a> &nbsp; [<a href="index.html#SEC_Contents" title="Table of contents" rel="contents">Contents</a>][<a href="Concept-index.html" title="Index" rel="index">Index</a>]</p>
+</div>
+<hr>
+<h3 class="section" id="printf_003a-Format-and-print-data"><span>15.2 <code class="command">printf</code>: Format and print data<a class="copiable-link" href="#printf_003a-Format-and-print-data"> &para;</a></span></h3>
+
+<a class="index-entry-id" id="index-printf"></a>
+<p><code class="command">printf</code> does formatted printing of text.  Synopsis:
+</p>
+<div class="example">
+<pre class="example-preformatted">printf <var class="var">format</var> [<var class="var">argument</var>]...
+</pre></div>
+
+<p><code class="command">printf</code> prints the <var class="var">format</var> string, interpreting &lsquo;<samp class="samp">%</samp>&rsquo;
+directives and &lsquo;<samp class="samp">\</samp>&rsquo; escapes to format numeric and string arguments
+in a way that is mostly similar to the C &lsquo;<samp class="samp">printf</samp>&rsquo; function,
+and C language escape sequence processing.
+See <a data-manual="libc" href="https://www.gnu.org/software/libc/manual/html_node/Output-Conversion-Syntax.html#Output-Conversion-Syntax"><code class="command">printf</code> format directives</a> in <cite class="cite">The GNU C Library Reference Manual</cite>, for details.
+</p>
+<a class="index-entry-id" id="index-conflicts-with-shell-built_002dins-3"></a>
+<a class="index-entry-id" id="index-built_002din-shell-commands_002c-conflicts-with-3"></a>
+<p>Due to shell aliases and built-in <code class="command">printf</code> functions, using an
+unadorned <code class="command">printf</code> interactively or in a script may get you
+different functionality than that described here.  Invoke it via
+<code class="command">env</code> (i.e., <code class="code">env printf &hellip;</code>) to avoid interference
+from the shell.
+</p>
+
+<p>Supported escape sequences are:
+</p>
+<blockquote class="indentedblock">
+<dl class="table">
+<dt>&lsquo;<samp class="samp">\\</samp>&rsquo;</dt>
+<dd><p>backslash
+</p></dd>
+<dt>&lsquo;<samp class="samp">\&quot;</samp>&rsquo;</dt>
+<dd><p>double quote
+</p></dd>
+<dt>&lsquo;<samp class="samp">\a</samp>&rsquo;</dt>
+<dd><p>alert (bell)
+</p></dd>
+<dt>&lsquo;<samp class="samp">\b</samp>&rsquo;</dt>
+<dd><p>backspace
+</p></dd>
+<dt>&lsquo;<samp class="samp">\c</samp>&rsquo;</dt>
+<dd><p>produce no further output
+</p></dd>
+<dt>&lsquo;<samp class="samp">\e</samp>&rsquo;</dt>
+<dd><p>escape
+</p></dd>
+<dt>&lsquo;<samp class="samp">\f</samp>&rsquo;</dt>
+<dd><p>form feed
+</p></dd>
+<dt>&lsquo;<samp class="samp">\n</samp>&rsquo;</dt>
+<dd><p>newline
+</p></dd>
+<dt>&lsquo;<samp class="samp">\r</samp>&rsquo;</dt>
+<dd><p>carriage return
+</p></dd>
+<dt>&lsquo;<samp class="samp">\t</samp>&rsquo;</dt>
+<dd><p>horizontal tab
+</p></dd>
+<dt>&lsquo;<samp class="samp">\v</samp>&rsquo;</dt>
+<dd><p>vertical tab
+</p></dd>
+<dt>&lsquo;<samp class="samp">\<var class="var">nnn</var></samp>&rsquo;</dt>
+<dd><p>the eight-bit value that is the octal number <var class="var">nnn</var>
+(one to three octal digits), if <var class="var">nnn</var> is
+a nine-bit value, the ninth bit is ignored
+</p></dd>
+<dt>&lsquo;<samp class="samp">\x<var class="var">hh</var></samp>&rsquo;</dt>
+<dd><p>the eight-bit value that is the hexadecimal number <var class="var">hh</var>
+(one or two hexadecimal digits)
+</p></dd>
+<dt>&lsquo;<samp class="samp">\u<var class="var">hhhh</var></samp>&rsquo;</dt>
+<dd><p>Unicode (ISO/IEC 10646) character with hex value HHHH (4 digits)
+</p></dd>
+<dt>&lsquo;<samp class="samp">\U<var class="var">hhhhhhhh</var></samp>&rsquo;</dt>
+<dd><p>Unicode character with hex value HHHHHHHH (8 digits)
+</p></dd>
+</dl>
+</blockquote>
+
+<p>Supported conversion specifiers with examples are:
+</p>
+<div class="example">
+<pre class="example-preformatted">CONVERSION  Shell format example        Output
+
+%s          '[%10s]' 'left pad'         [  left pad]
+%s          '[%-10s]' 'right pad'       [right pad ]
+%c %s       '%c %.3s' un unibyte        u uni
+
+%d %i       &quot;%'d ;%04i&quot; 1234 '-1'       1,234 ;-001
+%o          '%#o' $((2#110100100))      0644
+%u          '%u' 0xFFFFFFFF             4294967295
+%x          '0x%08x' 11259375           0x00abcdef
+
+%a %f       '%1$a %1$f' 0.0009765625    0x8p-13 0.000977
+%e %f       '%1$e %1$f' 123.456789      1.234568e+02 123.456789
+%g          '%1$g %1$.2g' 1.2345678e3   1234.57 1.2e+03
+
+%b          '%bfoo' 'bar\cbaz' qux      bar
+%q          '%q ' 'a' \;b $'c\n'        a ';b' 'c'$'\n'
+</pre></div>
+
+<p>The differences from the C &lsquo;<samp class="samp">printf</samp>&rsquo; function are:
+</p>
+<ul class="itemize mark-bullet">
+<li>Only the &lsquo;<samp class="samp">diouxXfaAeEgGcs</samp>&rsquo; conversion specifiers are supported.
+
+</li><li>The <var class="var">format</var> argument is reused as necessary to convert all the
+given <var class="var">argument</var>s.  For example, the command &lsquo;<samp class="samp">printf %s a b</samp>&rsquo;
+outputs &lsquo;<samp class="samp">ab</samp>&rsquo;.
+
+</li><li>Missing <var class="var">argument</var>s are treated as null strings or as zeros,
+depending on whether the context expects a string or a number.  For
+example, the command &lsquo;<samp class="samp">printf %sx%d</samp>&rsquo; prints &lsquo;<samp class="samp">x0</samp>&rsquo;.
+
+</li><li>Indexed arguments referenced with &lsquo;<samp class="samp">%...$</samp>&rsquo; formats, can be
+mixed with standard sequential argument references,
+in which case both index types are independent.
+For example, the command &lsquo;<samp class="samp">printf '%1$s%s' A</samp>&rsquo; prints &lsquo;<samp class="samp">AA</samp>&rsquo;.
+Also the highest referenced argument, either indexed or sequential,
+is considered to be the last one referenced, when determining
+unused arguments for reprocessing with the <var class="var">format</var> argument.
+
+</li><li><a class="index-entry-id" id="index-_005cc"></a>
+An additional escape, &lsquo;<samp class="samp">\c</samp>&rsquo;, causes <code class="command">printf</code> to produce no
+further output.  For example, the command &lsquo;<samp class="samp">printf 'A%sC\cD%sF' B
+E</samp>&rsquo; prints &lsquo;<samp class="samp">ABC</samp>&rsquo;.
+
+</li><li>The hexadecimal escape sequence &lsquo;<samp class="samp">\x<var class="var">hh</var></samp>&rsquo; has at most two
+digits, as opposed to C where it can have an unlimited number of
+digits.  For example, the command &lsquo;<samp class="samp">printf '\x07e'</samp>&rsquo; prints two
+bytes, whereas the C statement &lsquo;<samp class="samp">printf (&quot;\x07e&quot;)</samp>&rsquo; prints just
+one.
+
+</li><li><a class="index-entry-id" id="index-_0025b"></a>
+An additional directive &lsquo;<samp class="samp">%b</samp>&rsquo;, prints its
+argument string with &lsquo;<samp class="samp">\</samp>&rsquo; escapes interpreted in the same way as in
+the <var class="var">format</var> string, except that octal escapes should have a leading
+&lsquo;<samp class="samp">0</samp>&rsquo; like &lsquo;<samp class="samp">\0<var class="var">nnn</var></samp>&rsquo;.
+If &lsquo;<samp class="samp"><var class="var">nnn</var></samp>&rsquo; is a nine-bit value, ignore the ninth bit.
+If a precision is also given, it limits the number of bytes printed
+from the converted string.
+
+</li><li><a class="index-entry-id" id="index-_0025q"></a>
+An additional directive &lsquo;<samp class="samp">%q</samp>&rsquo;, prints its argument string
+in a format that can be reused as input by most shells.
+Non-printable characters are escaped with the POSIX &lsquo;<samp class="samp">$''</samp>&rsquo; syntax,
+and shell metacharacters are quoted appropriately.
+This is an equivalent format to <code class="command">ls --quoting=shell-escape</code> output.
+
+</li><li>Numeric arguments must be single C constants, possibly with leading
+&lsquo;<samp class="samp">+</samp>&rsquo; or &lsquo;<samp class="samp">-</samp>&rsquo;.  For example, &lsquo;<samp class="samp">printf %.4d -3</samp>&rsquo; outputs
+&lsquo;<samp class="samp">-0003</samp>&rsquo;.
+
+</li><li><a class="index-entry-id" id="index-POSIXLY_005fCORRECT-10"></a>
+If the leading character of a numeric argument is &lsquo;<samp class="samp">&quot;</samp>&rsquo; or &lsquo;<samp class="samp">'</samp>&rsquo;
+then its value is the numeric value of the immediately following
+character.  Any remaining characters are silently ignored if the
+<code class="env">POSIXLY_CORRECT</code> environment variable is set; otherwise, a
+warning is printed.  For example, &lsquo;<samp class="samp">printf &quot;%d&quot; &quot;'a&quot;</samp>&rsquo; outputs
+&lsquo;<samp class="samp">97</samp>&rsquo; on hosts that use the ASCII character set, since
+&lsquo;<samp class="samp">a</samp>&rsquo; has the numeric value 97 in ASCII.
+
+</li></ul>
+
+<a class="index-entry-id" id="index-LC_005fNUMERIC-5"></a>
+<p>A floating point argument is interpreted according to
+the <code class="env">LC_NUMERIC</code> category of either the current or the C locale,
+and is printed according to the current locale.
+For example, in a locale whose decimal point character is a comma,
+the command &lsquo;<samp class="samp">printf '%g %g' 2,5 2.5</samp>&rsquo; outputs &lsquo;<samp class="samp">2,5 2,5</samp>&rsquo;.
+See <a class="xref" href="Floating-point.html">Floating point numbers</a>.
+</p>
+<a class="index-entry-id" id="index-_005cooo"></a>
+<a class="index-entry-id" id="index-_005cxhh"></a>
+<p><code class="command">printf</code> interprets &lsquo;<samp class="samp">\<var class="var">ooo</var></samp>&rsquo; in <var class="var">format</var> as an octal number
+(if <var class="var">ooo</var> is 1 to 3 octal digits) specifying a byte to print,
+and &lsquo;<samp class="samp">\x<var class="var">hh</var></samp>&rsquo; as a hexadecimal number (if <var class="var">hh</var> is 1 to 2 hex
+digits) specifying a character to print.
+However, when &lsquo;<samp class="samp">\<var class="var">ooo</var></samp>&rsquo; specifies a number larger than 255,
+<code class="command">printf</code> ignores the ninth bit.
+For example, &lsquo;<samp class="samp">printf '\400'</samp>&rsquo; is equivalent to &lsquo;<samp class="samp">printf '\0'</samp>&rsquo;.
+</p>
+<a class="index-entry-id" id="index-_005cuhhhh"></a>
+<a class="index-entry-id" id="index-_005cUhhhhhhhh"></a>
+<a class="index-entry-id" id="index-Unicode"></a>
+<a class="index-entry-id" id="index-ISO_002fIEC-10646"></a>
+<a class="index-entry-id" id="index-LC_005fCTYPE-5"></a>
+<p><code class="command">printf</code> interprets two syntax forms for specifying Unicode
+(ISO/IEC 10646) characters.
+&lsquo;<samp class="samp">\u</samp>&rsquo; for 16-bit Unicode characters, specified as
+four hexadecimal digits <var class="var">hhhh</var>, and &lsquo;<samp class="samp">\U</samp>&rsquo; for 32-bit Unicode
+characters, specified as eight hexadecimal digits <var class="var">hhhhhhhh</var>.
+<code class="command">printf</code> outputs the Unicode characters
+according to the <code class="env">LC_CTYPE</code> locale.  Unicode characters in the range
+U+D800&hellip;U+DFFF cannot be specified by this syntax.
+This syntax fully supports the universal character subset
+introduced in ISO C 99.
+</p>
+<p>The processing of &lsquo;<samp class="samp">\u</samp>&rsquo; and &lsquo;<samp class="samp">\U</samp>&rsquo; requires a full-featured
+<code class="code">iconv</code> facility.  It is activated on systems with glibc 2.2 (or newer),
+or when <code class="code">libiconv</code> is installed prior to this package.  Otherwise
+&lsquo;<samp class="samp">\u</samp>&rsquo; and &lsquo;<samp class="samp">\U</samp>&rsquo; will print as-is.
+</p>
+<p>Unicode character syntax is useful for writing strings in a locale
+independent way.  For example, a string containing the Euro currency symbol
+</p>
+<div class="example">
+<pre class="example-preformatted">$ env printf '\u20AC 14.95'
+</pre></div>
+
+<p>will be output correctly in all locales supporting the Euro symbol
+(ISO-8859-15, UTF-8, and others).  Similarly, a Chinese string
+</p>
+<div class="example">
+<pre class="example-preformatted">$ env printf '\u4e2d\u6587'
+</pre></div>
+
+<p>will be output correctly in all Chinese locales (GB2312, BIG5, UTF-8, etc).
+</p>
+<p>In these examples, the <code class="command">printf</code> command was
+invoked via <code class="command">env</code> to ensure that we run the program found via
+your shell&rsquo;s search path, and not a shell alias or a built-in function.
+</p>
+<p>For larger strings, you don&rsquo;t need to look up the hexadecimal code
+values of each character one by one.  ASCII characters mixed with \u
+escape sequences is also known as the JAVA source file encoding.  You can
+use GNU recode 3.5c (or newer) to convert strings to this encoding.  Here
+is how to convert a piece of text into a shell script which will output
+this text in a locale-independent way:
+</p>
+<div class="example">
+<pre class="example-preformatted">$ LC_CTYPE=zh_TW.big5 env printf \
+    '\u4e2d\u6587\n' &gt; sample.txt
+$ recode BIG5..JAVA &lt; sample.txt \
+    | sed -e &quot;s|^|env printf '|&quot; -e &quot;s|%|%%|g&quot; -e &quot;s|$|\\\\n'|&quot; \
+    &gt; sample.sh
+</pre></div>
+
+
+<p>The only options are a lone <samp class="option">--help</samp> or <samp class="option">--version</samp>.
+To output an argument that begins with &lsquo;<samp class="samp">-</samp>&rsquo;, precede it with
+<samp class="option">--</samp>, e.g., &lsquo;<samp class="samp">printf -- --help</samp>&rsquo;.
+See <a class="xref" href="Common-options.html">Common options</a>.
+Options must precede operands.
+</p>
+<p>An exit status of zero indicates success,
+and a nonzero value indicates failure.
+</p>
+
+</div>
+<hr>
+<div class="nav-panel">
+<p>
+Next: <a href="yes-invocation.html"><code class="command">yes</code>: Print a string until interrupted</a>, Previous: <a href="echo-invocation.html"><code class="command">echo</code>: Print a line of text</a>, Up: <a href="Printing-text.html">Printing text</a> &nbsp; [<a href="index.html#SEC_Contents" title="Table of contents" rel="contents">Contents</a>][<a href="Concept-index.html" title="Index" rel="index">Index</a>]</p>
+</div>
+
+
+
+</body>
+</html>

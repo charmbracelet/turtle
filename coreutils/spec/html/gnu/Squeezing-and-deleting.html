@@ -1,0 +1,155 @@
+<!DOCTYPE html>
+<html>
+<!-- Created by GNU Texinfo 7.2, https://www.gnu.org/software/texinfo/ -->
+<head>
+<meta http-equiv="Content-Type" content="text/html; charset=utf-8">
+<!-- This manual documents version 9.12 of the GNU core
+utilities, including the standard programs for text and file manipulation.
+
+Copyright © 1994-2026 Free Software Foundation, Inc.
+
+Permission is granted to copy, distribute and/or modify this document
+under the terms of the GNU Free Documentation License, Version 1.3 or
+any later version published by the Free Software Foundation; with no
+Invariant Sections, with no Front-Cover Texts, and with no Back-Cover
+Texts.  A copy of the license is included in the section entitled "GNU
+Free Documentation License". -->
+<title>Squeezing and deleting (GNU Coreutils 9.12)</title>
+
+<meta name="description" content="Squeezing and deleting (GNU Coreutils 9.12)">
+<meta name="keywords" content="Squeezing and deleting (GNU Coreutils 9.12)">
+<meta name="resource-type" content="document">
+<meta name="distribution" content="global">
+<meta name="Generator" content="makeinfo">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+
+<link href="index.html" rel="start" title="Top">
+<link href="Concept-index.html" rel="index" title="Concept index">
+<link href="index.html#SEC_Contents" rel="contents" title="Table of Contents">
+<link href="tr-invocation.html" rel="up" title="tr invocation">
+<link href="Translating.html" rel="prev" title="Translating">
+<style type="text/css">
+<!--
+a.copiable-link {visibility: hidden; text-decoration: none; line-height: 0em}
+div.example {margin-left: 3.2em}
+span:hover a.copiable-link {visibility: visible}
+ul.mark-bullet {list-style-type: disc}
+-->
+</style>
+<link rel="stylesheet" type="text/css" href="https://www.gnu.org/software/gnulib/manual.css">
+
+
+</head>
+
+<body lang="en">
+<div class="subsection-level-extent" id="Squeezing-and-deleting">
+<div class="nav-panel">
+<p>
+Previous: <a href="Translating.html" accesskey="p" rel="prev">Translating</a>, Up: <a href="tr-invocation.html" accesskey="u" rel="up"><code class="command">tr</code>: Translate, squeeze, and/or delete characters</a> &nbsp; [<a href="index.html#SEC_Contents" title="Table of contents" rel="contents">Contents</a>][<a href="Concept-index.html" title="Index" rel="index">Index</a>]</p>
+</div>
+<hr>
+<h4 class="subsection" id="Squeezing-repeats-and-deleting"><span>9.1.3 Squeezing repeats and deleting<a class="copiable-link" href="#Squeezing-repeats-and-deleting"> &para;</a></span></h4>
+
+<a class="index-entry-id" id="index-squeezing-repeat-characters"></a>
+<a class="index-entry-id" id="index-deleting-characters"></a>
+<a class="index-entry-id" id="index-removing-characters"></a>
+
+<p>When given just the <samp class="option">--delete</samp> (<samp class="option">-d</samp>) option, <code class="command">tr</code>
+removes any input characters that are in <var class="var">array1</var>.
+</p>
+<p>When given just the <samp class="option">--squeeze-repeats</samp> (<samp class="option">-s</samp>) option
+and not translating, <code class="command">tr</code> replaces each input sequence of a
+repeated character that is in <var class="var">array1</var> with a single occurrence of
+that character.
+</p>
+<p>When given both <samp class="option">--delete</samp> and <samp class="option">--squeeze-repeats</samp>, <code class="command">tr</code>
+first performs any deletions using <var class="var">array1</var>, then squeezes repeats
+from any remaining characters using <var class="var">array2</var>.
+</p>
+<p>The <samp class="option">--squeeze-repeats</samp> option may also be used when translating,
+in which case <code class="command">tr</code> first performs translation, then squeezes
+repeats from any remaining characters using <var class="var">array2</var>.
+</p>
+<p>Here are some examples to illustrate various combinations of options:
+</p>
+<ul class="itemize mark-bullet">
+<li>Remove all zero bytes:
+
+<div class="example">
+<pre class="example-preformatted">tr -d '\0'
+</pre></div>
+
+</li><li>Put all words on lines by themselves.  This converts all
+non-alphanumeric characters to newlines, then squeezes each string
+of repeated newlines into a single newline:
+
+<div class="example">
+<pre class="example-preformatted">tr -cs '[:alnum:]' '[\n*]'
+</pre></div>
+
+</li><li>Convert each sequence of repeated newlines to a single newline.
+I.e., delete empty lines:
+
+<div class="example">
+<pre class="example-preformatted">tr -s '\n'
+</pre></div>
+
+</li><li>Find doubled occurrences of words in a document.
+For example, people often write &ldquo;the <!-- /@w -->the&rdquo; with the repeated words
+separated by a newline.  The Bourne shell script below works first
+by converting each sequence of punctuation and blank characters to a
+single newline.  That puts each &ldquo;word&rdquo; on a line by itself.
+Next it maps all uppercase characters to lower case, and finally it
+runs <code class="command">uniq</code> with the <samp class="option">-d</samp> option to print out only the words
+that were repeated.
+
+<div class="example">
+<pre class="example-preformatted">#!/bin/sh
+cat -- &quot;$@&quot; \
+  | tr -s '[:punct:][:blank:]' '[\n*]' \
+  | tr '[:upper:]' '[:lower:]' \
+  | uniq -d
+</pre></div>
+
+</li><li>Deleting a small set of characters is usually straightforward.  For example,
+to remove all &lsquo;<samp class="samp">a</samp>&rsquo;s, &lsquo;<samp class="samp">x</samp>&rsquo;s, and &lsquo;<samp class="samp">M</samp>&rsquo;s you would do this:
+
+<div class="example">
+<pre class="example-preformatted">tr -d axM
+</pre></div>
+
+<p>However, when &lsquo;<samp class="samp">-</samp>&rsquo; is one of those characters, it can be tricky because
+&lsquo;<samp class="samp">-</samp>&rsquo; has special meanings.  Performing the same task as above but also
+removing all &lsquo;<samp class="samp">-</samp>&rsquo; characters, we might try <code class="code">tr -d -axM</code>, but
+that would fail because <code class="command">tr</code> would try to interpret <samp class="option">-a</samp> as
+a command-line option.  Alternatively, we could try putting the hyphen
+inside the string, <code class="code">tr -d a-xM</code>, but that wouldn&rsquo;t work either because
+it would make <code class="command">tr</code> interpret <code class="code">a-x</code> as the range of characters
+&lsquo;<samp class="samp">a</samp>&rsquo;&hellip;&lsquo;<samp class="samp">x</samp>&rsquo; rather than the three.
+One way to solve the problem is to put the hyphen at the end of the list
+of characters:
+</p>
+<div class="example">
+<pre class="example-preformatted">tr -d axM-
+</pre></div>
+
+<p>Or you can use &lsquo;<samp class="samp">--</samp>&rsquo; to terminate option processing:
+</p>
+<div class="example">
+<pre class="example-preformatted">tr -d -- -axM
+</pre></div>
+
+</li></ul>
+
+
+</div>
+<hr>
+<div class="nav-panel">
+<p>
+Previous: <a href="Translating.html">Translating</a>, Up: <a href="tr-invocation.html"><code class="command">tr</code>: Translate, squeeze, and/or delete characters</a> &nbsp; [<a href="index.html#SEC_Contents" title="Table of contents" rel="contents">Contents</a>][<a href="Concept-index.html" title="Index" rel="index">Index</a>]</p>
+</div>
+
+
+
+</body>
+</html>

@@ -1,0 +1,102 @@
+<!DOCTYPE html>
+<html>
+<!-- Created by GNU Texinfo 7.2, https://www.gnu.org/software/texinfo/ -->
+<head>
+<meta http-equiv="Content-Type" content="text/html; charset=utf-8">
+<!-- This manual documents version 9.12 of the GNU core
+utilities, including the standard programs for text and file manipulation.
+
+Copyright © 1994-2026 Free Software Foundation, Inc.
+
+Permission is granted to copy, distribute and/or modify this document
+under the terms of the GNU Free Documentation License, Version 1.3 or
+any later version published by the Free Software Foundation; with no
+Invariant Sections, with no Front-Cover Texts, and with no Back-Cover
+Texts.  A copy of the license is included in the section entitled "GNU
+Free Documentation License". -->
+<title>Setting the time (GNU Coreutils 9.12)</title>
+
+<meta name="description" content="Setting the time (GNU Coreutils 9.12)">
+<meta name="keywords" content="Setting the time (GNU Coreutils 9.12)">
+<meta name="resource-type" content="document">
+<meta name="distribution" content="global">
+<meta name="Generator" content="makeinfo">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+
+<link href="index.html" rel="start" title="Top">
+<link href="Concept-index.html" rel="index" title="Concept index">
+<link href="index.html#SEC_Contents" rel="contents" title="Table of Contents">
+<link href="date-invocation.html" rel="up" title="date invocation">
+<link href="Options-for-date.html" rel="next" title="Options for date">
+<link href="Calendars.html" rel="prev" title="Calendars">
+<style type="text/css">
+<!--
+a.copiable-link {visibility: hidden; text-decoration: none; line-height: 0em}
+span:hover a.copiable-link {visibility: visible}
+-->
+</style>
+<link rel="stylesheet" type="text/css" href="https://www.gnu.org/software/gnulib/manual.css">
+
+
+</head>
+
+<body lang="en">
+<div class="subsection-level-extent" id="Setting-the-time">
+<div class="nav-panel">
+<p>
+Next: <a href="Options-for-date.html" accesskey="n" rel="next">Options for <code class="command">date</code></a>, Previous: <a href="Calendars.html" accesskey="p" rel="prev">Calendars</a>, Up: <a href="date-invocation.html" accesskey="u" rel="up"><code class="command">date</code>: Print or set system date and time</a> &nbsp; [<a href="index.html#SEC_Contents" title="Table of contents" rel="contents">Contents</a>][<a href="Concept-index.html" title="Index" rel="index">Index</a>]</p>
+</div>
+<hr>
+<h4 class="subsection" id="Setting-the-time-1"><span>21.1.3 Setting the time<a class="copiable-link" href="#Setting-the-time-1"> &para;</a></span></h4>
+
+<a class="index-entry-id" id="index-setting-the-time"></a>
+<a class="index-entry-id" id="index-time-setting"></a>
+<a class="index-entry-id" id="index-appropriate-privileges-1"></a>
+
+<p>You must have appropriate privileges to set the
+system clock.  For changes to persist across a reboot, the
+hardware clock may need to be updated from the system clock, which
+might not happen automatically on your system.
+</p>
+<p>To set the clock, you can use the <samp class="option">--set</samp> (<samp class="option">-s</samp>) option
+(see <a class="pxref" href="Options-for-date.html">Options for <code class="command">date</code></a>) or a operand of the form
+&lsquo;<samp class="samp"><var class="var">mm</var><var class="var">dd</var><var class="var">hh</var><var class="var">mm</var>[[<var class="var">cc</var>]<var class="var">yy</var>][.<var class="var">ss</var>]</samp>&rsquo;
+where each two-letter
+component stands for two digits with the following meanings:
+</p>
+<dl class="table">
+<dt><var class="var">mm</var></dt>
+<dd><p>month (this is the first <var class="var">mm</var>)
+</p></dd>
+<dt><var class="var">dd</var></dt>
+<dd><p>day within month
+</p></dd>
+<dt><var class="var">hh</var></dt>
+<dd><p>hour
+</p></dd>
+<dt><var class="var">mm</var></dt>
+<dd><p>minute (this is the second <var class="var">mm</var>)
+</p></dd>
+<dt><var class="var">cc</var></dt>
+<dd><p>first two digits of year (optional)
+</p></dd>
+<dt><var class="var">yy</var></dt>
+<dd><p>last two digits of year (optional)
+</p></dd>
+<dt><var class="var">ss</var></dt>
+<dd><p>second (optional; this is a GNU extension)
+</p></dd>
+</dl>
+
+<p>The <samp class="option">--date</samp> and <samp class="option">--set</samp> options may not be used with an
+argument in the above format.  The <samp class="option">--universal</samp> option may be used
+with such an argument to indicate that the specified date and time are
+relative to Universal Time rather than to the local time zone.
+</p>
+
+</div>
+
+
+
+</body>
+</html>

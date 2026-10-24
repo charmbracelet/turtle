@@ -1,0 +1,8 @@
+# vdir invocation (GNU Coreutils 9.12)
+### 10.3 `vdir`: Verbosely list directory contents
+
+`vdir` is equivalent to `ls -l
+-b`; that is, by default files are listed in long format and special
+characters are represented by backslash escape sequences.
+
+See [`ls`](ls-invocation.md).

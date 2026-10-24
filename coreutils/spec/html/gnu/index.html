@@ -1,0 +1,509 @@
+<!DOCTYPE html>
+<html>
+<!-- Created by GNU Texinfo 7.2, https://www.gnu.org/software/texinfo/ -->
+<head>
+<meta http-equiv="Content-Type" content="text/html; charset=utf-8">
+<!-- This manual documents version 9.12 of the GNU core
+utilities, including the standard programs for text and file manipulation.
+
+Copyright © 1994-2026 Free Software Foundation, Inc.
+
+Permission is granted to copy, distribute and/or modify this document
+under the terms of the GNU Free Documentation License, Version 1.3 or
+any later version published by the Free Software Foundation; with no
+Invariant Sections, with no Front-Cover Texts, and with no Back-Cover
+Texts.  A copy of the license is included in the section entitled "GNU
+Free Documentation License". -->
+<title>Top (GNU Coreutils 9.12)</title>
+
+<meta name="description" content="Top (GNU Coreutils 9.12)">
+<meta name="keywords" content="Top (GNU Coreutils 9.12)">
+<meta name="resource-type" content="document">
+<meta name="distribution" content="global">
+<meta name="Generator" content="makeinfo">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+
+<link href="#Top" rel="start" title="Top">
+<link href="Concept-index.html" rel="index" title="Concept index">
+<link href="#SEC_Contents" rel="contents" title="Table of Contents">
+<link href="/manual" rel="up" title="(dir)">
+<link href="Introduction.html" rel="next" title="Introduction">
+<style type="text/css">
+<!--
+a.copiable-link {visibility: hidden; text-decoration: none; line-height: 0em}
+span:hover a.copiable-link {visibility: visible}
+ul.toc-numbered-mark {list-style: none}
+-->
+</style>
+<link rel="stylesheet" type="text/css" href="https://www.gnu.org/software/gnulib/manual.css">
+
+
+</head>
+
+<body lang="en">
+
+
+
+
+
+
+
+
+
+<div class="top-level-extent" id="Top">
+<div class="nav-panel">
+<p>
+Next: <a href="Introduction.html" accesskey="n" rel="next">Introduction</a>, Up: <a href="/manual" accesskey="u" rel="up">(dir)</a> &nbsp; [<a href="#SEC_Contents" title="Table of contents" rel="contents">Contents</a>][<a href="Concept-index.html" title="Index" rel="index">Index</a>]</p>
+</div>
+<hr>
+<h1 class="top" id="GNU-Coreutils"><span>GNU Coreutils<a class="copiable-link" href="#GNU-Coreutils"> &para;</a></span></h1>
+
+<p>This manual documents version 9.12 of the GNU core
+utilities, including the standard programs for text and file manipulation.
+</p>
+<p>Copyright &copy; 1994&ndash;2026 Free Software Foundation, Inc.
+</p>
+<blockquote class="quotation">
+<p>Permission is granted to copy, distribute and/or modify this document
+under the terms of the GNU Free Documentation License, Version 1.3 or
+any later version published by the Free Software Foundation; with no
+Invariant Sections, with no Front-Cover Texts, and with no Back-Cover
+Texts.  A copy of the license is included in the section entitled &ldquo;GNU
+Free Documentation License&rdquo;.
+</p></blockquote>
+
+<a class="index-entry-id" id="index-core-utilities"></a>
+<a class="index-entry-id" id="index-text-utilities"></a>
+<a class="index-entry-id" id="index-shell-utilities"></a>
+<a class="index-entry-id" id="index-file-utilities"></a>
+
+
+
+<div class="region-shortcontents" id="SEC_Shortcontents">
+<h2 class="shortcontents-heading">Short Table of Contents</h2>
+
+<div class="shortcontents">
+<ul class="toc-numbered-mark">
+<li><a id="stoc-Introduction" href="#toc-Introduction">1 Introduction</a></li>
+<li><a id="stoc-Common-options" href="#toc-Common-options">2 Common options</a></li>
+<li><a id="stoc-Output-of-entire-files" href="#toc-Output-of-entire-files">3 Output of entire files</a></li>
+<li><a id="stoc-Formatting-file-contents" href="#toc-Formatting-file-contents">4 Formatting file contents</a></li>
+<li><a id="stoc-Output-of-parts-of-files" href="#toc-Output-of-parts-of-files">5 Output of parts of files</a></li>
+<li><a id="stoc-Summarizing-files" href="#toc-Summarizing-files">6 Summarizing files</a></li>
+<li><a id="stoc-Operating-on-sorted-files" href="#toc-Operating-on-sorted-files">7 Operating on sorted files</a></li>
+<li><a id="stoc-Operating-on-fields" href="#toc-Operating-on-fields">8 Operating on fields</a></li>
+<li><a id="stoc-Operating-on-characters" href="#toc-Operating-on-characters">9 Operating on characters</a></li>
+<li><a id="stoc-Directory-listing" href="#toc-Directory-listing">10 Directory listing</a></li>
+<li><a id="stoc-Basic-operations" href="#toc-Basic-operations">11 Basic operations</a></li>
+<li><a id="stoc-Special-file-types" href="#toc-Special-file-types">12 Special file types</a></li>
+<li><a id="stoc-Changing-file-attributes" href="#toc-Changing-file-attributes">13 Changing file attributes</a></li>
+<li><a id="stoc-File-space-usage" href="#toc-File-space-usage">14 File space usage</a></li>
+<li><a id="stoc-Printing-text" href="#toc-Printing-text">15 Printing text</a></li>
+<li><a id="stoc-Conditions" href="#toc-Conditions">16 Conditions</a></li>
+<li><a id="stoc-Redirection" href="#toc-Redirection">17 Redirection</a></li>
+<li><a id="stoc-File-name-manipulation" href="#toc-File-name-manipulation">18 File name manipulation</a></li>
+<li><a id="stoc-Working-context" href="#toc-Working-context">19 Working context</a></li>
+<li><a id="stoc-User-information" href="#toc-User-information">20 User information</a></li>
+<li><a id="stoc-System-context" href="#toc-System-context">21 System context</a></li>
+<li><a id="stoc-SELinux-context" href="#toc-SELinux-context">22 SELinux context</a></li>
+<li><a id="stoc-Modified-command-invocation" href="#toc-Modified-command-invocation">23 Modified command invocation</a></li>
+<li><a id="stoc-Process-control" href="#toc-Process-control">24 Process control</a></li>
+<li><a id="stoc-Delaying" href="#toc-Delaying">25 Delaying</a></li>
+<li><a id="stoc-Numeric-operations" href="#toc-Numeric-operations">26 Numeric operations</a></li>
+<li><a id="stoc-File-permissions" href="#toc-File-permissions">27 File permissions</a></li>
+<li><a id="stoc-File-timestamps" href="#toc-File-timestamps">28 File timestamps</a></li>
+<li><a id="stoc-Date-input-formats" href="#toc-Date-input-formats">29 Date input formats</a></li>
+<li><a id="stoc-Version-sort-ordering" href="#toc-Version-sort-ordering">30 Version sort ordering</a></li>
+<li><a id="stoc-Opening-the-Software-Toolbox" href="#toc-Opening-the-Software-Toolbox">31 Opening the Software Toolbox</a></li>
+<li><a id="stoc-GNU-Free-Documentation-License" href="#toc-GNU-Free-Documentation-License">Appendix A GNU Free Documentation License</a></li>
+<li><a id="stoc-Index" href="#toc-Index" rel="index">Index</a></li>
+</ul>
+</div>
+</div>
+<div class="region-contents" id="SEC_Contents">
+<h2 class="contents-heading">Table of Contents</h2>
+
+<div class="contents">
+
+<ul class="toc-numbered-mark">
+  <li><a id="toc-Introduction" href="Introduction.html">1 Introduction</a></li>
+  <li><a id="toc-Common-options" href="Common-options.html">2 Common options</a>
+  <ul class="toc-numbered-mark">
+    <li><a id="toc-Backup-options" href="Backup-options.html">2.1 Backup options</a></li>
+    <li><a id="toc-Block-size" href="Block-size.html">2.2 Block size</a></li>
+    <li><a id="toc-Signal-specifications" href="Signal-specifications.html">2.3 Signal specifications</a></li>
+    <li><a id="toc-chown_002c-chgrp_002c-chroot_002c-id_003a-Disambiguating-user-names-and-IDs" href="Disambiguating-names-and-IDs.html">2.4 chown, chgrp, chroot, id: Disambiguating user names and IDs</a></li>
+    <li><a id="toc-Sources-of-random-data" href="Random-sources.html">2.5 Sources of random data</a></li>
+    <li><a id="toc-Target-directory" href="Target-directory.html">2.6 Target directory</a></li>
+    <li><a id="toc-Trailing-slashes" href="Trailing-slashes.html">2.7 Trailing slashes</a></li>
+    <li><a id="toc-Traversing-symlinks" href="Traversing-symlinks.html">2.8 Traversing symlinks</a></li>
+    <li><a id="toc-Treating-_002f-specially" href="Treating-_002f-specially.html">2.9 Treating <samp class="file">/</samp> specially</a></li>
+    <li><a id="toc-Special-built_002din-utilities" href="Special-built_002din-utilities.html">2.10 Special built-in utilities</a></li>
+    <li><a id="toc-Exit-status" href="Exit-status.html">2.11 Exit status</a></li>
+    <li><a id="toc-Floating-point-numbers" href="Floating-point.html">2.12 Floating point numbers</a></li>
+    <li><a id="toc-Hardware-Acceleration-Configuration" href="Hardware-Acceleration.html">2.13 Hardware Acceleration Configuration</a>
+    <ul class="toc-numbered-mark">
+      <li><a id="toc-Build-Configuration" href="Hardware-Acceleration.html#Build-Configuration">2.13.1 Build Configuration</a></li>
+      <li><a id="toc-Runtime-Configuration" href="Hardware-Acceleration.html#Runtime-Configuration">2.13.2 Runtime Configuration</a></li>
+    </ul></li>
+    <li><a id="toc-Standards-conformance" href="Standards-conformance.html">2.14 Standards conformance</a></li>
+    <li><a id="toc-coreutils_003a-Multi_002dcall-program" href="Multi_002dcall-invocation.html">2.15 <code class="command">coreutils</code>: Multi-call program</a></li>
+  </ul></li>
+  <li><a id="toc-Output-of-entire-files" href="Output-of-entire-files.html">3 Output of entire files</a>
+  <ul class="toc-numbered-mark">
+    <li><a id="toc-cat_003a-Concatenate-and-write-files" href="cat-invocation.html">3.1 <code class="command">cat</code>: Concatenate and write files</a></li>
+    <li><a id="toc-tac_003a-Concatenate-and-write-files-in-reverse" href="tac-invocation.html">3.2 <code class="command">tac</code>: Concatenate and write files in reverse</a></li>
+    <li><a id="toc-nl_003a-Number-lines-and-write-files" href="nl-invocation.html">3.3 <code class="command">nl</code>: Number lines and write files</a></li>
+    <li><a id="toc-od_003a-Write-files-in-octal-or-other-formats" href="od-invocation.html">3.4 <code class="command">od</code>: Write files in octal or other formats</a></li>
+    <li><a id="toc-base32_003a-Transform-data-into-printable-data" href="base32-invocation.html">3.5 <code class="command">base32</code>: Transform data into printable data</a></li>
+    <li><a id="toc-base64_003a-Transform-data-into-printable-data" href="base64-invocation.html">3.6 <code class="command">base64</code>: Transform data into printable data</a></li>
+    <li><a id="toc-basenc_003a-Transform-data-into-printable-data" href="basenc-invocation.html">3.7 <code class="command">basenc</code>: Transform data into printable data</a></li>
+  </ul></li>
+  <li><a id="toc-Formatting-file-contents" href="Formatting-file-contents.html">4 Formatting file contents</a>
+  <ul class="toc-numbered-mark">
+    <li><a id="toc-fmt_003a-Reformat-paragraph-text" href="fmt-invocation.html">4.1 <code class="command">fmt</code>: Reformat paragraph text</a></li>
+    <li><a id="toc-pr_003a-Paginate-or-columnate-files-for-printing" href="pr-invocation.html">4.2 <code class="command">pr</code>: Paginate or columnate files for printing</a></li>
+    <li><a id="toc-fold_003a-Wrap-input-lines-to-fit-in-specified-width" href="fold-invocation.html">4.3 <code class="command">fold</code>: Wrap input lines to fit in specified width</a></li>
+  </ul></li>
+  <li><a id="toc-Output-of-parts-of-files" href="Output-of-parts-of-files.html">5 Output of parts of files</a>
+  <ul class="toc-numbered-mark">
+    <li><a id="toc-head_003a-Output-the-first-part-of-files" href="head-invocation.html">5.1 <code class="command">head</code>: Output the first part of files</a></li>
+    <li><a id="toc-tail_003a-Output-the-last-part-of-files" href="tail-invocation.html">5.2 <code class="command">tail</code>: Output the last part of files</a></li>
+    <li><a id="toc-split_003a-Split-a-file-into-pieces_002e" href="split-invocation.html">5.3 <code class="command">split</code>: Split a file into pieces.</a></li>
+    <li><a id="toc-csplit_003a-Split-a-file-into-context_002ddetermined-pieces" href="csplit-invocation.html">5.4 <code class="command">csplit</code>: Split a file into context-determined pieces</a></li>
+  </ul></li>
+  <li><a id="toc-Summarizing-files" href="Summarizing-files.html">6 Summarizing files</a>
+  <ul class="toc-numbered-mark">
+    <li><a id="toc-wc_003a-Print-newline_002c-word_002c-and-byte-or-character-counts" href="wc-invocation.html">6.1 <code class="command">wc</code>: Print newline, word, and byte or character counts</a></li>
+    <li><a id="toc-sum_003a-Print-checksum-and-block-counts" href="sum-invocation.html">6.2 <code class="command">sum</code>: Print checksum and block counts</a></li>
+    <li><a id="toc-cksum_003a-Print-and-verify-file-checksums" href="cksum-invocation.html">6.3 <code class="command">cksum</code>: Print and verify file checksums</a>
+    <ul class="toc-numbered-mark">
+      <li><a id="toc-cksum-output-modes" href="cksum-output-modes.html">6.3.1 cksum output modes</a></li>
+      <li><a id="toc-cksum-general-options" href="cksum-general-options.html">6.3.2 cksum general options</a></li>
+      <li><a id="toc-cksum-common-options" href="cksum-common-options.html">6.3.3 cksum common options</a></li>
+    </ul></li>
+    <li><a id="toc-md5sum_003a-Print-or-check-MD5-digests" href="md5sum-invocation.html">6.4 <code class="command">md5sum</code>: Print or check MD5 digests</a></li>
+    <li><a id="toc-b2sum_003a-Print-or-check-BLAKE2-digests" href="b2sum-invocation.html">6.5 <code class="command">b2sum</code>: Print or check BLAKE2 digests</a></li>
+    <li><a id="toc-sha1sum_003a-Print-or-check-SHA_002d1-digests" href="sha1sum-invocation.html">6.6 <code class="command">sha1sum</code>: Print or check SHA-1 digests</a></li>
+    <li><a id="toc-sha2-utilities_003a-Print-or-check-SHA_002d2-digests" href="sha2-utilities.html">6.7 sha2 utilities: Print or check SHA-2 digests</a></li>
+  </ul></li>
+  <li><a id="toc-Operating-on-sorted-files" href="Operating-on-sorted-files.html">7 Operating on sorted files</a>
+  <ul class="toc-numbered-mark">
+    <li><a id="toc-sort_003a-Sort-text-files" href="sort-invocation.html">7.1 <code class="command">sort</code>: Sort text files</a></li>
+    <li><a id="toc-shuf_003a-Shuffling-text" href="shuf-invocation.html">7.2 <code class="command">shuf</code>: Shuffling text</a></li>
+    <li><a id="toc-uniq_003a-Uniquify-files" href="uniq-invocation.html">7.3 <code class="command">uniq</code>: Uniquify files</a></li>
+    <li><a id="toc-comm_003a-Compare-two-sorted-files-line-by-line" href="comm-invocation.html">7.4 <code class="command">comm</code>: Compare two sorted files line by line</a></li>
+    <li><a id="toc-ptx_003a-Produce-permuted-indexes" href="ptx-invocation.html">7.5 <code class="command">ptx</code>: Produce permuted indexes</a>
+    <ul class="toc-numbered-mark">
+      <li><a id="toc-General-options" href="General-options-in-ptx.html">7.5.1 General options</a></li>
+      <li><a id="toc-Charset-selection" href="Charset-selection-in-ptx.html">7.5.2 Charset selection</a></li>
+      <li><a id="toc-Word-selection-and-input-processing" href="Input-processing-in-ptx.html">7.5.3 Word selection and input processing</a></li>
+      <li><a id="toc-Output-formatting" href="Output-formatting-in-ptx.html">7.5.4 Output formatting</a></li>
+      <li><a id="toc-The-GNU-extensions-to-ptx" href="Compatibility-in-ptx.html">7.5.5 The GNU extensions to <code class="command">ptx</code></a></li>
+    </ul></li>
+    <li><a id="toc-tsort_003a-Topological-sort" href="tsort-invocation.html">7.6 <code class="command">tsort</code>: Topological sort</a>
+    <ul class="toc-numbered-mark">
+      <li><a id="toc-tsort_003a-Background" href="tsort-background.html">7.6.1 <code class="command">tsort</code>: Background</a></li>
+    </ul></li>
+  </ul></li>
+  <li><a id="toc-Operating-on-fields" href="Operating-on-fields.html">8 Operating on fields</a>
+  <ul class="toc-numbered-mark">
+    <li><a id="toc-cut_003a-Print-selected-parts-of-lines" href="cut-invocation.html">8.1 <code class="command">cut</code>: Print selected parts of lines</a></li>
+    <li><a id="toc-paste_003a-Merge-lines-of-files" href="paste-invocation.html">8.2 <code class="command">paste</code>: Merge lines of files</a></li>
+    <li><a id="toc-join_003a-Join-lines-on-a-common-field" href="join-invocation.html">8.3 <code class="command">join</code>: Join lines on a common field</a>
+    <ul class="toc-numbered-mark">
+      <li><a id="toc-General-options-1" href="General-options-in-join.html">8.3.1 General options</a></li>
+      <li><a id="toc-Pre_002dsorting" href="Sorting-files-for-join.html">8.3.2 Pre-sorting</a></li>
+      <li><a id="toc-Working-with-fields" href="Working-with-fields.html">8.3.3 Working with fields</a></li>
+      <li><a id="toc-Controlling-join_0027s-field-matching" href="Paired-and-unpaired-lines.html">8.3.4 Controlling <code class="command">join</code>&rsquo;s field matching</a></li>
+      <li><a id="toc-Header-lines" href="Header-lines.html">8.3.5 Header lines</a></li>
+      <li><a id="toc-Union_002c-Intersection-and-Difference-of-files" href="Set-operations.html">8.3.6 Union, Intersection and Difference of files</a></li>
+    </ul></li>
+  </ul></li>
+  <li><a id="toc-Operating-on-characters" href="Operating-on-characters.html">9 Operating on characters</a>
+  <ul class="toc-numbered-mark">
+    <li><a id="toc-tr_003a-Translate_002c-squeeze_002c-and_002for-delete-characters" href="tr-invocation.html">9.1 <code class="command">tr</code>: Translate, squeeze, and/or delete characters</a>
+    <ul class="toc-numbered-mark">
+      <li><a id="toc-Specifying-arrays-of-characters" href="Character-arrays.html">9.1.1 Specifying arrays of characters</a></li>
+      <li><a id="toc-Translating" href="Translating.html">9.1.2 Translating</a></li>
+      <li><a id="toc-Squeezing-repeats-and-deleting" href="Squeezing-and-deleting.html">9.1.3 Squeezing repeats and deleting</a></li>
+    </ul></li>
+    <li><a id="toc-expand_003a-Convert-tabs-to-spaces" href="expand-invocation.html">9.2 <code class="command">expand</code>: Convert tabs to spaces</a></li>
+    <li><a id="toc-unexpand_003a-Convert-spaces-to-tabs" href="unexpand-invocation.html">9.3 <code class="command">unexpand</code>: Convert spaces to tabs</a></li>
+  </ul></li>
+  <li><a id="toc-Directory-listing" href="Directory-listing.html">10 Directory listing</a>
+  <ul class="toc-numbered-mark">
+    <li><a id="toc-ls_003a-List-directory-contents" href="ls-invocation.html">10.1 <code class="command">ls</code>: List directory contents</a>
+    <ul class="toc-numbered-mark">
+      <li><a id="toc-Which-files-are-listed" href="Which-files-are-listed.html">10.1.1 Which files are listed</a></li>
+      <li><a id="toc-What-information-is-listed" href="What-information-is-listed.html">10.1.2 What information is listed</a></li>
+      <li><a id="toc-Sorting-the-output" href="Sorting-the-output.html">10.1.3 Sorting the output</a></li>
+      <li><a id="toc-General-output-formatting" href="General-output-formatting.html">10.1.4 General output formatting</a></li>
+      <li><a id="toc-Formatting-file-timestamps" href="Formatting-file-timestamps.html">10.1.5 Formatting file timestamps</a></li>
+      <li><a id="toc-Formatting-the-file-names" href="Formatting-the-file-names.html">10.1.6 Formatting the file names</a></li>
+    </ul></li>
+    <li><a id="toc-dir_003a-Briefly-list-directory-contents" href="dir-invocation.html">10.2 <code class="command">dir</code>: Briefly list directory contents</a></li>
+    <li><a id="toc-vdir_003a-Verbosely-list-directory-contents" href="vdir-invocation.html">10.3 <code class="command">vdir</code>: Verbosely list directory contents</a></li>
+    <li><a id="toc-dircolors_003a-Color-setup-for-ls" href="dircolors-invocation.html">10.4 <code class="command">dircolors</code>: Color setup for <code class="command">ls</code></a></li>
+  </ul></li>
+  <li><a id="toc-Basic-operations" href="Basic-operations.html">11 Basic operations</a>
+  <ul class="toc-numbered-mark">
+    <li><a id="toc-cp_003a-Copy-files-and-directories" href="cp-invocation.html">11.1 <code class="command">cp</code>: Copy files and directories</a></li>
+    <li><a id="toc-dd_003a-Convert-and-copy-a-file" href="dd-invocation.html">11.2 <code class="command">dd</code>: Convert and copy a file</a></li>
+    <li><a id="toc-install_003a-Copy-files-and-set-attributes" href="install-invocation.html">11.3 <code class="command">install</code>: Copy files and set attributes</a></li>
+    <li><a id="toc-mv_003a-Move-_0028rename_0029-files" href="mv-invocation.html">11.4 <code class="command">mv</code>: Move (rename) files</a></li>
+    <li><a id="toc-rm_003a-Remove-files-or-directories" href="rm-invocation.html">11.5 <code class="command">rm</code>: Remove files or directories</a></li>
+    <li><a id="toc-shred_003a-Remove-files-more-securely" href="shred-invocation.html">11.6 <code class="command">shred</code>: Remove files more securely</a></li>
+  </ul></li>
+  <li><a id="toc-Special-file-types" href="Special-file-types.html">12 Special file types</a>
+  <ul class="toc-numbered-mark">
+    <li><a id="toc-link_003a-Make-a-hard-link-via-the-link-syscall" href="link-invocation.html">12.1 <code class="command">link</code>: Make a hard link via the link syscall</a></li>
+    <li><a id="toc-ln_003a-Make-links-between-files" href="ln-invocation.html">12.2 <code class="command">ln</code>: Make links between files</a></li>
+    <li><a id="toc-mkdir_003a-Make-directories" href="mkdir-invocation.html">12.3 <code class="command">mkdir</code>: Make directories</a></li>
+    <li><a id="toc-mkfifo_003a-Make-FIFOs-_0028named-pipes_0029" href="mkfifo-invocation.html">12.4 <code class="command">mkfifo</code>: Make FIFOs (named pipes)</a></li>
+    <li><a id="toc-mknod_003a-Make-block-or-character-special-files" href="mknod-invocation.html">12.5 <code class="command">mknod</code>: Make block or character special files</a></li>
+    <li><a id="toc-readlink_003a-Print-value-of-a-symlink-or-canonical-file-name" href="readlink-invocation.html">12.6 <code class="command">readlink</code>: Print value of a symlink or canonical file name</a></li>
+    <li><a id="toc-rmdir_003a-Remove-empty-directories" href="rmdir-invocation.html">12.7 <code class="command">rmdir</code>: Remove empty directories</a></li>
+    <li><a id="toc-unlink_003a-Remove-files-via-the-unlink-syscall" href="unlink-invocation.html">12.8 <code class="command">unlink</code>: Remove files via the unlink syscall</a></li>
+  </ul></li>
+  <li><a id="toc-Changing-file-attributes" href="Changing-file-attributes.html">13 Changing file attributes</a>
+  <ul class="toc-numbered-mark">
+    <li><a id="toc-chown_003a-Change-file-owner-and-group" href="chown-invocation.html">13.1 <code class="command">chown</code>: Change file owner and group</a></li>
+    <li><a id="toc-chgrp_003a-Change-group-ownership" href="chgrp-invocation.html">13.2 <code class="command">chgrp</code>: Change group ownership</a></li>
+    <li><a id="toc-chmod_003a-Change-access-permissions" href="chmod-invocation.html">13.3 <code class="command">chmod</code>: Change access permissions</a></li>
+    <li><a id="toc-touch_003a-Change-file-timestamps" href="touch-invocation.html">13.4 <code class="command">touch</code>: Change file timestamps</a></li>
+  </ul></li>
+  <li><a id="toc-File-space-usage" href="File-space-usage.html">14 File space usage</a>
+  <ul class="toc-numbered-mark">
+    <li><a id="toc-df_003a-Report-file-system-space-usage" href="df-invocation.html">14.1 <code class="command">df</code>: Report file system space usage</a></li>
+    <li><a id="toc-du_003a-Estimate-file-space-usage" href="du-invocation.html">14.2 <code class="command">du</code>: Estimate file space usage</a></li>
+    <li><a id="toc-stat_003a-Report-file-or-file-system-status" href="stat-invocation.html">14.3 <code class="command">stat</code>: Report file or file system status</a></li>
+    <li><a id="toc-sync_003a-Synchronize-cached-writes-to-persistent-storage" href="sync-invocation.html">14.4 <code class="command">sync</code>: Synchronize cached writes to persistent storage</a></li>
+    <li><a id="toc-truncate_003a-Shrink-or-extend-the-size-of-a-file" href="truncate-invocation.html">14.5 <code class="command">truncate</code>: Shrink or extend the size of a file</a></li>
+  </ul></li>
+  <li><a id="toc-Printing-text" href="Printing-text.html">15 Printing text</a>
+  <ul class="toc-numbered-mark">
+    <li><a id="toc-echo_003a-Print-a-line-of-text" href="echo-invocation.html">15.1 <code class="command">echo</code>: Print a line of text</a></li>
+    <li><a id="toc-printf_003a-Format-and-print-data" href="printf-invocation.html">15.2 <code class="command">printf</code>: Format and print data</a></li>
+    <li><a id="toc-yes_003a-Print-a-string-until-interrupted" href="yes-invocation.html">15.3 <code class="command">yes</code>: Print a string until interrupted</a></li>
+  </ul></li>
+  <li><a id="toc-Conditions" href="Conditions.html">16 Conditions</a>
+  <ul class="toc-numbered-mark">
+    <li><a id="toc-false_003a-Do-nothing_002c-unsuccessfully" href="false-invocation.html">16.1 <code class="command">false</code>: Do nothing, unsuccessfully</a></li>
+    <li><a id="toc-true_003a-Do-nothing_002c-successfully" href="true-invocation.html">16.2 <code class="command">true</code>: Do nothing, successfully</a></li>
+    <li><a id="toc-test_003a-Check-file-types-and-compare-values" href="test-invocation.html">16.3 <code class="command">test</code>: Check file types and compare values</a>
+    <ul class="toc-numbered-mark">
+      <li><a id="toc-File-type-tests" href="File-type-tests.html">16.3.1 File type tests</a></li>
+      <li><a id="toc-Access-permission-tests" href="Access-permission-tests.html">16.3.2 Access permission tests</a></li>
+      <li><a id="toc-File-characteristic-tests" href="File-characteristic-tests.html">16.3.3 File characteristic tests</a></li>
+      <li><a id="toc-String-tests" href="String-tests.html">16.3.4 String tests</a></li>
+      <li><a id="toc-Numeric-tests" href="Numeric-tests.html">16.3.5 Numeric tests</a></li>
+      <li><a id="toc-Connectives-for-test" href="Connectives-for-test.html">16.3.6 Connectives for <code class="command">test</code></a></li>
+    </ul></li>
+    <li><a id="toc-expr_003a-Evaluate-expressions" href="expr-invocation.html">16.4 <code class="command">expr</code>: Evaluate expressions</a>
+    <ul class="toc-numbered-mark">
+      <li><a id="toc-String-expressions" href="String-expressions.html">16.4.1 String expressions</a></li>
+      <li><a id="toc-Numeric-expressions" href="Numeric-expressions.html">16.4.2 Numeric expressions</a></li>
+      <li><a id="toc-Relations-for-expr" href="Relations-for-expr.html">16.4.3 Relations for <code class="command">expr</code></a></li>
+      <li><a id="toc-Examples-of-using-expr" href="Examples-of-expr.html">16.4.4 Examples of using <code class="command">expr</code></a></li>
+    </ul></li>
+  </ul></li>
+  <li><a id="toc-Redirection" href="Redirection.html">17 Redirection</a>
+  <ul class="toc-numbered-mark">
+    <li><a id="toc-tee_003a-Redirect-output-to-multiple-files-or-processes" href="tee-invocation.html">17.1 <code class="command">tee</code>: Redirect output to multiple files or processes</a></li>
+  </ul></li>
+  <li><a id="toc-File-name-manipulation" href="File-name-manipulation.html">18 File name manipulation</a>
+  <ul class="toc-numbered-mark">
+    <li><a id="toc-basename_003a-Strip-directory-and-suffix-from-a-file-name" href="basename-invocation.html">18.1 <code class="command">basename</code>: Strip directory and suffix from a file name</a></li>
+    <li><a id="toc-dirname_003a-Strip-last-file-name-component" href="dirname-invocation.html">18.2 <code class="command">dirname</code>: Strip last file name component</a></li>
+    <li><a id="toc-pathchk_003a-Check-file-name-validity-and-portability" href="pathchk-invocation.html">18.3 <code class="command">pathchk</code>: Check file name validity and portability</a></li>
+    <li><a id="toc-mktemp_003a-Create-temporary-file-or-directory" href="mktemp-invocation.html">18.4 <code class="command">mktemp</code>: Create temporary file or directory</a></li>
+    <li><a id="toc-realpath_003a-Print-the-resolved-file-name_002e" href="realpath-invocation.html">18.5 <code class="command">realpath</code>: Print the resolved file name.</a>
+    <ul class="toc-numbered-mark">
+      <li><a id="toc-Realpath-usage-examples" href="Realpath-usage-examples.html">18.5.1 Realpath usage examples</a></li>
+    </ul></li>
+  </ul></li>
+  <li><a id="toc-Working-context" href="Working-context.html">19 Working context</a>
+  <ul class="toc-numbered-mark">
+    <li><a id="toc-pwd_003a-Print-working-directory" href="pwd-invocation.html">19.1 <code class="command">pwd</code>: Print working directory</a></li>
+    <li><a id="toc-stty_003a-Print-or-change-terminal-characteristics" href="stty-invocation.html">19.2 <code class="command">stty</code>: Print or change terminal characteristics</a>
+    <ul class="toc-numbered-mark">
+      <li><a id="toc-Control-settings" href="Control.html">19.2.1 Control settings</a></li>
+      <li><a id="toc-Input-settings" href="Input.html">19.2.2 Input settings</a></li>
+      <li><a id="toc-Output-settings" href="Output.html">19.2.3 Output settings</a></li>
+      <li><a id="toc-Local-settings" href="Local.html">19.2.4 Local settings</a></li>
+      <li><a id="toc-Combination-settings" href="Combination.html">19.2.5 Combination settings</a></li>
+      <li><a id="toc-Special-characters" href="Characters.html">19.2.6 Special characters</a></li>
+      <li><a id="toc-Special-settings" href="Special.html">19.2.7 Special settings</a></li>
+    </ul></li>
+    <li><a id="toc-printenv_003a-Print-all-or-some-environment-variables" href="printenv-invocation.html">19.3 <code class="command">printenv</code>: Print all or some environment variables</a></li>
+    <li><a id="toc-tty_003a-Print-file-name-of-terminal-on-standard-input" href="tty-invocation.html">19.4 <code class="command">tty</code>: Print file name of terminal on standard input</a></li>
+  </ul></li>
+  <li><a id="toc-User-information" href="User-information.html">20 User information</a>
+  <ul class="toc-numbered-mark">
+    <li><a id="toc-id_003a-Print-user-identity" href="id-invocation.html">20.1 <code class="command">id</code>: Print user identity</a></li>
+    <li><a id="toc-logname_003a-Print-current-login-name" href="logname-invocation.html">20.2 <code class="command">logname</code>: Print current login name</a></li>
+    <li><a id="toc-whoami_003a-Print-effective-user-name" href="whoami-invocation.html">20.3 <code class="command">whoami</code>: Print effective user name</a></li>
+    <li><a id="toc-groups_003a-Print-group-names-a-user-is-in" href="groups-invocation.html">20.4 <code class="command">groups</code>: Print group names a user is in</a></li>
+    <li><a id="toc-users_003a-Print-login-names-of-users-currently-logged-in" href="users-invocation.html">20.5 <code class="command">users</code>: Print login names of users currently logged in</a></li>
+    <li><a id="toc-who_003a-Print-who-is-currently-logged-in" href="who-invocation.html">20.6 <code class="command">who</code>: Print who is currently logged in</a></li>
+    <li><a id="toc-pinky_003a-Print-information-about-users" href="pinky-invocation.html">20.7 <code class="command">pinky</code>: Print information about users</a></li>
+  </ul></li>
+  <li><a id="toc-System-context" href="System-context.html">21 System context</a>
+  <ul class="toc-numbered-mark">
+    <li><a id="toc-date_003a-Print-or-set-system-date-and-time" href="date-invocation.html">21.1 <code class="command">date</code>: Print or set system date and time</a>
+    <ul class="toc-numbered-mark">
+      <li><a id="toc-Specifying-the-format-of-date-output" href="Date-format-specifiers.html">21.1.1 Specifying the format of <code class="command">date</code> output</a>
+      <ul class="toc-numbered-mark">
+        <li><a id="toc-Time-conversion-specifiers" href="Time-conversion-specifiers.html">21.1.1.1 Time conversion specifiers</a></li>
+        <li><a id="toc-Date-conversion-specifiers" href="Date-conversion-specifiers.html">21.1.1.2 Date conversion specifiers</a></li>
+        <li><a id="toc-Literal-conversion-specifiers" href="Literal-conversion-specifiers.html">21.1.1.3 Literal conversion specifiers</a></li>
+        <li><a id="toc-Padding-and-other-flags" href="Padding-and-other-flags.html">21.1.1.4 Padding and other flags</a></li>
+      </ul></li>
+      <li><a id="toc-Calendars" href="Calendars.html">21.1.2 Calendars</a></li>
+      <li><a id="toc-Setting-the-time" href="Setting-the-time.html">21.1.3 Setting the time</a></li>
+      <li><a id="toc-Options-for-date" href="Options-for-date.html">21.1.4 Options for <code class="command">date</code></a></li>
+      <li><a id="toc-Examples-of-date" href="Examples-of-date.html">21.1.5 Examples of <code class="command">date</code></a></li>
+    </ul></li>
+    <li><a id="toc-arch_003a-Print-machine-hardware-name" href="arch-invocation.html">21.2 <code class="command">arch</code>: Print machine hardware name</a></li>
+    <li><a id="toc-nproc_003a-Print-the-number-of-available-processors" href="nproc-invocation.html">21.3 <code class="command">nproc</code>: Print the number of available processors</a></li>
+    <li><a id="toc-uname_003a-Print-system-information" href="uname-invocation.html">21.4 <code class="command">uname</code>: Print system information</a></li>
+    <li><a id="toc-hostname_003a-Print-or-set-system-name" href="hostname-invocation.html">21.5 <code class="command">hostname</code>: Print or set system name</a></li>
+    <li><a id="toc-hostid_003a-Print-numeric-host-identifier" href="hostid-invocation.html">21.6 <code class="command">hostid</code>: Print numeric host identifier</a></li>
+    <li><a id="toc-uptime_003a-Print-system-uptime-and-load" href="uptime-invocation.html">21.7 <code class="command">uptime</code>: Print system uptime and load</a></li>
+  </ul></li>
+  <li><a id="toc-SELinux-context" href="SELinux-context.html">22 SELinux context</a>
+  <ul class="toc-numbered-mark">
+    <li><a id="toc-chcon_003a-Change-SELinux-context-of-file" href="chcon-invocation.html">22.1 <code class="command">chcon</code>: Change SELinux context of file</a></li>
+    <li><a id="toc-runcon_003a-Run-a-command-in-specified-SELinux-context" href="runcon-invocation.html">22.2 <code class="command">runcon</code>: Run a command in specified SELinux context</a></li>
+  </ul></li>
+  <li><a id="toc-Modified-command-invocation" href="Modified-command-invocation.html">23 Modified command invocation</a>
+  <ul class="toc-numbered-mark">
+    <li><a id="toc-chroot_003a-Run-a-command-with-a-different-root-directory" href="chroot-invocation.html">23.1 <code class="command">chroot</code>: Run a command with a different root directory</a></li>
+    <li><a id="toc-env_003a-Run-a-command-in-a-modified-environment" href="env-invocation.html">23.2 <code class="command">env</code>: Run a command in a modified environment</a>
+    <ul class="toc-numbered-mark">
+      <li><a id="toc-General-options-2" href="env-invocation.html#General-options-2">23.2.1 General options</a></li>
+      <li><a id="toc-_002dS_002f_002d_002dsplit_002dstring-usage-in-scripts" href="env-invocation.html#g_t_002dS_002f_002d_002dsplit_002dstring-usage-in-scripts">23.2.2 <samp class="option">-S</samp>/<samp class="option">--split-string</samp> usage in scripts</a>
+      <ul class="toc-numbered-mark">
+        <li><a id="toc-Testing-and-troubleshooting" href="env-invocation.html#Testing-and-troubleshooting">Testing and troubleshooting</a></li>
+      </ul></li>
+      <li><a id="toc-_002dS_002f_002d_002dsplit_002dstring-syntax" href="env-invocation.html#g_t_002dS_002f_002d_002dsplit_002dstring-syntax">23.2.3 <samp class="option">-S</samp>/<samp class="option">--split-string</samp> syntax</a>
+      <ul class="toc-numbered-mark">
+        <li><a id="toc-Splitting-arguments-by-whitespace" href="env-invocation.html#Splitting-arguments-by-whitespace">Splitting arguments by whitespace</a></li>
+        <li><a id="toc-Escape-sequences" href="env-invocation.html#Escape-sequences">Escape sequences</a></li>
+        <li><a id="toc-Comments" href="env-invocation.html#Comments">Comments</a></li>
+        <li><a id="toc-Environment-variable-expansion" href="env-invocation.html#Environment-variable-expansion">Environment variable expansion</a></li>
+      </ul></li>
+    </ul></li>
+    <li><a id="toc-nice_003a-Run-a-command-with-modified-niceness" href="nice-invocation.html">23.3 <code class="command">nice</code>: Run a command with modified niceness</a></li>
+    <li><a id="toc-nohup_003a-Run-a-command-immune-to-hangups" href="nohup-invocation.html">23.4 <code class="command">nohup</code>: Run a command immune to hangups</a></li>
+    <li><a id="toc-stdbuf_003a-Run-a-command-with-modified-I_002fO-stream-buffering" href="stdbuf-invocation.html">23.5 <code class="command">stdbuf</code>: Run a command with modified I/O stream buffering</a></li>
+    <li><a id="toc-timeout_003a-Run-a-command-with-a-time-limit" href="timeout-invocation.html">23.6 <code class="command">timeout</code>: Run a command with a time limit</a></li>
+  </ul></li>
+  <li><a id="toc-Process-control" href="Process-control.html">24 Process control</a>
+  <ul class="toc-numbered-mark">
+    <li><a id="toc-kill_003a-Send-a-signal-to-processes" href="kill-invocation.html">24.1 <code class="command">kill</code>: Send a signal to processes</a></li>
+  </ul></li>
+  <li><a id="toc-Delaying" href="Delaying.html">25 Delaying</a>
+  <ul class="toc-numbered-mark">
+    <li><a id="toc-sleep_003a-Delay-for-a-specified-time" href="sleep-invocation.html">25.1 <code class="command">sleep</code>: Delay for a specified time</a></li>
+  </ul></li>
+  <li><a id="toc-Numeric-operations" href="Numeric-operations.html">26 Numeric operations</a>
+  <ul class="toc-numbered-mark">
+    <li><a id="toc-factor_003a-Print-prime-factors" href="factor-invocation.html">26.1 <code class="command">factor</code>: Print prime factors</a></li>
+    <li><a id="toc-numfmt_003a-Reformat-numbers" href="numfmt-invocation.html">26.2 <code class="command">numfmt</code>: Reformat numbers</a>
+    <ul class="toc-numbered-mark">
+      <li><a id="toc-General-options-3" href="numfmt-invocation.html#General-options-3">26.2.1 General options</a></li>
+      <li><a id="toc-Possible-units_003a" href="numfmt-invocation.html#Possible-units_003a">26.2.2 Possible <var class="var">unit</var>s:</a></li>
+      <li><a id="toc-Examples-of-using-numfmt" href="numfmt-invocation.html#Examples-of-using-numfmt">26.2.3 Examples of using <code class="command">numfmt</code></a></li>
+    </ul></li>
+    <li><a id="toc-seq_003a-Print-numeric-sequences" href="seq-invocation.html">26.3 <code class="command">seq</code>: Print numeric sequences</a></li>
+  </ul></li>
+  <li><a id="toc-File-permissions" href="File-permissions.html">27 File permissions</a>
+  <ul class="toc-numbered-mark">
+    <li><a id="toc-Structure-of-File-Mode-Bits" href="Mode-Structure.html">27.1 Structure of File Mode Bits</a></li>
+    <li><a id="toc-Symbolic-Modes" href="Symbolic-Modes.html">27.2 Symbolic Modes</a>
+    <ul class="toc-numbered-mark">
+      <li><a id="toc-Setting-Permissions" href="Setting-Permissions.html">27.2.1 Setting Permissions</a></li>
+      <li><a id="toc-Copying-Existing-Permissions" href="Copying-Permissions.html">27.2.2 Copying Existing Permissions</a></li>
+      <li><a id="toc-Changing-Special-Mode-Bits" href="Changing-Special-Mode-Bits.html">27.2.3 Changing Special Mode Bits</a></li>
+      <li><a id="toc-Conditional-Executability" href="Conditional-Executability.html">27.2.4 Conditional Executability</a></li>
+      <li><a id="toc-Making-Multiple-Changes" href="Multiple-Changes.html">27.2.5 Making Multiple Changes</a></li>
+      <li><a id="toc-The-Umask-and-Protection" href="Umask-and-Protection.html">27.2.6 The Umask and Protection</a></li>
+    </ul></li>
+    <li><a id="toc-Numeric-Modes" href="Numeric-Modes.html">27.3 Numeric Modes</a></li>
+    <li><a id="toc-Operator-Numeric-Modes" href="Operator-Numeric-Modes.html">27.4 Operator Numeric Modes</a></li>
+    <li><a id="toc-Directories-and-the-Set_002dUser_002dID-and-Set_002dGroup_002dID-Bits" href="Directory-Setuid-and-Setgid.html">27.5 Directories and the Set-User-ID and Set-Group-ID Bits</a></li>
+  </ul></li>
+  <li><a id="toc-File-timestamps" href="File-timestamps.html">28 File timestamps</a></li>
+  <li><a id="toc-Date-input-formats" href="Date-input-formats.html">29 Date input formats</a>
+  <ul class="toc-numbered-mark">
+    <li><a id="toc-General-date-syntax" href="General-date-syntax.html">29.1 General date syntax</a></li>
+    <li><a id="toc-Calendar-date-items" href="Calendar-date-items.html">29.2 Calendar date items</a></li>
+    <li><a id="toc-Time-of-day-items" href="Time-of-day-items.html">29.3 Time of day items</a></li>
+    <li><a id="toc-Time-zone-items" href="Time-zone-items.html">29.4 Time zone items</a></li>
+    <li><a id="toc-Combined-date-and-time-of-day-items" href="Combined-date-and-time-of-day-items.html">29.5 Combined date and time of day items</a></li>
+    <li><a id="toc-Day-of-week-items" href="Day-of-week-items.html">29.6 Day of week items</a></li>
+    <li><a id="toc-Relative-items-in-date-strings" href="Relative-items-in-date-strings.html">29.7 Relative items in date strings</a></li>
+    <li><a id="toc-Pure-numbers-in-date-strings" href="Pure-numbers-in-date-strings.html">29.8 Pure numbers in date strings</a></li>
+    <li><a id="toc-Seconds-since-the-Epoch" href="Seconds-since-the-Epoch.html">29.9 Seconds since the Epoch</a></li>
+    <li><a id="toc-Specifying-time-zone-rules" href="Specifying-time-zone-rules.html">29.10 Specifying time zone rules</a></li>
+    <li><a id="toc-Authors-of-parse_005fdatetime" href="Authors-of-parse_005fdatetime.html">29.11 Authors of <code class="code">parse_datetime</code></a></li>
+  </ul></li>
+  <li><a id="toc-Version-sort-ordering" href="Version-sort-ordering.html">30 Version sort ordering</a>
+  <ul class="toc-numbered-mark">
+    <li><a id="toc-Version-sort-overview" href="Version-sort-overview.html">30.1 Version sort overview</a>
+    <ul class="toc-numbered-mark">
+      <li><a id="toc-Using-version-sort-in-GNU-Coreutils" href="Using-version-sort-in-GNU-Coreutils.html">30.1.1 Using version sort in GNU Coreutils</a></li>
+      <li><a id="toc-Version-sort-and-natural-sort" href="Version-sort-and-natural-sort.html">30.1.2 Version sort and natural sort</a></li>
+      <li><a id="toc-Variations-in-version-sort-order" href="Variations-in-version-sort-order.html">30.1.3 Variations in version sort order</a></li>
+    </ul></li>
+    <li><a id="toc-Version-sort-implementation" href="Version-sort-implementation.html">30.2 Version sort implementation</a>
+    <ul class="toc-numbered-mark">
+      <li><a id="toc-Version_002dsort-ordering-rules" href="Version_002dsort-ordering-rules.html">30.2.1 Version-sort ordering rules</a></li>
+      <li><a id="toc-Version-sort-is-not-the-same-as-numeric-sort" href="Version-sort-is-not-the-same-as-numeric-sort.html">30.2.2 Version sort is not the same as numeric sort</a></li>
+      <li><a id="toc-Version-sort-punctuation" href="Version-sort-punctuation.html">30.2.3 Version sort punctuation</a></li>
+      <li><a id="toc-Punctuation-vs-letters" href="Punctuation-vs-letters.html">30.2.4 Punctuation vs letters</a></li>
+      <li><a id="toc-The-tilde-_007e" href="The-tilde-_007e.html">30.2.5 The tilde &lsquo;<samp class="samp">~</samp>&rsquo;</a></li>
+      <li><a id="toc-Version-sort-ignores-locale" href="Version-sort-ignores-locale.html">30.2.6 Version sort ignores locale</a></li>
+    </ul></li>
+    <li><a id="toc-Differences-from-Debian-version-sort" href="Differences-from-Debian-version-sort.html">30.3 Differences from Debian version sort</a>
+    <ul class="toc-numbered-mark">
+      <li><a id="toc-Hyphen_002dminus-_002d-and-colon-_003a" href="Hyphen_002dminus-and-colon.html">30.3.1 Hyphen-minus &lsquo;<samp class="samp">-</samp>&rsquo; and colon &lsquo;<samp class="samp">:</samp>&rsquo;</a></li>
+      <li><a id="toc-Special-priority-in-GNU-Coreutils-version-sort" href="Special-priority-in-GNU-Coreutils-version-sort.html">30.3.2 Special priority in GNU Coreutils version sort</a></li>
+      <li><a id="toc-Special-handling-of-file-extensions" href="Special-handling-of-file-extensions.html">30.3.3 Special handling of file extensions</a></li>
+      <li><a id="toc-Comparing-two-strings-using-Debian_0027s-algorithm" href="Comparing-two-strings-using-Debian_0027s-algorithm.html">30.3.4 Comparing two strings using Debian&rsquo;s algorithm</a></li>
+    </ul></li>
+    <li><a id="toc-Advanced-Topics" href="Advanced-version-sort-topics.html">30.4 Advanced Topics</a>
+    <ul class="toc-numbered-mark">
+      <li><a id="toc-Reporting-version-sort-bugs" href="Reporting-version-sort-bugs.html">30.4.1 Reporting version sort bugs</a></li>
+      <li><a id="toc-Other-version_002fnatural-sort-implementations" href="Other-version_002fnatural-sort-implementations.html">30.4.2 Other version/natural sort implementations</a></li>
+      <li><a id="toc-Related-source-code" href="Related-source-code.html">30.4.3 Related source code</a></li>
+    </ul></li>
+  </ul></li>
+  <li><a id="toc-Opening-the-Software-Toolbox" href="Opening-the-software-toolbox.html">31 Opening the Software Toolbox</a>
+  <ul class="toc-numbered-mark">
+    <li><a id="toc-Toolbox-Introduction" href="Toolbox-introduction.html">Toolbox Introduction</a></li>
+    <li><a id="toc-I_002fO-Redirection" href="I_002fO-redirection.html">I/O Redirection</a></li>
+    <li><a id="toc-The-who-Command" href="The-who-command.html">The <code class="command">who</code> Command</a></li>
+    <li><a id="toc-The-cut-Command" href="The-cut-command.html">The <code class="command">cut</code> Command</a></li>
+    <li><a id="toc-The-sort-Command" href="The-sort-command.html">The <code class="command">sort</code> Command</a></li>
+    <li><a id="toc-The-uniq-Command" href="The-uniq-command.html">The <code class="command">uniq</code> Command</a></li>
+    <li><a id="toc-Putting-the-Tools-Together" href="Putting-the-tools-together.html">Putting the Tools Together</a></li>
+  </ul></li>
+  <li><a id="toc-GNU-Free-Documentation-License" href="GNU-Free-Documentation-License.html">Appendix A GNU Free Documentation License</a></li>
+  <li><a id="toc-Index" href="Concept-index.html" rel="index">Index</a></li>
+</ul>
+</div>
+</div>
+</div>
+<hr>
+<div class="nav-panel">
+<p>
+Next: <a href="Introduction.html" accesskey="n" rel="next">Introduction</a> &nbsp; [<a href="#SEC_Contents" title="Table of contents" rel="contents">Contents</a>][<a href="Concept-index.html" title="Index" rel="index">Index</a>]</p>
+</div>
+
+
+
+</body>
+</html>

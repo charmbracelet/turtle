@@ -1,0 +1,137 @@
+<!DOCTYPE html>
+<html>
+<!-- Created by GNU Texinfo 7.2, https://www.gnu.org/software/texinfo/ -->
+<head>
+<meta http-equiv="Content-Type" content="text/html; charset=utf-8">
+<!-- This manual documents version 9.12 of the GNU core
+utilities, including the standard programs for text and file manipulation.
+
+Copyright © 1994-2026 Free Software Foundation, Inc.
+
+Permission is granted to copy, distribute and/or modify this document
+under the terms of the GNU Free Documentation License, Version 1.3 or
+any later version published by the Free Software Foundation; with no
+Invariant Sections, with no Front-Cover Texts, and with no Back-Cover
+Texts.  A copy of the license is included in the section entitled "GNU
+Free Documentation License". -->
+<title>Special (GNU Coreutils 9.12)</title>
+
+<meta name="description" content="Special (GNU Coreutils 9.12)">
+<meta name="keywords" content="Special (GNU Coreutils 9.12)">
+<meta name="resource-type" content="document">
+<meta name="distribution" content="global">
+<meta name="Generator" content="makeinfo">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+
+<link href="index.html" rel="start" title="Top">
+<link href="Concept-index.html" rel="index" title="Concept index">
+<link href="index.html#SEC_Contents" rel="contents" title="Table of Contents">
+<link href="stty-invocation.html" rel="up" title="stty invocation">
+<link href="Characters.html" rel="prev" title="Characters">
+<style type="text/css">
+<!--
+a.copiable-link {visibility: hidden; text-decoration: none; line-height: 0em}
+span:hover a.copiable-link {visibility: visible}
+-->
+</style>
+<link rel="stylesheet" type="text/css" href="https://www.gnu.org/software/gnulib/manual.css">
+
+
+</head>
+
+<body lang="en">
+<div class="subsection-level-extent" id="Special">
+<div class="nav-panel">
+<p>
+Previous: <a href="Characters.html" accesskey="p" rel="prev">Special characters</a>, Up: <a href="stty-invocation.html" accesskey="u" rel="up"><code class="command">stty</code>: Print or change terminal characteristics</a> &nbsp; [<a href="index.html#SEC_Contents" title="Table of contents" rel="contents">Contents</a>][<a href="Concept-index.html" title="Index" rel="index">Index</a>]</p>
+</div>
+<hr>
+<h4 class="subsection" id="Special-settings"><span>19.2.7 Special settings<a class="copiable-link" href="#Special-settings"> &para;</a></span></h4>
+
+<a class="index-entry-id" id="index-special-settings"></a>
+
+<dl class="table">
+<dt><a id="index-min"></a><span>&lsquo;<samp class="samp">min <var class="var">n</var></samp>&rsquo;<a class="copiable-link" href="#index-min"> &para;</a></span></dt>
+<dd><p>Set the minimum number of characters that will satisfy a read until
+the time value has expired, when <samp class="option">-icanon</samp> is set.
+</p>
+</dd>
+<dt><a id="index-time-1"></a><span>&lsquo;<samp class="samp">time <var class="var">n</var></samp>&rsquo;<a class="copiable-link" href="#index-time-1"> &para;</a></span></dt>
+<dd><p>Set the number of tenths of a second before reads time out if the minimum
+number of characters have not been read, when <samp class="option">-icanon</samp> is set.
+</p>
+</dd>
+<dt><a id="index-ispeed"></a><span>&lsquo;<samp class="samp">ispeed <var class="var">n</var></samp>&rsquo;<a class="copiable-link" href="#index-ispeed"> &para;</a></span></dt>
+<dd><p>Set the input speed to <var class="var">n</var>.
+</p>
+</dd>
+<dt><a id="index-ospeed"></a><span>&lsquo;<samp class="samp">ospeed <var class="var">n</var></samp>&rsquo;<a class="copiable-link" href="#index-ospeed"> &para;</a></span></dt>
+<dd><p>Set the output speed to <var class="var">n</var>.
+</p>
+</dd>
+<dt><a id="index-rows"></a><span>&lsquo;<samp class="samp">rows <var class="var">n</var></samp>&rsquo;<a class="copiable-link" href="#index-rows"> &para;</a></span></dt>
+<dd><p>Tell the tty kernel driver that the terminal has <var class="var">n</var> rows.
+</p>
+</dd>
+<dt><a id="index-cols"></a><span>&lsquo;<samp class="samp">cols <var class="var">n</var></samp>&rsquo;<a class="copiable-link" href="#index-cols"> &para;</a></span></dt>
+<dd><p>Tell the kernel that the terminal has <var class="var">n</var> columns.
+</p>
+</dd>
+<dt><a id="index-columns"></a><span>&lsquo;<samp class="samp">columns <var class="var">n</var></samp>&rsquo;<a class="copiable-link" href="#index-columns"> &para;</a></span></dt>
+<dd><p>Same as &lsquo;<samp class="samp">cols</samp>&rsquo;.  Non-POSIX.
+</p>
+</dd>
+<dt><a class="index-entry-id" id="index-nonblocking-stty-setting"></a>
+<a id="index-drain"></a><span>&lsquo;<samp class="samp">drain</samp>&rsquo;<a class="copiable-link" href="#index-drain"> &para;</a></span></dt>
+<dd><p>Apply settings after first waiting for pending output to be transmitted.
+This is enabled by default for GNU <code class="command">stty</code>.
+This is treated as an option rather than a line setting,
+and will follow the option processing rules described in the summary above.
+It is useful to disable this option
+in cases where the system may be in a state where serial transmission
+is not possible.
+For example, if the system has received the &lsquo;<samp class="samp">DC3</samp>&rsquo; character
+with <code class="code">ixon</code> (software flow control) enabled, then <code class="command">stty</code> would
+block without <code class="code">-drain</code> being specified.
+May be negated. Non-POSIX.
+</p>
+</dd>
+<dt><a class="index-entry-id" id="index-LINES"></a>
+<a class="index-entry-id" id="index-COLUMNS-1"></a>
+<a id="index-size"></a><span>&lsquo;<samp class="samp">size</samp>&rsquo;<a class="copiable-link" href="#index-size"> &para;</a></span></dt>
+<dd><p>Print the number of rows and columns that the kernel thinks the
+terminal has.  (Systems that don&rsquo;t support rows and columns in the kernel
+typically use the environment variables <code class="env">LINES</code> and <code class="env">COLUMNS</code>
+instead; however, GNU <code class="command">stty</code> does not know anything about them.)
+</p>
+</dd>
+<dt><a id="index-line"></a><span>&lsquo;<samp class="samp">line <var class="var">n</var></samp>&rsquo;<a class="copiable-link" href="#index-line"> &para;</a></span></dt>
+<dd><p>Use line discipline <var class="var">n</var>.  Non-POSIX.
+</p>
+</dd>
+<dt><a id="index-speed"></a><span>&lsquo;<samp class="samp">speed</samp>&rsquo;<a class="copiable-link" href="#index-speed"> &para;</a></span></dt>
+<dd><p>Print the terminal speed.
+</p>
+</dd>
+<dt><a id="index-baud-rate_002c-setting"></a><span>&lsquo;<samp class="samp"><var class="var">n</var></samp>&rsquo;<a class="copiable-link" href="#index-baud-rate_002c-setting"> &para;</a></span></dt>
+<dd><p>Set the input and output speeds to <var class="var">n</var>.  <var class="var">n</var> can be one of: 0
+50 75 110 134 134.5 150 200 300 600 1200 1800 2400 4800 9600 19200
+38400 <code class="code">exta</code> <code class="code">extb</code>.  <code class="code">exta</code> is the same as 19200;
+<code class="code">extb</code> is the same as 38400.  Many systems, support arbitrary
+or higher speeds.
+0 hangs up the line if <samp class="option">-clocal</samp> is set.
+</p></dd>
+</dl>
+
+
+</div>
+<hr>
+<div class="nav-panel">
+<p>
+Previous: <a href="Characters.html">Special characters</a>, Up: <a href="stty-invocation.html"><code class="command">stty</code>: Print or change terminal characteristics</a> &nbsp; [<a href="index.html#SEC_Contents" title="Table of contents" rel="contents">Contents</a>][<a href="Concept-index.html" title="Index" rel="index">Index</a>]</p>
+</div>
+
+
+
+</body>
+</html>

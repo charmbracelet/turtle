@@ -1,0 +1,51 @@
+# fold invocation (GNU Coreutils 9.12)
+### 4.3 `fold`: Wrap input lines to fit in specified width
+
+`fold` writes each file (`-` means standard input), or
+standard input if none are given, to standard output, breaking long
+lines. Synopsis:
+
+```
+fold [option]... [file]...
+```
+
+By default, `fold` breaks lines wider than 80 columns. The output
+is split into as many lines as necessary.
+
+`fold` counts screen columns by default; thus, a tab may count more
+than one column, backspace decreases the column count, and carriage
+return sets the column to zero.
+
+The program accepts the following options. Also see [Common options](Common-options.md).
+
+‘`-b`’
+
+‘`--bytes`’
+:   Count bytes rather than columns, so that tabs, backspaces, and carriage
+    returns are each counted as taking up one column, just like other
+    characters.
+
+‘`-c`’
+
+‘`--characters`’
+:   Count characters rather than columns, meaning that lines containing
+    characters wider than one column will be visually longer.
+
+‘`-s`’
+
+‘`--spaces`’
+:   Break at word boundaries: the line is broken after the last blank before
+    the maximum line length. If the line contains no such blanks, the line
+    is broken at the maximum line length as usual.
+
+‘`-w width`’
+
+‘`--width=width`’
+:   Use a maximum line length of width columns instead of 80.
+
+    For compatibility `fold` supports an obsolete option syntax
+    `-width`. New scripts should use `-w width`
+    instead.
+
+An exit status of zero indicates success,
+and a nonzero value indicates failure.

@@ -1,0 +1,82 @@
+<!DOCTYPE html>
+<html>
+<!-- Created by GNU Texinfo 7.2, https://www.gnu.org/software/texinfo/ -->
+<head>
+<meta http-equiv="Content-Type" content="text/html; charset=utf-8">
+<!-- This manual documents version 9.12 of the GNU core
+utilities, including the standard programs for text and file manipulation.
+
+Copyright © 1994-2026 Free Software Foundation, Inc.
+
+Permission is granted to copy, distribute and/or modify this document
+under the terms of the GNU Free Documentation License, Version 1.3 or
+any later version published by the Free Software Foundation; with no
+Invariant Sections, with no Front-Cover Texts, and with no Back-Cover
+Texts.  A copy of the license is included in the section entitled "GNU
+Free Documentation License". -->
+<title>unlink invocation (GNU Coreutils 9.12)</title>
+
+<meta name="description" content="unlink invocation (GNU Coreutils 9.12)">
+<meta name="keywords" content="unlink invocation (GNU Coreutils 9.12)">
+<meta name="resource-type" content="document">
+<meta name="distribution" content="global">
+<meta name="Generator" content="makeinfo">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+
+<link href="index.html" rel="start" title="Top">
+<link href="Concept-index.html" rel="index" title="Concept index">
+<link href="index.html#SEC_Contents" rel="contents" title="Table of Contents">
+<link href="Special-file-types.html" rel="up" title="Special file types">
+<link href="rmdir-invocation.html" rel="prev" title="rmdir invocation">
+<style type="text/css">
+<!--
+a.copiable-link {visibility: hidden; text-decoration: none; line-height: 0em}
+div.example {margin-left: 3.2em}
+span:hover a.copiable-link {visibility: visible}
+-->
+</style>
+<link rel="stylesheet" type="text/css" href="https://www.gnu.org/software/gnulib/manual.css">
+
+
+</head>
+
+<body lang="en">
+<div class="section-level-extent" id="unlink-invocation">
+<div class="nav-panel">
+<p>
+Previous: <a href="rmdir-invocation.html" accesskey="p" rel="prev"><code class="command">rmdir</code>: Remove empty directories</a>, Up: <a href="Special-file-types.html" accesskey="u" rel="up">Special file types</a> &nbsp; [<a href="index.html#SEC_Contents" title="Table of contents" rel="contents">Contents</a>][<a href="Concept-index.html" title="Index" rel="index">Index</a>]</p>
+</div>
+<hr>
+<h3 class="section" id="unlink_003a-Remove-files-via-the-unlink-syscall"><span>12.8 <code class="command">unlink</code>: Remove files via the unlink syscall<a class="copiable-link" href="#unlink_003a-Remove-files-via-the-unlink-syscall"> &para;</a></span></h3>
+
+<a class="index-entry-id" id="index-unlink"></a>
+<a class="index-entry-id" id="index-removing-files-or-directories-_0028via-the-unlink-syscall_0029"></a>
+
+<p><code class="command">unlink</code> deletes a single specified file name.
+It is a minimalist interface to the system-provided
+<code class="code">unlink</code> function.  See <a data-manual="libc" href="https://www.gnu.org/software/libc/manual/html_node/Deleting-Files.html#Deleting-Files">Deleting Files</a> in <cite class="cite">The GNU C Library Reference Manual</cite>.  Synopsis:
+It avoids the bells and whistles of the more commonly-used
+<code class="command">rm</code> command (see <a class="pxref" href="rm-invocation.html"><code class="command">rm</code>: Remove files or directories</a>).
+</p>
+<div class="example">
+<pre class="example-preformatted">unlink <var class="var">filename</var>
+</pre></div>
+
+<p>On some systems <code class="code">unlink</code> can be used to delete the name of a
+directory.  On others, it can be used that way only by a privileged user.
+In the GNU system <code class="code">unlink</code> can never delete the name of a directory.
+</p>
+<p>The <code class="command">unlink</code> command honors the <samp class="option">--help</samp> and
+<samp class="option">--version</samp> options.  To remove a file whose name begins with
+&lsquo;<samp class="samp">-</samp>&rsquo;, prefix the name with &lsquo;<samp class="samp">./</samp>&rsquo;, e.g., &lsquo;<samp class="samp">unlink ./--help</samp>&rsquo;.
+</p>
+<p>An exit status of zero indicates success,
+and a nonzero value indicates failure.
+</p>
+
+</div>
+
+
+
+</body>
+</html>

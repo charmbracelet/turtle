@@ -1,0 +1,175 @@
+<!DOCTYPE html>
+<html>
+<!-- Created by GNU Texinfo 7.2, https://www.gnu.org/software/texinfo/ -->
+<head>
+<meta http-equiv="Content-Type" content="text/html; charset=utf-8">
+<!-- This manual documents version 9.12 of the GNU core
+utilities, including the standard programs for text and file manipulation.
+
+Copyright © 1994-2026 Free Software Foundation, Inc.
+
+Permission is granted to copy, distribute and/or modify this document
+under the terms of the GNU Free Documentation License, Version 1.3 or
+any later version published by the Free Software Foundation; with no
+Invariant Sections, with no Front-Cover Texts, and with no Back-Cover
+Texts.  A copy of the license is included in the section entitled "GNU
+Free Documentation License". -->
+<title>fmt invocation (GNU Coreutils 9.12)</title>
+
+<meta name="description" content="fmt invocation (GNU Coreutils 9.12)">
+<meta name="keywords" content="fmt invocation (GNU Coreutils 9.12)">
+<meta name="resource-type" content="document">
+<meta name="distribution" content="global">
+<meta name="Generator" content="makeinfo">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+
+<link href="index.html" rel="start" title="Top">
+<link href="Concept-index.html" rel="index" title="Concept index">
+<link href="index.html#SEC_Contents" rel="contents" title="Table of Contents">
+<link href="Formatting-file-contents.html" rel="up" title="Formatting file contents">
+<link href="pr-invocation.html" rel="next" title="pr invocation">
+<style type="text/css">
+<!--
+a.copiable-link {visibility: hidden; text-decoration: none; line-height: 0em}
+div.example {margin-left: 3.2em}
+span:hover a.copiable-link {visibility: visible}
+-->
+</style>
+<link rel="stylesheet" type="text/css" href="https://www.gnu.org/software/gnulib/manual.css">
+
+
+</head>
+
+<body lang="en">
+<div class="section-level-extent" id="fmt-invocation">
+<div class="nav-panel">
+<p>
+Next: <a href="pr-invocation.html" accesskey="n" rel="next"><code class="command">pr</code>: Paginate or columnate files for printing</a>, Up: <a href="Formatting-file-contents.html" accesskey="u" rel="up">Formatting file contents</a> &nbsp; [<a href="index.html#SEC_Contents" title="Table of contents" rel="contents">Contents</a>][<a href="Concept-index.html" title="Index" rel="index">Index</a>]</p>
+</div>
+<hr>
+<h3 class="section" id="fmt_003a-Reformat-paragraph-text"><span>4.1 <code class="command">fmt</code>: Reformat paragraph text<a class="copiable-link" href="#fmt_003a-Reformat-paragraph-text"> &para;</a></span></h3>
+
+<a class="index-entry-id" id="index-fmt"></a>
+<a class="index-entry-id" id="index-reformatting-paragraph-text"></a>
+<a class="index-entry-id" id="index-paragraphs_002c-reformatting"></a>
+<a class="index-entry-id" id="index-text_002c-reformatting"></a>
+
+<p><code class="command">fmt</code> fills and joins lines to produce output lines of (at most)
+a given number of characters (75 by default).  Synopsis:
+</p>
+<div class="example">
+<pre class="example-preformatted">fmt [<var class="var">option</var>]... [<var class="var">file</var>]...
+</pre></div>
+
+<p><code class="command">fmt</code> reads from the specified <var class="var">file</var> arguments (or standard
+input if none are given), and writes to standard output.
+</p>
+<p>By default, blank lines, spaces between words, and indentation are
+preserved in the output; successive input lines with different
+indentation are not joined; tabs are expanded on input and introduced on
+output.
+</p>
+<a class="index-entry-id" id="index-line_002dbreaking"></a>
+<a class="index-entry-id" id="index-sentences-and-line_002dbreaking"></a>
+<a class="index-entry-id" id="index-Knuth_002c-Donald-E_002e"></a>
+<a class="index-entry-id" id="index-Plass_002c-Michael-F_002e"></a>
+<p><code class="command">fmt</code> prefers breaking lines at the end of a sentence, and tries to
+avoid line breaks after the first word of a sentence or before the last
+word of a sentence.  A <em class="dfn">sentence break</em> is defined as either the end
+of a paragraph or a word ending in any of &lsquo;<samp class="samp">.?!</samp>&rsquo;, followed by two
+spaces or end of line, ignoring any intervening parentheses or quotes.
+Like TeX, <code class="command">fmt</code> reads entire &ldquo;paragraphs&rdquo; before choosing line
+breaks; the algorithm is a variant of that given by Donald E. Knuth
+and Michael F. Plass in &ldquo;Breaking Paragraphs Into Lines&rdquo;,
+<cite class="cite">Software: Practice &amp; Experience</cite> <b class="b">11</b>, 11 (November 1981),
+1119&ndash;1184.
+</p>
+<p>The program accepts the following options.  Also see <a class="ref" href="Common-options.html">Common options</a>.
+</p>
+<dl class="table">
+<dd>
+<a class="anchor" id="fmt-c"></a></dd>
+<dt><a class="index-entry-id" id="index-crown-margin"></a>
+<a id="index-_002d_002dcrown_002dmargin"></a><span>&lsquo;<samp class="samp">-c</samp>&rsquo;<a class="copiable-link" href="#index-_002d_002dcrown_002dmargin"> &para;</a></span></dt>
+<dd><a class="index-entry-id" id="index-_002dc-1"></a>
+<a class="anchor" id="fmt--crown-margin"></a></dd>
+<dt>&lsquo;<samp class="samp">--crown-margin</samp>&rsquo;</dt>
+<dd><p><em class="dfn">Crown margin</em> mode: preserve the indentation of the first two
+lines within a paragraph, and align the left margin of each subsequent
+line with that of the second line.
+</p>
+<a class="anchor" id="fmt-t"></a></dd>
+<dt><a class="index-entry-id" id="index-tagged-paragraphs"></a>
+<a id="index-_002d_002dtagged_002dparagraph"></a><span>&lsquo;<samp class="samp">-t</samp>&rsquo;<a class="copiable-link" href="#index-_002d_002dtagged_002dparagraph"> &para;</a></span></dt>
+<dd><a class="index-entry-id" id="index-_002dt-2"></a>
+<a class="anchor" id="fmt--tagged-paragraph"></a></dd>
+<dt>&lsquo;<samp class="samp">--tagged-paragraph</samp>&rsquo;</dt>
+<dd><p><em class="dfn">Tagged paragraph</em> mode: like crown margin mode, except that if
+indentation of the first line of a paragraph is the same as the
+indentation of the second, the first line is treated as a one-line
+paragraph.
+</p>
+<a class="anchor" id="fmt-s"></a></dd>
+<dt><a id="index-_002d_002dsplit_002donly"></a><span>&lsquo;<samp class="samp">-s</samp>&rsquo;<a class="copiable-link" href="#index-_002d_002dsplit_002donly"> &para;</a></span></dt>
+<dd><a class="index-entry-id" id="index-_002ds-4"></a>
+<a class="anchor" id="fmt--split-only"></a></dd>
+<dt>&lsquo;<samp class="samp">--split-only</samp>&rsquo;</dt>
+<dd><p>Split lines only.  Do not join short lines to form longer ones.  This
+prevents sample lines of code, and other such &ldquo;formatted&rdquo; text from
+being unduly combined.
+</p>
+<a class="anchor" id="fmt-u"></a></dd>
+<dt><a id="index-_002d_002duniform_002dspacing"></a><span>&lsquo;<samp class="samp">-u</samp>&rsquo;<a class="copiable-link" href="#index-_002d_002duniform_002dspacing"> &para;</a></span></dt>
+<dd><a class="index-entry-id" id="index-_002du-1"></a>
+<a class="anchor" id="fmt--uniform-spacing"></a></dd>
+<dt>&lsquo;<samp class="samp">--uniform-spacing</samp>&rsquo;</dt>
+<dd><p>Uniform spacing.  Reduce spacing between words to one space, and spacing
+between sentences to two spaces.
+</p>
+<a class="anchor" id="fmt-width"></a></dd>
+<dt><a id="index-_002d_002dwidth-1"></a><span>&lsquo;<samp class="samp">-<var class="var">width</var></samp>&rsquo;<a class="copiable-link" href="#index-_002d_002dwidth-1"> &para;</a></span></dt>
+<dd><a class="index-entry-id" id="index-_002dwidth"></a>
+<a class="anchor" id="fmt-w"></a></dd>
+<dt>&lsquo;<samp class="samp">-w&nbsp;<!-- /@w --><var class="var">width</var></samp>&rsquo;</dt>
+<dd><a class="index-entry-id" id="index-_002dw-3"></a>
+<a class="anchor" id="fmt--width"></a></dd>
+<dt>&lsquo;<samp class="samp">--width=<var class="var">width</var></samp>&rsquo;</dt>
+<dd><p>Fill output lines up to <var class="var">width</var> characters (default 75 or <var class="var">goal</var>
+plus 10, if <var class="var">goal</var> is provided).
+</p>
+<a class="anchor" id="fmt-g"></a></dd>
+<dt><a id="index-_002d_002dgoal"></a><span>&lsquo;<samp class="samp">-g&nbsp;<!-- /@w --><var class="var">goal</var></samp>&rsquo;<a class="copiable-link" href="#index-_002d_002dgoal"> &para;</a></span></dt>
+<dd><a class="index-entry-id" id="index-_002dg"></a>
+<a class="anchor" id="fmt--goal"></a></dd>
+<dt>&lsquo;<samp class="samp">--goal=<var class="var">goal</var></samp>&rsquo;</dt>
+<dd><p><code class="command">fmt</code> initially tries to make lines <var class="var">goal</var> characters wide.
+By default, this is 7% shorter than <var class="var">width</var>.
+</p>
+<a class="anchor" id="fmt-p"></a></dd>
+<dt><a id="index-_002d_002dprefix"></a><span>&lsquo;<samp class="samp">-p&nbsp;<!-- /@w --><var class="var">prefix</var></samp>&rsquo;<a class="copiable-link" href="#index-_002d_002dprefix"> &para;</a></span></dt>
+<dd><a class="index-entry-id" id="index-_002dp-1"></a>
+<a class="anchor" id="fmt--prefix"></a></dd>
+<dt>&lsquo;<samp class="samp">--prefix=<var class="var">prefix</var></samp>&rsquo;</dt>
+<dd><p>Only lines beginning with <var class="var">prefix</var> (possibly preceded by whitespace)
+are subject to formatting.  The prefix and any preceding whitespace are
+stripped for the formatting and then re-attached to each formatted output
+line.  One use is to format certain kinds of program comments, while
+leaving the code unchanged.
+</p>
+</dd>
+</dl>
+
+<p>An exit status of zero indicates success,
+and a nonzero value indicates failure.
+</p>
+</div>
+<hr>
+<div class="nav-panel">
+<p>
+Next: <a href="pr-invocation.html"><code class="command">pr</code>: Paginate or columnate files for printing</a>, Up: <a href="Formatting-file-contents.html">Formatting file contents</a> &nbsp; [<a href="index.html#SEC_Contents" title="Table of contents" rel="contents">Contents</a>][<a href="Concept-index.html" title="Index" rel="index">Index</a>]</p>
+</div>
+
+
+
+</body>
+</html>

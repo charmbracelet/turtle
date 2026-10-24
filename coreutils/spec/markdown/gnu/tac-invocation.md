@@ -1,0 +1,51 @@
+# tac invocation (GNU Coreutils 9.12)
+### 3.2 `tac`: Concatenate and write files in reverse
+
+`tac` copies each file (‘`-`’ means standard input), or
+standard input if none are given, to standard output, reversing the
+records (lines by default) in each separately. Synopsis:
+
+```
+tac [option]... [file]...
+```
+
+*Records* are separated by instances of a string (newline by
+default). By default, this separator string is attached to the end of
+the record that it follows in the file.
+
+The program accepts the following options. Also see [Common options](Common-options.md).
+
+‘`-b`’
+
+‘`--before`’
+:   The separator is attached to the beginning of the record that it
+    precedes in the file.
+
+‘`-r`’
+
+‘`--regex`’
+:   Treat the separator string as a regular expression.
+
+‘`-s separator`’
+
+‘`--separator=separator`’
+:   Use separator as the record separator, instead of newline.
+    Note an empty separator is treated as a zero byte.
+    I.e., input and output items are delimited with ASCII NUL.
+
+On systems like MS-DOS that distinguish between text and binary files,
+`tac` reads and writes in binary mode.
+
+Non-seekable input is buffered to `$TMPDIR`, defaulting to `/tmp`,
+if the `TMPDIR` environment variable is not set
+or the location is not available.
+
+An exit status of zero indicates success,
+and a nonzero value indicates failure.
+
+Example:
+
+```
+# Reverse a file character by character.
+tac -r -s 'x\|[^x]'
+```

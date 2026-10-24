@@ -1,0 +1,108 @@
+<!DOCTYPE html>
+<html>
+<!-- Created by GNU Texinfo 7.2, https://www.gnu.org/software/texinfo/ -->
+<head>
+<meta http-equiv="Content-Type" content="text/html; charset=utf-8">
+<!-- This manual documents version 9.12 of the GNU core
+utilities, including the standard programs for text and file manipulation.
+
+Copyright © 1994-2026 Free Software Foundation, Inc.
+
+Permission is granted to copy, distribute and/or modify this document
+under the terms of the GNU Free Documentation License, Version 1.3 or
+any later version published by the Free Software Foundation; with no
+Invariant Sections, with no Front-Cover Texts, and with no Back-Cover
+Texts.  A copy of the license is included in the section entitled "GNU
+Free Documentation License". -->
+<title>Hyphen-minus and colon (GNU Coreutils 9.12)</title>
+
+<meta name="description" content="Hyphen-minus and colon (GNU Coreutils 9.12)">
+<meta name="keywords" content="Hyphen-minus and colon (GNU Coreutils 9.12)">
+<meta name="resource-type" content="document">
+<meta name="distribution" content="global">
+<meta name="Generator" content="makeinfo">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+
+<link href="index.html" rel="start" title="Top">
+<link href="Concept-index.html" rel="index" title="Concept index">
+<link href="index.html#SEC_Contents" rel="contents" title="Table of Contents">
+<link href="Differences-from-Debian-version-sort.html" rel="up" title="Differences from Debian version sort">
+<link href="Special-priority-in-GNU-Coreutils-version-sort.html" rel="next" title="Special priority in GNU Coreutils version sort">
+<style type="text/css">
+<!--
+a.copiable-link {visibility: hidden; text-decoration: none; line-height: 0em}
+div.example {margin-left: 3.2em}
+span:hover a.copiable-link {visibility: visible}
+-->
+</style>
+<link rel="stylesheet" type="text/css" href="https://www.gnu.org/software/gnulib/manual.css">
+
+
+</head>
+
+<body lang="en">
+<div class="subsection-level-extent" id="Hyphen_002dminus-and-colon">
+<div class="nav-panel">
+<p>
+Next: <a href="Special-priority-in-GNU-Coreutils-version-sort.html" accesskey="n" rel="next">Special priority in GNU Coreutils version sort</a>, Up: <a href="Differences-from-Debian-version-sort.html" accesskey="u" rel="up">Differences from Debian version sort</a> &nbsp; [<a href="index.html#SEC_Contents" title="Table of contents" rel="contents">Contents</a>][<a href="Concept-index.html" title="Index" rel="index">Index</a>]</p>
+</div>
+<hr>
+<h4 class="subsection" id="Hyphen_002dminus-_002d-and-colon-_003a"><span>30.3.1 Hyphen-minus &lsquo;<samp class="samp">-</samp>&rsquo; and colon &lsquo;<samp class="samp">:</samp>&rsquo;<a class="copiable-link" href="#Hyphen_002dminus-_002d-and-colon-_003a"> &para;</a></span></h4>
+
+<p>In Debian&rsquo;s version string syntax the version consists of three parts:
+</p><div class="example">
+<pre class="example-preformatted">[epoch:]upstream_version[-debian_revision]
+</pre></div>
+<p>The &lsquo;<samp class="samp">epoch</samp>&rsquo; and &lsquo;<samp class="samp">debian_revision</samp>&rsquo; parts are optional.
+</p>
+<p>Example of such version strings:
+</p>
+<div class="example">
+<pre class="example-preformatted">60.7.2esr-1~deb9u1
+52.9.0esr-1~deb9u1
+1:2.3.4-1+b2
+327-2
+1:1.0.13-3
+2:1.19.2-1+deb9u5
+</pre></div>
+
+<p>If the &lsquo;<samp class="samp">debian_revision part</samp>&rsquo; is not present,
+hyphens &lsquo;<samp class="samp">-</samp>&rsquo; are not allowed.
+If epoch is not present, colons &lsquo;<samp class="samp">:</samp>&rsquo; are not allowed.
+</p>
+<p>If these parts are present, hyphen and/or colons can appear only once
+in valid Debian version strings.
+</p>
+<p>In GNU Coreutils, such restrictions are not reasonable (a file name can
+have many hyphens, a line of text can have many colons).
+</p>
+<p>As a result, in GNU Coreutils hyphens and colons are treated exactly
+like all other punctuation, i.e., they are sorted after
+letters.  See <a class="xref" href="Version-sort-punctuation.html">Version sort punctuation</a>.
+</p>
+<p>In Debian, these characters are treated differently than in Coreutils:
+a version string with hyphen will sort before similar strings without
+hyphens.
+</p>
+<p>Compare:
+</p>
+<div class="example">
+<pre class="example-preformatted">$ touch 1ab-cd 1abb
+$ ls -v -1
+1abb
+1ab-cd
+$ if dpkg --compare-versions 1abb lt 1ab-cd
+&gt; then echo sorted
+&gt; else echo out of order
+&gt; fi
+out of order
+</pre></div>
+
+<p>For further details, see <a class="ref" href="Comparing-two-strings-using-Debian_0027s-algorithm.html">Comparing two strings using Debian&rsquo;s algorithm</a> and <a class="uref" href="https://bugs.gnu.org/35939">GNU Bug 35939</a>.
+</p>
+</div>
+
+
+
+</body>
+</html>

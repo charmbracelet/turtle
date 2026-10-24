@@ -1,0 +1,165 @@
+<!DOCTYPE html>
+<html>
+<!-- Created by GNU Texinfo 7.2, https://www.gnu.org/software/texinfo/ -->
+<head>
+<meta http-equiv="Content-Type" content="text/html; charset=utf-8">
+<!-- This manual documents version 9.12 of the GNU core
+utilities, including the standard programs for text and file manipulation.
+
+Copyright © 1994-2026 Free Software Foundation, Inc.
+
+Permission is granted to copy, distribute and/or modify this document
+under the terms of the GNU Free Documentation License, Version 1.3 or
+any later version published by the Free Software Foundation; with no
+Invariant Sections, with no Front-Cover Texts, and with no Back-Cover
+Texts.  A copy of the license is included in the section entitled "GNU
+Free Documentation License". -->
+<title>Combination (GNU Coreutils 9.12)</title>
+
+<meta name="description" content="Combination (GNU Coreutils 9.12)">
+<meta name="keywords" content="Combination (GNU Coreutils 9.12)">
+<meta name="resource-type" content="document">
+<meta name="distribution" content="global">
+<meta name="Generator" content="makeinfo">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+
+<link href="index.html" rel="start" title="Top">
+<link href="Concept-index.html" rel="index" title="Concept index">
+<link href="index.html#SEC_Contents" rel="contents" title="Table of Contents">
+<link href="stty-invocation.html" rel="up" title="stty invocation">
+<link href="Characters.html" rel="next" title="Characters">
+<link href="Local.html" rel="prev" title="Local">
+<style type="text/css">
+<!--
+a.copiable-link {visibility: hidden; text-decoration: none; line-height: 0em}
+div.example {margin-left: 3.2em}
+span:hover a.copiable-link {visibility: visible}
+-->
+</style>
+<link rel="stylesheet" type="text/css" href="https://www.gnu.org/software/gnulib/manual.css">
+
+
+</head>
+
+<body lang="en">
+<div class="subsection-level-extent" id="Combination">
+<div class="nav-panel">
+<p>
+Next: <a href="Characters.html" accesskey="n" rel="next">Special characters</a>, Previous: <a href="Local.html" accesskey="p" rel="prev">Local settings</a>, Up: <a href="stty-invocation.html" accesskey="u" rel="up"><code class="command">stty</code>: Print or change terminal characteristics</a> &nbsp; [<a href="index.html#SEC_Contents" title="Table of contents" rel="contents">Contents</a>][<a href="Concept-index.html" title="Index" rel="index">Index</a>]</p>
+</div>
+<hr>
+<h4 class="subsection" id="Combination-settings"><span>19.2.5 Combination settings<a class="copiable-link" href="#Combination-settings"> &para;</a></span></h4>
+
+<a class="index-entry-id" id="index-combination-settings"></a>
+<p>Combination settings:
+</p>
+<dl class="table">
+<dt><a id="index-parity"></a><span>&lsquo;<samp class="samp">evenp</samp>&rsquo;<a class="copiable-link" href="#index-parity"> &para;</a></span></dt>
+<dd><a class="index-entry-id" id="index-evenp"></a>
+</dd>
+<dt>&lsquo;<samp class="samp">parity</samp>&rsquo;</dt>
+<dd><p>Same as <code class="code">parenb -parodd cs7</code>.  May be negated.  If negated, same
+as <code class="code">-parenb cs8</code>.
+</p>
+</dd>
+<dt><a id="index-oddp"></a><span>&lsquo;<samp class="samp">oddp</samp>&rsquo;<a class="copiable-link" href="#index-oddp"> &para;</a></span></dt>
+<dd><p>Same as <code class="code">parenb parodd cs7</code>.  May be negated.  If negated, same
+as <code class="code">-parenb cs8</code>.
+</p>
+</dd>
+<dt><a id="index-nl"></a><span>&lsquo;<samp class="samp">nl</samp>&rsquo;<a class="copiable-link" href="#index-nl"> &para;</a></span></dt>
+<dd><p>Same as <code class="code">-icrnl -onlcr</code>.  May be negated.  If negated, same as
+<code class="code">icrnl -inlcr -igncr onlcr -ocrnl -onlret</code>.
+</p>
+</dd>
+<dt><a id="index-ek"></a><span>&lsquo;<samp class="samp">ek</samp>&rsquo;<a class="copiable-link" href="#index-ek"> &para;</a></span></dt>
+<dd><p>Reset the <code class="code">erase</code> and <code class="code">kill</code> special characters to their default
+values.
+</p>
+</dd>
+<dt><a id="index-sane"></a><span>&lsquo;<samp class="samp">sane</samp>&rsquo;<a class="copiable-link" href="#index-sane"> &para;</a></span></dt>
+<dd><p>Same as:
+</p>
+<div class="example">
+<pre class="example-preformatted">cread -ignbrk brkint -inlcr -igncr icrnl
+icanon iexten echo echoe echok -echonl -noflsh
+-ixoff -iutf8 -iuclc -ixany imaxbel -xcase -olcuc -ocrnl
+opost -ofill onlcr -onocr -onlret nl0 cr0 tab0 bs0 vt0 ff0
+isig -tostop -ofdel -echoprt echoctl echoke -extproc
+</pre></div>
+
+<p>and also sets all special characters to their default values.
+</p>
+</dd>
+<dt><a id="index-cooked"></a><span>&lsquo;<samp class="samp">cooked</samp>&rsquo;<a class="copiable-link" href="#index-cooked"> &para;</a></span></dt>
+<dd><p>Same as <code class="code">brkint ignpar istrip icrnl ixon opost isig icanon</code>, plus
+sets the <code class="code">eof</code> and <code class="code">eol</code> characters to their default values
+if they are the same as the <code class="code">min</code> and <code class="code">time</code> characters.
+May be negated.  If negated, same as <code class="code">raw</code>.
+</p>
+</dd>
+<dt><a id="index-raw"></a><span>&lsquo;<samp class="samp">raw</samp>&rsquo;<a class="copiable-link" href="#index-raw"> &para;</a></span></dt>
+<dd><p>Same as:
+</p>
+<div class="example">
+<pre class="example-preformatted">-ignbrk -brkint -ignpar -parmrk -inpck -istrip
+-inlcr -igncr -icrnl -ixon -ixoff -icanon -opost
+-isig -iuclc -ixany -imaxbel -xcase min 1 time 0
+</pre></div>
+
+<p>May be negated.  If negated, same as <code class="code">cooked</code>.
+</p>
+</dd>
+<dt><a id="index-cbreak"></a><span>&lsquo;<samp class="samp">cbreak</samp>&rsquo;<a class="copiable-link" href="#index-cbreak"> &para;</a></span></dt>
+<dd><p>Same as <samp class="option">-icanon</samp>.  May be negated.  If negated, same as
+<code class="code">icanon</code>.
+</p>
+</dd>
+<dt><a class="index-entry-id" id="index-eight_002dbit-characters-1"></a>
+<a id="index-pass8"></a><span>&lsquo;<samp class="samp">pass8</samp>&rsquo;<a class="copiable-link" href="#index-pass8"> &para;</a></span></dt>
+<dd><p>Same as <code class="code">-parenb -istrip cs8</code>.  May be negated.  If negated,
+same as <code class="code">parenb istrip cs7</code>.
+</p>
+</dd>
+<dt><a id="index-litout"></a><span>&lsquo;<samp class="samp">litout</samp>&rsquo;<a class="copiable-link" href="#index-litout"> &para;</a></span></dt>
+<dd><p>Same as <samp class="option">-parenb -istrip -opost cs8</samp>.  May be negated.
+If negated, same as <code class="code">parenb istrip opost cs7</code>.
+</p>
+</dd>
+<dt><a id="index-decctlq"></a><span>&lsquo;<samp class="samp">decctlq</samp>&rsquo;<a class="copiable-link" href="#index-decctlq"> &para;</a></span></dt>
+<dd><p>Same as <samp class="option">-ixany</samp>.  Non-POSIX.  May be negated.
+</p>
+</dd>
+<dt><a id="index-tabs"></a><span>&lsquo;<samp class="samp">tabs</samp>&rsquo;<a class="copiable-link" href="#index-tabs"> &para;</a></span></dt>
+<dd><p>Same as <code class="code">tab0</code>.  Non-POSIX.  May be negated.  If negated, same
+as <code class="code">tab3</code>.
+</p>
+</dd>
+<dt><a class="index-entry-id" id="index-LCASE"></a>
+<a id="index-lcase"></a><span>&lsquo;<samp class="samp">lcase</samp>&rsquo;<a class="copiable-link" href="#index-lcase"> &para;</a></span></dt>
+<dt>&lsquo;<samp class="samp">LCASE</samp>&rsquo;</dt>
+<dd><p>Same as <code class="code">xcase iuclc olcuc</code>.  Non-POSIX.  May be negated.
+(Used for terminals with uppercase characters only.)
+</p>
+</dd>
+<dt><a id="index-crt"></a><span>&lsquo;<samp class="samp">crt</samp>&rsquo;<a class="copiable-link" href="#index-crt"> &para;</a></span></dt>
+<dd><p>Same as <code class="code">echoe echoctl echoke</code>.
+</p>
+</dd>
+<dt><a id="index-dec"></a><span>&lsquo;<samp class="samp">dec</samp>&rsquo;<a class="copiable-link" href="#index-dec"> &para;</a></span></dt>
+<dd><p>Same as <code class="code">echoe echoctl echoke -ixany intr ^C erase ^? kill C-u</code>.
+</p></dd>
+</dl>
+
+
+</div>
+<hr>
+<div class="nav-panel">
+<p>
+Next: <a href="Characters.html">Special characters</a>, Previous: <a href="Local.html">Local settings</a>, Up: <a href="stty-invocation.html"><code class="command">stty</code>: Print or change terminal characteristics</a> &nbsp; [<a href="index.html#SEC_Contents" title="Table of contents" rel="contents">Contents</a>][<a href="Concept-index.html" title="Index" rel="index">Index</a>]</p>
+</div>
+
+
+
+</body>
+</html>
