@@ -259,6 +259,40 @@ func TestMemFSWrite(t *testing.T) {
 		}
 	})
 
+	t.Run("creates with O_EXCL", func(t *testing.T) {
+		fsys := MemFS{}
+
+		f, err := fsys.OpenFile("file.txt", os.O_CREATE|os.O_EXCL|os.O_WRONLY, 0o644)
+		if err != nil {
+			t.Fatalf("OpenFile() error = %v", err)
+		}
+		if _, err := f.Write([]byte("hello")); err != nil {
+			t.Fatalf("Write() error = %v", err)
+		}
+		if err := f.Close(); err != nil {
+			t.Fatalf("Close() error = %v", err)
+		}
+
+		assertFile(t, fsys, "file.txt", "hello")
+	})
+
+	t.Run("creates through a dangling symbolic link", func(t *testing.T) {
+		fsys := MemFS{"link": {Data: []byte("file.txt"), Mode: fs.ModeSymlink}}
+
+		f, err := fsys.OpenFile("link", os.O_CREATE|os.O_WRONLY, 0o644)
+		if err != nil {
+			t.Fatalf("OpenFile() error = %v", err)
+		}
+		if _, err := f.Write([]byte("hello")); err != nil {
+			t.Fatalf("Write() error = %v", err)
+		}
+		if err := f.Close(); err != nil {
+			t.Fatalf("Close() error = %v", err)
+		}
+
+		assertFile(t, fsys, "file.txt", "hello")
+	})
+
 	t.Run("errors", func(t *testing.T) {
 		tests := []struct {
 			name    string
@@ -285,6 +319,34 @@ func TestMemFSWrite(t *testing.T) {
 				name:    "O_EXCL on an existing file",
 				fsys:    MemFS{"file.txt": {Data: []byte("hello")}},
 				path:    "file.txt",
+				flag:    os.O_CREATE | os.O_EXCL | os.O_WRONLY,
+				wantErr: fs.ErrExist,
+			},
+			{
+				name:    "O_EXCL on an existing directory",
+				fsys:    MemFS{"sub/inner.txt": {Data: []byte("inner")}},
+				path:    "sub",
+				flag:    os.O_CREATE | os.O_EXCL | os.O_WRONLY,
+				wantErr: fs.ErrExist,
+			},
+			{
+				name:    "O_EXCL on a dangling symbolic link",
+				fsys:    MemFS{"link": {Data: []byte("missing.txt"), Mode: fs.ModeSymlink}},
+				path:    "link",
+				flag:    os.O_CREATE | os.O_EXCL | os.O_WRONLY,
+				wantErr: fs.ErrExist,
+			},
+			{
+				name:    "O_EXCL on a symbolic link to a file",
+				fsys:    MemFS{"file.txt": {Data: []byte("hello")}, "link": {Data: []byte("file.txt"), Mode: fs.ModeSymlink}},
+				path:    "link",
+				flag:    os.O_CREATE | os.O_EXCL | os.O_WRONLY,
+				wantErr: fs.ErrExist,
+			},
+			{
+				name:    "O_EXCL on a symbolic link that loops",
+				fsys:    MemFS{"loop": {Data: []byte("loop"), Mode: fs.ModeSymlink}},
+				path:    "loop",
 				flag:    os.O_CREATE | os.O_EXCL | os.O_WRONLY,
 				wantErr: fs.ErrExist,
 			},
