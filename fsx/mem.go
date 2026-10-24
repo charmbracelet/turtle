@@ -67,6 +67,9 @@ func (m MemFS) OpenFile(name string, flag int, perm fs.FileMode) (File, error) {
 	if !fs.ValidPath(name) {
 		return nil, &fs.PathError{Op: "open", Path: name, Err: fs.ErrInvalid}
 	}
+	if flag&os.O_CREATE != 0 && flag&os.O_EXCL != 0 && m.entryExists(name) {
+		return nil, &fs.PathError{Op: "open", Path: name, Err: fs.ErrExist}
+	}
 	p, err := m.resolve(name, true)
 	if err != nil && (!errors.Is(err, fs.ErrNotExist) || flag&os.O_CREATE == 0) {
 		return nil, &fs.PathError{Op: "open", Path: name, Err: err}
@@ -93,7 +96,7 @@ func (m MemFS) OpenFile(name string, flag int, perm fs.FileMode) (File, error) {
 		}
 		return &memOpenFile{entry: f, path: name}, nil
 	}
-	if flag&os.O_CREATE != 0 && flag&os.O_EXCL != 0 {
+	if ok && flag&os.O_CREATE != 0 && flag&os.O_EXCL != 0 {
 		return nil, &fs.PathError{Op: "open", Path: name, Err: fs.ErrExist}
 	}
 	if flag&os.O_TRUNC != 0 {
@@ -516,6 +519,16 @@ func (m MemFS) ReadDir(name string) ([]fs.DirEntry, error) {
 	}
 	sort.Slice(entries, func(i, j int) bool { return entries[i].Name() < entries[j].Name() })
 	return entries, nil
+}
+
+// entryExists reports whether name itself is an entry, without following the
+// final symbolic link, like os.Lstat does. It only misses names whose
+// redundant separators were cleaned, which resolve handles afterwards.
+func (m MemFS) entryExists(name string) bool {
+	if _, ok := m[name]; ok {
+		return true
+	}
+	return m.isDir(name)
 }
 
 // isDir reports whether name is a directory in m, either because it holds an
