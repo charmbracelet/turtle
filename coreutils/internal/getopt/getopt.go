@@ -17,6 +17,12 @@ type Set struct {
 	// "-n5", or the next argument is taken, as in "-n 5".
 	Valued string
 
+	// Optional holds the option characters which may take an argument, like
+	// the "p" of mktemp. The short form requires it, as in "-p dir", while
+	// the long form only takes it when attached, as in "--tmpdir=dir", and
+	// an empty value is allowed, as in "--tmpdir=" or "--tmpdir".
+	Optional string
+
 	// Long maps the long options of a program to the characters they stand
 	// for. When nil, every argument starting with "--" is rejected.
 	Long map[string]rune
@@ -60,7 +66,7 @@ func (s Set) Parse(args []string, visit Visit) ([]string, error) {
 func (s Set) parseShort(arg string, args []string, i *int, visit Visit) error {
 	for j := 1; j < len(arg); j++ {
 		opt := rune(arg[j])
-		if !s.valued(opt) {
+		if !s.valued(opt) && !s.optional(opt) {
 			if err := visit(opt, ""); err != nil {
 				return err
 			}
@@ -87,7 +93,13 @@ func (s Set) parseLong(arg string, args []string, i *int, visit Visit) error {
 	if !ok {
 		return fmt.Errorf("unrecognized option '%s'", arg)
 	}
-	if !s.valued(opt) {
+	switch {
+	case s.optional(opt):
+		if !given {
+			return visit(opt, "")
+		}
+		return visit(opt, value)
+	case !s.valued(opt):
 		if given {
 			return fmt.Errorf("option '%s' doesn't allow an argument", arg)
 		}
@@ -105,6 +117,10 @@ func (s Set) parseLong(arg string, args []string, i *int, visit Visit) error {
 
 func (s Set) valued(opt rune) bool {
 	return strings.ContainsRune(s.Valued, opt)
+}
+
+func (s Set) optional(opt rune) bool {
+	return strings.ContainsRune(s.Optional, opt)
 }
 
 // InvalidOption builds the error of an option which a program doesn't take.
