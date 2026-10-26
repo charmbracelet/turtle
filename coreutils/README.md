@@ -86,7 +86,7 @@ The status icons link to the respective POSIX and GNU documentation pages.
 | Filesystem | `pathchk` | Check pathnames for validity | [❌](https://pubs.opengroup.org/onlinepubs/9799919799/utilities/pathchk.html) | [❌](https://web.archive.org/web/https://www.gnu.org/software/coreutils/manual/html_node/pathchk-invocation.html) |
 | Filesystem | `pax` | Read and write file archives | [❌](https://pubs.opengroup.org/onlinepubs/9799919799/utilities/pax.html) | ❌ |
 | Text | `cut` | Cut out fields from input lines | [✅](https://pubs.opengroup.org/onlinepubs/9799919799/utilities/cut.html) | [❌](https://web.archive.org/web/https://www.gnu.org/software/coreutils/manual/html_node/cut-invocation.html) |
-| Text | `join` | Join lines of two files on a common field | [❌](https://pubs.opengroup.org/onlinepubs/9799919799/utilities/join.html) | [❌](https://web.archive.org/web/https://www.gnu.org/software/coreutils/manual/html_node/join-invocation.html) |
+| Text | `join` | Join lines of two files on a common field | [✅](https://pubs.opengroup.org/onlinepubs/9799919799/utilities/join.html) | [❌](https://web.archive.org/web/https://www.gnu.org/software/coreutils/manual/html_node/join-invocation.html) |
 | Text | `sort` | Sort lines of text | [✅](https://pubs.opengroup.org/onlinepubs/9799919799/utilities/sort.html) | [❌](https://web.archive.org/web/https://www.gnu.org/software/coreutils/manual/html_node/sort-invocation.html) |
 | Text | `paste` | Merge lines of files | [✅](https://pubs.opengroup.org/onlinepubs/9799919799/utilities/paste.html) | [❌](https://web.archive.org/web/https://www.gnu.org/software/coreutils/manual/html_node/paste-invocation.html) |
 | Text | `tee` | Duplicate standard input | [✅](https://pubs.opengroup.org/onlinepubs/9799919799/utilities/tee.html) | [❌](https://web.archive.org/web/https://www.gnu.org/software/coreutils/manual/html_node/tee-invocation.html) |
@@ -181,6 +181,11 @@ The status icons link to the respective POSIX and GNU documentation pages.
 > doesn't take its `-U` (Universal Newlines) and `-0` (BITS) modes. When
 > verifying, it hashes with the algorithm `-a` selects, instead of the one
 > each checksum line implies.
+>
+> `join` compares its join fields in the bytewise collating sequence of
+> the C locale, the one the `sort` and `comm` of this project use: no
+> utility here implements the collating sequences of other locales, so
+> keys which only another `LC_COLLATE` makes equal stay different.
 >
 > `tar` supports the `-c`, `-r`, `-t`, `-u` and `-x` operations and the `-b`,
 > `-e`, `-f`, `-h`, `-m`, `-o`, `-p`, `-v` and `-w` options, in both the dashed
