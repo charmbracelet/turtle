@@ -2,7 +2,10 @@
 // utilities, like skipping the fields or characters of a line.
 package textutil
 
-import "unicode/utf8"
+import (
+	"bytes"
+	"unicode/utf8"
+)
 
 // IsBlank reports whether c is a blank character: a space or a tab.
 func IsBlank(c byte) bool {
@@ -34,4 +37,29 @@ func SkipChars(line []byte, n int) []byte {
 		line = line[size:]
 	}
 	return line
+}
+
+// Fields splits line into its fields, with sep as the field separator. With
+// a nil sep, a field is a maximal run of non-blank characters: leading
+// blanks are ignored and a run of blanks counts as one separator. Otherwise
+// every separator counts, so fields can be empty.
+func Fields(line, sep []byte) [][]byte {
+	if sep != nil {
+		return bytes.Split(line, sep)
+	}
+	var fields [][]byte
+	for i := 0; i < len(line); {
+		for i < len(line) && IsBlank(line[i]) {
+			i++
+		}
+		if i == len(line) {
+			break
+		}
+		start := i
+		for i < len(line) && !IsBlank(line[i]) {
+			i++
+		}
+		fields = append(fields, line[start:i])
+	}
+	return fields
 }

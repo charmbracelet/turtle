@@ -65,3 +65,41 @@ func TestSkipChars(t *testing.T) {
 		})
 	}
 }
+
+func TestFields(t *testing.T) {
+	tests := []struct {
+		name string
+		line string
+		sep  string
+		want []string
+	}{
+		{name: "blank separated fields", line: "a b c", want: []string{"a", "b", "c"}},
+		{name: "leading blanks are ignored", line: "  a b", want: []string{"a", "b"}},
+		{name: "a blank run is one separator", line: "a  \t b", want: []string{"a", "b"}},
+		{name: "an empty line", line: "", want: nil},
+		{name: "only blanks", line: "  ", want: nil},
+		{name: "fields without a separator", line: "a", want: []string{"a"}},
+		{name: "a separator splits every time", line: "a:b:c", sep: ":", want: []string{"a", "b", "c"}},
+		{name: "leading separators count", line: ":a", sep: ":", want: []string{"", "a"}},
+		{name: "trailing separators count", line: "a:", sep: ":", want: []string{"a", ""}},
+		{name: "empty fields between separators", line: "a::b", sep: ":", want: []string{"a", "", "b"}},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			var sep []byte
+			if test.sep != "" {
+				sep = []byte(test.sep)
+			}
+			got := Fields([]byte(test.line), sep)
+			if len(got) != len(test.want) {
+				t.Fatalf("Fields(%q, %q) = %v, want %v", test.line, test.sep, got, test.want)
+			}
+			for i := range got {
+				if string(got[i]) != test.want[i] {
+					t.Errorf("Fields(%q, %q)[%d] = %q, want %q", test.line, test.sep, i, got[i], test.want[i])
+				}
+			}
+		})
+	}
+}
