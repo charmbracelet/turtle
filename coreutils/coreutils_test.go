@@ -89,6 +89,26 @@ func TestRuntimeWait(t *testing.T) {
 	})
 }
 
+func TestRuntimeNow(t *testing.T) {
+	t.Run("uses the Clock function when set", func(t *testing.T) {
+		want := time.Date(1990, 6, 26, 9, 58, 10, 0, time.UTC)
+		rt := &Runtime{Clock: func() time.Time { return want }}
+
+		if got := rt.Now(); !got.Equal(want) {
+			t.Errorf("Now() = %v, want %v", got, want)
+		}
+	})
+
+	t.Run("falls back to real time", func(t *testing.T) {
+		before := time.Now()
+		got := (&Runtime{}).Now()
+		after := time.Now()
+		if got.Before(before) || got.After(after) {
+			t.Errorf("Now() = %v, want a time between %v and %v", got, before, after)
+		}
+	})
+}
+
 func TestOsRuntime(t *testing.T) {
 	rt := OsRuntime()
 
@@ -104,5 +124,8 @@ func TestOsRuntime(t *testing.T) {
 	}
 	if rt.LookupEnv == nil {
 		t.Error("LookupEnv was not set")
+	}
+	if rt.Clock == nil {
+		t.Error("Clock was not set")
 	}
 }

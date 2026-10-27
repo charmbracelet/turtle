@@ -110,7 +110,7 @@ The status icons link to the respective POSIX and GNU documentation pages.
 | Search / Filtering | `find` | Find files matching given criteria | [❌](https://pubs.opengroup.org/onlinepubs/9799919799/utilities/find.html) | [❌](https://web.archive.org/web/https://www.gnu.org/software/findutils/manual/html_node/find_html/Invoking-find.html) |
 | Search / Filtering | `grep` | Print lines matching a pattern | [❌](https://pubs.opengroup.org/onlinepubs/9799919799/utilities/grep.html) | [❌](https://web.archive.org/web/https://www.gnu.org/software/grep/manual/grep.html) |
 | Search / Filtering | `xargs` | Build and execute command lines | [❌](https://pubs.opengroup.org/onlinepubs/9799919799/utilities/xargs.html) | [❌](https://web.archive.org/web/https://www.gnu.org/software/findutils/manual/html_node/find_html/Invoking-xargs.html) |
-| System / Process | `date` | Print or set the date and time | [❌](https://pubs.opengroup.org/onlinepubs/9799919799/utilities/date.html) | [❌](https://web.archive.org/web/https://www.gnu.org/software/coreutils/manual/html_node/date-invocation.html) |
+| System / Process | `date`******* | Print or set the date and time | [✅](https://pubs.opengroup.org/onlinepubs/9799919799/utilities/date.html) | [❌](https://web.archive.org/web/https://www.gnu.org/software/coreutils/manual/html_node/date-invocation.html) |
 | System / Process | `env` | Run a command in a modified environment | [❌](https://pubs.opengroup.org/onlinepubs/9799919799/utilities/env.html) | [❌](https://web.archive.org/web/https://www.gnu.org/software/coreutils/manual/html_node/env-invocation.html) |
 | System / Process | `id` | Print user and group IDs | [❌](https://pubs.opengroup.org/onlinepubs/9799919799/utilities/id.html) | [❌](https://web.archive.org/web/https://www.gnu.org/software/coreutils/manual/html_node/id-invocation.html) |
 | System / Process | `kill` | Send a signal to processes | [❌](https://pubs.opengroup.org/onlinepubs/9799919799/utilities/kill.html) | ❌ |
@@ -200,3 +200,9 @@ The status icons link to the respective POSIX and GNU documentation pages.
 > (`\1` to `\9`) in patterns, nor the collating symbols and equivalence
 > classes of bracket expressions. Backreferences in the replacement of `s`
 > work as specified.
+>
+> `*******` `date` can't set the system date: its settime operand
+> (`mmddhhmm[[cc]yy]`) is parsed to diagnose invalid dates, but setting the
+> clock fails, since the runtime exposes a clock to read but none to set.
+> The GNU `-r` (`--reference`) option, which displays the modification time
+> of a file, is also supported.

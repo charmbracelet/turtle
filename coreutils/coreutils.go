@@ -34,6 +34,11 @@ type Runtime struct {
 	// masking.
 	Umask fs.FileMode
 
+	// Clock returns the current time. It's used by utilities that need the
+	// current time, like date, so tests can replace it. If nil, real time is
+	// used.
+	Clock ClockFunc
+
 	// Sleep blocks for a given duration or until the context is done. It's
 	// used by utilities that wait for more input, like tail -f, so that tests
 	// can replace the waiting instead of spending real time. If nil, a real
@@ -57,6 +62,7 @@ func OsRuntime() *Runtime {
 		FS:         fsx.OsFS(""),
 		WorkingDir: wd,
 		LookupEnv:  os.LookupEnv,
+		Clock:      time.Now,
 	}
 }
 
@@ -88,6 +94,14 @@ func (r *Runtime) ResolvePath(path string) string {
 	}
 }
 
+// Now returns the current time, honoring Runtime.Clock when set.
+func (r *Runtime) Now() time.Time {
+	if r.Clock != nil {
+		return r.Clock()
+	}
+	return time.Now()
+}
+
 // Getenv is a helper to retrieve an environment variable value without the
 // extra bool return.
 func (r *Runtime) Getenv(key string) string {
@@ -97,6 +111,9 @@ func (r *Runtime) Getenv(key string) string {
 
 // LookupEnvFunc is a function signature for the LookupEnv function.
 type LookupEnvFunc func(string) (string, bool)
+
+// ClockFunc is a function signature for the Runtime.Clock function.
+type ClockFunc func() time.Time
 
 // SleepFunc is a function signature for the Runtime.Sleep function.
 type SleepFunc func(ctx context.Context, d time.Duration) error
