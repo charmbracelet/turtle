@@ -128,9 +128,9 @@ The status icons link to the respective POSIX and GNU documentation pages.
 | Terminal | `tty` | Print the terminal's file name | [❌](https://pubs.opengroup.org/onlinepubs/9799919799/utilities/tty.html) | [❌](https://web.archive.org/web/https://www.gnu.org/software/coreutils/manual/html_node/tty-invocation.html) |
 | Terminal | `more` | Page through text files | [❌](https://pubs.opengroup.org/onlinepubs/9799919799/utilities/more.html) | ❌ |
 | Encoding / Archive | `iconv` | Convert text between character encodings | [❌](https://pubs.opengroup.org/onlinepubs/9799919799/utilities/iconv.html) | ❌ |
-| Encoding / Archive | `compress`* | Compress files | [❌](https://pubs.opengroup.org/onlinepubs/9799919799/utilities/compress.html) | ❌ |
-| Encoding / Archive | `uncompress` | Decompress files | [❌](https://pubs.opengroup.org/onlinepubs/9799919799/utilities/uncompress.html) | ❌ |
-| Encoding / Archive | `zcat` | Decompress files to standard output | [❌](https://pubs.opengroup.org/onlinepubs/9799919799/utilities/zcat.html) | [❌](https://web.archive.org/web/https://www.gnu.org/software/gzip/manual/gzip.html) |
+| Encoding / Archive | `compress`* | Compress files | [✅](https://pubs.opengroup.org/onlinepubs/9799919799/utilities/compress.html) | ❌ |
+| Encoding / Archive | `uncompress` | Decompress files | [✅](https://pubs.opengroup.org/onlinepubs/9799919799/utilities/uncompress.html) | ❌ |
+| Encoding / Archive | `zcat` | Decompress files to standard output | [✅](https://pubs.opengroup.org/onlinepubs/9799919799/utilities/zcat.html) | ❌ |
 | Encoding / Archive | `uudecode` | Decode a uuencoded file | [✅](https://pubs.opengroup.org/onlinepubs/9799919799/utilities/uudecode.html) | ❌ |
 | Encoding / Archive | `uuencode` | Encode a binary file as text | [✅](https://pubs.opengroup.org/onlinepubs/9799919799/utilities/uuencode.html) | ❌ |
 | GNU | `base32` | Encode and decode base32 data | — | [✅](https://web.archive.org/web/https://www.gnu.org/software/coreutils/manual/html_node/base32-invocation.html) |
