@@ -86,7 +86,7 @@ The status icons link to the respective POSIX and GNU documentation pages.
 | Filesystem | `pathchk` | Check pathnames for validity | [❌](https://pubs.opengroup.org/onlinepubs/9799919799/utilities/pathchk.html) | [❌](https://web.archive.org/web/https://www.gnu.org/software/coreutils/manual/html_node/pathchk-invocation.html) |
 | Filesystem | `pax` | Read and write file archives | [❌](https://pubs.opengroup.org/onlinepubs/9799919799/utilities/pax.html) | ❌ |
 | Text | `cut` | Cut out fields from input lines | [✅](https://pubs.opengroup.org/onlinepubs/9799919799/utilities/cut.html) | [❌](https://web.archive.org/web/https://www.gnu.org/software/coreutils/manual/html_node/cut-invocation.html) |
-| Text | `join` | Join lines of two files on a common field | [✅](https://pubs.opengroup.org/onlinepubs/9799919799/utilities/join.html) | [❌](https://web.archive.org/web/https://www.gnu.org/software/coreutils/manual/html_node/join-invocation.html) |
+| Text | `join`**** | Join lines of two files on a common field | [✅](https://pubs.opengroup.org/onlinepubs/9799919799/utilities/join.html) | [❌](https://web.archive.org/web/https://www.gnu.org/software/coreutils/manual/html_node/join-invocation.html) |
 | Text | `sort` | Sort lines of text | [✅](https://pubs.opengroup.org/onlinepubs/9799919799/utilities/sort.html) | [❌](https://web.archive.org/web/https://www.gnu.org/software/coreutils/manual/html_node/sort-invocation.html) |
 | Text | `paste` | Merge lines of files | [✅](https://pubs.opengroup.org/onlinepubs/9799919799/utilities/paste.html) | [❌](https://web.archive.org/web/https://www.gnu.org/software/coreutils/manual/html_node/paste-invocation.html) |
 | Text | `tee` | Duplicate standard input | [✅](https://pubs.opengroup.org/onlinepubs/9799919799/utilities/tee.html) | [❌](https://web.archive.org/web/https://www.gnu.org/software/coreutils/manual/html_node/tee-invocation.html) |
@@ -101,12 +101,12 @@ The status icons link to the respective POSIX and GNU documentation pages.
 | Text | `nl` | Number lines of files | [✅](https://pubs.opengroup.org/onlinepubs/9799919799/utilities/nl.html) | [❌](https://web.archive.org/web/https://www.gnu.org/software/coreutils/manual/html_node/nl-invocation.html) |
 | Text | `od` | Dump files in octal and other formats | [✅](https://pubs.opengroup.org/onlinepubs/9799919799/utilities/od.html) | [❌](https://web.archive.org/web/https://www.gnu.org/software/coreutils/manual/html_node/od-invocation.html) |
 | Text | `pr` | Paginate files for printing | [✅](https://pubs.opengroup.org/onlinepubs/9799919799/utilities/pr.html) | [❌](https://web.archive.org/web/https://www.gnu.org/software/coreutils/manual/html_node/pr-invocation.html) |
-| Text | `sed` | Filter and transform text | [✅](https://pubs.opengroup.org/onlinepubs/9799919799/utilities/sed.html) | [❌](https://web.archive.org/web/https://www.gnu.org/software/sed/manual/sed.html) |
+| Text | `sed`****** | Filter and transform text | [✅](https://pubs.opengroup.org/onlinepubs/9799919799/utilities/sed.html) | [❌](https://web.archive.org/web/https://www.gnu.org/software/sed/manual/sed.html) |
 | Text | `split` | Split a file into pieces | [✅](https://pubs.opengroup.org/onlinepubs/9799919799/utilities/split.html) | [❌](https://web.archive.org/web/https://www.gnu.org/software/coreutils/manual/html_node/split-invocation.html) |
 | Text | `strings` | Print printable strings in files | [✅](https://pubs.opengroup.org/onlinepubs/9799919799/utilities/strings.html) | [❌](https://web.archive.org/web/https://sourceware.org/binutils/docs/binutils/strings.html) |
 | Text | `unexpand` | Convert spaces to tabs | [✅](https://pubs.opengroup.org/onlinepubs/9799919799/utilities/unexpand.html) | [❌](https://web.archive.org/web/https://www.gnu.org/software/coreutils/manual/html_node/unexpand-invocation.html) |
 | Text | `cksum` | Compute CRC checksums for files | [✅](https://pubs.opengroup.org/onlinepubs/9799919799/utilities/cksum.html) | [❌](https://web.archive.org/web/https://www.gnu.org/software/coreutils/manual/html_node/cksum-invocation.html) |
-| Text | `patch`* | Apply a diff file to an original | [✅](https://pubs.opengroup.org/onlinepubs/9799919799/utilities/patch.html) | ❌ |
+| Text | `patch`** | Apply a diff file to an original | [✅](https://pubs.opengroup.org/onlinepubs/9799919799/utilities/patch.html) | ❌ |
 | Search / Filtering | `find` | Find files matching given criteria | [❌](https://pubs.opengroup.org/onlinepubs/9799919799/utilities/find.html) | [❌](https://web.archive.org/web/https://www.gnu.org/software/findutils/manual/html_node/find_html/Invoking-find.html) |
 | Search / Filtering | `grep` | Print lines matching a pattern | [❌](https://pubs.opengroup.org/onlinepubs/9799919799/utilities/grep.html) | [❌](https://web.archive.org/web/https://www.gnu.org/software/grep/manual/grep.html) |
 | Search / Filtering | `xargs` | Build and execute command lines | [❌](https://pubs.opengroup.org/onlinepubs/9799919799/utilities/xargs.html) | [❌](https://web.archive.org/web/https://www.gnu.org/software/findutils/manual/html_node/find_html/Invoking-xargs.html) |
@@ -150,12 +150,12 @@ The status icons link to the respective POSIX and GNU documentation pages.
 | GNU | `sha256sum` | Compute SHA-256 checksums | — | [✅](https://web.archive.org/web/https://www.gnu.org/software/coreutils/manual/html_node/sha2-utilities.html) |
 | GNU | `sha384sum` | Compute SHA-384 checksums | — | [✅](https://web.archive.org/web/https://www.gnu.org/software/coreutils/manual/html_node/sha2-utilities.html) |
 | GNU | `sha512sum` | Compute SHA-512 checksums | — | [✅](https://web.archive.org/web/https://www.gnu.org/software/coreutils/manual/html_node/sha2-utilities.html) |
-| GNU | `shasum` | Print or check SHA checksums | — | [✅](https://perldoc.perl.org/shasum) |
+| GNU | `shasum`*** | Print or check SHA checksums | — | [✅](https://perldoc.perl.org/shasum) |
 | GNU | `shuf` | Generate random permutations | — | [❌](https://web.archive.org/web/https://www.gnu.org/software/coreutils/manual/html_node/shuf-invocation.html) |
 | GNU | `stat` | Print file and file system status | — | [❌](https://web.archive.org/web/https://www.gnu.org/software/coreutils/manual/html_node/stat-invocation.html) |
 | GNU | `sync` | Flush file system buffers | — | [❌](https://web.archive.org/web/https://www.gnu.org/software/coreutils/manual/html_node/sync-invocation.html) |
 | GNU | `tac` | Concatenate and print files in reverse | — | [❌](https://web.archive.org/web/https://www.gnu.org/software/coreutils/manual/html_node/tac-invocation.html) |
-| GNU | `tar` | Create and extract file archives | — | [✅](https://web.archive.org/web/https://www.gnu.org/software/tar/manual/tar.html) |
+| GNU | `tar`***** | Create and extract file archives | — | [✅](https://web.archive.org/web/https://www.gnu.org/software/tar/manual/tar.html) |
 | GNU | `truncate` | Shrink or extend the size of files | — | [❌](https://web.archive.org/web/https://www.gnu.org/software/coreutils/manual/html_node/truncate-invocation.html) |
 | GNU | `which` | Locate a command in the search path | — | ❌ |
 | GNU | `whoami` | Print the effective user name | — | [❌](https://web.archive.org/web/https://www.gnu.org/software/coreutils/manual/html_node/whoami-invocation.html) |
@@ -170,24 +170,24 @@ The status icons link to the respective POSIX and GNU documentation pages.
 > also does not prompt before overwriting on a terminal or check for multiple
 > hard links.
 >
-> `patch` applies unified and context diffs with all the POSIX options
+> `**` `patch` applies unified and context diffs with all the POSIX options
 > except `-D`, `-e` and `-n`, which wait for `#ifdef` marks and the ed and
 > normal diff formats. It also deviates from GNU and BSD in two ways POSIX
 > allows: informative messages go to standard error instead of standard
 > output, and already applied hunks are ignored instead of saved to the
 > reject file.
 >
-> `shasum` follows the Perl script of the `Digest::SHA` distribution, but it
+> `***` `shasum` follows the Perl script of the `Digest::SHA` distribution, but it
 > doesn't take its `-U` (Universal Newlines) and `-0` (BITS) modes. When
 > verifying, it hashes with the algorithm `-a` selects, instead of the one
 > each checksum line implies.
 >
-> `join` compares its join fields in the bytewise collating sequence of
+> `****` `join` compares its join fields in the bytewise collating sequence of
 > the C locale, the one the `sort` and `comm` of this project use: no
 > utility here implements the collating sequences of other locales, so
 > keys which only another `LC_COLLATE` makes equal stay different.
 >
-> `tar` supports the `-c`, `-r`, `-t`, `-u` and `-x` operations and the `-b`,
+> `*****` `tar` supports the `-c`, `-r`, `-t`, `-u` and `-x` operations and the `-b`,
 > `-e`, `-f`, `-h`, `-m`, `-o`, `-p`, `-v` and `-w` options, in both the dashed
 > and the old option styles. Member operands of `-t` and `-x` are literal names
 > or directory prefixes, not glob patterns; ownership is never changed, making
@@ -196,7 +196,7 @@ The status icons link to the respective POSIX and GNU documentation pages.
 > is the standard input or output (or the name in the `TAPE` environment
 > variable) when `-f` is not given.
 >
-> `sed` supports BRE and ERE (`-E`) patterns, but not backreferences
+> `******` `sed` supports BRE and ERE (`-E`) patterns, but not backreferences
 > (`\1` to `\9`) in patterns, nor the collating symbols and equivalence
 > classes of bracket expressions. Backreferences in the replacement of `s`
 > work as specified.
