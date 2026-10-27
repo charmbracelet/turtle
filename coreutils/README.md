@@ -101,7 +101,7 @@ The status icons link to the respective POSIX and GNU documentation pages.
 | Text | `nl` | Number lines of files | [✅](https://pubs.opengroup.org/onlinepubs/9799919799/utilities/nl.html) | [❌](https://web.archive.org/web/https://www.gnu.org/software/coreutils/manual/html_node/nl-invocation.html) |
 | Text | `od` | Dump files in octal and other formats | [✅](https://pubs.opengroup.org/onlinepubs/9799919799/utilities/od.html) | [❌](https://web.archive.org/web/https://www.gnu.org/software/coreutils/manual/html_node/od-invocation.html) |
 | Text | `pr` | Paginate files for printing | [✅](https://pubs.opengroup.org/onlinepubs/9799919799/utilities/pr.html) | [❌](https://web.archive.org/web/https://www.gnu.org/software/coreutils/manual/html_node/pr-invocation.html) |
-| Text | `sed` | Filter and transform text | [❌](https://pubs.opengroup.org/onlinepubs/9799919799/utilities/sed.html) | [❌](https://web.archive.org/web/https://www.gnu.org/software/sed/manual/sed.html) |
+| Text | `sed` | Filter and transform text | [✅](https://pubs.opengroup.org/onlinepubs/9799919799/utilities/sed.html) | [❌](https://web.archive.org/web/https://www.gnu.org/software/sed/manual/sed.html) |
 | Text | `split` | Split a file into pieces | [✅](https://pubs.opengroup.org/onlinepubs/9799919799/utilities/split.html) | [❌](https://web.archive.org/web/https://www.gnu.org/software/coreutils/manual/html_node/split-invocation.html) |
 | Text | `strings` | Print printable strings in files | [✅](https://pubs.opengroup.org/onlinepubs/9799919799/utilities/strings.html) | [❌](https://web.archive.org/web/https://sourceware.org/binutils/docs/binutils/strings.html) |
 | Text | `unexpand` | Convert spaces to tabs | [✅](https://pubs.opengroup.org/onlinepubs/9799919799/utilities/unexpand.html) | [❌](https://web.archive.org/web/https://www.gnu.org/software/coreutils/manual/html_node/unexpand-invocation.html) |
@@ -195,3 +195,8 @@ The status icons link to the respective POSIX and GNU documentation pages.
 > created; extraction refuses to write through symbolic links; and the archive
 > is the standard input or output (or the name in the `TAPE` environment
 > variable) when `-f` is not given.
+>
+> `sed` supports BRE and ERE (`-E`) patterns, but not backreferences
+> (`\1` to `\9`) in patterns, nor the collating symbols and equivalence
+> classes of bracket expressions. Backreferences in the replacement of `s`
+> work as specified.
