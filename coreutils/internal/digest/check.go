@@ -13,6 +13,7 @@ import (
 
 	"charm.land/snail/coreutils"
 	"charm.land/snail/coreutils/internal/input"
+	"charm.land/snail/coreutils/internal/patherr"
 )
 
 // The format of the checksum lines seen until now. A line without the
@@ -87,7 +88,7 @@ func (c *checker) file(ctx context.Context, name string) (bool, error) {
 
 	r, err := input.Open(c.rt, ctx, input.New(name))
 	if err != nil {
-		c.a.errorf(c.rt, "%s: %v", label, unwrapPathError(err))
+		c.a.errorf(c.rt, "%s: %v", label, patherr.Unwrap(err))
 		return false, nil
 	}
 	defer r.Close()
@@ -154,7 +155,7 @@ func (c *checker) verifyLine(ctx context.Context, label string, number int, line
 	case err != nil && errors.Is(err, fs.ErrNotExist) && c.opts.ignoreMissing:
 		// A file which isn't there is skipped without any mention.
 	case err != nil:
-		c.a.errorf(c.rt, "%s: %v", e.name, unwrapPathError(err))
+		c.a.errorf(c.rt, "%s: %v", e.name, patherr.Unwrap(err))
 		c.readFailures++
 		if !c.opts.status {
 			c.statusf("%s: FAILED open or read", e.name)

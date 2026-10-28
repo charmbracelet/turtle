@@ -20,6 +20,7 @@ import (
 
 	"charm.land/snail/coreutils"
 	"charm.land/snail/coreutils/internal/getopt"
+	"charm.land/snail/coreutils/internal/patherr"
 )
 
 // Prog is the rm core utility.
@@ -101,7 +102,7 @@ func (p *Prog) removeEntry(ctx context.Context, name, display string, opts optio
 		if opts.force && errors.Is(err, fs.ErrNotExist) {
 			return nil
 		}
-		return fmt.Errorf("%s: %v", display, unwrapPathError(err))
+		return fmt.Errorf("%s: %v", display, patherr.Unwrap(err))
 	}
 	if fi.IsDir() {
 		switch {
@@ -123,7 +124,7 @@ func (p *Prog) removeEntry(ctx context.Context, name, display string, opts optio
 func (p *Prog) removeTree(ctx context.Context, name, display string, opts options) error {
 	entries, err := fs.ReadDir(p.FS, name)
 	if err != nil {
-		return fmt.Errorf("%s: %v", display, unwrapPathError(err))
+		return fmt.Errorf("%s: %v", display, patherr.Unwrap(err))
 	}
 	if len(entries) > 0 && opts.interactive && !p.confirm("descend into directory", display) {
 		return errSkipped
@@ -162,7 +163,7 @@ func (p *Prog) removeTree(ctx context.Context, name, display string, opts option
 func (p *Prog) removeOne(name, display string, opts options) error {
 	err := p.FS.Remove(name)
 	if err != nil && !errors.Is(err, fs.ErrNotExist) {
-		return fmt.Errorf("%s: %v", display, unwrapPathError(err))
+		return fmt.Errorf("%s: %v", display, patherr.Unwrap(err))
 	}
 	if opts.verbose {
 		fmt.Fprintf(p.Stdout, "removed '%s'\n", display)
@@ -239,15 +240,6 @@ var errFailed = errors.New("failed")
 // errorf writes a diagnostic message to standard error.
 func (p *Prog) errorf(format string, args ...any) {
 	fmt.Fprintf(p.Stderr, "rm: "+format+"\n", args...)
-}
-
-// unwrapPathError unwraps *fs.PathError so diagnostics don't repeat the file
-// name.
-func unwrapPathError(err error) error {
-	if pathErr, ok := errors.AsType[*fs.PathError](err); ok {
-		return pathErr.Err
-	}
-	return err
 }
 
 // options holds the -d, -f, -i, -r, -R and -v flags.

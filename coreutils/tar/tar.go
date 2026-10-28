@@ -21,7 +21,6 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"io/fs"
 	"os"
 	"path"
 	"path/filepath"
@@ -30,6 +29,7 @@ import (
 
 	"charm.land/snail/coreutils"
 	"charm.land/snail/coreutils/internal/getopt"
+	"charm.land/snail/coreutils/internal/patherr"
 )
 
 // Prog is the tar core utility.
@@ -279,7 +279,7 @@ func (a *archiver) fail(name string, err error) {
 	if name == "" {
 		a.errorf("%v", err)
 	} else {
-		a.errorf("%s: %v", name, unwrapPathError(err))
+		a.errorf("%s: %v", name, patherr.Unwrap(err))
 	}
 	a.failed = true
 }
@@ -418,13 +418,4 @@ func (c *countWriter) Write(p []byte) (int, error) {
 	n, err := c.w.Write(p)
 	c.n += int64(n)
 	return n, err
-}
-
-// unwrapPathError unwraps *fs.PathError so diagnostics don't repeat the file
-// name.
-func unwrapPathError(err error) error {
-	if pathErr, ok := errors.AsType[*fs.PathError](err); ok {
-		return pathErr.Err
-	}
-	return err
 }

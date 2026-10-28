@@ -22,6 +22,7 @@ import (
 	"charm.land/snail/coreutils/internal/basex"
 	"charm.land/snail/coreutils/internal/getopt"
 	"charm.land/snail/coreutils/internal/input"
+	"charm.land/snail/coreutils/internal/patherr"
 	"charm.land/snail/coreutils/internal/uux"
 )
 
@@ -62,7 +63,7 @@ func (p *Prog) Run(ctx context.Context, args ...string) error {
 	}
 	r, err := input.Open(p.Runtime, ctx, in)
 	if err != nil {
-		p.errorf("%s: %v", in.Label(), unwrapPathError(err))
+		p.errorf("%s: %v", in.Label(), patherr.Unwrap(err))
 		return &coreutils.ExitError{Code: 1, Err: err}
 	}
 	defer r.Close()
@@ -82,7 +83,7 @@ func (p *Prog) decode(ctx context.Context, br *bufio.Reader, in input.Input, out
 	case ctx.Err() != nil:
 		return ctx.Err()
 	default:
-		p.errorf("%s: %v", in.Label(), unwrapPathError(err))
+		p.errorf("%s: %v", in.Label(), patherr.Unwrap(err))
 		return &coreutils.ExitError{Code: 1, Err: err}
 	}
 
@@ -104,7 +105,7 @@ func (p *Prog) decode(ctx context.Context, br *bufio.Reader, in input.Input, out
 
 	w, done, err := p.output(name, mode)
 	if err != nil {
-		p.errorf("%s: %v", name, unwrapPathError(err))
+		p.errorf("%s: %v", name, patherr.Unwrap(err))
 		return &coreutils.ExitError{Code: 1, Err: err}
 	}
 	err = p.decodeBody(ctx, br, w, header.Base64)
@@ -123,7 +124,7 @@ func (p *Prog) decode(ctx context.Context, br *bufio.Reader, in input.Input, out
 		p.errorf("%s: invalid input", in.Label())
 		return &coreutils.ExitError{Code: 1}
 	default:
-		p.errorf("%s: %v", in.Label(), unwrapPathError(err))
+		p.errorf("%s: %v", in.Label(), patherr.Unwrap(err))
 		return &coreutils.ExitError{Code: 1, Err: err}
 	}
 }
@@ -304,15 +305,6 @@ func (w *errWriter) Write(p []byte) (int, error) {
 		w.err = err
 	}
 	return n, err
-}
-
-// unwrapPathError unwraps *fs.PathError so diagnostics don't repeat the file
-// name.
-func unwrapPathError(err error) error {
-	if pathErr, ok := errors.AsType[*fs.PathError](err); ok {
-		return pathErr.Err
-	}
-	return err
 }
 
 var (

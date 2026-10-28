@@ -17,6 +17,7 @@ import (
 
 	"charm.land/snail/coreutils"
 	"charm.land/snail/coreutils/internal/getopt"
+	"charm.land/snail/coreutils/internal/patherr"
 )
 
 // Prog is the diff core utility.
@@ -64,7 +65,7 @@ func (p *Prog) Run(ctx context.Context, args ...string) error {
 			p.errorf("%v", err)
 			return &coreutils.ExitError{Code: 2}
 		case errors.As(err, &pathErr):
-			p.errorf("%s: %v", pathErr.label, unwrapPathError(pathErr.err))
+			p.errorf("%s: %v", pathErr.label, patherr.Unwrap(pathErr.err))
 			return &coreutils.ExitError{Code: 2, Err: pathErr.err}
 		default:
 			return err

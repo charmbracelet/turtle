@@ -6,7 +6,6 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"io/fs"
 	"strconv"
 	"unicode"
 	"unicode/utf8"
@@ -15,6 +14,7 @@ import (
 
 	"charm.land/snail/coreutils/internal/getopt"
 	"charm.land/snail/coreutils/internal/input"
+	"charm.land/snail/coreutils/internal/patherr"
 )
 
 // Prog is the strings core utility.
@@ -43,7 +43,7 @@ func (p *Prog) Run(ctx context.Context, args ...string) error {
 		}
 		r, err := input.Open(p.Runtime, ctx, input.New(name))
 		if err != nil {
-			p.errorf("%s: %v", name, unwrapPathError(err))
+			p.errorf("%s: %v", name, patherr.Unwrap(err))
 			return &coreutils.ExitError{Code: 1}
 		}
 		data, readErr := io.ReadAll(r)
@@ -52,11 +52,11 @@ func (p *Prog) Run(ctx context.Context, args ...string) error {
 			if ctx.Err() != nil {
 				return ctx.Err()
 			}
-			p.errorf("%s: %v", name, unwrapPathError(readErr))
+			p.errorf("%s: %v", name, patherr.Unwrap(readErr))
 			return &coreutils.ExitError{Code: 1}
 		}
 		if closeErr != nil {
-			p.errorf("%s: %v", name, unwrapPathError(closeErr))
+			p.errorf("%s: %v", name, patherr.Unwrap(closeErr))
 			return &coreutils.ExitError{Code: 1}
 		}
 		if err := p.writeStrings(data, opts); err != nil {
@@ -150,13 +150,6 @@ func formatOffset(offset uint64, format byte) string {
 	default:
 		return strconv.FormatUint(offset, 16)
 	}
-}
-
-func unwrapPathError(err error) error {
-	if pathErr, ok := errors.AsType[*fs.PathError](err); ok {
-		return pathErr.Err
-	}
-	return err
 }
 
 var _ coreutils.Program = (*Prog)(nil)

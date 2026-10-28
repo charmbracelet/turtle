@@ -14,6 +14,7 @@ import (
 
 	"charm.land/snail/coreutils"
 	"charm.land/snail/coreutils/internal/getopt"
+	"charm.land/snail/coreutils/internal/patherr"
 )
 
 // Prog is the mktemp core utility.
@@ -97,7 +98,7 @@ func (p *Prog) create(ctx context.Context, opts options, operands []string) (str
 				if errors.Is(err, fs.ErrExist) {
 					continue
 				}
-				return "", fmt.Errorf("failed to create %s via template '%s': %v", what, name, unwrapPathError(err))
+				return "", fmt.Errorf("failed to create %s via template '%s': %v", what, name, patherr.Unwrap(err))
 			}
 			return name, nil
 		}
@@ -106,7 +107,7 @@ func (p *Prog) create(ctx context.Context, opts options, operands []string) (str
 			if errors.Is(err, fs.ErrExist) {
 				continue
 			}
-			return "", fmt.Errorf("failed to create %s via template '%s': %v", what, name, unwrapPathError(err))
+			return "", fmt.Errorf("failed to create %s via template '%s': %v", what, name, patherr.Unwrap(err))
 		}
 		if err := f.Close(); err != nil {
 			return "", err
@@ -234,15 +235,6 @@ const (
 // errorf writes a diagnostic message to standard error.
 func (p *Prog) errorf(format string, args ...any) {
 	fmt.Fprintf(p.Stderr, "mktemp: "+format+"\n", args...)
-}
-
-// unwrapPathError unwraps *fs.PathError so diagnostics don't repeat the file
-// name.
-func unwrapPathError(err error) error {
-	if pathErr, ok := errors.AsType[*fs.PathError](err); ok {
-		return pathErr.Err
-	}
-	return err
 }
 
 // options holds the flags of mktemp: -d and -u select what to create, -q

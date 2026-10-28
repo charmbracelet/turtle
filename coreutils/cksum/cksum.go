@@ -3,15 +3,14 @@ package cksum
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"io"
-	"io/fs"
 
 	"charm.land/snail/coreutils"
 
 	"charm.land/snail/coreutils/internal/getopt"
 	"charm.land/snail/coreutils/internal/input"
+	"charm.land/snail/coreutils/internal/patherr"
 )
 
 // chunkSize is how many bytes of an input are read at a time, which is also
@@ -54,7 +53,7 @@ func (p *Prog) Run(ctx context.Context, args ...string) error {
 			if ctxErr := ctx.Err(); ctxErr != nil {
 				return ctxErr
 			}
-			p.errorf("%s: %v", name, unwrapPathError(err))
+			p.errorf("%s: %v", name, patherr.Unwrap(err))
 			failed = true
 			continue
 		}
@@ -155,13 +154,6 @@ var crcTable = func() [256]uint32 {
 
 func (p *Prog) errorf(format string, args ...any) {
 	fmt.Fprintf(p.Stderr, "cksum: "+format+"\n", args...)
-}
-
-func unwrapPathError(err error) error {
-	if pathErr, ok := errors.AsType[*fs.PathError](err); ok {
-		return pathErr.Err
-	}
-	return err
 }
 
 var _ coreutils.Program = (*Prog)(nil)

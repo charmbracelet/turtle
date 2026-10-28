@@ -18,6 +18,7 @@ import (
 	"charm.land/snail/coreutils/internal/basex"
 	"charm.land/snail/coreutils/internal/getopt"
 	"charm.land/snail/coreutils/internal/input"
+	"charm.land/snail/coreutils/internal/patherr"
 	"charm.land/snail/coreutils/internal/uux"
 )
 
@@ -65,7 +66,7 @@ func (p *Prog) Run(ctx context.Context, args ...string) error {
 
 	r, mode, err := p.open(in)
 	if err != nil {
-		p.errorf("%s: %v", in.Label(), unwrapPathError(err))
+		p.errorf("%s: %v", in.Label(), patherr.Unwrap(err))
 		return &coreutils.ExitError{Code: 1, Err: err}
 	}
 	defer r.Close()
@@ -81,7 +82,7 @@ func (p *Prog) Run(ctx context.Context, args ...string) error {
 	case err == nil:
 		return nil
 	default:
-		p.errorf("%s: %v", in.Label(), unwrapPathError(err))
+		p.errorf("%s: %v", in.Label(), patherr.Unwrap(err))
 		return &coreutils.ExitError{Code: 1, Err: err}
 	}
 }
@@ -175,15 +176,6 @@ func (w *errWriter) Write(p []byte) (int, error) {
 		w.err = err
 	}
 	return n, err
-}
-
-// unwrapPathError unwraps *fs.PathError so diagnostics don't repeat the file
-// name.
-func unwrapPathError(err error) error {
-	if pathErr, ok := errors.AsType[*fs.PathError](err); ok {
-		return pathErr.Err
-	}
-	return err
 }
 
 var (

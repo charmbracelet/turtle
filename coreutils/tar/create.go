@@ -14,6 +14,7 @@ import (
 	"charm.land/snail/coreutils"
 
 	"charm.land/snail/coreutils/internal/ctxio"
+	"charm.land/snail/coreutils/internal/patherr"
 	"charm.land/snail/fsx"
 )
 
@@ -167,7 +168,7 @@ func (a *archiver) scanEntries(ctx context.Context) (map[string]time.Time, error
 // still a success, like GNU's --ignore-failed-read.
 func (a *archiver) failCreate(name string, err error) {
 	if a.opts.ignoreErrors {
-		a.errorf("%s: %v", name, unwrapPathError(err))
+		a.errorf("%s: %v", name, patherr.Unwrap(err))
 		return
 	}
 	a.fail(name, err)

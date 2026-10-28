@@ -11,7 +11,6 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"io/fs"
 	"path"
 	"path/filepath"
 	"strconv"
@@ -20,6 +19,7 @@ import (
 	"charm.land/snail/coreutils"
 	"charm.land/snail/coreutils/internal/diff"
 	"charm.land/snail/coreutils/internal/getopt"
+	"charm.land/snail/coreutils/internal/patherr"
 )
 
 // Prog is the patch core utility.
@@ -88,7 +88,7 @@ func (p *Prog) Run(ctx context.Context, args ...string) error {
 				return ctx.Err()
 			}
 			if pathErr, ok := errors.AsType[*pathError](err); ok {
-				p.errorf("%s: %v", pathErr.label, unwrapPathError(pathErr.err))
+				p.errorf("%s: %v", pathErr.label, patherr.Unwrap(pathErr.err))
 				return &coreutils.ExitError{Code: 2, Err: pathErr.err}
 			}
 			p.errorf("%v", err)
@@ -106,7 +106,7 @@ func (p *Prog) Run(ctx context.Context, args ...string) error {
 // given label.
 func (p *Prog) failRead(err error, label string) error {
 	if pathErr, ok := errors.AsType[*pathError](err); ok {
-		p.errorf("%s: %v", pathErr.label, unwrapPathError(pathErr.err))
+		p.errorf("%s: %v", pathErr.label, patherr.Unwrap(pathErr.err))
 		return &coreutils.ExitError{Code: 2, Err: pathErr.err}
 	}
 	p.errorf("%v", err)
@@ -287,15 +287,6 @@ func (e *pathError) Error() string {
 // Unwrap implements the interface to make pathError unwrapable.
 func (e *pathError) Unwrap() error {
 	return e.err
-}
-
-// unwrapPathError unwraps *fs.PathError so diagnostics don't repeat the file
-// name.
-func unwrapPathError(err error) error {
-	if pathErr, ok := errors.AsType[*fs.PathError](err); ok {
-		return pathErr.Err
-	}
-	return err
 }
 
 // resolvePath resolves a patch file name to a file system path, under the

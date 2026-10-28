@@ -12,12 +12,12 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"io/fs"
 
 	"charm.land/snail/coreutils"
 
 	"charm.land/snail/coreutils/internal/getopt"
 	"charm.land/snail/coreutils/internal/input"
+	"charm.land/snail/coreutils/internal/patherr"
 )
 
 // Prog is the cmp core utility.
@@ -54,7 +54,7 @@ func (p *Prog) Run(ctx context.Context, args ...string) error {
 		r, err := input.Open(p.Runtime, ctx, input.New(name))
 		if err != nil {
 			if !opts.silent {
-				p.errorf("%s: %v", name, unwrapPathError(err))
+				p.errorf("%s: %v", name, patherr.Unwrap(err))
 			}
 			return &coreutils.ExitError{Code: 2}
 		}
@@ -73,7 +73,7 @@ func (p *Prog) Run(ctx context.Context, args ...string) error {
 		case ctx.Err() != nil:
 			return ctx.Err()
 		case errors.As(err, &readErr):
-			p.errorf("%s: %v", readErr.Label, unwrapPathError(readErr.Err))
+			p.errorf("%s: %v", readErr.Label, patherr.Unwrap(readErr.Err))
 			return &coreutils.ExitError{Code: 2}
 		default:
 			return err
@@ -288,15 +288,6 @@ func (e *writeError) Error() string {
 // Unwrap implements the interface to make writeError unwrapable.
 func (e *writeError) Unwrap() error {
 	return e.err
-}
-
-// unwrapPathError unwraps *fs.PathError so diagnostics don't repeat the file
-// name.
-func unwrapPathError(err error) error {
-	if pathErr, ok := errors.AsType[*fs.PathError](err); ok {
-		return pathErr.Err
-	}
-	return err
 }
 
 var _ coreutils.Program = (*Prog)(nil)
