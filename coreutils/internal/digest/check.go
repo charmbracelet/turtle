@@ -12,6 +12,7 @@ import (
 	"strings"
 
 	"charm.land/snail/coreutils"
+	"charm.land/snail/coreutils/internal/input"
 )
 
 // The format of the checksum lines seen until now. A line without the
@@ -84,7 +85,7 @@ func (c *checker) file(ctx context.Context, name string) (bool, error) {
 		label = "standard input"
 	}
 
-	r, err := openInput(c.rt, name)
+	r, err := input.Open(c.rt, ctx, input.New(name))
 	if err != nil {
 		c.a.errorf(c.rt, "%s: %v", label, unwrapPathError(err))
 		return false, nil
@@ -107,6 +108,9 @@ func (c *checker) lines(ctx context.Context, r io.Reader, label string, stdin bo
 		line, err := br.ReadString('\n')
 		atEOF := errors.Is(err, io.EOF)
 		if err != nil && !atEOF {
+			if ctxErr := ctx.Err(); ctxErr != nil {
+				return ctxErr
+			}
 			c.a.errorf(c.rt, "%s: read error: %v", label, err)
 			return errCheckRead
 		}
@@ -171,7 +175,7 @@ func (c *checker) verifyLine(ctx context.Context, label string, number int, line
 
 // digestOf returns the digest of a file named by a checksum line.
 func (c *checker) digestOf(ctx context.Context, name string) ([]byte, error) {
-	r, err := openInput(c.rt, name)
+	r, err := input.Open(c.rt, ctx, input.New(name))
 	if err != nil {
 		return nil, err
 	}

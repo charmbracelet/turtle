@@ -17,7 +17,6 @@ import (
 	"fmt"
 	"io"
 	"io/fs"
-	"path/filepath"
 	"regexp"
 	"strconv"
 	"strings"
@@ -25,8 +24,8 @@ import (
 	"charm.land/snail/coreutils"
 
 	"charm.land/snail/coreutils/internal/bre"
-	"charm.land/snail/coreutils/internal/ctxio"
 	"charm.land/snail/coreutils/internal/getopt"
+	"charm.land/snail/coreutils/internal/input"
 )
 
 // Prog is the nl core utility.
@@ -55,13 +54,14 @@ func (p *Prog) Run(ctx context.Context, args ...string) error {
 		return &coreutils.ExitError{Code: 1}
 	}
 
-	input := ""
+	name := ""
 	if len(operands) == 1 {
-		input = operands[0]
+		name = operands[0]
 	}
-	r, err := p.open(ctx, input)
+	in := input.Input{Name: name, Stdin: name == "" || name == "-"}
+	r, err := input.Open(p.Runtime, ctx, in)
 	if err != nil {
-		p.errorf("%s: %v", label(input), unwrapPathError(err))
+		p.errorf("%s: %v", in.Label(), unwrapPathError(err))
 		return &coreutils.ExitError{Code: 1}
 	}
 	defer r.Close()
@@ -78,7 +78,7 @@ func (p *Prog) Run(ctx context.Context, args ...string) error {
 			p.errorf("%v", err)
 			return &coreutils.ExitError{Code: 1, Err: err}
 		default:
-			p.errorf("%s: %v", label(input), unwrapPathError(err))
+			p.errorf("%s: %v", in.Label(), unwrapPathError(err))
 			return &coreutils.ExitError{Code: 1, Err: err}
 		}
 	}
@@ -251,25 +251,6 @@ func (n *numberer) printNo() error {
 // errOverflow signals that the line number went past the int64 range.
 var errOverflow = errors.New("line number overflow")
 
-// open returns a reader for the input. Reads stop early when ctx is done. The
-// standard input isn't owned by the caller, so it's wrapped on a no-op closer.
-func (p *Prog) open(ctx context.Context, name string) (io.ReadCloser, error) {
-	if name == "" || name == "-" {
-		if p.Stdin == nil {
-			return nil, errors.New("no standard input available")
-		}
-		return ctxio.NewReader(ctx, p.Stdin), nil
-	}
-	if p.FS == nil {
-		return nil, errors.New("no file system available")
-	}
-	f, err := p.FS.Open(filepath.ToSlash(p.ResolvePath(name)))
-	if err != nil {
-		return nil, err
-	}
-	return ctxio.ReadCloser{Ctx: ctx, RC: f}, nil
-}
-
 // errorf writes a diagnostic message to standard error.
 func (p *Prog) errorf(format string, args ...any) {
 	fmt.Fprintf(p.Stderr, "nl: "+format+"\n", args...)
@@ -407,14 +388,6 @@ func parseNumber(value, what string) (int64, error) {
 		return 0, fmt.Errorf("invalid %s: '%s'", what, value)
 	}
 	return n, nil
-}
-
-// label returns the name to use on diagnostic messages.
-func label(name string) string {
-	if name == "" {
-		return "standard input"
-	}
-	return name
 }
 
 // writeError marks an error as coming from writing to the standard output.

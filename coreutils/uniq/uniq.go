@@ -22,8 +22,8 @@ import (
 
 	"charm.land/snail/coreutils"
 
-	"charm.land/snail/coreutils/internal/ctxio"
 	"charm.land/snail/coreutils/internal/getopt"
+	"charm.land/snail/coreutils/internal/input"
 	"charm.land/snail/coreutils/internal/textutil"
 )
 
@@ -63,9 +63,10 @@ func (p *Prog) Run(ctx context.Context, args ...string) error {
 		return &coreutils.ExitError{Code: 1}
 	}
 
-	r, label, err := p.openInput(ctx, inName)
+	in := input.Input{Name: inName, Stdin: inName == "" || inName == "-"}
+	r, err := input.Open(p.Runtime, ctx, in)
 	if err != nil {
-		p.errorf("%s: %v", label, unwrapPathError(err))
+		p.errorf("%s: %v", in.Label(), unwrapPathError(err))
 		return &coreutils.ExitError{Code: 1}
 	}
 	defer r.Close()
@@ -85,7 +86,7 @@ func (p *Prog) Run(ctx context.Context, args ...string) error {
 		case ctx.Err() != nil:
 			return ctx.Err()
 		default:
-			p.errorf("%s: %v", label, unwrapPathError(err))
+			p.errorf("%s: %v", in.Label(), unwrapPathError(err))
 			return &coreutils.ExitError{Code: 1}
 		}
 	}
@@ -155,25 +156,6 @@ func (p *Prog) writeGroup(out io.Writer, raw []byte, count int, opts options) er
 // with the first opts.fields fields and opts.chars characters skipped.
 func (opts options) key(line []byte) []byte {
 	return textutil.SkipChars(textutil.SkipFields(line, opts.fields), opts.chars)
-}
-
-// openInput returns a reader for the input operand and its label for
-// diagnostics. An empty name or "-" mean the standard input.
-func (p *Prog) openInput(ctx context.Context, name string) (io.ReadCloser, string, error) {
-	if name == "" || name == "-" {
-		if p.Stdin == nil {
-			return nil, "standard input", errors.New("no standard input available")
-		}
-		return ctxio.NewReader(ctx, p.Stdin), "standard input", nil
-	}
-	if p.FS == nil {
-		return nil, name, errors.New("no file system available")
-	}
-	f, err := p.FS.Open(filepath.ToSlash(p.ResolvePath(name)))
-	if err != nil {
-		return nil, name, err
-	}
-	return ctxio.ReadCloser{Ctx: ctx, RC: f}, name, nil
 }
 
 // openOutput returns a writer for the output operand. An empty name or "-"

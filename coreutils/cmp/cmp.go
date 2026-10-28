@@ -13,12 +13,11 @@ import (
 	"fmt"
 	"io"
 	"io/fs"
-	"path/filepath"
 
 	"charm.land/snail/coreutils"
 
-	"charm.land/snail/coreutils/internal/ctxio"
 	"charm.land/snail/coreutils/internal/getopt"
+	"charm.land/snail/coreutils/internal/input"
 )
 
 // Prog is the cmp core utility.
@@ -52,7 +51,7 @@ func (p *Prog) Run(ctx context.Context, args ...string) error {
 
 	var readers [2]io.Reader
 	for i, name := range operands {
-		r, err := p.openInput(ctx, name)
+		r, err := input.Open(p.Runtime, ctx, input.New(name))
 		if err != nil {
 			if !opts.silent {
 				p.errorf("%s: %v", name, unwrapPathError(err))
@@ -66,7 +65,7 @@ func (p *Prog) Run(ctx context.Context, args ...string) error {
 	status, err := p.compare(ctx, readers[0], readers[1], [2]string{operands[0], operands[1]}, opts)
 	if err != nil {
 		var writeErr *writeError
-		var readErr *readError
+		var readErr *input.ReadError
 		switch {
 		case errors.As(err, &writeErr):
 			p.errorf("write error: %v", writeErr.err)
@@ -74,7 +73,7 @@ func (p *Prog) Run(ctx context.Context, args ...string) error {
 		case ctx.Err() != nil:
 			return ctx.Err()
 		case errors.As(err, &readErr):
-			p.errorf("%s: %v", readErr.label, unwrapPathError(readErr.err))
+			p.errorf("%s: %v", readErr.Label, unwrapPathError(readErr.Err))
 			return &coreutils.ExitError{Code: 2}
 		default:
 			return err
@@ -109,11 +108,11 @@ func (p *Prog) compare(ctx context.Context, r1, r2 io.Reader, names [2]string, o
 		}
 		n1, err1 := io.ReadFull(br1, buf1)
 		if err := readErr(err1); err != nil {
-			return 0, &readError{label: names[0], err: err}
+			return 0, &input.ReadError{Label: names[0], Err: err}
 		}
 		n2, err2 := io.ReadFull(br2, buf2)
 		if err := readErr(err2); err != nil {
-			return 0, &readError{label: names[1], err: err}
+			return 0, &input.ReadError{Label: names[1], Err: err}
 		}
 
 		smaller := min(n1, n2)
@@ -200,26 +199,6 @@ func (p *Prog) writeEOF(name string, compared, lineNumber int64, atLineStart boo
 	}
 }
 
-// openInput returns a reader for the given operand. Reads stop early when ctx
-// is done. The standard input isn't owned by the caller, so it's wrapped on a
-// no-op closer.
-func (p *Prog) openInput(ctx context.Context, name string) (io.ReadCloser, error) {
-	if name == "-" {
-		if p.Stdin == nil {
-			return nil, errors.New("no standard input available")
-		}
-		return ctxio.NewReader(ctx, p.Stdin), nil
-	}
-	if p.FS == nil {
-		return nil, errors.New("no file system available")
-	}
-	f, err := p.FS.Open(filepath.ToSlash(p.ResolvePath(name)))
-	if err != nil {
-		return nil, err
-	}
-	return ctxio.ReadCloser{Ctx: ctx, RC: f}, nil
-}
-
 // errorf writes a diagnostic message to standard error.
 func (p *Prog) errorf(format string, args ...any) {
 	fmt.Fprintf(p.Stderr, "cmp: "+format+"\n", args...)
@@ -294,22 +273,6 @@ func firstDiff(b1, b2 []byte) int {
 // countNewlines returns the number of newlines in b.
 func countNewlines(b []byte) int64 {
 	return int64(bytes.Count(b, []byte{'\n'}))
-}
-
-// readError marks an error as coming from reading the input file label.
-type readError struct {
-	label string
-	err   error
-}
-
-// Error implements the error interface.
-func (e *readError) Error() string {
-	return e.err.Error()
-}
-
-// Unwrap implements the interface to make readError unwrapable.
-func (e *readError) Unwrap() error {
-	return e.err
 }
 
 // writeError marks an error as coming from writing to the output.

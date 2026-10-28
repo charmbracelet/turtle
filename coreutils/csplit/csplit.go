@@ -23,8 +23,8 @@ import (
 	"charm.land/snail/coreutils"
 
 	"charm.land/snail/coreutils/internal/bre"
-	"charm.land/snail/coreutils/internal/ctxio"
 	"charm.land/snail/coreutils/internal/getopt"
+	"charm.land/snail/coreutils/internal/input"
 	"charm.land/snail/fsx"
 )
 
@@ -71,7 +71,7 @@ func (p *Prog) Run(ctx context.Context, args ...string) error {
 		return &coreutils.ExitError{Code: 1}
 	}
 
-	r, err := p.openInput(ctx, operands[0])
+	r, err := input.Open(p.Runtime, ctx, input.New(operands[0]))
 	if err != nil {
 		p.errorf("%s: %v", operands[0], unwrapPathError(err))
 		return &coreutils.ExitError{Code: 1}
@@ -367,23 +367,6 @@ func trimNewline(line []byte) []byte {
 		return line[:len(line)-1]
 	}
 	return line
-}
-
-// openInput returns a reader for the given operand. Reads stop early when
-// ctx is done. The standard input isn't owned by the caller, so it's wrapped
-// on a no-op closer.
-func (p *Prog) openInput(ctx context.Context, name string) (io.ReadCloser, error) {
-	if name == "-" {
-		if p.Stdin == nil {
-			return nil, errors.New("no standard input available")
-		}
-		return ctxio.NewReader(ctx, p.Stdin), nil
-	}
-	f, err := p.FS.Open(filepath.ToSlash(p.ResolvePath(name)))
-	if err != nil {
-		return nil, err
-	}
-	return ctxio.ReadCloser{Ctx: ctx, RC: f}, nil
 }
 
 // errorf writes a diagnostic message to standard error.
