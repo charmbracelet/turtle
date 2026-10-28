@@ -21,6 +21,8 @@ import (
 	"strings"
 
 	"charm.land/snail/coreutils"
+
+	"charm.land/snail/coreutils/internal/ctxio"
 	"charm.land/snail/coreutils/internal/getopt"
 	"charm.land/snail/coreutils/internal/textutil"
 )
@@ -162,7 +164,7 @@ func (p *Prog) openInput(ctx context.Context, name string) (io.ReadCloser, strin
 		if p.Stdin == nil {
 			return nil, "standard input", errors.New("no standard input available")
 		}
-		return ctxReadCloser{ctx: ctx, rc: io.NopCloser(p.Stdin)}, "standard input", nil
+		return ctxio.NewReader(ctx, p.Stdin), "standard input", nil
 	}
 	if p.FS == nil {
 		return nil, name, errors.New("no file system available")
@@ -171,7 +173,7 @@ func (p *Prog) openInput(ctx context.Context, name string) (io.ReadCloser, strin
 	if err != nil {
 		return nil, name, err
 	}
-	return ctxReadCloser{ctx: ctx, rc: f}, name, nil
+	return ctxio.ReadCloser{Ctx: ctx, RC: f}, name, nil
 }
 
 // openOutput returns a writer for the output operand. An empty name or "-"
@@ -260,26 +262,6 @@ func parseSkip(s string, what string) (int, error) {
 		return 0, fmt.Errorf("invalid number of %s: '%s'", what, s)
 	}
 	return n, nil
-}
-
-// ctxReadCloser stops read operations with the context error once ctx is
-// done, so long inputs don't delay returning.
-type ctxReadCloser struct {
-	ctx context.Context
-	rc  io.ReadCloser
-}
-
-// Read implements io.Reader.
-func (c ctxReadCloser) Read(p []byte) (int, error) {
-	if err := c.ctx.Err(); err != nil {
-		return 0, err
-	}
-	return c.rc.Read(p)
-}
-
-// Close implements io.Closer.
-func (c ctxReadCloser) Close() error {
-	return c.rc.Close()
 }
 
 // writeError marks an error as coming from writing to the output.

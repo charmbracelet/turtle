@@ -11,6 +11,8 @@ import (
 	"strconv"
 	"strings"
 	"time"
+
+	"charm.land/snail/coreutils/internal/ctxio"
 )
 
 // printer paginates and prints the input files.
@@ -88,7 +90,7 @@ func (p *printer) openSource(ctx context.Context, name string) (*source, error) 
 		if p.prog.Stdin == nil {
 			return nil, errors.New("no standard input available")
 		}
-		src.rc = ctxReadCloser{ctx: ctx, rc: io.NopCloser(p.prog.Stdin)}
+		src.rc = ctxio.NewReader(ctx, p.prog.Stdin)
 	} else {
 		if p.prog.FS == nil {
 			return nil, errors.New("no file system available")
@@ -97,7 +99,7 @@ func (p *printer) openSource(ctx context.Context, name string) (*source, error) 
 		if err != nil {
 			return nil, err
 		}
-		src.rc = ctxReadCloser{ctx: ctx, rc: f}
+		src.rc = ctxio.ReadCloser{Ctx: ctx, RC: f}
 		src.file = f
 	}
 	src.br = bufio.NewReader(src.rc)
@@ -706,24 +708,4 @@ func appendSpaces(line []byte, n int) []byte {
 // spaces returns n blanks.
 func spaces(n int) []byte {
 	return appendSpaces(nil, n)
-}
-
-// ctxReadCloser stops read operations with the context error once ctx is
-// done, so long inputs don't delay returning.
-type ctxReadCloser struct {
-	ctx context.Context
-	rc  io.ReadCloser
-}
-
-// Read implements io.Reader.
-func (c ctxReadCloser) Read(p []byte) (int, error) {
-	if err := c.ctx.Err(); err != nil {
-		return 0, err
-	}
-	return c.rc.Read(p)
-}
-
-// Close implements io.Closer.
-func (c ctxReadCloser) Close() error {
-	return c.rc.Close()
 }

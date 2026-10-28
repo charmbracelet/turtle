@@ -19,6 +19,8 @@ import (
 	"time"
 
 	"charm.land/snail/coreutils"
+
+	"charm.land/snail/coreutils/internal/ctxio"
 	"charm.land/snail/coreutils/internal/getopt"
 	"charm.land/snail/fsx"
 )
@@ -153,7 +155,7 @@ func (p *Prog) copyFile(ctx context.Context, e pair, fi fs.FileInfo, opts option
 		return fmt.Errorf("cannot open '%s': %v", e.srcName, unwrapPathError(err))
 	}
 
-	_, copyErr := io.Copy(out, ctxReader{ctx: ctx, r: in})
+	_, copyErr := io.Copy(out, ctxio.NewReader(ctx, in))
 	inErr := in.Close()
 	outErr := out.Close()
 	switch {
@@ -358,20 +360,6 @@ var errSkipped = errors.New("skipped")
 
 // errFailed marks a hierarchy whose failure was already reported.
 var errFailed = errors.New("failed")
-
-// ctxReader stops read operations with the context error once ctx is done.
-type ctxReader struct {
-	ctx context.Context
-	r   io.Reader
-}
-
-// Read implements io.Reader.
-func (c ctxReader) Read(p []byte) (int, error) {
-	if err := c.ctx.Err(); err != nil {
-		return 0, err
-	}
-	return c.r.Read(p)
-}
 
 // errorf writes a diagnostic message to standard error.
 func (p *Prog) errorf(format string, args ...any) {

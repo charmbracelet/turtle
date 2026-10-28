@@ -20,6 +20,8 @@ import (
 	"strings"
 
 	"charm.land/snail/coreutils"
+
+	"charm.land/snail/coreutils/internal/ctxio"
 	"charm.land/snail/coreutils/internal/getopt"
 	"charm.land/snail/fsx"
 )
@@ -247,13 +249,13 @@ func (p *Prog) openInput(ctx context.Context, name string) (io.ReadCloser, error
 		if p.Stdin == nil {
 			return nil, errors.New("no standard input available")
 		}
-		return ctxReadCloser{ctx: ctx, rc: io.NopCloser(p.Stdin)}, nil
+		return ctxio.NewReader(ctx, p.Stdin), nil
 	}
 	f, err := p.FS.Open(filepath.ToSlash(p.ResolvePath(name)))
 	if err != nil {
 		return nil, err
 	}
-	return ctxReadCloser{ctx: ctx, rc: f}, nil
+	return ctxio.ReadCloser{Ctx: ctx, RC: f}, nil
 }
 
 // errorf writes a diagnostic message to standard error.
@@ -355,26 +357,6 @@ func intPow(base, exp int) int64 {
 // baseName returns the last path element of prefix.
 func baseName(prefix string) string {
 	return path.Base(filepath.ToSlash(prefix))
-}
-
-// ctxReadCloser stops read operations with the context error once ctx is
-// done, so long inputs don't delay returning.
-type ctxReadCloser struct {
-	ctx context.Context
-	rc  io.ReadCloser
-}
-
-// Read implements io.Reader.
-func (c ctxReadCloser) Read(p []byte) (int, error) {
-	if err := c.ctx.Err(); err != nil {
-		return 0, err
-	}
-	return c.rc.Read(p)
-}
-
-// Close implements io.Closer.
-func (c ctxReadCloser) Close() error {
-	return c.rc.Close()
 }
 
 // readError marks an error as coming from reading the input.

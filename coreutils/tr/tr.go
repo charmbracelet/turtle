@@ -18,7 +18,9 @@ import (
 	"unicode/utf8"
 
 	"charm.land/snail/coreutils"
+
 	"charm.land/snail/coreutils/internal/charset"
+	"charm.land/snail/coreutils/internal/ctxio"
 	"charm.land/snail/coreutils/internal/getopt"
 )
 
@@ -74,7 +76,7 @@ func (p *Prog) copy(ctx context.Context, t *translator) error {
 	in := make([]byte, chunkSize)
 	out := make([]byte, 0, chunkSize)
 	var carry []byte
-	r := ctxReader{ctx: ctx, r: p.Stdin}
+	r := ctxio.NewReader(ctx, p.Stdin)
 	for {
 		n, readErr := r.Read(in)
 		if n > 0 {
@@ -462,18 +464,6 @@ func caseConversions(elems1, elems2 []charset.Elem) (map[int]bool, error) {
 var caseComplement = map[string]string{
 	"lower": "upper",
 	"upper": "lower",
-}
-
-type ctxReader struct {
-	ctx context.Context
-	r   io.Reader
-}
-
-func (r ctxReader) Read(p []byte) (int, error) {
-	if err := r.ctx.Err(); err != nil {
-		return 0, err
-	}
-	return r.r.Read(p)
 }
 
 var _ coreutils.Program = (*Prog)(nil)

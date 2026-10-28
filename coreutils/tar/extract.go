@@ -14,6 +14,7 @@ import (
 	"strings"
 	"time"
 
+	"charm.land/snail/coreutils/internal/ctxio"
 	"charm.land/snail/fsx"
 )
 
@@ -144,7 +145,7 @@ func (a *archiver) extractEntry(ctx context.Context, tr *tar.Reader, name string
 		if err != nil {
 			return err
 		}
-		_, copyErr := io.Copy(out, ctxReader{ctx: ctx, r: tr})
+		_, copyErr := io.Copy(out, ctxio.NewReader(ctx, tr))
 		closeErr := out.Close()
 		if copyErr != nil {
 			return copyErr

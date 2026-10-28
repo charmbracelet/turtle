@@ -15,6 +15,8 @@ import (
 	"path/filepath"
 
 	"charm.land/snail/coreutils"
+
+	"charm.land/snail/coreutils/internal/ctxio"
 	"charm.land/snail/coreutils/internal/getopt"
 	"charm.land/snail/fsx"
 )
@@ -75,7 +77,7 @@ func (p *Prog) Run(ctx context.Context, args ...string) error {
 // copy duplicates the standard input to all the given outputs, skipping the
 // ones that already failed.
 func (p *Prog) copy(ctx context.Context, outputs []output) error {
-	in := ctxReader{ctx: ctx, r: p.Stdin}
+	in := ctxio.NewReader(ctx, p.Stdin)
 	buf := make([]byte, 32*1024)
 	ok := true
 	for {
@@ -165,21 +167,6 @@ type output struct {
 	w      io.Writer
 	label  string
 	failed bool
-}
-
-// ctxReader stops read operations with the context error once ctx is done, so
-// long inputs don't delay returning.
-type ctxReader struct {
-	ctx context.Context
-	r   io.Reader
-}
-
-// Read implements io.Reader.
-func (r ctxReader) Read(p []byte) (int, error) {
-	if err := r.ctx.Err(); err != nil {
-		return 0, err
-	}
-	return r.r.Read(p)
 }
 
 // unwrapPathError unwraps *fs.PathError so diagnostics don't repeat the file

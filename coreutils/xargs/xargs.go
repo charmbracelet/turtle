@@ -17,6 +17,8 @@ import (
 	"strings"
 
 	"charm.land/snail/coreutils"
+
+	"charm.land/snail/coreutils/internal/ctxio"
 	"charm.land/snail/coreutils/internal/getopt"
 )
 
@@ -198,7 +200,7 @@ func readLine(r io.Reader) ([]byte, error) {
 // string when it's enabled. Null-delimited input isn't checked for it, as
 // the combination of -0 and -E is unspecified.
 func (p *Prog) readArgs(ctx context.Context, opts options) ([]string, error) {
-	data, err := io.ReadAll(ctxReader{ctx: ctx, r: p.Stdin})
+	data, err := io.ReadAll(ctxio.NewReader(ctx, p.Stdin))
 	if err != nil {
 		return nil, err
 	}
@@ -734,21 +736,6 @@ func escaped(data []byte, i int) bool {
 
 func isBlank(c byte) bool {
 	return c == ' ' || c == '\t'
-}
-
-// ctxReader stops read operations with the context error once ctx is done,
-// so long inputs don't delay returning.
-type ctxReader struct {
-	ctx context.Context
-	r   io.Reader
-}
-
-// Read implements io.Reader.
-func (r ctxReader) Read(p []byte) (int, error) {
-	if err := r.ctx.Err(); err != nil {
-		return 0, err
-	}
-	return r.r.Read(p)
 }
 
 var _ coreutils.Program = (*Prog)(nil)
