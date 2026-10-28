@@ -181,7 +181,9 @@ func run(ctx context.Context, rt *Runtime, path string, args []string) (int, err
 			}
 			return 125, exitErr
 		}
-		if errors.Is(err, fs.ErrNotExist) {
+		// On Windows, a path to a missing utility can fail the extension
+		// lookup with ErrNotFound instead of fs.ErrNotExist.
+		if errors.Is(err, fs.ErrNotExist) || errors.Is(err, exec.ErrNotFound) {
 			return 127, err
 		}
 		return 126, err
