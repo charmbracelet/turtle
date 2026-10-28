@@ -11,12 +11,12 @@ import (
 	"fmt"
 	"io"
 	"io/fs"
-	"path/filepath"
 	"strconv"
 	"strings"
 
 	"charm.land/snail/coreutils"
 	"charm.land/snail/coreutils/internal/getopt"
+	"charm.land/snail/coreutils/internal/input"
 )
 
 // ErrInvalidInput reports input that can't be decoded.
@@ -90,15 +90,18 @@ func (c *Codec) Run(ctx context.Context, rt *coreutils.Runtime, args []string) e
 		return &coreutils.ExitError{Code: 2}
 	}
 
-	in := newInput(operands)
-	if !in.stdin && in.name == "" {
+	in := input.Input{Stdin: true}
+	if len(operands) == 1 {
+		in = input.New(operands[0])
+	}
+	if !in.Stdin && in.Name == "" {
 		c.errorf(rt, "invalid zero-length file name")
 		return &coreutils.ExitError{Code: 1}
 	}
 
-	r, err := c.open(rt, in)
+	r, err := input.Open(rt, ctx, in)
 	if err != nil {
-		c.errorf(rt, "%s: %v", in.label(), unwrapPathError(err))
+		c.errorf(rt, "%s: %v", in.Label(), unwrapPathError(err))
 		return &coreutils.ExitError{Code: 1, Err: err}
 	}
 	defer r.Close()
@@ -121,7 +124,7 @@ func (c *Codec) Run(ctx context.Context, rt *coreutils.Runtime, args []string) e
 			c.errorf(rt, "write error: %v", writeErr.err)
 			return &coreutils.ExitError{Code: 1, Err: writeErr.err}
 		}
-		c.errorf(rt, "%s: %v", in.label(), unwrapPathError(err))
+		c.errorf(rt, "%s: %v", in.Label(), unwrapPathError(err))
 		return &coreutils.ExitError{Code: 1, Err: err}
 	}
 }
@@ -280,20 +283,6 @@ func (c *Codec) errorf(rt *coreutils.Runtime, format string, args ...any) {
 	fmt.Fprintf(rt.Stderr, c.Name+": "+format+"\n", args...)
 }
 
-// open returns a reader for the input.
-func (c *Codec) open(rt *coreutils.Runtime, in input) (io.ReadCloser, error) {
-	if in.stdin {
-		if rt.Stdin == nil {
-			return nil, errors.New("no standard input available")
-		}
-		return io.NopCloser(rt.Stdin), nil
-	}
-	if rt.FS == nil {
-		return nil, errors.New("no file system available")
-	}
-	return rt.FS.Open(filepath.ToSlash(rt.ResolvePath(in.name)))
-}
-
 // options holds what the -d, -i and -w options select.
 type options struct {
 	decode        bool
@@ -352,28 +341,6 @@ func parseWrap(value string) (int, error) {
 		return 0, fmt.Errorf("invalid wrap size: '%s'", value)
 	}
 	return int(wrap), nil
-}
-
-// input describes the input operand: a pathname or the standard input.
-type input struct {
-	name  string
-	stdin bool
-}
-
-// newInput maps the operands to an input, reading "-" as the standard input.
-func newInput(operands []string) input {
-	if len(operands) == 0 {
-		return input{stdin: true}
-	}
-	return input{name: operands[0], stdin: operands[0] == "-"}
-}
-
-// label returns the name to use on diagnostic messages.
-func (in input) label() string {
-	if in.stdin && in.name == "" {
-		return "standard input"
-	}
-	return in.name
 }
 
 // liner writes the encoded output, breaking it into lines of a given amount

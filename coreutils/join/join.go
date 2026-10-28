@@ -14,15 +14,14 @@ import (
 	"fmt"
 	"io"
 	"io/fs"
-	"path/filepath"
 	"strconv"
 	"strings"
 	"unicode/utf8"
 
 	"charm.land/snail/coreutils"
 
-	"charm.land/snail/coreutils/internal/ctxio"
 	"charm.land/snail/coreutils/internal/getopt"
+	"charm.land/snail/coreutils/internal/input"
 	"charm.land/snail/coreutils/internal/textutil"
 )
 
@@ -48,19 +47,19 @@ func (p *Prog) Run(ctx context.Context, args ...string) error {
 		p.errorf("%v", err)
 		return &coreutils.ExitError{Code: 1}
 	}
-	r1, close1, err := p.openInput(ctx, operands[0])
+	r1, err := input.Open(p.Runtime, ctx, input.New(operands[0]))
 	if err != nil {
 		p.errorf("%s: %v", operands[0], unwrapPathError(err))
 		return &coreutils.ExitError{Code: 1}
 	}
-	r2, close2, err := p.openInput(ctx, operands[1])
+	r2, err := input.Open(p.Runtime, ctx, input.New(operands[1]))
 	if err != nil {
-		close1()
+		r1.Close()
 		p.errorf("%s: %v", operands[1], unwrapPathError(err))
 		return &coreutils.ExitError{Code: 1}
 	}
 	err = p.joinFiles(ctx, file{name: operands[0], r: newLineReader(r1)}, file{name: operands[1], r: newLineReader(r2)}, opts)
-	for _, closeErr := range []error{close1(), close2()} {
+	for _, closeErr := range []error{r1.Close(), r2.Close()} {
 		if err == nil {
 			err = closeErr
 		}
@@ -480,23 +479,6 @@ func parseSelector(elem string) (selector, error) {
 		return selector{}, fmt.Errorf("invalid field number in %q", elem)
 	}
 	return selector{file: f, field: n}, nil
-}
-
-func (p *Prog) openInput(ctx context.Context, name string) (io.Reader, func() error, error) {
-	if name == "-" {
-		if p.Stdin == nil {
-			return nil, nil, errors.New("no standard input available")
-		}
-		return ctxio.NewReader(ctx, p.Stdin), func() error { return nil }, nil
-	}
-	if p.FS == nil {
-		return nil, nil, errors.New("no file system available")
-	}
-	f, err := p.FS.Open(filepath.ToSlash(p.ResolvePath(name)))
-	if err != nil {
-		return nil, nil, err
-	}
-	return ctxio.NewReader(ctx, f), f.Close, nil
 }
 
 func (p *Prog) errorf(format string, args ...any) {

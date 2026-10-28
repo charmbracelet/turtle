@@ -13,7 +13,6 @@ import (
 	"fmt"
 	"io"
 	"io/fs"
-	"path/filepath"
 	"sort"
 	"strconv"
 	"strings"
@@ -21,8 +20,8 @@ import (
 
 	"charm.land/snail/coreutils"
 
-	"charm.land/snail/coreutils/internal/ctxio"
 	"charm.land/snail/coreutils/internal/getopt"
+	"charm.land/snail/coreutils/internal/input"
 )
 
 // Prog is the cut core utility.
@@ -47,12 +46,12 @@ func (p *Prog) Run(ctx context.Context, args ...string) error {
 		return &coreutils.ExitError{Code: 2}
 	}
 
-	inputs := make([]input, 0, len(operands))
+	inputs := make([]input.Input, 0, len(operands))
 	for _, operand := range operands {
-		inputs = append(inputs, input{name: operand, stdin: operand == "-"})
+		inputs = append(inputs, input.New(operand))
 	}
 	if len(inputs) == 0 {
-		inputs = append(inputs, input{stdin: true})
+		inputs = append(inputs, input.Input{Stdin: true})
 	}
 
 	ok := true
@@ -60,7 +59,7 @@ func (p *Prog) Run(ctx context.Context, args ...string) error {
 		if err := ctx.Err(); err != nil {
 			return err
 		}
-		if !in.stdin && in.name == "" {
+		if !in.Stdin && in.Name == "" {
 			p.errorf("invalid zero-length file name")
 			ok = false
 			continue
@@ -74,7 +73,7 @@ func (p *Prog) Run(ctx context.Context, args ...string) error {
 			case ctx.Err() != nil:
 				return ctx.Err()
 			default:
-				p.errorf("%s: %v", in.label(), unwrapPathError(err))
+				p.errorf("%s: %v", in.Label(), unwrapPathError(err))
 				ok = false
 			}
 		}
@@ -86,8 +85,8 @@ func (p *Prog) Run(ctx context.Context, args ...string) error {
 }
 
 // cut cuts the selected portions of each line of a single input.
-func (p *Prog) cut(ctx context.Context, in input, opts options) error {
-	r, err := p.open(ctx, in)
+func (p *Prog) cut(ctx context.Context, in input.Input, opts options) error {
+	r, err := input.Open(p.Runtime, ctx, in)
 	if err != nil {
 		return err
 	}
@@ -133,25 +132,6 @@ func (p *Prog) cutLine(line []byte, opts options) error {
 		return &writeError{err: err}
 	}
 	return nil
-}
-
-// open returns a reader for the input. Reads stop early when ctx is done. The
-// standard input isn't owned by the caller, so it's wrapped on a no-op closer.
-func (p *Prog) open(ctx context.Context, in input) (io.ReadCloser, error) {
-	if in.stdin {
-		if p.Stdin == nil {
-			return nil, errors.New("no standard input available")
-		}
-		return ctxio.NewReader(ctx, p.Stdin), nil
-	}
-	if p.FS == nil {
-		return nil, errors.New("no file system available")
-	}
-	f, err := p.FS.Open(filepath.ToSlash(p.ResolvePath(in.name)))
-	if err != nil {
-		return nil, err
-	}
-	return ctxio.ReadCloser{Ctx: ctx, RC: f}, nil
 }
 
 // errorf writes a diagnostic message to standard error.
@@ -445,20 +425,6 @@ func isCharEnd(bounds []int, pos, length int) bool {
 	}
 	i := sort.SearchInts(bounds, pos)
 	return i < len(bounds) && bounds[i] == pos
-}
-
-// input describes an input operand: a pathname or the standard input.
-type input struct {
-	name  string
-	stdin bool
-}
-
-// label returns the name to use on diagnostic messages.
-func (in input) label() string {
-	if in.stdin && in.name == "" {
-		return "standard input"
-	}
-	return in.name
 }
 
 // writeError marks an error as coming from writing to the standard output.

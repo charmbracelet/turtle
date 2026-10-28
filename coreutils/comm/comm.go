@@ -12,13 +12,12 @@ import (
 	"fmt"
 	"io"
 	"io/fs"
-	"path/filepath"
 	"strings"
 
 	"charm.land/snail/coreutils"
 
-	"charm.land/snail/coreutils/internal/ctxio"
 	"charm.land/snail/coreutils/internal/getopt"
+	"charm.land/snail/coreutils/internal/input"
 )
 
 // Prog is the comm core utility.
@@ -51,7 +50,7 @@ func (p *Prog) Run(ctx context.Context, args ...string) error {
 		return &coreutils.ExitError{Code: 2}
 	}
 
-	var ins [2]*input
+	var ins [2]*file
 	for i, name := range operands {
 		in, err := p.openInput(ctx, name)
 		if err != nil {
@@ -64,7 +63,7 @@ func (p *Prog) Run(ctx context.Context, args ...string) error {
 
 	if err := p.comm(ctx, ins[0], ins[1], p.Stdout, opts); err != nil {
 		var writeErr *writeError
-		var readErr *readError
+		var readErr *input.ReadError
 		switch {
 		case errors.As(err, &writeErr):
 			p.errorf("write error: %v", writeErr.err)
@@ -72,7 +71,7 @@ func (p *Prog) Run(ctx context.Context, args ...string) error {
 		case ctx.Err() != nil:
 			return ctx.Err()
 		case errors.As(err, &readErr):
-			p.errorf("%s: %v", readErr.label, unwrapPathError(readErr.err))
+			p.errorf("%s: %v", readErr.Label, unwrapPathError(readErr.Err))
 			return &coreutils.ExitError{Code: 1}
 		default:
 			return err
@@ -83,7 +82,7 @@ func (p *Prog) Run(ctx context.Context, args ...string) error {
 
 // comm merges the lines of both inputs, writing the columns the options
 // select to out.
-func (p *Prog) comm(ctx context.Context, in1, in2 *input, out io.Writer, opts options) error {
+func (p *Prog) comm(ctx context.Context, in1, in2 *file, out io.Writer, opts options) error {
 	line1, ok1, err := in1.next()
 	if err != nil {
 		return err
@@ -167,8 +166,8 @@ func (p *Prog) writeLine(out io.Writer, line string, column int, opts options) e
 	return nil
 }
 
-// input is a line-oriented input file with its label for diagnostics.
-type input struct {
+// file is a line-oriented input file with its label for diagnostics.
+type file struct {
 	io.Closer
 	reader *bufio.Reader
 	label  string
@@ -176,7 +175,7 @@ type input struct {
 
 // next reads the next line, keeping its trailing newline when it has one. It
 // reports false once the input is exhausted.
-func (in *input) next() (string, bool, error) {
+func (in *file) next() (string, bool, error) {
 	line, err := in.reader.ReadString('\n')
 	switch {
 	case err == nil:
@@ -186,30 +185,19 @@ func (in *input) next() (string, bool, error) {
 	case errors.Is(err, io.EOF):
 		return "", false, nil
 	default:
-		return "", false, &readError{label: in.label, err: err}
+		return "", false, &input.ReadError{Label: in.label, Err: err}
 	}
 }
 
 // openInput returns an input for the given operand. Reads stop early when ctx
 // is done. The standard input isn't owned by the caller, so it's wrapped on a
 // no-op closer.
-func (p *Prog) openInput(ctx context.Context, name string) (*input, error) {
-	if name == "-" {
-		if p.Stdin == nil {
-			return nil, errors.New("no standard input available")
-		}
-		rc := ctxio.NewReader(ctx, p.Stdin)
-		return &input{Closer: rc, reader: bufio.NewReader(rc), label: name}, nil
-	}
-	if p.FS == nil {
-		return nil, errors.New("no file system available")
-	}
-	f, err := p.FS.Open(filepath.ToSlash(p.ResolvePath(name)))
+func (p *Prog) openInput(ctx context.Context, name string) (*file, error) {
+	rc, err := input.Open(p.Runtime, ctx, input.Input{Name: name, Stdin: name == "-"})
 	if err != nil {
 		return nil, err
 	}
-	rc := ctxio.ReadCloser{Ctx: ctx, RC: f}
-	return &input{Closer: rc, reader: bufio.NewReader(rc), label: name}, nil
+	return &file{Closer: rc, reader: bufio.NewReader(rc), label: name}, nil
 }
 
 // errorf writes a diagnostic message to standard error.
@@ -245,22 +233,6 @@ func parseFlags(args []string) (options, []string, error) {
 		return options{}, nil, err
 	}
 	return opts, operands, nil
-}
-
-// readError marks an error as coming from reading the input file label.
-type readError struct {
-	label string
-	err   error
-}
-
-// Error implements the error interface.
-func (e *readError) Error() string {
-	return e.err.Error()
-}
-
-// Unwrap implements the interface to make readError unwrapable.
-func (e *readError) Unwrap() error {
-	return e.err
 }
 
 // writeError marks an error as coming from writing to the output.

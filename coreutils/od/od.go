@@ -9,14 +9,13 @@ import (
 	"io"
 	"io/fs"
 	"math"
-	"path/filepath"
 	"strconv"
 	"strings"
 
 	"charm.land/snail/coreutils"
 
-	"charm.land/snail/coreutils/internal/ctxio"
 	"charm.land/snail/coreutils/internal/getopt"
+	"charm.land/snail/coreutils/internal/input"
 )
 
 // Prog is the od core utility.
@@ -44,13 +43,13 @@ func (p *Prog) Run(ctx context.Context, args ...string) error {
 		if err := ctx.Err(); err != nil {
 			return err
 		}
-		r, closeFn, err := p.openInput(ctx, name)
+		r, err := input.Open(p.Runtime, ctx, input.New(name))
 		if err != nil {
 			p.errorf("%s: %v", name, unwrapPathError(err))
 			return &coreutils.ExitError{Code: 1}
 		}
 		part, readErr := io.ReadAll(r)
-		closeErr := closeFn()
+		closeErr := r.Close()
 		if readErr != nil {
 			if ctx.Err() != nil {
 				return ctx.Err()
@@ -226,23 +225,6 @@ func namedCharacter(b byte) string {
 		return "del"
 	}
 	return string(b)
-}
-
-func (p *Prog) openInput(ctx context.Context, name string) (io.Reader, func() error, error) {
-	if name == "-" {
-		if p.Stdin == nil {
-			return nil, nil, errors.New("no standard input available")
-		}
-		return ctxio.NewReader(ctx, p.Stdin), func() error { return nil }, nil
-	}
-	if p.FS == nil {
-		return nil, nil, errors.New("no file system available")
-	}
-	f, err := p.FS.Open(filepath.ToSlash(p.ResolvePath(name)))
-	if err != nil {
-		return nil, nil, err
-	}
-	return ctxio.NewReader(ctx, f), f.Close, nil
 }
 
 func (p *Prog) errorf(format string, args ...any) {

@@ -17,15 +17,14 @@ import (
 	"fmt"
 	"io"
 	"io/fs"
-	"path/filepath"
 	"strconv"
 	"strings"
 	"unicode/utf8"
 
 	"charm.land/snail/coreutils"
 
-	"charm.land/snail/coreutils/internal/ctxio"
 	"charm.land/snail/coreutils/internal/getopt"
+	"charm.land/snail/coreutils/internal/input"
 )
 
 // Prog is the wc core utility.
@@ -53,12 +52,12 @@ func (p *Prog) Run(ctx context.Context, args ...string) error {
 		opts = options{lines: true, words: true, bytes: true}
 	}
 
-	inputs := make([]input, 0, len(operands))
+	inputs := make([]input.Input, 0, len(operands))
 	for _, operand := range operands {
-		inputs = append(inputs, newInput(operand))
+		inputs = append(inputs, input.New(operand))
 	}
 	if len(inputs) == 0 {
-		inputs = append(inputs, input{stdin: true})
+		inputs = append(inputs, input.Input{Stdin: true})
 	}
 
 	var total counts
@@ -67,7 +66,7 @@ func (p *Prog) Run(ctx context.Context, args ...string) error {
 		if err := ctx.Err(); err != nil {
 			return err
 		}
-		if !in.stdin && in.name == "" {
+		if !in.Stdin && in.Name == "" {
 			p.errorf("invalid zero-length file name")
 			ok = false
 			continue
@@ -77,11 +76,11 @@ func (p *Prog) Run(ctx context.Context, args ...string) error {
 			if ctxErr := ctx.Err(); ctxErr != nil {
 				return ctxErr
 			}
-			p.errorf("%s: %v", in.label(), unwrapPathError(err))
+			p.errorf("%s: %v", in.Label(), unwrapPathError(err))
 			ok = false
 			continue
 		}
-		if err := p.write(got, in.name, opts); err != nil {
+		if err := p.write(got, in.Name, opts); err != nil {
 			return err
 		}
 		total.add(got)
@@ -98,8 +97,8 @@ func (p *Prog) Run(ctx context.Context, args ...string) error {
 }
 
 // count reads in and returns its counts.
-func (p *Prog) count(ctx context.Context, in input, opts options) (counts, error) {
-	r, err := p.open(ctx, in)
+func (p *Prog) count(ctx context.Context, in input.Input, opts options) (counts, error) {
+	r, err := input.Open(p.Runtime, ctx, in)
 	if err != nil {
 		return counts{}, err
 	}
@@ -112,25 +111,6 @@ func (p *Prog) count(ctx context.Context, in input, opts options) (counts, error
 		err = countBytes(r, &c)
 	}
 	return c, err
-}
-
-// open returns a reader for the input. Reads stop early when ctx is done. The
-// standard input isn't owned by the caller, so it's wrapped on a no-op closer.
-func (p *Prog) open(ctx context.Context, in input) (io.ReadCloser, error) {
-	if in.stdin {
-		if p.Stdin == nil {
-			return nil, errors.New("no standard input available")
-		}
-		return ctxio.NewReader(ctx, p.Stdin), nil
-	}
-	if p.FS == nil {
-		return nil, errors.New("no file system available")
-	}
-	f, err := p.FS.Open(filepath.ToSlash(p.ResolvePath(in.name)))
-	if err != nil {
-		return nil, err
-	}
-	return ctxio.ReadCloser{Ctx: ctx, RC: f}, nil
 }
 
 // write writes a line with the requested counts, followed by name when it's
@@ -210,25 +190,6 @@ func parseFlags(args []string) (options, []string, error) {
 		opts.bytes = false
 	}
 	return opts, operands, nil
-}
-
-// input describes an input operand: a pathname or the standard input.
-type input struct {
-	name  string
-	stdin bool
-}
-
-// newInput maps an operand to an input, reading "-" as the standard input.
-func newInput(operand string) input {
-	return input{name: operand, stdin: operand == "-"}
-}
-
-// label returns the name to use on diagnostic messages.
-func (in input) label() string {
-	if in.stdin && in.name == "" {
-		return "standard input"
-	}
-	return in.name
 }
 
 // options holds which counts the -c, -l, -m and -w options select.

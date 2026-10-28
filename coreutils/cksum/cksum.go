@@ -7,12 +7,11 @@ import (
 	"fmt"
 	"io"
 	"io/fs"
-	"path/filepath"
 
 	"charm.land/snail/coreutils"
 
-	"charm.land/snail/coreutils/internal/ctxio"
 	"charm.land/snail/coreutils/internal/getopt"
+	"charm.land/snail/coreutils/internal/input"
 )
 
 // chunkSize is how many bytes of an input are read at a time, which is also
@@ -77,12 +76,12 @@ func (p *Prog) Run(ctx context.Context, args ...string) error {
 // checksum returns the checksum and size of the file, reading it in chunks
 // so that the context is checked while it runs.
 func (p *Prog) checksum(ctx context.Context, name string) (uint32, int64, error) {
-	r, closeFn, err := p.openInput(ctx, name)
+	r, err := input.Open(p.Runtime, ctx, input.New(name))
 	if err != nil {
 		return 0, 0, err
 	}
 	sum, size, err := p.hash(ctx, r)
-	if closeErr := closeFn(); err == nil {
+	if closeErr := r.Close(); err == nil {
 		err = closeErr
 	}
 	if err != nil {
@@ -153,23 +152,6 @@ var crcTable = func() [256]uint32 {
 	}
 	return table
 }()
-
-func (p *Prog) openInput(ctx context.Context, name string) (io.Reader, func() error, error) {
-	if name == "-" {
-		if p.Stdin == nil {
-			return nil, nil, errors.New("no standard input available")
-		}
-		return ctxio.NewReader(ctx, p.Stdin), func() error { return nil }, nil
-	}
-	if p.FS == nil {
-		return nil, nil, errors.New("no file system available")
-	}
-	f, err := p.FS.Open(filepath.ToSlash(p.ResolvePath(name)))
-	if err != nil {
-		return nil, nil, err
-	}
-	return ctxio.NewReader(ctx, f), f.Close, nil
-}
 
 func (p *Prog) errorf(format string, args ...any) {
 	fmt.Fprintf(p.Stderr, "cksum: "+format+"\n", args...)

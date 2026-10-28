@@ -24,6 +24,7 @@ import (
 
 	"charm.land/snail/coreutils/internal/ctxio"
 	"charm.land/snail/coreutils/internal/getopt"
+	"charm.land/snail/coreutils/internal/input"
 	"charm.land/snail/fsx"
 )
 
@@ -58,15 +59,15 @@ func (p *Prog) Run(ctx context.Context, args ...string) error {
 		return &coreutils.ExitError{Code: 2}
 	}
 
-	var in input
+	var in input.Input
 	if len(operands) == 1 {
-		in = newInput(operands[0])
-		if !in.stdin && in.name == "" {
+		in = input.New(operands[0])
+		if !in.Stdin && in.Name == "" {
 			p.errorf("invalid zero-length file name")
 			return &coreutils.ExitError{Code: 1}
 		}
 	} else {
-		in = input{stdin: true}
+		in = input.Input{Stdin: true}
 	}
 
 	if err := p.tail(ctx, in, opts); err != nil {
@@ -78,7 +79,7 @@ func (p *Prog) Run(ctx context.Context, args ...string) error {
 		case ctx.Err() != nil:
 			return ctx.Err()
 		default:
-			p.errorf("%s: %v", in.label(), unwrapPathError(err))
+			p.errorf("%s: %v", in.Label(), unwrapPathError(err))
 			return &coreutils.ExitError{Code: 1, Err: err}
 		}
 	}
@@ -86,7 +87,7 @@ func (p *Prog) Run(ctx context.Context, args ...string) error {
 }
 
 // tail copies the designated part of the input and follows it with -f.
-func (p *Prog) tail(ctx context.Context, in input, opts options) error {
+func (p *Prog) tail(ctx context.Context, in input.Input, opts options) error {
 	rc, f, err := p.open(in)
 	if err != nil {
 		return err
@@ -276,8 +277,8 @@ func (p *Prog) writeLines(lines [][]byte) error {
 
 // open returns a reader for the input, along with the file when it's
 // seekable: reading from the end then avoids buffering the whole input.
-func (p *Prog) open(in input) (io.ReadCloser, fsx.SeekFile, error) {
-	if in.stdin {
+func (p *Prog) open(in input.Input) (io.ReadCloser, fsx.SeekFile, error) {
+	if in.Stdin {
 		if p.Stdin == nil {
 			return nil, nil, errors.New("no standard input available")
 		}
@@ -286,7 +287,7 @@ func (p *Prog) open(in input) (io.ReadCloser, fsx.SeekFile, error) {
 	if p.FS == nil {
 		return nil, nil, errors.New("no file system available")
 	}
-	f, err := p.FS.Open(filepath.ToSlash(p.ResolvePath(in.name)))
+	f, err := p.FS.Open(filepath.ToSlash(p.ResolvePath(in.Name)))
 	if err != nil {
 		return nil, nil, err
 	}
@@ -514,25 +515,6 @@ type options struct {
 	countSet  bool // -c or -n given
 	fromStart bool // '+' sign: count from the beginning
 	count     int
-}
-
-// input describes an input operand: a pathname or the standard input.
-type input struct {
-	name  string
-	stdin bool
-}
-
-// newInput maps an operand to an input, reading "-" as the standard input.
-func newInput(operand string) input {
-	return input{name: operand, stdin: operand == "-"}
-}
-
-// label returns the name to use on diagnostic messages.
-func (in input) label() string {
-	if in.stdin && in.name == "" {
-		return "standard input"
-	}
-	return in.name
 }
 
 // writeError marks an error as coming from writing to the standard output.

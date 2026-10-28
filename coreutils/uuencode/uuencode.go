@@ -17,6 +17,7 @@ import (
 	"charm.land/snail/coreutils"
 	"charm.land/snail/coreutils/internal/basex"
 	"charm.land/snail/coreutils/internal/getopt"
+	"charm.land/snail/coreutils/internal/input"
 	"charm.land/snail/coreutils/internal/uux"
 )
 
@@ -53,18 +54,18 @@ func (p *Prog) Run(ctx context.Context, args ...string) error {
 	}
 
 	name := operands[len(operands)-1]
-	in := input{stdin: true}
+	in := input.Input{Stdin: true}
 	if len(operands) == 2 {
-		in = newInput(operands[0])
+		in = input.New(operands[0])
 	}
-	if !in.stdin && in.name == "" {
+	if !in.Stdin && in.Name == "" {
 		p.errorf("invalid zero-length file name")
 		return &coreutils.ExitError{Code: 1}
 	}
 
 	r, mode, err := p.open(in)
 	if err != nil {
-		p.errorf("%s: %v", in.label(), unwrapPathError(err))
+		p.errorf("%s: %v", in.Label(), unwrapPathError(err))
 		return &coreutils.ExitError{Code: 1, Err: err}
 	}
 	defer r.Close()
@@ -80,7 +81,7 @@ func (p *Prog) Run(ctx context.Context, args ...string) error {
 	case err == nil:
 		return nil
 	default:
-		p.errorf("%s: %v", in.label(), unwrapPathError(err))
+		p.errorf("%s: %v", in.Label(), unwrapPathError(err))
 		return &coreutils.ExitError{Code: 1, Err: err}
 	}
 }
@@ -111,8 +112,8 @@ func (p *Prog) encode(ctx context.Context, r io.Reader, w io.Writer, mode fs.Fil
 // open returns a reader for the input, with the mode the header announces:
 // the permission bits of a file, or the default creation mode for the
 // standard input.
-func (p *Prog) open(in input) (io.ReadCloser, fs.FileMode, error) {
-	if in.stdin {
+func (p *Prog) open(in input.Input) (io.ReadCloser, fs.FileMode, error) {
+	if in.Stdin {
 		if p.Stdin == nil {
 			return nil, 0, errors.New("no standard input available")
 		}
@@ -121,7 +122,7 @@ func (p *Prog) open(in input) (io.ReadCloser, fs.FileMode, error) {
 	if p.FS == nil {
 		return nil, 0, errors.New("no file system available")
 	}
-	f, err := p.FS.Open(filepath.ToSlash(p.ResolvePath(in.name)))
+	f, err := p.FS.Open(filepath.ToSlash(p.ResolvePath(in.Name)))
 	if err != nil {
 		return nil, 0, err
 	}
@@ -158,25 +159,6 @@ func parseFlags(args []string) (base64 bool, operands []string, err error) {
 		return false, nil, err
 	}
 	return base64, operands, nil
-}
-
-// input describes the file operand: a pathname or the standard input.
-type input struct {
-	name  string
-	stdin bool
-}
-
-// newInput maps an operand to an input, reading "-" as the standard input.
-func newInput(operand string) input {
-	return input{name: operand, stdin: operand == "-"}
-}
-
-// label returns the name to use on diagnostic messages.
-func (in input) label() string {
-	if in.stdin && in.name == "" {
-		return "standard input"
-	}
-	return in.name
 }
 
 // errWriter records the first write error, so a read error isn't mistaken

@@ -21,6 +21,7 @@ import (
 	"charm.land/snail/coreutils/chmod"
 	"charm.land/snail/coreutils/internal/basex"
 	"charm.land/snail/coreutils/internal/getopt"
+	"charm.land/snail/coreutils/internal/input"
 	"charm.land/snail/coreutils/internal/uux"
 )
 
@@ -51,14 +52,17 @@ func (p *Prog) Run(ctx context.Context, args ...string) error {
 		return &coreutils.ExitError{Code: 2}
 	}
 
-	in := newInput(operands)
-	if !in.stdin && in.name == "" {
+	in := input.Input{Stdin: true}
+	if len(operands) == 1 {
+		in = input.New(operands[0])
+	}
+	if !in.Stdin && in.Name == "" {
 		p.errorf("invalid zero-length file name")
 		return &coreutils.ExitError{Code: 1}
 	}
-	r, err := p.open(in)
+	r, err := input.Open(p.Runtime, ctx, in)
 	if err != nil {
-		p.errorf("%s: %v", in.label(), unwrapPathError(err))
+		p.errorf("%s: %v", in.Label(), unwrapPathError(err))
 		return &coreutils.ExitError{Code: 1, Err: err}
 	}
 	defer r.Close()
@@ -68,23 +72,23 @@ func (p *Prog) Run(ctx context.Context, args ...string) error {
 
 // decode scans the input for an uuencode output and recreates the file it
 // holds. A nil outfile means -o wasn't given, and the header names the file.
-func (p *Prog) decode(ctx context.Context, br *bufio.Reader, in input, outfile *string) error {
+func (p *Prog) decode(ctx context.Context, br *bufio.Reader, in input.Input, outfile *string) error {
 	header, err := scanHeader(ctx, br)
 	switch {
 	case err == nil:
 	case errors.Is(err, errNoBegin):
-		p.errorf("%s: no 'begin' line", in.label())
+		p.errorf("%s: no 'begin' line", in.Label())
 		return &coreutils.ExitError{Code: 1, Err: err}
 	case ctx.Err() != nil:
 		return ctx.Err()
 	default:
-		p.errorf("%s: %v", in.label(), unwrapPathError(err))
+		p.errorf("%s: %v", in.Label(), unwrapPathError(err))
 		return &coreutils.ExitError{Code: 1, Err: err}
 	}
 
 	spec, err := chmod.ParseMode(header.Mode)
 	if err != nil {
-		p.errorf("%s: %v", in.label(), err)
+		p.errorf("%s: %v", in.Label(), err)
 		return &coreutils.ExitError{Code: 1, Err: err}
 	}
 	mode := spec(0, false, 0)
@@ -116,10 +120,10 @@ func (p *Prog) decode(ctx context.Context, br *bufio.Reader, in input, outfile *
 	case ctx.Err() != nil:
 		return ctx.Err()
 	case errors.Is(err, errInvalidInput), errors.Is(err, basex.ErrInvalidInput), errors.Is(err, io.ErrUnexpectedEOF):
-		p.errorf("%s: invalid input", in.label())
+		p.errorf("%s: invalid input", in.Label())
 		return &coreutils.ExitError{Code: 1}
 	default:
-		p.errorf("%s: %v", in.label(), unwrapPathError(err))
+		p.errorf("%s: %v", in.Label(), unwrapPathError(err))
 		return &coreutils.ExitError{Code: 1, Err: err}
 	}
 }
@@ -213,20 +217,6 @@ func (p *Prog) output(name string, mode fs.FileMode) (*errWriter, func() error, 
 	return &errWriter{w: f}, done, nil
 }
 
-// open returns a reader for the input.
-func (p *Prog) open(in input) (io.ReadCloser, error) {
-	if in.stdin {
-		if p.Stdin == nil {
-			return nil, errors.New("no standard input available")
-		}
-		return io.NopCloser(p.Stdin), nil
-	}
-	if p.FS == nil {
-		return nil, errors.New("no file system available")
-	}
-	return p.FS.Open(filepath.ToSlash(p.ResolvePath(in.name)))
-}
-
 // errorf writes a diagnostic message to the standard error.
 func (p *Prog) errorf(format string, args ...any) {
 	fmt.Fprintf(p.Stderr, "uudecode: "+format+"\n", args...)
@@ -298,28 +288,6 @@ func parseFlags(args []string) (outfile *string, operands []string, err error) {
 		return nil, nil, err
 	}
 	return outfile, operands, nil
-}
-
-// input describes the input operand: a pathname or the standard input.
-type input struct {
-	name  string
-	stdin bool
-}
-
-// newInput maps the operands to an input, reading "-" as the standard input.
-func newInput(operands []string) input {
-	if len(operands) == 0 {
-		return input{stdin: true}
-	}
-	return input{name: operands[0], stdin: operands[0] == "-"}
-}
-
-// label returns the name to use on diagnostic messages.
-func (in input) label() string {
-	if in.stdin && in.name == "" {
-		return "standard input"
-	}
-	return in.name
 }
 
 // errWriter records the first write error, so a read error isn't mistaken

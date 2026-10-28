@@ -21,8 +21,8 @@ import (
 
 	"charm.land/snail/coreutils"
 
-	"charm.land/snail/coreutils/internal/ctxio"
 	"charm.land/snail/coreutils/internal/getopt"
+	"charm.land/snail/coreutils/internal/input"
 	"charm.land/snail/fsx"
 )
 
@@ -50,10 +50,10 @@ func (p *Prog) Run(ctx context.Context, args ...string) error {
 		p.errorf("extra operand '%s'", operands[2])
 		return &coreutils.ExitError{Code: 2}
 	}
-	input := "-"
+	name := "-"
 	prefix := "x"
 	if len(operands) >= 1 {
-		input = operands[0]
+		name = operands[0]
 	}
 	if len(operands) == 2 {
 		prefix = operands[1]
@@ -68,9 +68,9 @@ func (p *Prog) Run(ctx context.Context, args ...string) error {
 		return &coreutils.ExitError{Code: 1}
 	}
 
-	r, err := p.openInput(ctx, input)
+	r, err := input.Open(p.Runtime, ctx, input.New(name))
 	if err != nil {
-		p.errorf("%s: %v", input, unwrapPathError(err))
+		p.errorf("%s: %v", name, unwrapPathError(err))
 		return &coreutils.ExitError{Code: 1}
 	}
 	defer r.Close()
@@ -91,7 +91,7 @@ func (p *Prog) Run(ctx context.Context, args ...string) error {
 		case errors.As(err, &writeErr):
 			p.errorf("%s: %v", writeErr.name, unwrapPathError(writeErr.err))
 		case errors.As(err, &readErr):
-			p.errorf("%s: %v", input, unwrapPathError(readErr.err))
+			p.errorf("%s: %v", name, unwrapPathError(readErr.err))
 		default:
 			p.errorf("%v", err)
 		}
@@ -239,23 +239,6 @@ func splitBytes(ctx context.Context, r io.Reader, w *pieceWriter, n int64) error
 		}
 	}
 	return w.close()
-}
-
-// openInput returns a reader for the given operand. Reads stop early when
-// ctx is done. The standard input isn't owned by the caller, so it's wrapped
-// on a no-op closer.
-func (p *Prog) openInput(ctx context.Context, name string) (io.ReadCloser, error) {
-	if name == "-" {
-		if p.Stdin == nil {
-			return nil, errors.New("no standard input available")
-		}
-		return ctxio.NewReader(ctx, p.Stdin), nil
-	}
-	f, err := p.FS.Open(filepath.ToSlash(p.ResolvePath(name)))
-	if err != nil {
-		return nil, err
-	}
-	return ctxio.ReadCloser{Ctx: ctx, RC: f}, nil
 }
 
 // errorf writes a diagnostic message to standard error.

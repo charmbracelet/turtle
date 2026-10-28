@@ -15,11 +15,11 @@ import (
 	"hash"
 	"io"
 	"io/fs"
-	"path/filepath"
 	"strings"
 
 	"charm.land/snail/coreutils"
 	"charm.land/snail/coreutils/internal/getopt"
+	"charm.land/snail/coreutils/internal/input"
 )
 
 // Algorithm is a checksum algorithm, as implemented by a {prog}sum utility.
@@ -69,7 +69,7 @@ func (a Algorithm) Run(ctx context.Context, rt *coreutils.Runtime, args []string
 func (a Algorithm) digests(ctx context.Context, rt *coreutils.Runtime, opts options, operands []string) error {
 	var failed bool
 	for _, name := range operands {
-		r, err := openInput(rt, name)
+		r, err := input.Open(rt, ctx, input.New(name))
 		if err != nil {
 			a.report(rt, name, err)
 			failed = true
@@ -180,21 +180,6 @@ var nameEscaper = strings.NewReplacer(`\`, `\\`, "\n", `\n`, "\r", `\r`)
 // be escaped for the lines it appears in to be parsed back.
 func problematicChars(s string) bool {
 	return strings.ContainsAny(s, "\\\n\r")
-}
-
-// openInput returns a reader for an operand, which is either a pathname or
-// "-" for the standard input.
-func openInput(rt *coreutils.Runtime, name string) (io.ReadCloser, error) {
-	if name == "-" {
-		if rt.Stdin == nil {
-			return nil, errors.New("no standard input available")
-		}
-		return io.NopCloser(rt.Stdin), nil
-	}
-	if rt.FS == nil {
-		return nil, errors.New("no file system available")
-	}
-	return rt.FS.Open(filepath.ToSlash(rt.ResolvePath(name)))
 }
 
 // unwrapPathError unwraps *fs.PathError so diagnostics don't repeat the file
