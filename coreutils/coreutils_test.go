@@ -4,6 +4,8 @@ import (
 	"context"
 	"errors"
 	"os"
+	"path/filepath"
+	"runtime"
 	"testing"
 	"time"
 )
@@ -43,6 +45,216 @@ func TestExitError(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestOsExec(t *testing.T) {
+	t.Run("runtime without a lookup function", func(t *testing.T) {
+		rt := &Runtime{}
+		status, err := osExec(t.Context(), rt, "definitely-not-a-utility", nil)
+		if status != 127 {
+			t.Errorf("status = %d, want 127", status)
+		}
+		if err == nil {
+			t.Error("error = nil, want an error")
+		}
+	})
+
+	t.Run("utility not found", func(t *testing.T) {
+		rt := OsRuntime()
+		status, err := osExec(t.Context(), rt, "definitely-not-a-utility", nil)
+		if status != 127 {
+			t.Errorf("status = %d, want 127", status)
+		}
+		if err == nil {
+			t.Error("error = nil, want an error")
+		}
+	})
+
+	t.Run("executable text file without a shebang", func(t *testing.T) {
+		if runtime.GOOS == "windows" {
+			t.Skip("needs the command interpreter fallback")
+		}
+		dir := t.TempDir()
+		path := filepath.Join(dir, "myutil")
+		if err := os.WriteFile(path, []byte("exit 3\n"), 0o755); err != nil {
+			t.Fatal(err)
+		}
+		rt := OsRuntime()
+		rt.LookupEnv = func(key string) (string, bool) {
+			if key == "PATH" {
+				return dir, true
+			}
+			return os.LookupEnv(key)
+		}
+		if status, err := osExec(t.Context(), rt, "myutil", nil); err != nil || status != 3 {
+			t.Errorf("osExec() = %d, %v, want 3, nil", status, err)
+		}
+	})
+
+	t.Run("utility named by a path that doesn't exist", func(t *testing.T) {
+		rt := OsRuntime()
+		status, err := osExec(t.Context(), rt, "./definitely-not-a-utility", nil)
+		if status != 127 {
+			t.Errorf("status = %d, want 127", status)
+		}
+		if err == nil {
+			t.Error("error = nil, want an error")
+		}
+	})
+
+	t.Run("uses the PATH of the runtime", func(t *testing.T) {
+		if runtime.GOOS == "windows" {
+			t.Skip("needs the executable permission bits")
+		}
+		dir := t.TempDir()
+		path := filepath.Join(dir, "myutil")
+		if err := os.WriteFile(path, []byte("#!/bin/sh\nexit 0\n"), 0o755); err != nil {
+			t.Fatal(err)
+		}
+		rt := OsRuntime()
+		rt.LookupEnv = func(key string) (string, bool) {
+			if key == "PATH" {
+				return dir, true
+			}
+			return os.LookupEnv(key)
+		}
+		if status, err := osExec(t.Context(), rt, "myutil", nil); err != nil || status != 0 {
+			t.Errorf("osExec() = %d, %v, want 0, nil", status, err)
+		}
+	})
+
+	t.Run("utility found but not executable", func(t *testing.T) {
+		if runtime.GOOS == "windows" {
+			t.Skip("needs the executable permission bits")
+		}
+		dir := t.TempDir()
+		path := filepath.Join(dir, "myutil")
+		if err := os.WriteFile(path, []byte("not executable\n"), 0o644); err != nil {
+			t.Fatal(err)
+		}
+		rt := OsRuntime()
+		rt.LookupEnv = func(key string) (string, bool) {
+			if key == "PATH" {
+				return dir, true
+			}
+			return os.LookupEnv(key)
+		}
+		if status, err := osExec(t.Context(), rt, "myutil", nil); status != 126 || err == nil {
+			t.Errorf("osExec() = %d, %v, want 126, an error", status, err)
+		}
+	})
+
+	t.Run("relative PATH entry resolved in the working directory", func(t *testing.T) {
+		if runtime.GOOS == "windows" {
+			t.Skip("needs the executable permission bits")
+		}
+		dir := t.TempDir()
+		path := filepath.Join(dir, "myutil")
+		if err := os.WriteFile(path, []byte("#!/bin/sh\nexit 0\n"), 0o755); err != nil {
+			t.Fatal(err)
+		}
+		rt := OsRuntime()
+		rt.WorkingDir = dir
+		rt.LookupEnv = func(key string) (string, bool) {
+			if key == "PATH" {
+				return ".", true
+			}
+			return os.LookupEnv(key)
+		}
+		if status, err := osExec(t.Context(), rt, "myutil", nil); err != nil || status != 0 {
+			t.Errorf("osExec() = %d, %v, want 0, nil", status, err)
+		}
+	})
+
+	t.Run("relative working directory", func(t *testing.T) {
+		if runtime.GOOS == "windows" {
+			t.Skip("needs the executable permission bits")
+		}
+		dir := t.TempDir()
+		sub := filepath.Join(dir, "sub")
+		if err := os.Mkdir(sub, 0o755); err != nil {
+			t.Fatal(err)
+		}
+		path := filepath.Join(sub, "myutil")
+		if err := os.WriteFile(path, []byte("#!/bin/sh\nexit 0\n"), 0o755); err != nil {
+			t.Fatal(err)
+		}
+		t.Chdir(dir)
+		rt := OsRuntime()
+		rt.WorkingDir = "sub"
+		rt.LookupEnv = func(key string) (string, bool) {
+			if key == "PATH" {
+				return ".", true
+			}
+			return os.LookupEnv(key)
+		}
+		if status, err := osExec(t.Context(), rt, "myutil", nil); err != nil || status != 0 {
+			t.Errorf("osExec() = %d, %v, want 0, nil", status, err)
+		}
+	})
+
+	t.Run("empty PATH means the working directory", func(t *testing.T) {
+		if runtime.GOOS == "windows" {
+			t.Skip("needs the executable permission bits")
+		}
+		dir := t.TempDir()
+		path := filepath.Join(dir, "myutil")
+		if err := os.WriteFile(path, []byte("#!/bin/sh\nexit 0\n"), 0o755); err != nil {
+			t.Fatal(err)
+		}
+		rt := OsRuntime()
+		rt.WorkingDir = dir
+		rt.LookupEnv = func(key string) (string, bool) {
+			if key == "PATH" {
+				return "", true
+			}
+			return os.LookupEnv(key)
+		}
+		if status, err := osExec(t.Context(), rt, "myutil", nil); err != nil || status != 0 {
+			t.Errorf("osExec() = %d, %v, want 0, nil", status, err)
+		}
+	})
+
+	t.Run("unset PATH means the default search path", func(t *testing.T) {
+		if runtime.GOOS == "windows" {
+			t.Skip("needs the default Unix search path")
+		}
+		rt := OsRuntime()
+		rt.LookupEnv = func(key string) (string, bool) {
+			if key == "PATH" {
+				return "", false
+			}
+			return os.LookupEnv(key)
+		}
+		if status, err := osExec(t.Context(), rt, "sh", []string{"-c", "exit 0"}); err != nil || status != 0 {
+			t.Errorf("osExec() = %d, %v, want 0, nil", status, err)
+		}
+	})
+
+	t.Run("PATH entry that cannot be searched", func(t *testing.T) {
+		if runtime.GOOS == "windows" {
+			t.Skip("needs directory permission bits")
+		}
+		dir := t.TempDir()
+		path := filepath.Join(dir, "myutil")
+		if err := os.WriteFile(path, []byte("#!/bin/sh\nexit 0\n"), 0o755); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.Chmod(dir, 0o000); err != nil {
+			t.Fatal(err)
+		}
+		t.Cleanup(func() { os.Chmod(dir, 0o755) })
+		rt := OsRuntime()
+		rt.LookupEnv = func(key string) (string, bool) {
+			if key == "PATH" {
+				return dir, true
+			}
+			return os.LookupEnv(key)
+		}
+		if status, err := osExec(t.Context(), rt, "myutil", nil); status != 126 || err == nil {
+			t.Errorf("osExec() = %d, %v, want 126, an error", status, err)
+		}
+	})
 }
 
 func TestRuntimeWait(t *testing.T) {
