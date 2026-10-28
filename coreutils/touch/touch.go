@@ -14,6 +14,7 @@ import (
 
 	"charm.land/snail/coreutils"
 	"charm.land/snail/coreutils/internal/getopt"
+	"charm.land/snail/coreutils/internal/patherr"
 	"charm.land/snail/fsx"
 )
 
@@ -55,7 +56,7 @@ func (p *Prog) Run(ctx context.Context, args ...string) error {
 			return err
 		}
 		if err := p.touch(file, opts, atime, mtime); err != nil {
-			p.errorf("%s: %v", file, unwrapPathError(err))
+			p.errorf("%s: %v", file, patherr.Unwrap(err))
 			ok = false
 		}
 	}
@@ -80,7 +81,7 @@ func (p *Prog) referenceTime(opts options) (time.Time, time.Time, error) {
 	case 'r':
 		fi, err := fs.Stat(p.FS, filepath.ToSlash(p.ResolvePath(opts.value)))
 		if err != nil {
-			return time.Time{}, time.Time{}, fmt.Errorf("%s: %v", opts.value, unwrapPathError(err))
+			return time.Time{}, time.Time{}, fmt.Errorf("%s: %v", opts.value, patherr.Unwrap(err))
 		}
 		mtime := fi.ModTime()
 		atime := mtime
@@ -302,15 +303,6 @@ func allDigits(s string) bool {
 		}
 	}
 	return true
-}
-
-// unwrapPathError unwraps *fs.PathError so diagnostics don't repeat the file
-// name.
-func unwrapPathError(err error) error {
-	if pathErr, ok := errors.AsType[*fs.PathError](err); ok {
-		return pathErr.Err
-	}
-	return err
 }
 
 var (

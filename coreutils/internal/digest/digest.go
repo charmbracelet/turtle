@@ -14,12 +14,12 @@ import (
 	"fmt"
 	"hash"
 	"io"
-	"io/fs"
 	"strings"
 
 	"charm.land/snail/coreutils"
 	"charm.land/snail/coreutils/internal/getopt"
 	"charm.land/snail/coreutils/internal/input"
+	"charm.land/snail/coreutils/internal/patherr"
 )
 
 // Algorithm is a checksum algorithm, as implemented by a {prog}sum utility.
@@ -165,7 +165,7 @@ func (a Algorithm) line(opts options, name string, sum []byte) string {
 
 // report writes the diagnostic of an operand that couldn't be digested.
 func (a Algorithm) report(rt *coreutils.Runtime, name string, err error) {
-	a.errorf(rt, "%s: %v", name, unwrapPathError(err))
+	a.errorf(rt, "%s: %v", name, patherr.Unwrap(err))
 }
 
 // errorf writes a diagnostic message to the standard error of rt.
@@ -180,15 +180,6 @@ var nameEscaper = strings.NewReplacer(`\`, `\\`, "\n", `\n`, "\r", `\r`)
 // be escaped for the lines it appears in to be parsed back.
 func problematicChars(s string) bool {
 	return strings.ContainsAny(s, "\\\n\r")
-}
-
-// unwrapPathError unwraps *fs.PathError so diagnostics don't repeat the file
-// name.
-func unwrapPathError(err error) error {
-	if pathErr, ok := errors.AsType[*fs.PathError](err); ok {
-		return pathErr.Err
-	}
-	return err
 }
 
 // options holds what the options of the utility select.

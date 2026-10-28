@@ -26,6 +26,7 @@ import (
 
 	"charm.land/snail/coreutils/internal/ctxio"
 	"charm.land/snail/coreutils/internal/getopt"
+	"charm.land/snail/coreutils/internal/patherr"
 	"charm.land/snail/fsx"
 )
 
@@ -69,7 +70,7 @@ func (p *Prog) Run(ctx context.Context, args ...string) error {
 	dst := p.resolve(target)
 	fi, err := fs.Stat(p.FS, dst)
 	if err != nil && !errors.Is(err, fs.ErrNotExist) {
-		p.errorf("cannot stat '%s': %v", target, unwrapPathError(err))
+		p.errorf("cannot stat '%s': %v", target, patherr.Unwrap(err))
 		return &coreutils.ExitError{Code: 1}
 	}
 	targetIsDir := err == nil && fi.IsDir()
@@ -113,7 +114,7 @@ func (p *Prog) Run(ctx context.Context, args ...string) error {
 func (p *Prog) moveEntry(ctx context.Context, e pair, opts options) error {
 	fi, err := fs.Stat(p.FS, e.src)
 	if err != nil {
-		return fmt.Errorf("cannot stat '%s': %v", e.srcName, unwrapPathError(err))
+		return fmt.Errorf("cannot stat '%s': %v", e.srcName, patherr.Unwrap(err))
 	}
 	if e.src == e.dst {
 		return fmt.Errorf("'%s' and '%s' are the same file", e.srcName, e.dstName)
@@ -129,7 +130,7 @@ func (p *Prog) moveEntry(ctx context.Context, e pair, opts options) error {
 	case err == nil && !dfi.IsDir() && fi.IsDir():
 		return fmt.Errorf("cannot overwrite non-directory '%s' with directory '%s'", e.dstName, e.srcName)
 	case err != nil && !errors.Is(err, fs.ErrNotExist):
-		return fmt.Errorf("cannot stat '%s': %v", e.dstName, unwrapPathError(err))
+		return fmt.Errorf("cannot stat '%s': %v", e.dstName, patherr.Unwrap(err))
 	}
 	if err == nil && opts.interactive && !p.confirm(e.dstName) {
 		return errSkipped
@@ -154,11 +155,11 @@ func (p *Prog) moveAcross(ctx context.Context, e pair, fi fs.FileInfo) error {
 	dfi, err := fs.Stat(p.FS, e.dst)
 	switch {
 	case err != nil && !errors.Is(err, fs.ErrNotExist):
-		return fmt.Errorf("cannot stat '%s': %v", e.dstName, unwrapPathError(err))
+		return fmt.Errorf("cannot stat '%s': %v", e.dstName, patherr.Unwrap(err))
 	case err == nil && dfi.IsDir():
 		entries, err := fs.ReadDir(p.FS, e.dst)
 		if err != nil {
-			return fmt.Errorf("cannot read directory '%s': %v", e.dstName, unwrapPathError(err))
+			return fmt.Errorf("cannot read directory '%s': %v", e.dstName, patherr.Unwrap(err))
 		}
 		if len(entries) > 0 {
 			return fmt.Errorf("cannot remove '%s': directory not empty", e.dstName)
@@ -168,7 +169,7 @@ func (p *Prog) moveAcross(ctx context.Context, e pair, fi fs.FileInfo) error {
 		return err
 	}
 	if err := p.removeTree(ctx, e.src); err != nil {
-		return fmt.Errorf("cannot remove '%s': %v", e.srcName, unwrapPathError(err))
+		return fmt.Errorf("cannot remove '%s': %v", e.srcName, patherr.Unwrap(err))
 	}
 	return nil
 }
@@ -188,11 +189,11 @@ func (p *Prog) copyEntry(ctx context.Context, e pair, fi fs.FileInfo) error {
 // done. An existing empty destination is kept and replaced.
 func (p *Prog) copyDir(ctx context.Context, e pair, fi fs.FileInfo) error {
 	if err := p.FS.Mkdir(e.dst, fi.Mode().Perm()|0o700); err != nil && !errors.Is(err, fs.ErrExist) {
-		return fmt.Errorf("cannot create directory '%s': %v", e.dstName, unwrapPathError(err))
+		return fmt.Errorf("cannot create directory '%s': %v", e.dstName, patherr.Unwrap(err))
 	}
 	entries, err := fs.ReadDir(p.FS, e.src)
 	if err != nil {
-		return fmt.Errorf("cannot read directory '%s': %v", e.srcName, unwrapPathError(err))
+		return fmt.Errorf("cannot read directory '%s': %v", e.srcName, patherr.Unwrap(err))
 	}
 	for _, entry := range entries {
 		if err := ctx.Err(); err != nil {
@@ -201,17 +202,17 @@ func (p *Prog) copyDir(ctx context.Context, e pair, fi fs.FileInfo) error {
 		child := e.child(entry.Name())
 		cfi, err := entry.Info()
 		if err != nil {
-			return fmt.Errorf("cannot stat '%s': %v", child.srcName, unwrapPathError(err))
+			return fmt.Errorf("cannot stat '%s': %v", child.srcName, patherr.Unwrap(err))
 		}
 		if err := p.copyEntry(ctx, child, cfi); err != nil {
 			return err
 		}
 	}
 	if err := p.FS.Chmod(e.dst, fi.Mode()&chmodBits); err != nil {
-		return fmt.Errorf("cannot set mode of '%s': %v", e.dstName, unwrapPathError(err))
+		return fmt.Errorf("cannot set mode of '%s': %v", e.dstName, patherr.Unwrap(err))
 	}
 	if err := p.FS.Chtimes(e.dst, atime(fi), fi.ModTime()); err != nil {
-		return fmt.Errorf("cannot set times of '%s': %v", e.dstName, unwrapPathError(err))
+		return fmt.Errorf("cannot set times of '%s': %v", e.dstName, patherr.Unwrap(err))
 	}
 	return nil
 }
@@ -220,12 +221,12 @@ func (p *Prog) copyDir(ctx context.Context, e pair, fi fs.FileInfo) error {
 func (p *Prog) copyFile(ctx context.Context, e pair, fi fs.FileInfo) error {
 	out, err := p.FS.OpenFile(e.dst, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, fi.Mode().Perm())
 	if err != nil {
-		return fmt.Errorf("cannot create '%s': %v", e.dstName, unwrapPathError(err))
+		return fmt.Errorf("cannot create '%s': %v", e.dstName, patherr.Unwrap(err))
 	}
 	in, err := p.FS.Open(e.src)
 	if err != nil {
 		out.Close()
-		return fmt.Errorf("cannot open '%s': %v", e.srcName, unwrapPathError(err))
+		return fmt.Errorf("cannot open '%s': %v", e.srcName, patherr.Unwrap(err))
 	}
 
 	_, copyErr := io.Copy(out, ctxio.NewReader(ctx, in))
@@ -233,18 +234,18 @@ func (p *Prog) copyFile(ctx context.Context, e pair, fi fs.FileInfo) error {
 	outErr := out.Close()
 	switch {
 	case copyErr != nil:
-		return fmt.Errorf("cannot copy '%s' to '%s': %v", e.srcName, e.dstName, unwrapPathError(copyErr))
+		return fmt.Errorf("cannot copy '%s' to '%s': %v", e.srcName, e.dstName, patherr.Unwrap(copyErr))
 	case outErr != nil:
-		return fmt.Errorf("cannot close '%s': %v", e.dstName, unwrapPathError(outErr))
+		return fmt.Errorf("cannot close '%s': %v", e.dstName, patherr.Unwrap(outErr))
 	case inErr != nil:
-		return fmt.Errorf("cannot close '%s': %v", e.srcName, unwrapPathError(inErr))
+		return fmt.Errorf("cannot close '%s': %v", e.srcName, patherr.Unwrap(inErr))
 	}
 
 	if err := p.FS.Chmod(e.dst, fi.Mode()&chmodBits); err != nil {
-		return fmt.Errorf("cannot set mode of '%s': %v", e.dstName, unwrapPathError(err))
+		return fmt.Errorf("cannot set mode of '%s': %v", e.dstName, patherr.Unwrap(err))
 	}
 	if err := p.FS.Chtimes(e.dst, atime(fi), fi.ModTime()); err != nil {
-		return fmt.Errorf("cannot set times of '%s': %v", e.dstName, unwrapPathError(err))
+		return fmt.Errorf("cannot set times of '%s': %v", e.dstName, patherr.Unwrap(err))
 	}
 	return nil
 }
@@ -350,22 +351,13 @@ func (p *Prog) errorf(format string, args ...any) {
 	fmt.Fprintf(p.Stderr, "mv: "+format+"\n", args...)
 }
 
-// unwrapPathError unwraps *fs.PathError so diagnostics don't repeat the file
-// name.
-func unwrapPathError(err error) error {
-	if pathErr, ok := errors.AsType[*fs.PathError](err); ok {
-		return pathErr.Err
-	}
-	return err
-}
-
 // unwrapRenameError unwraps the errors of a rename, which *os.LinkError wraps
 // with both names instead.
 func unwrapRenameError(err error) error {
 	if linkErr, ok := errors.AsType[*os.LinkError](err); ok {
 		return linkErr.Err
 	}
-	return unwrapPathError(err)
+	return patherr.Unwrap(err)
 }
 
 // crossDevice reports whether err is a rename failing because the source and

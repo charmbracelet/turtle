@@ -217,12 +217,3 @@ func (e *writeError) Error() string {
 func (e *writeError) Unwrap() error {
 	return e.err
 }
-
-// unwrapPathError unwraps *fs.PathError so diagnostics don't repeat the file
-// name.
-func unwrapPathError(err error) error {
-	if pathErr, ok := errors.AsType[*fs.PathError](err); ok {
-		return pathErr.Err
-	}
-	return err
-}

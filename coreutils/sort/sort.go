@@ -11,7 +11,6 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"io/fs"
 	"os"
 	"path/filepath"
 	"slices"
@@ -21,6 +20,7 @@ import (
 
 	"charm.land/snail/coreutils/internal/getopt"
 	"charm.land/snail/coreutils/internal/input"
+	"charm.land/snail/coreutils/internal/patherr"
 	"charm.land/snail/fsx"
 )
 
@@ -73,7 +73,7 @@ func (p *Prog) Run(ctx context.Context, args ...string) error {
 			if ctx.Err() != nil {
 				return ctx.Err()
 			}
-			p.errorf("%s: %v", in.Label(), unwrapPathError(err))
+			p.errorf("%s: %v", in.Label(), patherr.Unwrap(err))
 			return &coreutils.ExitError{Code: 2}
 		}
 		sets = append(sets, lines)
@@ -97,7 +97,7 @@ func (p *Prog) Run(ctx context.Context, args ...string) error {
 func (p *Prog) check(ctx context.Context, in input.Input, opts options) error {
 	r, err := input.Open(p.Runtime, ctx, in)
 	if err != nil {
-		p.errorf("%s: %v", in.Label(), unwrapPathError(err))
+		p.errorf("%s: %v", in.Label(), patherr.Unwrap(err))
 		return &coreutils.ExitError{Code: 2}
 	}
 	defer r.Close()
@@ -141,7 +141,7 @@ func (p *Prog) check(ctx context.Context, in input.Input, opts options) error {
 			if ctx.Err() != nil {
 				return ctx.Err()
 			}
-			p.errorf("%s: %v", in.Label(), unwrapPathError(err))
+			p.errorf("%s: %v", in.Label(), patherr.Unwrap(err))
 			return &coreutils.ExitError{Code: 2}
 		}
 	}
@@ -181,7 +181,7 @@ func (p *Prog) writeLines(ctx context.Context, lines []sortLine, opts options) e
 	if opts.hasOutput {
 		f, err := p.openOutput(opts.output)
 		if err != nil {
-			p.errorf("%s: %v", opts.output, unwrapPathError(err))
+			p.errorf("%s: %v", opts.output, patherr.Unwrap(err))
 			return &coreutils.ExitError{Code: 2}
 		}
 		defer f.Close()
@@ -331,15 +331,6 @@ func (e *writeError) Error() string {
 // Unwrap implements the interface to make writeError unwrapable.
 func (e *writeError) Unwrap() error {
 	return e.err
-}
-
-// unwrapPathError unwraps *fs.PathError so diagnostics don't repeat the file
-// name.
-func unwrapPathError(err error) error {
-	if pathErr, ok := errors.AsType[*fs.PathError](err); ok {
-		return pathErr.Err
-	}
-	return err
 }
 
 var _ coreutils.Program = (*Prog)(nil)

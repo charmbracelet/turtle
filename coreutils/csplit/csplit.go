@@ -11,7 +11,6 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"io/fs"
 	"math"
 	"os"
 	"path"
@@ -25,6 +24,7 @@ import (
 	"charm.land/snail/coreutils/internal/bre"
 	"charm.land/snail/coreutils/internal/getopt"
 	"charm.land/snail/coreutils/internal/input"
+	"charm.land/snail/coreutils/internal/patherr"
 	"charm.land/snail/fsx"
 )
 
@@ -73,7 +73,7 @@ func (p *Prog) Run(ctx context.Context, args ...string) error {
 
 	r, err := input.Open(p.Runtime, ctx, input.New(operands[0]))
 	if err != nil {
-		p.errorf("%s: %v", operands[0], unwrapPathError(err))
+		p.errorf("%s: %v", operands[0], patherr.Unwrap(err))
 		return &coreutils.ExitError{Code: 1}
 	}
 	lines, err := readLines(ctx, r)
@@ -82,7 +82,7 @@ func (p *Prog) Run(ctx context.Context, args ...string) error {
 		if ctx.Err() != nil {
 			return ctx.Err()
 		}
-		p.errorf("%s: %v", operands[0], unwrapPathError(err))
+		p.errorf("%s: %v", operands[0], patherr.Unwrap(err))
 		return &coreutils.ExitError{Code: 1}
 	}
 
@@ -296,7 +296,7 @@ func (s *splitter) closeFile() error {
 // unless -k was given, and returns err.
 func (s *splitter) fail(err error) error {
 	if writeErr, ok := errors.AsType[*writeError](err); ok {
-		s.p.errorf("%s: %v", writeErr.name, unwrapPathError(writeErr.err))
+		s.p.errorf("%s: %v", writeErr.name, patherr.Unwrap(writeErr.err))
 	} else {
 		s.p.errorf("%v", err)
 	}
@@ -513,15 +513,6 @@ func (e *writeError) Error() string {
 // Unwrap implements the interface to make writeError unwrapable.
 func (e *writeError) Unwrap() error {
 	return e.err
-}
-
-// unwrapPathError unwraps *fs.PathError so diagnostics don't repeat the file
-// name.
-func unwrapPathError(err error) error {
-	if pathErr, ok := errors.AsType[*fs.PathError](err); ok {
-		return pathErr.Err
-	}
-	return err
 }
 
 var _ coreutils.Program = (*Prog)(nil)

@@ -13,7 +13,6 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"io/fs"
 	"strconv"
 	"strings"
 	"unicode/utf8"
@@ -22,6 +21,7 @@ import (
 
 	"charm.land/snail/coreutils/internal/getopt"
 	"charm.land/snail/coreutils/internal/input"
+	"charm.land/snail/coreutils/internal/patherr"
 	"charm.land/snail/coreutils/internal/textutil"
 )
 
@@ -49,13 +49,13 @@ func (p *Prog) Run(ctx context.Context, args ...string) error {
 	}
 	r1, err := input.Open(p.Runtime, ctx, input.New(operands[0]))
 	if err != nil {
-		p.errorf("%s: %v", operands[0], unwrapPathError(err))
+		p.errorf("%s: %v", operands[0], patherr.Unwrap(err))
 		return &coreutils.ExitError{Code: 1}
 	}
 	r2, err := input.Open(p.Runtime, ctx, input.New(operands[1]))
 	if err != nil {
 		r1.Close()
-		p.errorf("%s: %v", operands[1], unwrapPathError(err))
+		p.errorf("%s: %v", operands[1], patherr.Unwrap(err))
 		return &coreutils.ExitError{Code: 1}
 	}
 	err = p.joinFiles(ctx, file{name: operands[0], r: newLineReader(r1)}, file{name: operands[1], r: newLineReader(r2)}, opts)
@@ -68,7 +68,7 @@ func (p *Prog) Run(ctx context.Context, args ...string) error {
 		if ctx.Err() != nil {
 			return ctx.Err()
 		}
-		p.errorf("%v", unwrapPathError(err))
+		p.errorf("%v", patherr.Unwrap(err))
 		return &coreutils.ExitError{Code: 1, Err: err}
 	}
 	return nil
@@ -483,13 +483,6 @@ func parseSelector(elem string) (selector, error) {
 
 func (p *Prog) errorf(format string, args ...any) {
 	fmt.Fprintf(p.Stderr, "join: "+format+"\n", args...)
-}
-
-func unwrapPathError(err error) error {
-	if pathErr, ok := errors.AsType[*fs.PathError](err); ok {
-		return pathErr.Err
-	}
-	return err
 }
 
 var _ coreutils.Program = (*Prog)(nil)

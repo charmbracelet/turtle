@@ -11,6 +11,7 @@ import (
 	"charm.land/snail/coreutils"
 	"charm.land/snail/coreutils/chmod"
 	"charm.land/snail/coreutils/internal/getopt"
+	"charm.land/snail/coreutils/internal/patherr"
 )
 
 // Prog is the mkdir core utility.
@@ -53,7 +54,7 @@ func (p *Prog) Run(ctx context.Context, args ...string) error {
 			return err
 		}
 		if err := p.mkdir(dir, opts.parents, spec); err != nil {
-			p.errorf("%s: %v", dir, unwrapPathError(err))
+			p.errorf("%s: %v", dir, patherr.Unwrap(err))
 			ok = false
 		}
 	}
@@ -123,15 +124,6 @@ var errNotDir = errors.New("not a directory")
 // errorf writes a diagnostic message to standard error.
 func (p *Prog) errorf(format string, args ...any) {
 	fmt.Fprintf(p.Stderr, "mkdir: "+format+"\n", args...)
-}
-
-// unwrapPathError unwraps *fs.PathError so diagnostics don't repeat the file
-// name.
-func unwrapPathError(err error) error {
-	if pathErr, ok := errors.AsType[*fs.PathError](err); ok {
-		return pathErr.Err
-	}
-	return err
 }
 
 // options holds the -p flag and the option-argument of the last -m option

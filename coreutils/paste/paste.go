@@ -12,7 +12,6 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"io/fs"
 	"path/filepath"
 	"strings"
 
@@ -20,6 +19,7 @@ import (
 
 	"charm.land/snail/coreutils/internal/ctxio"
 	"charm.land/snail/coreutils/internal/getopt"
+	"charm.land/snail/coreutils/internal/patherr"
 )
 
 // Prog is the paste core utility.
@@ -87,7 +87,7 @@ func (p *Prog) Run(ctx context.Context, args ...string) error {
 			case err != nil && ctx.Err() != nil:
 				return ctx.Err()
 			case err != nil:
-				p.errorf("%s: %v", in.label(), unwrapPathError(err))
+				p.errorf("%s: %v", in.label(), patherr.Unwrap(err))
 				ok = false
 			case part != nil:
 				data = true
@@ -130,7 +130,7 @@ func (p *Prog) serial(ctx context.Context, opts options, operands []string) erro
 				if ctx.Err() != nil {
 					return ctx.Err()
 				}
-				p.errorf("%s: %v", in.label(), unwrapPathError(err))
+				p.errorf("%s: %v", in.label(), patherr.Unwrap(err))
 				ok = false
 				break
 			}
@@ -199,7 +199,7 @@ func (p *Prog) openErrorf(in *input) {
 		p.errorf("%v", in.err)
 		return
 	}
-	p.errorf("%s: %v", in.label(), unwrapPathError(in.err))
+	p.errorf("%s: %v", in.label(), patherr.Unwrap(in.err))
 }
 
 // errorf writes a diagnostic message to standard error.
@@ -312,15 +312,6 @@ func (in *input) close() {
 	if in.c != nil {
 		in.c.Close()
 	}
-}
-
-// unwrapPathError unwraps *fs.PathError so diagnostics don't repeat the file
-// name.
-func unwrapPathError(err error) error {
-	if pathErr, ok := errors.AsType[*fs.PathError](err); ok {
-		return pathErr.Err
-	}
-	return err
 }
 
 var _ coreutils.Program = (*Prog)(nil)

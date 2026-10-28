@@ -13,6 +13,7 @@ import (
 	"time"
 
 	"charm.land/snail/coreutils/internal/ctxio"
+	"charm.land/snail/coreutils/internal/patherr"
 )
 
 // printer paginates and prints the input files.
@@ -78,7 +79,7 @@ func (p *printer) printFiles(ctx context.Context, operands []string, engine func
 func (p *printer) diagnose(label string, err error) {
 	p.err = true
 	if !p.opts.noDiag {
-		p.prog.errorf("%s: %v", label, unwrapPathError(err))
+		p.prog.errorf("%s: %v", label, patherr.Unwrap(err))
 	}
 }
 

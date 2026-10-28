@@ -3,7 +3,6 @@ package chmod
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"io/fs"
 	"path"
@@ -12,6 +11,7 @@ import (
 
 	"charm.land/snail/coreutils"
 	"charm.land/snail/coreutils/internal/getopt"
+	"charm.land/snail/coreutils/internal/patherr"
 )
 
 // Prog is the chmod core utility.
@@ -76,7 +76,7 @@ func (p *Prog) chmod(ctx context.Context, name string, spec ModeSpec, recursive 
 	failed := false
 
 	report := func(walked string, err error) {
-		p.errorf("%s: %v", display(name, resolved, walked), unwrapPathError(err))
+		p.errorf("%s: %v", display(name, resolved, walked), patherr.Unwrap(err))
 		failed = true
 	}
 
@@ -134,15 +134,6 @@ func display(operand, resolved, walked string) string {
 		return path.Join(operand, rel)
 	}
 	return operand
-}
-
-// unwrapPathError unwraps *fs.PathError so diagnostics don't repeat the file
-// name.
-func unwrapPathError(err error) error {
-	if pathErr, ok := errors.AsType[*fs.PathError](err); ok {
-		return pathErr.Err
-	}
-	return err
 }
 
 // longOptions maps the long options of chmod to the short ones they stand

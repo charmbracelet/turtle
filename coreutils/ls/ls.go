@@ -23,7 +23,6 @@ package ls
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"io/fs"
 	"path"
@@ -34,6 +33,7 @@ import (
 	"time"
 
 	"charm.land/snail/coreutils"
+	"charm.land/snail/coreutils/internal/patherr"
 )
 
 // Prog is the ls core utility.
@@ -83,7 +83,7 @@ func (p *Prog) Run(ctx context.Context, args ...string) error {
 		}
 		e, err := l.entryFor(p.resolve(arg), arg, true)
 		if err != nil {
-			p.errorf("cannot access '%s': %v", arg, unwrapPathError(err))
+			p.errorf("cannot access '%s': %v", arg, patherr.Unwrap(err))
 			l.failed = true
 			continue
 		}
@@ -168,7 +168,7 @@ func (l *lister) entryFor(path, name string, isOperand bool) (entry, error) {
 		// A link that can't be resolved is written as itself. Only the
 		// options that ask for it make it a failure.
 		if l.opts.follow != followDefault {
-			l.prog.errorf("cannot access '%s': %v", name, unwrapPathError(err))
+			l.prog.errorf("cannot access '%s': %v", name, patherr.Unwrap(err))
 			l.failed = true
 		}
 		return e, nil
@@ -215,7 +215,7 @@ func (l *lister) listDir(ctx context.Context, e entry, header bool) error {
 	}
 	entries, err := l.readEntries(e.path, e.name)
 	if err != nil {
-		l.prog.errorf("cannot open directory '%s': %v", e.name, unwrapPathError(err))
+		l.prog.errorf("cannot open directory '%s': %v", e.name, patherr.Unwrap(err))
 		l.failed = true
 		return nil
 	}
@@ -257,7 +257,7 @@ func (l *lister) readEntries(dir, display string) ([]entry, error) {
 		}
 		e, err := l.entryFor(path.Join(dir, name), name, false)
 		if err != nil {
-			l.prog.errorf("cannot access '%s': %v", joinName(display, name), unwrapPathError(err))
+			l.prog.errorf("cannot access '%s': %v", joinName(display, name), patherr.Unwrap(err))
 			l.failed = true
 			continue
 		}
@@ -539,15 +539,6 @@ func dirID(fi fs.FileInfo) string {
 // errorf writes a diagnostic message to standard error.
 func (p *Prog) errorf(format string, args ...any) {
 	fmt.Fprintf(p.Stderr, "ls: "+format+"\n", args...)
-}
-
-// unwrapPathError unwraps *fs.PathError so diagnostics don't repeat the file
-// name.
-func unwrapPathError(err error) error {
-	if pathErr, ok := errors.AsType[*fs.PathError](err); ok {
-		return pathErr.Err
-	}
-	return err
 }
 
 var (

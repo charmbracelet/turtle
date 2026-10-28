@@ -20,6 +20,7 @@ import (
 
 	"charm.land/snail/coreutils"
 	"charm.land/snail/coreutils/internal/getopt"
+	"charm.land/snail/coreutils/internal/patherr"
 )
 
 // Prog is the ln core utility.
@@ -63,7 +64,7 @@ func (p *Prog) Run(ctx context.Context, args ...string) error {
 	dst := p.resolve(target)
 	fi, err := fs.Stat(p.FS, dst)
 	if err != nil && !errors.Is(err, fs.ErrNotExist) {
-		p.errorf("cannot stat '%s': %v", target, unwrapPathError(err))
+		p.errorf("cannot stat '%s': %v", target, patherr.Unwrap(err))
 		return &coreutils.ExitError{Code: 1}
 	}
 	targetIsDir := err == nil && fi.IsDir()
@@ -108,10 +109,10 @@ func (p *Prog) link(e pair, opts options) error {
 		return fmt.Errorf("cannot create %s '%s': file exists", opts.kind(), e.dstName)
 	case err == nil:
 		if err := p.FS.Remove(e.dst); err != nil {
-			return fmt.Errorf("cannot remove '%s': %v", e.dstName, unwrapPathError(err))
+			return fmt.Errorf("cannot remove '%s': %v", e.dstName, patherr.Unwrap(err))
 		}
 	case !errors.Is(err, fs.ErrNotExist):
-		return fmt.Errorf("cannot stat '%s': %v", e.dstName, unwrapPathError(err))
+		return fmt.Errorf("cannot stat '%s': %v", e.dstName, patherr.Unwrap(err))
 	}
 
 	if opts.symbolic {
@@ -140,14 +141,14 @@ func (p *Prog) evalSymlinks(name string) (string, error) {
 	for range maxSymlinks {
 		fi, err := p.FS.Lstat(name)
 		if err != nil {
-			return "", unwrapPathError(err)
+			return "", patherr.Unwrap(err)
 		}
 		if fi.Mode()&fs.ModeSymlink == 0 {
 			return name, nil
 		}
 		target, err := p.FS.ReadLink(name)
 		if err != nil {
-			return "", unwrapPathError(err)
+			return "", patherr.Unwrap(err)
 		}
 		if path.IsAbs(target) || filepath.IsAbs(target) {
 			name = filepath.ToSlash(target)
@@ -239,20 +240,11 @@ func (p *Prog) errorf(format string, args ...any) {
 	fmt.Fprintf(p.Stderr, "ln: "+format+"\n", args...)
 }
 
-// unwrapPathError unwraps *fs.PathError so diagnostics don't repeat the file
-// name.
-func unwrapPathError(err error) error {
-	if pathErr, ok := errors.AsType[*fs.PathError](err); ok {
-		return pathErr.Err
-	}
-	return err
-}
-
 // unwrapLinkError unwraps the errors of a link creation, which *os.LinkError
 // wraps with both names instead.
 func unwrapLinkError(err error) error {
 	if linkErr, ok := errors.AsType[*os.LinkError](err); ok {
 		return linkErr.Err
 	}
-	return unwrapPathError(err)
+	return patherr.Unwrap(err)
 }

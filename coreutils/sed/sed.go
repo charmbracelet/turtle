@@ -12,12 +12,12 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"io/fs"
 	"path/filepath"
 	"strings"
 
 	"charm.land/snail/coreutils"
 	"charm.land/snail/coreutils/internal/getopt"
+	"charm.land/snail/coreutils/internal/patherr"
 )
 
 // errMissingScript reports that no script of editing commands was given,
@@ -132,7 +132,7 @@ func (p *Prog) assembleScript(opts *options, operands []string) (string, []strin
 		if part.fromFile {
 			content, err := p.readFile(part.file)
 			if err != nil {
-				return "", nil, fmt.Errorf("%s: %v", part.file, unwrapPathError(err))
+				return "", nil, fmt.Errorf("%s: %v", part.file, patherr.Unwrap(err))
 			}
 			b.WriteString(content)
 			prevE = false
@@ -168,13 +168,6 @@ func (p *Prog) path(name string) string {
 
 func (p *Prog) errorf(format string, args ...any) {
 	fmt.Fprintf(p.Stderr, "sed: "+format+"\n", args...)
-}
-
-func unwrapPathError(err error) error {
-	if pathErr, ok := errors.AsType[*fs.PathError](err); ok {
-		return pathErr.Err
-	}
-	return err
 }
 
 var _ coreutils.Program = (*Prog)(nil)

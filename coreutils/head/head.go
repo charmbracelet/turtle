@@ -11,13 +11,13 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"io/fs"
 	"strconv"
 
 	"charm.land/snail/coreutils"
 
 	"charm.land/snail/coreutils/internal/getopt"
 	"charm.land/snail/coreutils/internal/input"
+	"charm.land/snail/coreutils/internal/patherr"
 )
 
 // Prog is the head core utility.
@@ -67,7 +67,7 @@ func (p *Prog) Run(ctx context.Context, args ...string) error {
 		}
 		r, err := input.Open(p.Runtime, ctx, in)
 		if err != nil {
-			p.errorf("%s: %v", in.Label(), unwrapPathError(err))
+			p.errorf("%s: %v", in.Label(), patherr.Unwrap(err))
 			ok = false
 			continue
 		}
@@ -88,7 +88,7 @@ func (p *Prog) Run(ctx context.Context, args ...string) error {
 		case ctx.Err() != nil:
 			return ctx.Err()
 		default:
-			p.errorf("%s: %v", in.Label(), unwrapPathError(err))
+			p.errorf("%s: %v", in.Label(), patherr.Unwrap(err))
 			ok = false
 		}
 	}
@@ -218,15 +218,6 @@ func (e *writeError) Error() string {
 // Unwrap implements the interface to make writeError unwrapable.
 func (e *writeError) Unwrap() error {
 	return e.err
-}
-
-// unwrapPathError unwraps *fs.PathError so diagnostics don't repeat the file
-// name.
-func unwrapPathError(err error) error {
-	if pathErr, ok := errors.AsType[*fs.PathError](err); ok {
-		return pathErr.Err
-	}
-	return err
 }
 
 var (

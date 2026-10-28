@@ -10,6 +10,7 @@ import (
 
 	"charm.land/snail/coreutils"
 	"charm.land/snail/coreutils/internal/getopt"
+	"charm.land/snail/coreutils/internal/patherr"
 )
 
 // Prog is the rmdir core utility.
@@ -47,7 +48,7 @@ func (p *Prog) Run(ctx context.Context, args ...string) error {
 		}
 		failed, err := p.rmdir(dir, parents)
 		if err != nil {
-			p.errorf("%s: %v", failed, unwrapPathError(err))
+			p.errorf("%s: %v", failed, patherr.Unwrap(err))
 			ok = false
 		}
 	}
@@ -100,15 +101,6 @@ var errNotDir = errors.New("not a directory")
 // errorf writes a diagnostic message to standard error.
 func (p *Prog) errorf(format string, args ...any) {
 	fmt.Fprintf(p.Stderr, "rmdir: "+format+"\n", args...)
-}
-
-// unwrapPathError unwraps *fs.PathError so diagnostics don't repeat the file
-// name.
-func unwrapPathError(err error) error {
-	if pathErr, ok := errors.AsType[*fs.PathError](err); ok {
-		return pathErr.Err
-	}
-	return err
 }
 
 // longOptions maps the long options of rmdir to the short ones they stand

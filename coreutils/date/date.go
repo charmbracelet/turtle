@@ -20,6 +20,7 @@ import (
 
 	"charm.land/snail/coreutils"
 	"charm.land/snail/coreutils/internal/getopt"
+	"charm.land/snail/coreutils/internal/patherr"
 )
 
 // defaultFormat is the output of date with no format operand, as the POSIX
@@ -101,7 +102,7 @@ func (p *Prog) referenceTime(name string) (time.Time, error) {
 	}
 	fi, err := fs.Stat(p.FS, filepath.ToSlash(p.ResolvePath(name)))
 	if err != nil {
-		return time.Time{}, fmt.Errorf("failed to get timestamp of '%s': %v", name, unwrapPathError(err))
+		return time.Time{}, fmt.Errorf("failed to get timestamp of '%s': %v", name, patherr.Unwrap(err))
 	}
 	return fi.ModTime(), nil
 }
@@ -282,13 +283,6 @@ func parseSetTime(operand string, now time.Time, loc *time.Location) (time.Time,
 func atoi(s string) int {
 	n, _ := strconv.Atoi(s)
 	return n
-}
-
-func unwrapPathError(err error) error {
-	if pathErr, ok := errors.AsType[*fs.PathError](err); ok {
-		return pathErr.Err
-	}
-	return err
 }
 
 var _ coreutils.Program = (*Prog)(nil)

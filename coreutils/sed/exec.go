@@ -11,6 +11,7 @@ import (
 	"unicode"
 	"unicode/utf8"
 
+	"charm.land/snail/coreutils/internal/patherr"
 	"charm.land/snail/fsx"
 )
 
@@ -142,7 +143,7 @@ func (s *source) open(name string) (io.ReadCloser, error) {
 	}
 	f, err := s.p.FS.Open(s.p.path(name))
 	if err != nil {
-		return nil, fmt.Errorf("can't read %s: %v", name, unwrapPathError(err))
+		return nil, fmt.Errorf("can't read %s: %v", name, patherr.Unwrap(err))
 	}
 	return f, nil
 }
@@ -568,7 +569,7 @@ func (r *runner) openWriters() error {
 			}
 			f, err := r.p.FS.OpenFile(r.p.path(name), os.O_WRONLY|os.O_CREATE|os.O_TRUNC, 0o666&^r.p.Umask.Perm())
 			if err != nil {
-				return fmt.Errorf("can't create %s: %v", name, unwrapPathError(err))
+				return fmt.Errorf("can't create %s: %v", name, patherr.Unwrap(err))
 			}
 			r.writers[name] = f
 		}

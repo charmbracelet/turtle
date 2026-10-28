@@ -10,13 +10,13 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"io/fs"
 	"strconv"
 	"strings"
 
 	"charm.land/snail/coreutils"
 	"charm.land/snail/coreutils/internal/getopt"
 	"charm.land/snail/coreutils/internal/input"
+	"charm.land/snail/coreutils/internal/patherr"
 )
 
 // ErrInvalidInput reports input that can't be decoded.
@@ -101,7 +101,7 @@ func (c *Codec) Run(ctx context.Context, rt *coreutils.Runtime, args []string) e
 
 	r, err := input.Open(rt, ctx, in)
 	if err != nil {
-		c.errorf(rt, "%s: %v", in.Label(), unwrapPathError(err))
+		c.errorf(rt, "%s: %v", in.Label(), patherr.Unwrap(err))
 		return &coreutils.ExitError{Code: 1, Err: err}
 	}
 	defer r.Close()
@@ -124,7 +124,7 @@ func (c *Codec) Run(ctx context.Context, rt *coreutils.Runtime, args []string) e
 			c.errorf(rt, "write error: %v", writeErr.err)
 			return &coreutils.ExitError{Code: 1, Err: writeErr.err}
 		}
-		c.errorf(rt, "%s: %v", in.Label(), unwrapPathError(err))
+		c.errorf(rt, "%s: %v", in.Label(), patherr.Unwrap(err))
 		return &coreutils.ExitError{Code: 1, Err: err}
 	}
 }
@@ -396,13 +396,4 @@ type writeError struct {
 // Error implements the error interface.
 func (e *writeError) Error() string {
 	return e.err.Error()
-}
-
-// unwrapPathError unwraps *fs.PathError so diagnostics don't repeat the file
-// name.
-func unwrapPathError(err error) error {
-	if pathErr, ok := errors.AsType[*fs.PathError](err); ok {
-		return pathErr.Err
-	}
-	return err
 }
