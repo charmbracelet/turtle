@@ -21,6 +21,8 @@ import (
 	"time"
 
 	"charm.land/snail/coreutils"
+
+	"charm.land/snail/coreutils/internal/ctxio"
 	"charm.land/snail/coreutils/internal/getopt"
 	"charm.land/snail/fsx"
 )
@@ -91,7 +93,7 @@ func (p *Prog) tail(ctx context.Context, in input, opts options) error {
 	}
 	defer rc.Close()
 
-	r := ctxReader{ctx: ctx, r: rc}
+	r := ctxio.NewReader(ctx, rc)
 	if err := p.copyPortion(r, f, opts); err != nil {
 		return err
 	}
@@ -531,21 +533,6 @@ func (in input) label() string {
 		return "standard input"
 	}
 	return in.name
-}
-
-// ctxReader stops read operations with the context error once ctx is done,
-// so long inputs don't delay returning.
-type ctxReader struct {
-	ctx context.Context
-	r   io.Reader
-}
-
-// Read implements io.Reader.
-func (r ctxReader) Read(p []byte) (int, error) {
-	if err := r.ctx.Err(); err != nil {
-		return 0, err
-	}
-	return r.r.Read(p)
 }
 
 // writeError marks an error as coming from writing to the standard output.

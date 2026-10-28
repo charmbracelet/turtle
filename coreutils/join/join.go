@@ -20,6 +20,8 @@ import (
 	"unicode/utf8"
 
 	"charm.land/snail/coreutils"
+
+	"charm.land/snail/coreutils/internal/ctxio"
 	"charm.land/snail/coreutils/internal/getopt"
 	"charm.land/snail/coreutils/internal/textutil"
 )
@@ -485,7 +487,7 @@ func (p *Prog) openInput(ctx context.Context, name string) (io.Reader, func() er
 		if p.Stdin == nil {
 			return nil, nil, errors.New("no standard input available")
 		}
-		return ctxReader{ctx: ctx, r: p.Stdin}, func() error { return nil }, nil
+		return ctxio.NewReader(ctx, p.Stdin), func() error { return nil }, nil
 	}
 	if p.FS == nil {
 		return nil, nil, errors.New("no file system available")
@@ -494,23 +496,11 @@ func (p *Prog) openInput(ctx context.Context, name string) (io.Reader, func() er
 	if err != nil {
 		return nil, nil, err
 	}
-	return ctxReader{ctx: ctx, r: f}, f.Close, nil
+	return ctxio.NewReader(ctx, f), f.Close, nil
 }
 
 func (p *Prog) errorf(format string, args ...any) {
 	fmt.Fprintf(p.Stderr, "join: "+format+"\n", args...)
-}
-
-type ctxReader struct {
-	ctx context.Context
-	r   io.Reader
-}
-
-func (r ctxReader) Read(p []byte) (int, error) {
-	if err := r.ctx.Err(); err != nil {
-		return 0, err
-	}
-	return r.r.Read(p)
 }
 
 func unwrapPathError(err error) error {

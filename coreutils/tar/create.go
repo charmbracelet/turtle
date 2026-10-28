@@ -12,6 +12,8 @@ import (
 	"time"
 
 	"charm.land/snail/coreutils"
+
+	"charm.land/snail/coreutils/internal/ctxio"
 	"charm.land/snail/fsx"
 )
 
@@ -237,7 +239,7 @@ func (a *archiver) writeEntry(ctx context.Context, tw *tar.Writer, name, resolve
 		a.failCreate(name, err)
 		return
 	}
-	_, copyErr := io.Copy(tw, ctxReader{ctx: ctx, r: in})
+	_, copyErr := io.Copy(tw, ctxio.NewReader(ctx, in))
 	closeErr := in.Close()
 	if copyErr != nil {
 		a.failCreate(name, copyErr)

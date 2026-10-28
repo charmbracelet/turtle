@@ -407,20 +407,6 @@ func markMatched(matched map[string]bool, name string) {
 	}
 }
 
-// ctxReader stops read operations with the context error once ctx is done.
-type ctxReader struct {
-	ctx context.Context
-	r   io.Reader
-}
-
-// Read implements io.Reader.
-func (c ctxReader) Read(p []byte) (int, error) {
-	if err := c.ctx.Err(); err != nil {
-		return 0, err
-	}
-	return c.r.Read(p)
-}
-
 // countWriter counts the bytes written through it.
 type countWriter struct {
 	w io.Writer

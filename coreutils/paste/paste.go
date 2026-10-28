@@ -17,6 +17,8 @@ import (
 	"strings"
 
 	"charm.land/snail/coreutils"
+
+	"charm.land/snail/coreutils/internal/ctxio"
 	"charm.land/snail/coreutils/internal/getopt"
 )
 
@@ -161,7 +163,7 @@ func (p *Prog) openInput(ctx context.Context, operand string) *input {
 			if p.Stdin == nil {
 				return &input{operand: operand, err: errors.New("no standard input available")}
 			}
-			p.stdin = bufio.NewReader(ctxReader{ctx: ctx, r: p.Stdin})
+			p.stdin = bufio.NewReader(ctxio.NewReader(ctx, p.Stdin))
 		}
 		return &input{operand: operand, r: p.stdin}
 	}
@@ -177,7 +179,7 @@ func (p *Prog) openInput(ctx context.Context, operand string) *input {
 	}
 	return &input{
 		operand: operand,
-		r:       bufio.NewReader(ctxReader{ctx: ctx, r: f}),
+		r:       bufio.NewReader(ctxio.NewReader(ctx, f)),
 		c:       f,
 	}
 }
@@ -310,21 +312,6 @@ func (in *input) close() {
 	if in.c != nil {
 		in.c.Close()
 	}
-}
-
-// ctxReader stops read operations with the context error once ctx is done, so
-// long inputs don't delay returning.
-type ctxReader struct {
-	ctx context.Context
-	r   io.Reader
-}
-
-// Read implements io.Reader.
-func (r ctxReader) Read(p []byte) (int, error) {
-	if err := r.ctx.Err(); err != nil {
-		return 0, err
-	}
-	return r.r.Read(p)
 }
 
 // unwrapPathError unwraps *fs.PathError so diagnostics don't repeat the file
