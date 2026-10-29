@@ -1,6 +1,7 @@
 package coreutils
 
 import (
+	"bytes"
 	"context"
 	"errors"
 	"os"
@@ -317,6 +318,122 @@ func TestRuntimeNow(t *testing.T) {
 		after := time.Now()
 		if got.Before(before) || got.After(after) {
 			t.Errorf("Now() = %v, want a time between %v and %v", got, before, after)
+		}
+	})
+}
+
+func TestRuntimeTerminal(t *testing.T) {
+	t.Run("uses the IsTerminal function when set", func(t *testing.T) {
+		var gotFd int
+		rt := &Runtime{
+			IsTerminal: func(fd int) bool {
+				gotFd = fd
+				return fd == 2
+			},
+		}
+
+		if !rt.Terminal(2) {
+			t.Error("Terminal(2) = false, want true")
+		}
+		if gotFd != 2 {
+			t.Errorf("IsTerminal called with %d, want 2", gotFd)
+		}
+		if rt.Terminal(1) {
+			t.Error("Terminal(1) = true, want false")
+		}
+	})
+
+	t.Run("falls back to the standard streams", func(t *testing.T) {
+		t.Run("a character device file is not a terminal", func(t *testing.T) {
+			f, err := os.OpenFile(os.DevNull, os.O_RDWR, 0)
+			if err != nil {
+				t.Fatal(err)
+			}
+			t.Cleanup(func() { f.Close() })
+
+			rt := &Runtime{Stdin: f}
+			if rt.Terminal(0) {
+				t.Error("Terminal(0) = true, want false for a character device")
+			}
+		})
+
+		t.Run("a regular file is not a terminal", func(t *testing.T) {
+			f, err := os.Create(filepath.Join(t.TempDir(), "f"))
+			if err != nil {
+				t.Fatal(err)
+			}
+			t.Cleanup(func() { f.Close() })
+
+			rt := &Runtime{Stdout: f}
+			if rt.Terminal(1) {
+				t.Error("Terminal(1) = true, want false for a regular file")
+			}
+		})
+
+		t.Run("a stream that is not a file", func(t *testing.T) {
+			rt := &Runtime{Stderr: new(bytes.Buffer)}
+			if rt.Terminal(2) {
+				t.Error("Terminal(2) = true, want false for a non-file")
+			}
+		})
+
+		t.Run("a descriptor without a stream", func(t *testing.T) {
+			rt := &Runtime{}
+			if rt.Terminal(3) {
+				t.Error("Terminal(3) = true, want false")
+			}
+		})
+
+		t.Run("a real terminal when the process has one", func(t *testing.T) {
+			f, err := os.OpenFile("/dev/tty", os.O_RDWR, 0)
+			if err != nil {
+				t.Skipf("opening /dev/tty: %v", err)
+			}
+			t.Cleanup(func() { f.Close() })
+
+			rt := &Runtime{Stdin: f}
+			if !rt.Terminal(0) {
+				t.Error("Terminal(0) = false, want true for a terminal")
+			}
+		})
+	})
+}
+
+// TestIsTerminal covers the platform helper itself.
+func TestIsTerminal(t *testing.T) {
+	t.Run("a regular file", func(t *testing.T) {
+		f, err := os.Create(filepath.Join(t.TempDir(), "f"))
+		if err != nil {
+			t.Fatal(err)
+		}
+		t.Cleanup(func() { f.Close() })
+
+		if isTerminal(int(f.Fd())) {
+			t.Error("isTerminal() = true for a regular file, want false")
+		}
+	})
+
+	t.Run("a character device", func(t *testing.T) {
+		f, err := os.OpenFile(os.DevNull, os.O_RDWR, 0)
+		if err != nil {
+			t.Fatal(err)
+		}
+		t.Cleanup(func() { f.Close() })
+
+		if isTerminal(int(f.Fd())) {
+			t.Error("isTerminal() = true for a character device, want false")
+		}
+	})
+
+	t.Run("a terminal", func(t *testing.T) {
+		f, err := os.OpenFile("/dev/tty", os.O_RDWR, 0)
+		if err != nil {
+			t.Skipf("opening /dev/tty: %v", err)
+		}
+		t.Cleanup(func() { f.Close() })
+
+		if !isTerminal(int(f.Fd())) {
+			t.Error("isTerminal() = false for a terminal, want true")
 		}
 	})
 }
