@@ -34,6 +34,11 @@ type Runtime struct {
 	WorkingDir string
 	LookupEnv  LookupEnvFunc
 
+	// Environ enumerates the current environment, as "KEY=VALUE" strings.
+	// It's used by utilities that need the whole environment, like env. If
+	// nil, the environment is treated as empty.
+	Environ EnvironFunc
+
 	// Umask is the file mode creation mask. It's used by utilities like chmod
 	// when a symbolic mode doesn't specify who. The zero value means no
 	// masking.
@@ -61,6 +66,12 @@ type Runtime struct {
 	// utilities that invoke other programs, like xargs. If nil, such
 	// utilities fail instead of running anything.
 	Exec ExecFunc
+
+	// Env is the environment the utilities spawned through Exec run
+	// with, as "KEY=VALUE" strings. When nil, they inherit the current
+	// environment. Utilities that modify the environment, like env, set
+	// it before invoking the utility operand.
+	Env []string
 }
 
 // OsRuntime returns a Runtime wired to the real operating system.
@@ -79,6 +90,7 @@ func OsRuntime() *Runtime {
 		FS:         fsx.OsFS(""),
 		WorkingDir: wd,
 		LookupEnv:  os.LookupEnv,
+		Environ:    os.Environ,
 		Clock:      time.Now,
 	}
 	rt.Exec = func(ctx context.Context, name string, args []string) (int, error) {
@@ -161,6 +173,9 @@ func (r *Runtime) Getenv(key string) string {
 // LookupEnvFunc is a function signature for the LookupEnv function.
 type LookupEnvFunc func(string) (string, bool)
 
+// EnvironFunc is a function signature for the Runtime.Environ function.
+type EnvironFunc func() []string
+
 // ClockFunc is a function signature for the Runtime.Clock function.
 type ClockFunc func() time.Time
 
@@ -199,6 +214,7 @@ func osExec(ctx context.Context, rt *Runtime, name string, args []string) (int, 
 func run(ctx context.Context, rt *Runtime, path string, args []string) (int, error) {
 	cmd := exec.CommandContext(ctx, path, args...)
 	cmd.Dir = rt.WorkingDir
+	cmd.Env = rt.Env
 	cmd.Stdout = rt.Stdout
 	cmd.Stderr = rt.Stderr
 	if f, err := os.OpenFile(os.DevNull, os.O_RDONLY, 0); err == nil {
