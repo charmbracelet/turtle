@@ -144,8 +144,8 @@ these copies (like `sed` or `tar`) link to their online documentation instead.
 | GNU | `install` | Copy files and set attributes | — | [❌](spec/markdown/gnu/install-invocation.md) |
 | GNU | `md5sum` | Compute MD5 checksums | — | [✅](spec/markdown/gnu/md5sum-invocation.md) |
 | GNU | `mktemp` | Create a temporary file or directory | — | [✅](spec/markdown/gnu/mktemp-invocation.md) |
-| GNU | `nproc` | Print the number of processing units | — | [❌](spec/markdown/gnu/nproc-invocation.md) |
-| GNU | `printenv` | Print environment variables | — | [❌](spec/markdown/gnu/printenv-invocation.md) |
+| GNU | `nproc` | Print the number of processing units | — | [✅](spec/markdown/gnu/nproc-invocation.md) |
+| GNU | `printenv` | Print environment variables | — | [✅](spec/markdown/gnu/printenv-invocation.md) |
 | GNU | `seq` | Print a sequence of numbers | — | [✅](spec/markdown/gnu/seq-invocation.md) |
 | GNU | `sha1sum` | Compute SHA-1 checksums | — | [✅](spec/markdown/gnu/sha1sum-invocation.md) |
 | GNU | `sha224sum` | Compute SHA-224 checksums | — | [✅](spec/markdown/gnu/sha2-utilities.md) |
@@ -155,12 +155,12 @@ these copies (like `sed` or `tar`) link to their online documentation instead.
 | GNU | `shasum`*** | Print or check SHA checksums | — | [✅](https://perldoc.perl.org/shasum) |
 | GNU | `shuf` | Generate random permutations | — | [❌](spec/markdown/gnu/shuf-invocation.md) |
 | GNU | `stat` | Print file and file system status | — | [❌](spec/markdown/gnu/stat-invocation.md) |
-| GNU | `sync` | Flush file system buffers | — | [❌](spec/markdown/gnu/sync-invocation.md) |
-| GNU | `tac` | Concatenate and print files in reverse | — | [❌](spec/markdown/gnu/tac-invocation.md) |
+| GNU | `sync`******** | Flush file system buffers | — | [✅](spec/markdown/gnu/sync-invocation.md) |
+| GNU | `tac` | Concatenate and print files in reverse | — | [✅](spec/markdown/gnu/tac-invocation.md) |
 | GNU | `tar`***** | Create and extract file archives | — | [✅](https://web.archive.org/web/https://www.gnu.org/software/tar/manual/tar.html) |
-| GNU | `truncate` | Shrink or extend the size of files | — | [❌](spec/markdown/gnu/truncate-invocation.md) |
+| GNU | `truncate` | Shrink or extend the size of files | — | [✅](spec/markdown/gnu/truncate-invocation.md) |
 | GNU | `which` | Locate a command in the search path | — | ❌ |
-| GNU | `whoami` | Print the effective user name | — | [❌](spec/markdown/gnu/whoami-invocation.md) |
+| GNU | `whoami`********* | Print the effective user name | — | [✅](spec/markdown/gnu/whoami-invocation.md) |
 | GNU | `yes` | Print a string repeatedly | — | [✅](spec/markdown/gnu/yes-invocation.md) |
 
 > [!NOTE]
@@ -208,3 +208,11 @@ these copies (like `sed` or `tar`) link to their online documentation instead.
 > clock fails, since the runtime exposes a clock to read but none to set.
 > The GNU `-r` (`--reference`) option, which displays the modification time
 > of a file, is also supported.
+>
+> `********` `sync` flushes through the runtime file system, so the whole
+> system is only flushed when the FS maps the real one, and the `-d` and
+> `-f` flags degrade to the closest operation the platform offers.
+>
+> `*********` `whoami` takes the name from the `USER` or `LOGNAME`
+> environment variables, since the isolated runtime exposes no user
+> database.
