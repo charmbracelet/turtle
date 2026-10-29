@@ -37,6 +37,15 @@ type testCase struct {
 	wantExit int
 }
 
+// environ converts a map to a list of KEY=VALUE strings.
+func environ(env map[string]string) []string {
+	entries := make([]string, 0, len(env))
+	for name, value := range env {
+		entries = append(entries, name+"="+value)
+	}
+	return entries
+}
+
 func runCase(t *testing.T, test testCase) {
 	t.Helper()
 
@@ -49,13 +58,10 @@ func runCase(t *testing.T, test testCase) {
 		env = map[string]string{"TZ": "UTC"}
 	}
 	rt := &coreutils.Runtime{
-		Stdout: stdout,
-		Stderr: stderr,
-		Clock:  func() time.Time { return clockTime },
-		LookupEnv: func(key string) (string, bool) {
-			v, ok := env[key]
-			return v, ok
-		},
+		Stdout:  stdout,
+		Stderr:  stderr,
+		Clock:   func() time.Time { return clockTime },
+		Environ: func() []string { return environ(env) },
 	}
 	if test.fsys != nil {
 		rt.FS = test.fsys

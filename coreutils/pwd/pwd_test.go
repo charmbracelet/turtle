@@ -27,11 +27,13 @@ func (w errorWriter) Write([]byte) (int, error) {
 	return 0, w.err
 }
 
-func lookupEnv(env map[string]string) coreutils.LookupEnvFunc {
-	return func(key string) (string, bool) {
-		v, ok := env[key]
-		return v, ok
+// environ returns the test environment as a list of KEY=VALUE strings.
+func environ(values map[string]string) []string {
+	entries := make([]string, 0, len(values))
+	for name, value := range values {
+		entries = append(entries, name+"="+value)
 	}
+	return entries
 }
 
 func runPwd(t *testing.T, workDir string, env map[string]string, args ...string) (string, error) {
@@ -46,7 +48,7 @@ func runPwd(t *testing.T, workDir string, env map[string]string, args ...string)
 		Stdout:     stdout,
 		Stderr:     stderr,
 		WorkingDir: workDir,
-		LookupEnv:  lookupEnv(env),
+		Environ:    func() []string { return environ(env) },
 	}
 	err := New(rt).Run(t.Context(), args...)
 
@@ -293,7 +295,7 @@ func TestRun(t *testing.T) {
 	})
 }
 
-func TestRunNilLookupEnv(t *testing.T) {
+func TestRunNilEnviron(t *testing.T) {
 	workDir := t.TempDir()
 
 	rt := &coreutils.Runtime{
@@ -319,7 +321,7 @@ func TestRunWriteError(t *testing.T) {
 		Stdout:     errorWriter{err: writeErr},
 		Stderr:     new(bytes.Buffer),
 		WorkingDir: t.TempDir(),
-		LookupEnv:  lookupEnv(nil),
+		Environ:    func() []string { return environ(nil) },
 	}
 	err := New(rt).Run(t.Context())
 

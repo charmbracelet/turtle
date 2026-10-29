@@ -504,9 +504,6 @@ func (p *Prog) resolve(name string) string {
 // COLUMNS variable overrides.
 func (p *Prog) displayWidth() int {
 	const defaultWidth = 80
-	if p.LookupEnv == nil {
-		return defaultWidth
-	}
 	v, ok := p.LookupEnv("COLUMNS")
 	if !ok {
 		return defaultWidth

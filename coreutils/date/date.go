@@ -113,14 +113,12 @@ func (p *Prog) referenceTime(name string) (time.Time, error) {
 // parsed here. Values with DST rules, like "EST5EDT", are not supported and
 // fall back to the local zone, like unknown ones.
 func (p *Prog) location() *time.Location {
-	if p.LookupEnv != nil {
-		if tz, ok := p.LookupEnv("TZ"); ok && tz != "" {
-			if loc, err := time.LoadLocation(tz); err == nil {
-				return loc
-			}
-			if loc := parseTZ(tz); loc != nil {
-				return loc
-			}
+	if tz, ok := p.LookupEnv("TZ"); ok && tz != "" {
+		if loc, err := time.LoadLocation(tz); err == nil {
+			return loc
+		}
+		if loc := parseTZ(tz); loc != nil {
+			return loc
 		}
 	}
 	return time.Local

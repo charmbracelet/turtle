@@ -7,9 +7,30 @@ import (
 	"os"
 	"path/filepath"
 	"runtime"
+	"slices"
+	"strings"
 	"testing"
 	"time"
 )
+
+// envWithPath returns a function enumerating the process environment with
+// PATH set to the given value.
+func envWithPath(path string) func() []string {
+	return func() []string {
+		return append(envWithoutPath(), "PATH="+path)
+	}
+}
+
+// envWithoutPath returns the process environment without PATH.
+func envWithoutPath() []string {
+	var env []string
+	for _, entry := range os.Environ() {
+		if name, _, _ := strings.Cut(entry, "="); name != "PATH" {
+			env = append(env, entry)
+		}
+	}
+	return env
+}
 
 func TestExitError(t *testing.T) {
 	inner := errors.New("boom")
@@ -51,7 +72,7 @@ func TestExitError(t *testing.T) {
 func TestOsExec(t *testing.T) {
 	t.Run("runtime without a lookup function", func(t *testing.T) {
 		rt := &Runtime{}
-		status, err := osExec(t.Context(), rt, "definitely-not-a-utility", nil)
+		status, err := osExec(t.Context(), rt, "definitely-not-a-utility", nil, nil)
 		if status != 127 {
 			t.Errorf("status = %d, want 127", status)
 		}
@@ -62,7 +83,7 @@ func TestOsExec(t *testing.T) {
 
 	t.Run("utility not found", func(t *testing.T) {
 		rt := OsRuntime()
-		status, err := osExec(t.Context(), rt, "definitely-not-a-utility", nil)
+		status, err := osExec(t.Context(), rt, "definitely-not-a-utility", nil, nil)
 		if status != 127 {
 			t.Errorf("status = %d, want 127", status)
 		}
@@ -81,20 +102,15 @@ func TestOsExec(t *testing.T) {
 			t.Fatal(err)
 		}
 		rt := OsRuntime()
-		rt.LookupEnv = func(key string) (string, bool) {
-			if key == "PATH" {
-				return dir, true
-			}
-			return os.LookupEnv(key)
-		}
-		if status, err := osExec(t.Context(), rt, "myutil", nil); err != nil || status != 3 {
+		rt.Environ = envWithPath(dir)
+		if status, err := osExec(t.Context(), rt, "myutil", nil, nil); err != nil || status != 3 {
 			t.Errorf("osExec() = %d, %v, want 3, nil", status, err)
 		}
 	})
 
 	t.Run("utility named by a path that doesn't exist", func(t *testing.T) {
 		rt := OsRuntime()
-		status, err := osExec(t.Context(), rt, "./definitely-not-a-utility", nil)
+		status, err := osExec(t.Context(), rt, "./definitely-not-a-utility", nil, nil)
 		if status != 127 {
 			t.Errorf("status = %d, want 127", status)
 		}
@@ -113,13 +129,8 @@ func TestOsExec(t *testing.T) {
 			t.Fatal(err)
 		}
 		rt := OsRuntime()
-		rt.LookupEnv = func(key string) (string, bool) {
-			if key == "PATH" {
-				return dir, true
-			}
-			return os.LookupEnv(key)
-		}
-		if status, err := osExec(t.Context(), rt, "myutil", nil); err != nil || status != 0 {
+		rt.Environ = envWithPath(dir)
+		if status, err := osExec(t.Context(), rt, "myutil", nil, nil); err != nil || status != 0 {
 			t.Errorf("osExec() = %d, %v, want 0, nil", status, err)
 		}
 	})
@@ -134,13 +145,8 @@ func TestOsExec(t *testing.T) {
 			t.Fatal(err)
 		}
 		rt := OsRuntime()
-		rt.LookupEnv = func(key string) (string, bool) {
-			if key == "PATH" {
-				return dir, true
-			}
-			return os.LookupEnv(key)
-		}
-		if status, err := osExec(t.Context(), rt, "myutil", nil); status != 126 || err == nil {
+		rt.Environ = envWithPath(dir)
+		if status, err := osExec(t.Context(), rt, "myutil", nil, nil); status != 126 || err == nil {
 			t.Errorf("osExec() = %d, %v, want 126, an error", status, err)
 		}
 	})
@@ -156,13 +162,8 @@ func TestOsExec(t *testing.T) {
 		}
 		rt := OsRuntime()
 		rt.WorkingDir = dir
-		rt.LookupEnv = func(key string) (string, bool) {
-			if key == "PATH" {
-				return ".", true
-			}
-			return os.LookupEnv(key)
-		}
-		if status, err := osExec(t.Context(), rt, "myutil", nil); err != nil || status != 0 {
+		rt.Environ = envWithPath(".")
+		if status, err := osExec(t.Context(), rt, "myutil", nil, nil); err != nil || status != 0 {
 			t.Errorf("osExec() = %d, %v, want 0, nil", status, err)
 		}
 	})
@@ -183,13 +184,8 @@ func TestOsExec(t *testing.T) {
 		t.Chdir(dir)
 		rt := OsRuntime()
 		rt.WorkingDir = "sub"
-		rt.LookupEnv = func(key string) (string, bool) {
-			if key == "PATH" {
-				return ".", true
-			}
-			return os.LookupEnv(key)
-		}
-		if status, err := osExec(t.Context(), rt, "myutil", nil); err != nil || status != 0 {
+		rt.Environ = envWithPath(".")
+		if status, err := osExec(t.Context(), rt, "myutil", nil, nil); err != nil || status != 0 {
 			t.Errorf("osExec() = %d, %v, want 0, nil", status, err)
 		}
 	})
@@ -205,13 +201,8 @@ func TestOsExec(t *testing.T) {
 		}
 		rt := OsRuntime()
 		rt.WorkingDir = dir
-		rt.LookupEnv = func(key string) (string, bool) {
-			if key == "PATH" {
-				return "", true
-			}
-			return os.LookupEnv(key)
-		}
-		if status, err := osExec(t.Context(), rt, "myutil", nil); err != nil || status != 0 {
+		rt.Environ = envWithPath("")
+		if status, err := osExec(t.Context(), rt, "myutil", nil, nil); err != nil || status != 0 {
 			t.Errorf("osExec() = %d, %v, want 0, nil", status, err)
 		}
 	})
@@ -221,13 +212,8 @@ func TestOsExec(t *testing.T) {
 			t.Skip("needs the default Unix search path")
 		}
 		rt := OsRuntime()
-		rt.LookupEnv = func(key string) (string, bool) {
-			if key == "PATH" {
-				return "", false
-			}
-			return os.LookupEnv(key)
-		}
-		if status, err := osExec(t.Context(), rt, "sh", []string{"-c", "exit 0"}); err != nil || status != 0 {
+		rt.Environ = func() []string { return envWithoutPath() }
+		if status, err := osExec(t.Context(), rt, "sh", []string{"-c", "exit 0"}, nil); err != nil || status != 0 {
 			t.Errorf("osExec() = %d, %v, want 0, nil", status, err)
 		}
 	})
@@ -246,13 +232,8 @@ func TestOsExec(t *testing.T) {
 		}
 		t.Cleanup(func() { os.Chmod(dir, 0o755) })
 		rt := OsRuntime()
-		rt.LookupEnv = func(key string) (string, bool) {
-			if key == "PATH" {
-				return dir, true
-			}
-			return os.LookupEnv(key)
-		}
-		if status, err := osExec(t.Context(), rt, "myutil", nil); status != 126 || err == nil {
+		rt.Environ = envWithPath(dir)
+		if status, err := osExec(t.Context(), rt, "myutil", nil, nil); status != 126 || err == nil {
 			t.Errorf("osExec() = %d, %v, want 126, an error", status, err)
 		}
 	})
@@ -451,9 +432,6 @@ func TestOsRuntime(t *testing.T) {
 	if rt.FS == nil {
 		t.Error("FS was not set")
 	}
-	if rt.LookupEnv == nil {
-		t.Error("LookupEnv was not set")
-	}
 	if rt.Environ == nil {
 		t.Error("Environ was not set")
 	}
@@ -473,37 +451,13 @@ func TestOsExecEnv(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	t.Run("inherits the current environment when Env is nil", func(t *testing.T) {
-		t.Setenv("FOO", "inherited")
+	t.Run("runs the utility with the environment given", func(t *testing.T) {
 		rt := OsRuntime()
-		rt.LookupEnv = func(key string) (string, bool) {
-			if key == "PATH" {
-				return dir, true
-			}
-			return os.LookupEnv(key)
-		}
+		rt.Environ = envWithPath(dir)
 		out := new(bytes.Buffer)
 		rt.Stdout = out
-		if status, err := osExec(t.Context(), rt, "myutil", nil); err != nil || status != 0 {
-			t.Fatalf("osExec() = %d, %v, want 0, nil", status, err)
-		}
-		if got := out.String(); got != "FOO=inherited\n" {
-			t.Errorf("utility saw environment %q, want %q", got, "FOO=inherited\n")
-		}
-	})
-
-	t.Run("runs the utility with the environment set in the runtime", func(t *testing.T) {
-		rt := OsRuntime()
-		rt.LookupEnv = func(key string) (string, bool) {
-			if key == "PATH" {
-				return dir, true
-			}
-			return os.LookupEnv(key)
-		}
-		rt.Env = []string{"FOO=overridden", "PATH=" + dir}
-		out := new(bytes.Buffer)
-		rt.Stdout = out
-		if status, err := osExec(t.Context(), rt, "myutil", nil); err != nil || status != 0 {
+		env := []string{"FOO=overridden", "PATH=" + dir}
+		if status, err := osExec(t.Context(), rt, "myutil", nil, env); err != nil || status != 0 {
 			t.Fatalf("osExec() = %d, %v, want 0, nil", status, err)
 		}
 		if got := out.String(); got != "FOO=overridden\n" {
@@ -511,22 +465,90 @@ func TestOsExecEnv(t *testing.T) {
 		}
 	})
 
-	t.Run("runs the utility with an empty environment", func(t *testing.T) {
+	t.Run("a nil environment is an empty one", func(t *testing.T) {
+		t.Setenv("FOO", "inherited")
 		rt := OsRuntime()
-		rt.LookupEnv = func(key string) (string, bool) {
-			if key == "PATH" {
-				return dir, true
-			}
-			return os.LookupEnv(key)
-		}
-		rt.Env = []string{"PATH=" + dir}
+		rt.Environ = nil
 		out := new(bytes.Buffer)
 		rt.Stdout = out
-		if status, err := osExec(t.Context(), rt, "myutil", nil); err != nil || status != 0 {
+		if status, err := osExec(t.Context(), rt, path, nil, nil); err != nil || status != 0 {
 			t.Fatalf("osExec() = %d, %v, want 0, nil", status, err)
 		}
 		if got := out.String(); got != "FOO=\n" {
 			t.Errorf("utility saw environment %q, want %q", got, "FOO=\n")
 		}
+	})
+}
+
+func TestRuntimeEnv(t *testing.T) {
+	environ := []string{"FOO=1", "BAR=2"}
+
+	t.Run("LookupEnv", func(t *testing.T) {
+		t.Run("returns set variables", func(t *testing.T) {
+			rt := &Runtime{Environ: func() []string { return environ }}
+			if got, ok := rt.LookupEnv("FOO"); !ok || got != "1" {
+				t.Errorf("LookupEnv(\"FOO\") = %q, %v, want \"1\", true", got, ok)
+			}
+		})
+
+		t.Run("reports unset variables", func(t *testing.T) {
+			rt := &Runtime{Environ: func() []string { return environ }}
+			if got, ok := rt.LookupEnv("MISSING"); ok || got != "" {
+				t.Errorf("LookupEnv(\"MISSING\") = %q, %v, want \"\", false", got, ok)
+			}
+		})
+
+		t.Run("returns the first match", func(t *testing.T) {
+			rt := &Runtime{Environ: func() []string { return []string{"FOO=1", "FOO=2"} }}
+			if got, ok := rt.LookupEnv("FOO"); !ok || got != "1" {
+				t.Errorf("LookupEnv(\"FOO\") = %q, %v, want \"1\", true", got, ok)
+			}
+		})
+
+		t.Run("finds nothing without an Environ function", func(t *testing.T) {
+			rt := &Runtime{}
+			if got, ok := rt.LookupEnv("FOO"); ok || got != "" {
+				t.Errorf("LookupEnv(\"FOO\") = %q, %v, want \"\", false", got, ok)
+			}
+		})
+	})
+
+	t.Run("Getenv", func(t *testing.T) {
+		t.Run("returns set variables", func(t *testing.T) {
+			rt := &Runtime{Environ: func() []string { return environ }}
+			if got := rt.Getenv("BAR"); got != "2" {
+				t.Errorf("Getenv(\"BAR\") = %q, want \"2\"", got)
+			}
+		})
+
+		t.Run("returns the empty string for unset variables", func(t *testing.T) {
+			rt := &Runtime{Environ: func() []string { return environ }}
+			if got := rt.Getenv("MISSING"); got != "" {
+				t.Errorf("Getenv(\"MISSING\") = %q, want empty", got)
+			}
+		})
+
+		t.Run("returns the empty string without an Environ function", func(t *testing.T) {
+			rt := &Runtime{}
+			if got := rt.Getenv("FOO"); got != "" {
+				t.Errorf("Getenv(\"FOO\") = %q, want empty", got)
+			}
+		})
+	})
+
+	t.Run("EnvList", func(t *testing.T) {
+		t.Run("returns the environment of the runtime", func(t *testing.T) {
+			rt := &Runtime{Environ: func() []string { return environ }}
+			if got := rt.EnvList(); !slices.Equal(got, environ) {
+				t.Errorf("EnvList() = %v, want %v", got, environ)
+			}
+		})
+
+		t.Run("returns nil without an Environ function", func(t *testing.T) {
+			rt := &Runtime{}
+			if got := rt.EnvList(); got != nil {
+				t.Errorf("EnvList() = %v, want nil", got)
+			}
+		})
 	})
 }

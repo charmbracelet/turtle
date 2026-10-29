@@ -7,6 +7,7 @@ import (
 	"os"
 	"path/filepath"
 	"runtime"
+	"slices"
 	"testing"
 
 	"charm.land/snail/coreutils"
@@ -20,8 +21,6 @@ type execRecord struct {
 	env    []string
 	status int
 	err    error
-	lookup func(string) (string, bool)
-	rt     *coreutils.Runtime
 }
 
 func (r *execRecord) calledOnce() bool {
@@ -37,10 +36,8 @@ func newRuntime(environ []string, rec *execRecord) *coreutils.Runtime {
 		Environ: func() []string { return environ },
 	}
 	if rec != nil {
-		rec.rt = rt
-		rt.Exec = func(_ context.Context, name string, args []string) (int, error) {
-			rec.called, rec.name, rec.args, rec.env = true, name, args, rt.Env
-			rec.lookup = rt.LookupEnv
+		rt.Exec = func(_ context.Context, name string, args, env []string) (int, error) {
+			rec.called, rec.name, rec.args, rec.env = true, name, args, env
 			return rec.status, rec.err
 		}
 	}
@@ -182,7 +179,10 @@ func TestRunInvoke(t *testing.T) {
 		wantName string
 		wantArgs []string
 		wantEnv  []string
-		wantCode int
+		// wantEnvNotNil requests the environment to be an empty non-nil
+		// slice, and not nil, when wantEnv is empty.
+		wantEnvNotNil bool
+		wantCode      int
 	}{
 		{
 			name:     "the utility runs with the inherited environment",
@@ -210,10 +210,11 @@ func TestRunInvoke(t *testing.T) {
 			wantEnv:  []string{"BAR=2"},
 		},
 		{
-			name:     "-i starts the utility with an empty environment",
-			args:     []string{"-i", "utility"},
-			wantName: "utility",
-			wantEnv:  []string{},
+			name:          "-i starts the utility with an empty environment",
+			args:          []string{"-i", "utility"},
+			wantName:      "utility",
+			wantEnv:       []string{},
+			wantEnvNotNil: true,
 		},
 		{
 			name:     "-i with an assignment",
@@ -296,6 +297,9 @@ func TestRunInvoke(t *testing.T) {
 			if len(rec.env) != len(test.wantEnv) {
 				t.Fatalf("Exec() environment = %v, want %v", rec.env, test.wantEnv)
 			}
+			if test.wantEnvNotNil && rec.env == nil {
+				t.Error("Exec() environment = nil, want an empty non-nil one")
+			}
 			for i, entry := range rec.env {
 				if entry != test.wantEnv[i] {
 					t.Errorf("Exec() environment[%d] = %q, want %q", i, entry, test.wantEnv[i])
@@ -324,51 +328,20 @@ func TestRunInvokeNoExec(t *testing.T) {
 	}
 }
 
-func TestRunInvokeLookupEnv(t *testing.T) {
-	t.Run("a PATH assignment is used to look the utility up", func(t *testing.T) {
+func TestRunInvokePathAssignment(t *testing.T) {
+	// A PATH given as a name=value operand is part of the environment the
+	// utility is looked up in and runs with, as the specification requires.
+	// The search itself is covered by the real execution test below and the
+	// lookup ones of the coreutils package.
+	t.Run("a PATH assignment reaches the utility", func(t *testing.T) {
 		rec := &execRecord{}
-		rt := newRuntime([]string{"PATH=/old"}, rec)
+		rt := newRuntime([]string{"FOO=1"}, rec)
 		if err := New(rt).Run(t.Context(), "PATH=/new", "utility"); err != nil {
 			t.Fatalf("Run() error = %v, want nil", err)
 		}
-		if got, ok := rec.lookup("PATH"); !ok || got != "/new" {
-			t.Errorf("LookupEnv(\"PATH\") = %q, %v, want %q, true", got, ok, "/new")
-		}
-	})
-
-	t.Run("the inherited variables are looked up", func(t *testing.T) {
-		rec := &execRecord{}
-		rt := newRuntime([]string{"FOO=1"}, rec)
-		if err := New(rt).Run(t.Context(), "utility"); err != nil {
-			t.Fatalf("Run() error = %v, want nil", err)
-		}
-		if got, ok := rec.lookup("FOO"); !ok || got != "1" {
-			t.Errorf("LookupEnv(\"FOO\") = %q, %v, want %q, true", got, ok, "1")
-		}
-	})
-
-	t.Run("-i leaves no variables to look up", func(t *testing.T) {
-		rec := &execRecord{}
-		rt := newRuntime([]string{"PATH=/old"}, rec)
-		if err := New(rt).Run(t.Context(), "-i", "utility"); err != nil {
-			t.Fatalf("Run() error = %v, want nil", err)
-		}
-		if _, ok := rec.lookup("PATH"); ok {
-			t.Error("LookupEnv(\"PATH\") found the variable, want it unset")
-		}
-	})
-
-	t.Run("the runtime environment and lookup are restored", func(t *testing.T) {
-		rec := &execRecord{}
-		rt := newRuntime([]string{"FOO=1"}, rec)
-		if err := New(rt).Run(t.Context(), "A=2", "utility"); err != nil {
-			t.Fatalf("Run() error = %v, want nil", err)
-		}
-		if rt.Env != nil {
-			t.Errorf("Runtime.Env = %v, want it restored to nil", rt.Env)
-		}
-		if rt.LookupEnv != nil {
-			t.Error("Runtime.LookupEnv was not restored to nil")
+		want := []string{"FOO=1", "PATH=/new"}
+		if !slices.Equal(rec.env, want) {
+			t.Errorf("Exec() environment = %v, want %v", rec.env, want)
 		}
 	})
 }
@@ -418,9 +391,6 @@ func TestRunInvokeRealUtility(t *testing.T) {
 	}
 	if got := out.String(); got != "FOO=fromenv\n" {
 		t.Errorf("Run() output = %q, want %q", got, "FOO=fromenv\n")
-	}
-	if rt.Env != nil {
-		t.Errorf("Runtime.Env = %v, want it restored to nil", rt.Env)
 	}
 }
 

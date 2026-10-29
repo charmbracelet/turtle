@@ -42,7 +42,7 @@ func runCase(t *testing.T, test testCase) {
 		FS:         test.files,
 		Umask:      test.umask,
 		WorkingDir: test.workingDir,
-		LookupEnv:  envLookup(test.env),
+		Environ:    func() []string { return environ(test.env) },
 	}
 
 	before := keys(test.files)
@@ -103,12 +103,13 @@ func keys(files fsx.MemFS) []string {
 	return slices.Sorted(maps.Keys(files))
 }
 
-// envLookup returns the lookup function of a test environment.
-func envLookup(values map[string]string) coreutils.LookupEnvFunc {
-	return func(key string) (string, bool) {
-		value, ok := values[key]
-		return value, ok
+// environ returns the test environment as a list of KEY=VALUE strings.
+func environ(values map[string]string) []string {
+	entries := make([]string, 0, len(values))
+	for name, value := range values {
+		entries = append(entries, name+"="+value)
 	}
+	return entries
 }
 
 func exitCode(t *testing.T, err error) int {
@@ -592,7 +593,7 @@ func TestTempDir(t *testing.T) {
 	}
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			p := &Prog{Runtime: &coreutils.Runtime{LookupEnv: envLookup(test.env)}}
+			p := &Prog{Runtime: &coreutils.Runtime{Environ: func() []string { return environ(test.env) }}}
 			if got := p.tempDir(); got != test.want {
 				t.Errorf("tempDir() = %q, want %q", got, test.want)
 			}

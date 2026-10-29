@@ -45,11 +45,11 @@ func runCase(t *testing.T, test testCase) {
 		Stdout: io.Discard,
 		Stderr: stderr,
 		FS:     test.files,
-		LookupEnv: func(key string) (string, bool) {
-			if key == "TZ" && test.tz != "" {
-				return test.tz, true
+		Environ: func() []string {
+			if test.tz == "" {
+				return nil
 			}
-			return "", false
+			return []string{"TZ=" + test.tz}
 		},
 	}
 

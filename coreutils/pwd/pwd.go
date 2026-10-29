@@ -73,7 +73,7 @@ func parseFlags(args []string) (physical bool, err error) {
 // environment variable when it holds a valid logical path; otherwise it falls
 // back to the working directory.
 func (p *Prog) dir(physical bool) (string, error) {
-	if !physical && p.LookupEnv != nil {
+	if !physical {
 		if pwd := p.Getenv("PWD"); isValidLogicalPath(pwd) {
 			return pwd, nil
 		}

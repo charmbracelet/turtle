@@ -96,13 +96,11 @@ func isAssignment(operand string) bool {
 // name=value assignments applied in order.
 func (p *Prog) buildEnv(opts settings, assignments []string) []string {
 	var inherited []string
-	if p.Environ != nil {
-		inherited = p.Environ()
+	if !opts.ignore {
+		inherited = p.EnvList()
 	}
 	entries := make([]string, 0, len(inherited)+len(assignments))
-	if !opts.ignore {
-		entries = append(entries, inherited...)
-	}
+	entries = append(entries, inherited...)
 	for _, name := range opts.unset {
 		entries = unsetEnv(entries, name)
 	}
@@ -140,20 +138,7 @@ func (p *Prog) invoke(ctx context.Context, utility string, args, entries []strin
 		p.errorf("no command execution available")
 		return &coreutils.ExitError{Code: 125}
 	}
-	// The runtime environment and lookup are saved and restored, so the
-	// modifications reach only the utility invoked here.
-	savedEnv, savedLookup := p.Env, p.LookupEnv
-	defer func() {
-		p.Env, p.LookupEnv = savedEnv, savedLookup
-	}()
-	// The utility is looked up with the built environment, so a PATH given
-	// as a name=value operand is used in the search, as the specification
-	// requires.
-	p.Env = entries
-	p.LookupEnv = func(key string) (string, bool) {
-		return lookupEnv(entries, key)
-	}
-	status, err := p.Exec(ctx, utility, args)
+	status, err := p.Exec(ctx, utility, args, entries)
 	if err != nil {
 		if ctxErr := ctx.Err(); ctxErr != nil {
 			return ctxErr
@@ -198,17 +183,6 @@ func setEnv(entries []string, name, value string) []string {
 		out = append(out, entry)
 	}
 	return out
-}
-
-// lookupEnv looks a name up in a list of name=value entries, reporting the
-// first match.
-func lookupEnv(entries []string, name string) (string, bool) {
-	for _, entry := range entries {
-		if key, value, _ := strings.Cut(entry, "="); key == name {
-			return value, true
-		}
-	}
-	return "", false
 }
 
 // validName reports whether name is a valid environment variable name: it

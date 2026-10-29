@@ -84,7 +84,7 @@ func runCase(t *testing.T, test testCase) {
 		Stdout:     stdout,
 		Stderr:     stderr,
 		WorkingDir: test.wd,
-		LookupEnv:  envLookup(test.env),
+		Environ:    func() []string { return environ(test.env) },
 	}
 	switch {
 	case test.sys != nil:
@@ -116,12 +116,13 @@ func runCases(t *testing.T, tests []testCase) {
 	}
 }
 
-// envLookup returns the lookup function of a test environment.
-func envLookup(values map[string]string) coreutils.LookupEnvFunc {
-	return func(key string) (string, bool) {
-		value, ok := values[key]
-		return value, ok
+// environ returns the test environment as a list of KEY=VALUE strings.
+func environ(values map[string]string) []string {
+	entries := make([]string, 0, len(values))
+	for name, value := range values {
+		entries = append(entries, name+"="+value)
 	}
+	return entries
 }
 
 func exitCode(t *testing.T, err error) int {
@@ -1582,10 +1583,10 @@ func TestRunRealFS(t *testing.T) {
 		t.Helper()
 		stdout, stderr := new(bytes.Buffer), new(bytes.Buffer)
 		rt := &coreutils.Runtime{
-			Stdout:    stdout,
-			Stderr:    stderr,
-			FS:        sys,
-			LookupEnv: envLookup(nil),
+			Stdout:  stdout,
+			Stderr:  stderr,
+			FS:      sys,
+			Environ: func() []string { return environ(nil) },
 		}
 		if err := New(rt).Run(t.Context(), args...); err != nil {
 			t.Fatalf("Run() error = %v, stderr = %q", err, stderr)
@@ -1751,10 +1752,10 @@ func TestRunFastOrder(t *testing.T) {
 
 	stdout, stderr := new(bytes.Buffer), new(bytes.Buffer)
 	rt := &coreutils.Runtime{
-		Stdout:    stdout,
-		Stderr:    stderr,
-		FS:        sys,
-		LookupEnv: envLookup(nil),
+		Stdout:  stdout,
+		Stderr:  stderr,
+		FS:      sys,
+		Environ: func() []string { return environ(nil) },
 	}
 	if err := New(rt).Run(t.Context(), "-f"); err != nil {
 		t.Fatalf("Run() error = %v, stderr = %q", err, stderr)
@@ -1784,10 +1785,10 @@ func TestRunCycle(t *testing.T) {
 
 	stdout, stderr := new(bytes.Buffer), new(bytes.Buffer)
 	rt := &coreutils.Runtime{
-		Stdout:    stdout,
-		Stderr:    stderr,
-		FS:        sys,
-		LookupEnv: envLookup(nil),
+		Stdout:  stdout,
+		Stderr:  stderr,
+		FS:      sys,
+		Environ: func() []string { return environ(nil) },
 	}
 	err := New(rt).Run(t.Context(), "-1", "-L", "-R", "x")
 	if code := exitCode(t, err); code != 1 {
@@ -1829,10 +1830,10 @@ func TestRunContext(t *testing.T) {
 	cancel()
 
 	rt := &coreutils.Runtime{
-		Stdout:    io.Discard,
-		Stderr:    io.Discard,
-		FS:        fsx.MemFS{"a.txt": {}},
-		LookupEnv: envLookup(nil),
+		Stdout:  io.Discard,
+		Stderr:  io.Discard,
+		FS:      fsx.MemFS{"a.txt": {}},
+		Environ: func() []string { return environ(nil) },
 	}
 	if err := New(rt).Run(ctx, "a.txt"); !errors.Is(err, context.Canceled) {
 		t.Errorf("Run() error = %v, want context.Canceled", err)

@@ -154,7 +154,7 @@ func (p *Prog) template(opts options, operands []string) (string, int, string, e
 		if strings.Contains(tmpl, "/") {
 			return "", 0, "", fmt.Errorf("invalid template '%s', contains directory separator", given)
 		}
-		dir = p.getenv("TMPDIR")
+		dir = p.Getenv("TMPDIR")
 		if dir == "" {
 			dir = opts.tmpDir
 		}
@@ -175,20 +175,11 @@ func (p *Prog) template(opts options, operands []string) (string, int, string, e
 	return name[:first], end - first, name[end:] + suffix, nil
 }
 
-// getenv returns the value of an environment variable, and the empty string
-// when there's no environment to look it up in.
-func (p *Prog) getenv(key string) string {
-	if p.LookupEnv == nil {
-		return ""
-	}
-	return p.Getenv(key)
-}
-
 // tempDir returns the directory for --tmpdir when none is given: TMPDIR, or
 // TEMP or TMP, for systems without TMPDIR like Windows, or /tmp.
 func (p *Prog) tempDir() string {
 	for _, key := range []string{"TMPDIR", "TEMP", "TMP"} {
-		if dir := p.getenv(key); dir != "" {
+		if dir := p.Getenv(key); dir != "" {
 			return dir
 		}
 	}
