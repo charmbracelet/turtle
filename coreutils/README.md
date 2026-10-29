@@ -77,7 +77,7 @@ these copies (like `sed` or `tar`) link to their online documentation instead.
 | Filesystem | `ls` | List directory contents | [✅](spec/markdown/posix/ls.md) | [❌](spec/markdown/gnu/ls-invocation.md) |
 | Filesystem | `chgrp` | Change file group ownership | [❌](spec/markdown/posix/chgrp.md) | [❌](spec/markdown/gnu/chgrp-invocation.md) |
 | Filesystem | `chown` | Change file ownership | [❌](spec/markdown/posix/chown.md) | [❌](spec/markdown/gnu/chown-invocation.md) |
-| Filesystem | `link` | Create a hard link to a file | [❌](spec/markdown/posix/link.md) | [❌](spec/markdown/gnu/link-invocation.md) |
+| Filesystem | `link` | Create a hard link to a file | [✅](spec/markdown/posix/link.md) | [❌](spec/markdown/gnu/link-invocation.md) |
 | Filesystem | `unlink` | Remove a directory entry | [✅](spec/markdown/posix/unlink.md) | [❌](spec/markdown/gnu/unlink-invocation.md) |
 | Filesystem | `mkfifo` | Create FIFO special files | [❌](spec/markdown/posix/mkfifo.md) | [❌](spec/markdown/gnu/mkfifo-invocation.md) |
 | Filesystem | `readlink` | Print the target of a symbolic link | [❌](spec/markdown/posix/readlink.md) | [❌](spec/markdown/gnu/readlink-invocation.md) |
