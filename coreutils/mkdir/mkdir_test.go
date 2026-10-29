@@ -20,6 +20,7 @@ type testCase struct {
 	want     map[string]fs.FileMode
 	present  []string
 	absent   []string
+	wantOut  string
 	wantErr  string
 	wantExit int
 }
@@ -27,9 +28,10 @@ type testCase struct {
 func runCase(t *testing.T, test testCase) {
 	t.Helper()
 
+	stdout := new(bytes.Buffer)
 	stderr := new(bytes.Buffer)
 	rt := &coreutils.Runtime{
-		Stdout: io.Discard,
+		Stdout: stdout,
 		Stderr: stderr,
 		FS:     test.files,
 		Umask:  test.umask,
@@ -39,6 +41,9 @@ func runCase(t *testing.T, test testCase) {
 
 	if code := exitCode(t, err); code != test.wantExit {
 		t.Errorf("Run() exit code = %d, want %d (error = %v)", code, test.wantExit, err)
+	}
+	if got := stdout.String(); got != test.wantOut {
+		t.Errorf("Run() stdout = %q, want %q", got, test.wantOut)
 	}
 	if got := stderr.String(); got != test.wantErr {
 		t.Errorf("Run() stderr = %q, want %q", got, test.wantErr)
@@ -420,6 +425,75 @@ func TestRunErrors(t *testing.T) {
 		t.Run(test.name, func(t *testing.T) {
 			runCase(t, test)
 		})
+	}
+}
+
+func TestRunVerbose(t *testing.T) {
+	tests := []testCase{
+		{
+			name:    "prints a message for each directory created",
+			files:   fsx.MemFS{},
+			args:    []string{"-v", "one", "two"},
+			want:    map[string]fs.FileMode{"one": 0o777, "two": 0o777},
+			wantOut: "mkdir: created directory 'one'\nmkdir: created directory 'two'\n",
+		},
+		{
+			name:    "prints a message for every parent created",
+			files:   fsx.MemFS{},
+			umask:   0o022,
+			args:    []string{"-vp", "a/b/c"},
+			want:    map[string]fs.FileMode{"a": 0o755, "a/b": 0o755, "a/b/c": 0o755},
+			wantOut: "mkdir: created directory 'a'\nmkdir: created directory 'a/b'\nmkdir: created directory 'a/b/c'\n",
+		},
+		{
+			name:    "prints nothing for existing directories",
+			files:   fsx.MemFS{"a/b": {Mode: fs.ModeDir}},
+			args:    []string{"--verbose", "--parents", "a/b"},
+			want:    map[string]fs.FileMode{"a/b": 0},
+			wantOut: "",
+		},
+		{
+			name:     "prints a message even when another directory fails",
+			files:    fsx.MemFS{},
+			args:     []string{"-v", "ok", "missing/d"},
+			want:     map[string]fs.FileMode{"ok": 0o777},
+			wantOut:  "mkdir: created directory 'ok'\n",
+			wantErr:  "mkdir: missing/d: file does not exist\n",
+			wantExit: 1,
+		},
+		{
+			name:    "the message shows the cleaned path",
+			files:   fsx.MemFS{"a/keep.txt": {Data: []byte("keep")}},
+			args:    []string{"-v", "a//d/"},
+			want:    map[string]fs.FileMode{"a/d": 0o777},
+			wantOut: "mkdir: created directory 'a/d'\n",
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			runCase(t, test)
+		})
+	}
+}
+
+func TestRunVerboseWorkDir(t *testing.T) {
+	files := fsx.MemFS{"base": {Mode: fs.ModeDir | 0o755}}
+	stdout := new(bytes.Buffer)
+	rt := &coreutils.Runtime{Stdout: stdout, FS: files, WorkingDir: "base"}
+
+	err := New(rt).Run(t.Context(), "-vp", "a/b")
+	if err != nil {
+		t.Fatalf("Run() error = %v", err)
+	}
+	want := "mkdir: created directory 'a'\nmkdir: created directory 'a/b'\n"
+	if got := stdout.String(); got != want {
+		t.Errorf("Run() stdout = %q, want %q", got, want)
+	}
+	for _, name := range []string{"base/a", "base/a/b"} {
+		if _, err := fs.Stat(files, name); err != nil {
+			t.Errorf("Stat(%q) error = %v", err, err)
+		}
 	}
 }
 

@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"io/fs"
+	"path"
 	"path/filepath"
 
 	"charm.land/snail/coreutils"
@@ -25,7 +26,8 @@ func New(rt *coreutils.Runtime) coreutils.Program {
 }
 
 // Run creates the given directories, in the order given. With -p, missing
-// parents are created too, and with -m, new directories get the given mode.
+// parents are created too, with -m, new directories get the given mode, and
+// with -v, a message is written to standard output for each directory created.
 func (p *Prog) Run(ctx context.Context, args ...string) error {
 	opts, dirs, err := parseFlags(args)
 	if err != nil {
@@ -53,7 +55,7 @@ func (p *Prog) Run(ctx context.Context, args ...string) error {
 		if err := ctx.Err(); err != nil {
 			return err
 		}
-		if err := p.mkdir(dir, opts.parents, spec); err != nil {
+		if err := p.mkdir(dir, opts, spec); err != nil {
 			p.errorf("%s: %v", dir, patherr.Unwrap(err))
 			ok = false
 		}
@@ -67,12 +69,14 @@ func (p *Prog) Run(ctx context.Context, args ...string) error {
 // mkdir creates a single directory and, with parents, any missing component
 // above it. Existing directories are only allowed with parents. The -m mode
 // only applies to the directory given itself, while parents get the default
-// mode modified by u+wx.
-func (p *Prog) mkdir(dir string, parents bool, spec chmod.ModeSpec) error {
+// mode modified by u+wx. With verbose, every directory actually created is
+// announced on the standard output.
+func (p *Prog) mkdir(dir string, opts options, spec chmod.ModeSpec) error {
 	comps := coreutils.SplitPath(filepath.ToSlash(p.ResolvePath(dir)))
 	if len(comps) == 0 {
 		comps = []string{"."}
 	}
+	disp := coreutils.SplitPath(path.Clean(filepath.ToSlash(dir)))
 
 	umask := p.Umask.Perm()
 	for i := range comps {
@@ -83,7 +87,7 @@ func (p *Prog) mkdir(dir string, parents bool, spec chmod.ModeSpec) error {
 		switch {
 		case err == nil:
 			if fi.IsDir() {
-				if last && !parents {
+				if last && !opts.parents {
 					return &fs.PathError{Op: "mkdir", Path: name, Err: fs.ErrExist}
 				}
 				continue
@@ -94,7 +98,7 @@ func (p *Prog) mkdir(dir string, parents bool, spec chmod.ModeSpec) error {
 			return &fs.PathError{Op: "mkdir", Path: name, Err: errNotDir}
 		case !errors.Is(err, fs.ErrNotExist):
 			return err
-		case !last && !parents:
+		case !last && !opts.parents:
 			return &fs.PathError{Op: "mkdir", Path: name, Err: fs.ErrNotExist}
 		}
 
@@ -107,6 +111,13 @@ func (p *Prog) mkdir(dir string, parents bool, spec chmod.ModeSpec) error {
 		}
 		if err := p.FS.Mkdir(name, perm); err != nil {
 			return err
+		}
+		if opts.verbose {
+			msg := name
+			if j := i + len(disp) - len(comps); j >= 0 && j < len(disp) {
+				msg = coreutils.JoinPath(disp[:j+1])
+			}
+			fmt.Fprintf(p.Stdout, "mkdir: created directory '%s'\n", msg)
 		}
 		if last && spec != nil {
 			if err := p.FS.Chmod(name, perm); err != nil {
@@ -126,10 +137,11 @@ func (p *Prog) errorf(format string, args ...any) {
 	fmt.Fprintf(p.Stderr, "mkdir: "+format+"\n", args...)
 }
 
-// options holds the -p flag and the option-argument of the last -m option
-// given.
+// options holds the -p and -v flags and the option-argument of the last -m
+// option given.
 type options struct {
 	parents bool
+	verbose bool
 	modeSet bool
 	mode    string
 }
@@ -143,6 +155,7 @@ type options struct {
 var longOptions = map[string]rune{
 	"mode":    'm',
 	"parents": 'p',
+	"verbose": 'v',
 }
 
 func parseFlags(args []string) (options, []string, error) {
@@ -151,6 +164,8 @@ func parseFlags(args []string) (options, []string, error) {
 		switch opt {
 		case 'p':
 			opts.parents = true
+		case 'v':
+			opts.verbose = true
 		case 'm':
 			opts.modeSet, opts.mode = true, value
 		default:
