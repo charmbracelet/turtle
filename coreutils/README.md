@@ -113,7 +113,7 @@ these copies (like `sed` or `tar`) link to their online documentation instead.
 | Search / Filtering | `grep` | Print lines matching a pattern | [❌](spec/markdown/posix/grep.md) | [❌](https://web.archive.org/web/https://www.gnu.org/software/grep/manual/grep.html) |
 | Search / Filtering | `xargs` | Build and execute command lines | [✅](spec/markdown/posix/xargs.md) | [❌](https://web.archive.org/web/https://www.gnu.org/software/findutils/manual/html_node/find_html/Invoking-xargs.html) |
 | System / Process | `date`******* | Print or set the date and time | [✅](spec/markdown/posix/date.md) | [❌](spec/markdown/gnu/date-invocation.md) |
-| System / Process | `env` | Run a command in a modified environment | [❌](spec/markdown/posix/env.md) | [❌](spec/markdown/gnu/env-invocation.md) |
+| System / Process | `env` | Run a command in a modified environment | [✅](spec/markdown/posix/env.md) | [❌](spec/markdown/gnu/env-invocation.md) |
 | System / Process | `id` | Print user and group IDs | [❌](spec/markdown/posix/id.md) | [❌](spec/markdown/gnu/id-invocation.md) |
 | System / Process | `kill` | Send a signal to processes | [❌](spec/markdown/posix/kill.md) | ❌ |
 | System / Process | `logname` | Print the user's login name | [❌](spec/markdown/posix/logname.md) | [❌](spec/markdown/gnu/logname-invocation.md) |

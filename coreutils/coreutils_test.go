@@ -454,7 +454,79 @@ func TestOsRuntime(t *testing.T) {
 	if rt.LookupEnv == nil {
 		t.Error("LookupEnv was not set")
 	}
+	if rt.Environ == nil {
+		t.Error("Environ was not set")
+	}
 	if rt.Clock == nil {
 		t.Error("Clock was not set")
 	}
+}
+
+func TestOsExecEnv(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("needs the executable permission bits")
+	}
+	dir := t.TempDir()
+	path := filepath.Join(dir, "myutil")
+	script := []byte("#!/bin/sh\necho \"FOO=$FOO\"\n")
+	if err := os.WriteFile(path, script, 0o755); err != nil {
+		t.Fatal(err)
+	}
+
+	t.Run("inherits the current environment when Env is nil", func(t *testing.T) {
+		t.Setenv("FOO", "inherited")
+		rt := OsRuntime()
+		rt.LookupEnv = func(key string) (string, bool) {
+			if key == "PATH" {
+				return dir, true
+			}
+			return os.LookupEnv(key)
+		}
+		out := new(bytes.Buffer)
+		rt.Stdout = out
+		if status, err := osExec(t.Context(), rt, "myutil", nil); err != nil || status != 0 {
+			t.Fatalf("osExec() = %d, %v, want 0, nil", status, err)
+		}
+		if got := out.String(); got != "FOO=inherited\n" {
+			t.Errorf("utility saw environment %q, want %q", got, "FOO=inherited\n")
+		}
+	})
+
+	t.Run("runs the utility with the environment set in the runtime", func(t *testing.T) {
+		rt := OsRuntime()
+		rt.LookupEnv = func(key string) (string, bool) {
+			if key == "PATH" {
+				return dir, true
+			}
+			return os.LookupEnv(key)
+		}
+		rt.Env = []string{"FOO=overridden", "PATH=" + dir}
+		out := new(bytes.Buffer)
+		rt.Stdout = out
+		if status, err := osExec(t.Context(), rt, "myutil", nil); err != nil || status != 0 {
+			t.Fatalf("osExec() = %d, %v, want 0, nil", status, err)
+		}
+		if got := out.String(); got != "FOO=overridden\n" {
+			t.Errorf("utility saw environment %q, want %q", got, "FOO=overridden\n")
+		}
+	})
+
+	t.Run("runs the utility with an empty environment", func(t *testing.T) {
+		rt := OsRuntime()
+		rt.LookupEnv = func(key string) (string, bool) {
+			if key == "PATH" {
+				return dir, true
+			}
+			return os.LookupEnv(key)
+		}
+		rt.Env = []string{"PATH=" + dir}
+		out := new(bytes.Buffer)
+		rt.Stdout = out
+		if status, err := osExec(t.Context(), rt, "myutil", nil); err != nil || status != 0 {
+			t.Fatalf("osExec() = %d, %v, want 0, nil", status, err)
+		}
+		if got := out.String(); got != "FOO=\n" {
+			t.Errorf("utility saw environment %q, want %q", got, "FOO=\n")
+		}
+	})
 }
