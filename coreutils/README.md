@@ -59,7 +59,7 @@ these copies (like `sed` or `tar`) link to their online documentation instead.
 | Foundational | `basename` | Print a path without its directory | [✅](spec/markdown/posix/basename.md) | [❌](spec/markdown/gnu/basename-invocation.md) |
 | Foundational | `dirname` | Print the directory part of a path | [✅](spec/markdown/posix/dirname.md) | [❌](spec/markdown/gnu/dirname-invocation.md) |
 | Foundational | `wc` | Count lines, words, and bytes | [✅](spec/markdown/posix/wc.md) | [❌](spec/markdown/gnu/wc-invocation.md) |
-| Foundational | `printf` | Format and print arguments | [❌](spec/markdown/posix/printf.md) | [❌](spec/markdown/gnu/printf-invocation.md) |
+| Foundational | `printf` | Format and print arguments | [✅](spec/markdown/posix/printf.md) | [❌](spec/markdown/gnu/printf-invocation.md) |
 | Foundational | `test` | Evaluate a conditional expression | [❌](spec/markdown/posix/test.md) | [❌](spec/markdown/gnu/test-invocation.md) |
 | Foundational | `expr` | Evaluate an expression | [❌](spec/markdown/posix/expr.md) | [❌](spec/markdown/gnu/expr-invocation.md) |
 | Foundational | `sleep` | Suspend execution for an interval | [❌](spec/markdown/posix/sleep.md) | [❌](spec/markdown/gnu/sleep-invocation.md) |
