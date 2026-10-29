@@ -50,6 +50,13 @@ type Runtime struct {
 	// sleep is used.
 	Sleep SleepFunc
 
+	// IsTerminal reports whether the given file descriptor number is open
+	// and associated with a terminal. It's used by utilities that test their
+	// standard streams, like test. If nil, the descriptors 0, 1 and 2 are
+	// checked against Stdin, Stdout and Stderr with a platform-specific
+	// terminal check.
+	IsTerminal func(fd int) bool
+
 	// Exec runs a utility, waiting for its completion. It's used by
 	// utilities that invoke other programs, like xargs. If nil, such
 	// utilities fail instead of running anything.
@@ -106,6 +113,30 @@ func (r *Runtime) ResolvePath(path string) string {
 	default:
 		return filepath.Join(r.WorkingDir, path)
 	}
+}
+
+// Terminal reports whether the given file descriptor number is open and
+// associated with a terminal, honoring Runtime.IsTerminal when set.
+func (r *Runtime) Terminal(fd int) bool {
+	if r.IsTerminal != nil {
+		return r.IsTerminal(fd)
+	}
+	var stream any
+	switch fd {
+	case 0:
+		stream = r.Stdin
+	case 1:
+		stream = r.Stdout
+	case 2:
+		stream = r.Stderr
+	default:
+		return false
+	}
+	f, ok := stream.(*os.File)
+	if !ok {
+		return false
+	}
+	return isTerminal(int(f.Fd()))
 }
 
 // Now returns the current time, honoring Runtime.Clock when set.
