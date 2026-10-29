@@ -288,6 +288,12 @@ func TestRunComplement(t *testing.T) {
 			want:  "xaxaxa",
 		},
 		{
+			name:  "the long option complements like -c",
+			stdin: strings.NewReader("banana"),
+			args:  []string{"--complement", "a", "x"},
+			want:  "xaxaxa",
+		},
+		{
 			name:  "the POSIX word list example",
 			stdin: strings.NewReader("Hello, world!"),
 			args:  []string{"-cs", "[:alpha:]", `[\n*]`},
@@ -327,6 +333,12 @@ func TestRunDelete(t *testing.T) {
 			stdin: strings.NewReader("a\x00b\x00"),
 			args:  []string{"-d", `\000`},
 			want:  "ab",
+		},
+		{
+			name:  "the long option deletes like -d",
+			stdin: strings.NewReader("banana"),
+			args:  []string{"--delete", "aeiou"},
+			want:  "bnn",
 		},
 		{
 			name:  "invalid bytes are kept when unmatched",
@@ -394,10 +406,81 @@ func TestRunSqueeze(t *testing.T) {
 			want:  strings.Repeat("a", chunkSize-1) + "xb",
 		},
 		{
+			name:  "the long option squeezes like -s",
+			stdin: strings.NewReader("aaabaa"),
+			args:  []string{"--squeeze-repeats", "a"},
+			want:  "aba",
+		},
+		{
 			name:  "a wide character split across chunks is translated",
 			stdin: strings.NewReader(strings.Repeat("a", chunkSize-2) + "😀b"),
 			args:  []string{"😀", "z"},
 			want:  strings.Repeat("a", chunkSize-2) + "zb",
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			runCase(t, test)
+		})
+	}
+}
+
+func TestRunTruncate(t *testing.T) {
+	tests := []testCase{
+		{
+			name:  "the extra characters of string1 are dropped",
+			stdin: strings.NewReader("abcdef"),
+			args:  []string{"-t", "ab", "xy"},
+			want:  "xycdef",
+		},
+		{
+			name:  "a string1 which is not longer is kept whole",
+			stdin: strings.NewReader("ab"),
+			args:  []string{"-t", "ab", "xyz"},
+			want:  "xy",
+		},
+		{
+			name:  "the complement is truncated after being expanded",
+			stdin: strings.NewReader("\x00\x01\x02a"),
+			args:  []string{"-ct", "a", "xy"},
+			want:  "xy\x02a",
+		},
+		{
+			name:  "characters beyond the byte values are kept",
+			stdin: strings.NewReader("a漢\x00"),
+			args:  []string{"-ct", "a", "x"},
+			want:  "a漢x",
+		},
+		{
+			name:  "squeezing after a truncated translation",
+			stdin: strings.NewReader("aabbc"),
+			args:  []string{"-ts", "ab", "xy"},
+			want:  "xyc",
+		},
+		{
+			name:  "ignored with deletion",
+			stdin: strings.NewReader("aabbcc"),
+			args:  []string{"-td", "ab"},
+			want:  "cc",
+		},
+		{
+			name:  "ignored with squeezing only",
+			stdin: strings.NewReader("aabbbc"),
+			args:  []string{"-ts", "b"},
+			want:  "aabc",
+		},
+		{
+			name:  "the long option truncates like -t",
+			stdin: strings.NewReader("abcdef"),
+			args:  []string{"--truncate-set1", "ab", "xy"},
+			want:  "xycdef",
+		},
+		{
+			name:  "-u is accepted and ignored",
+			stdin: strings.NewReader("abc"),
+			args:  []string{"-u", "ab", "ba"},
+			want:  "bac",
 		},
 	}
 
@@ -414,6 +497,12 @@ func TestRunErrors(t *testing.T) {
 			name:     "an invalid option",
 			args:     []string{"-z", "a", "b"},
 			wantErr:  "tr: invalid option -- 'z'\n",
+			wantExit: 1,
+		},
+		{
+			name:     "an unknown long option",
+			args:     []string{"--foo", "a", "b"},
+			wantErr:  "tr: unrecognized option '--foo'\n",
 			wantExit: 1,
 		},
 		{
