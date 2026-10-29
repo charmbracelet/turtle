@@ -223,6 +223,11 @@ func TestRun(t *testing.T) {
 				want: "\v\n",
 			},
 			{
+				name: "escape",
+				args: []string{"-e", `\e`},
+				want: "\x1b\n",
+			},
+			{
 				name: "backslash",
 				args: []string{"-e", `\\`},
 				want: "\\\n",
@@ -266,6 +271,66 @@ func TestRun(t *testing.T) {
 				name: "octal number followed by a non-octal digit",
 				args: []string{"-e", `\08`},
 				want: "\x008\n",
+			},
+			{
+				name: "octal number without the leading zero",
+				args: []string{"-e", `\101`},
+				want: "A\n",
+			},
+			{
+				name: "octal number without the leading zero with one digit",
+				args: []string{"-e", `\7`},
+				want: "\a\n",
+			},
+			{
+				name: "octal number without the leading zero with two digits",
+				args: []string{"-e", `\12`},
+				want: "\n\n",
+			},
+			{
+				name: "octal number without the leading zero with too many digits wraps around",
+				args: []string{"-e", `\777`},
+				want: "\xff\n",
+			},
+			{
+				name: "octal number without the leading zero followed by a non-octal digit",
+				args: []string{"-e", `\18`},
+				want: "\x018\n",
+			},
+			{
+				name: "non-octal digit after a backslash is kept literally",
+				args: []string{"-e", `\8`},
+				want: `\8` + "\n",
+			},
+			{
+				name: "hexadecimal number",
+				args: []string{"-e", `\x41`},
+				want: "A\n",
+			},
+			{
+				name: "hexadecimal number with one digit",
+				args: []string{"-e", `\x9`},
+				want: "\t\n",
+			},
+			{
+				name: "hexadecimal number with uppercase digits",
+				args: []string{"-e", `\x1B`},
+				want: "\x1b\n",
+			},
+			{
+				name: "hexadecimal number with more than two digits consumes only two",
+				args: []string{"-e", `\x123`},
+				want: "\x123\n",
+			},
+			{
+				name: "hexadecimal number with no digits is kept literally",
+				args: []string{"-e", `a\xzb`},
+				want: `a\xzb` + "\n",
+			},
+			{
+				name: "trailing x escape is kept literally",
+				args: []string{"-e", `foo\x`},
+				want: `foo\x` + "\n",
 			},
 			{
 				name: "unrecognized escape is kept literally",
