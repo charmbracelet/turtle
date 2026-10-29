@@ -3,7 +3,8 @@
 // The join fields are compared in the bytewise collating sequence of the C
 // locale, the same one the sort utility of this project uses, so files
 // sorted by it match: characters which only a locale's LC_COLLATE makes
-// collate equally stay different.
+// collate equally stay different. The -i option ignores the case of ASCII
+// letters in the join fields, the way sort -f does in the C locale.
 package join
 
 import (
@@ -89,7 +90,7 @@ func (p *Prog) joinFiles(ctx context.Context, f1, f2 file, opts options) error {
 		if err := ctx.Err(); err != nil {
 			return err
 		}
-		switch bytes.Compare(field(line1, opts.key1, opts.sep), field(line2, opts.key2, opts.sep)) {
+		switch compareFields(field(line1, opts.key1, opts.sep), field(line2, opts.key2, opts.sep), opts.ignoreCase) {
 		case -1:
 			if opts.unpaired1 {
 				if err := p.writeLine(line1, nil, opts); err != nil {
@@ -109,12 +110,12 @@ func (p *Prog) joinFiles(ctx context.Context, f1, f2 file, opts options) error {
 				return f2.wrap(err)
 			}
 		default:
-			group1, err := f1.group(line1, opts.key1, opts.sep)
+			group1, err := f1.group(line1, opts.key1, opts.sep, opts.ignoreCase)
 			if err != nil {
 				return f1.wrap(err)
 			}
 			line1, ok1 = f1.line, f1.ok
-			group2, err := f2.group(line2, opts.key2, opts.sep)
+			group2, err := f2.group(line2, opts.key2, opts.sep, opts.ignoreCase)
 			if err != nil {
 				return f2.wrap(err)
 			}
@@ -228,6 +229,27 @@ func field(line []byte, n int, sep []byte) []byte {
 	return fields[n-1]
 }
 
+// compareFields compares two join fields, folding the case of ASCII
+// letters first when the -i option was given.
+func compareFields(a, b []byte, ignoreCase bool) int {
+	if ignoreCase {
+		a, b = foldCase(a), foldCase(b)
+	}
+	return bytes.Compare(a, b)
+}
+
+// foldCase lowercases the ASCII letters of s.
+func foldCase(s []byte) []byte {
+	folded := make([]byte, len(s))
+	for i, c := range s {
+		if c >= 'A' && c <= 'Z' {
+			c += 'a' - 'A'
+		}
+		folded[i] = c
+	}
+	return folded
+}
+
 // otherFields returns the fields of the line besides its join field, in
 // their original order.
 func otherFields(line []byte, key int, sep []byte) [][]byte {
@@ -261,7 +283,7 @@ func (f file) next() ([]byte, bool, error) {
 // group returns the lines of the file whose join field equals the one of
 // the given line, which is the first of them. The lines that follow the
 // group are left in f.line, or mark the end of the file in f.ok.
-func (f *file) group(line []byte, key int, sep []byte) ([][]byte, error) {
+func (f *file) group(line []byte, key int, sep []byte, ignoreCase bool) ([][]byte, error) {
 	group := [][]byte{line}
 	want := field(line, key, sep)
 	for {
@@ -270,7 +292,7 @@ func (f *file) group(line []byte, key int, sep []byte) ([][]byte, error) {
 			return nil, err
 		}
 		f.line, f.ok = next, ok
-		if !ok || !bytes.Equal(field(next, key, sep), want) {
+		if !ok || compareFields(field(next, key, sep), want, ignoreCase) != 0 {
 			return group, nil
 		}
 		group = append(group, next)
@@ -310,6 +332,7 @@ type options struct {
 	unpaired1  bool
 	unpaired2  bool
 	paired     bool
+	ignoreCase bool
 	empty      string
 	emptyGiven bool
 	selectors  []selector
@@ -331,9 +354,15 @@ func (opts options) outputSep() []byte {
 	return []byte{' '}
 }
 
+// longOptions maps the long options of join to the short ones they stand
+// for.
+var longOptions = map[string]rune{
+	"ignore-case": 'i',
+}
+
 func parseFlags(args []string) (options, []string, error) {
 	opts := options{paired: true, key1: 1, key2: 1}
-	operands, err := (getopt.Set{Valued: "12aeotv"}).Parse(args, func(opt rune, value string) error {
+	operands, err := (getopt.Set{Valued: "12aeotv", Long: longOptions}).Parse(args, func(opt rune, value string) error {
 		switch opt {
 		case '1':
 			key, err := parseField(value)
@@ -359,6 +388,8 @@ func parseFlags(args []string) (options, []string, error) {
 			if opt == 'v' {
 				opts.paired = false
 			}
+		case 'i':
+			opts.ignoreCase = true
 		case 'e':
 			opts.empty, opts.emptyGiven = value, true
 		case 'o':
