@@ -1,6 +1,6 @@
 //go:build linux
 
-package coreutils
+package term
 
 import "syscall"
 

@@ -16,6 +16,7 @@ import (
 	"syscall"
 	"time"
 
+	"charm.land/snail/coreutils/internal/term"
 	"charm.land/snail/fsx"
 )
 
@@ -139,7 +140,7 @@ func (r *Runtime) Terminal(fd int) bool {
 	if !ok {
 		return false
 	}
-	return isTerminal(int(f.Fd()))
+	return term.IsTerminal(int(f.Fd()))
 }
 
 // Now returns the current time, honoring Runtime.Clock when set.
