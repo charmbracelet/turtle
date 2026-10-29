@@ -54,22 +54,22 @@ these copies (like `sed` or `tar`) link to their online documentation instead.
 | --- | --- | --- | --- | --- |
 | Foundational | `true` | Return a zero exit status | [✅](spec/markdown/posix/true.md) | [✅](spec/markdown/gnu/true-invocation.md) |
 | Foundational | `false` | Return a non-zero exit status | [✅](spec/markdown/posix/false.md) | [✅](spec/markdown/gnu/false-invocation.md) |
-| Foundational | `echo` | Write arguments to standard output | [✅](spec/markdown/posix/echo.md) | [❌](spec/markdown/gnu/echo-invocation.md) |
+| Foundational | `echo` | Write arguments to standard output | [✅](spec/markdown/posix/echo.md) | [✅](spec/markdown/gnu/echo-invocation.md) |
 | Foundational | `pwd` | Print the current working directory | [✅](spec/markdown/posix/pwd.md) | [✅](spec/markdown/gnu/pwd-invocation.md) |
-| Foundational | `basename` | Print a path without its directory | [✅](spec/markdown/posix/basename.md) | [❌](spec/markdown/gnu/basename-invocation.md) |
-| Foundational | `dirname` | Print the directory part of a path | [✅](spec/markdown/posix/dirname.md) | [❌](spec/markdown/gnu/dirname-invocation.md) |
+| Foundational | `basename` | Print a path without its directory | [✅](spec/markdown/posix/basename.md) | [✅](spec/markdown/gnu/basename-invocation.md) |
+| Foundational | `dirname` | Print the directory part of a path | [✅](spec/markdown/posix/dirname.md) | [✅](spec/markdown/gnu/dirname-invocation.md) |
 | Foundational | `wc` | Count lines, words, and bytes | [✅](spec/markdown/posix/wc.md) | [❌](spec/markdown/gnu/wc-invocation.md) |
-| Foundational | `printf` | Format and print arguments | [✅](spec/markdown/posix/printf.md) | [❌](spec/markdown/gnu/printf-invocation.md) |
-| Foundational | `test` | Evaluate a conditional expression | [✅](spec/markdown/posix/test.md) | [❌](spec/markdown/gnu/test-invocation.md) |
+| Foundational | `printf` | Format and print arguments | [✅](spec/markdown/posix/printf.md) | [✅](spec/markdown/gnu/printf-invocation.md) |
+| Foundational | `test` | Evaluate a conditional expression | [✅](spec/markdown/posix/test.md) | [✅](spec/markdown/gnu/test-invocation.md) |
 | Foundational | `expr` | Evaluate an expression | [❌](spec/markdown/posix/expr.md) | [❌](spec/markdown/gnu/expr-invocation.md) |
-| Foundational | `sleep` | Suspend execution for an interval | [✅](spec/markdown/posix/sleep.md) | [❌](spec/markdown/gnu/sleep-invocation.md) |
+| Foundational | `sleep` | Suspend execution for an interval | [✅](spec/markdown/posix/sleep.md) | [✅](spec/markdown/gnu/sleep-invocation.md) |
 | Filesystem | `touch` | Change file access and modification times | [✅](spec/markdown/posix/touch.md) | [❌](spec/markdown/gnu/touch-invocation.md) |
 | Filesystem | `chmod` | Change file permission modes | [✅](spec/markdown/posix/chmod.md) | [❌](spec/markdown/gnu/chmod-invocation.md) |
 | Filesystem | `cat` | Concatenate and print files | [✅](spec/markdown/posix/cat.md) | [❌](spec/markdown/gnu/cat-invocation.md) |
 | Filesystem | `head` | Print the first part of files | [✅](spec/markdown/posix/head.md) | [❌](spec/markdown/gnu/head-invocation.md) |
 | Filesystem | `tail` | Print the last part of files | [✅](spec/markdown/posix/tail.md) | [❌](spec/markdown/gnu/tail-invocation.md) |
-| Filesystem | `mkdir` | Create directories | [✅](spec/markdown/posix/mkdir.md) | [❌](spec/markdown/gnu/mkdir-invocation.md) |
-| Filesystem | `rmdir` | Remove empty directories | [✅](spec/markdown/posix/rmdir.md) | [❌](spec/markdown/gnu/rmdir-invocation.md) |
+| Filesystem | `mkdir` | Create directories | [✅](spec/markdown/posix/mkdir.md) | [✅](spec/markdown/gnu/mkdir-invocation.md) |
+| Filesystem | `rmdir` | Remove empty directories | [✅](spec/markdown/posix/rmdir.md) | [✅](spec/markdown/gnu/rmdir-invocation.md) |
 | Filesystem | `cp` | Copy files and directories | [✅](spec/markdown/posix/cp.md) | [❌](spec/markdown/gnu/cp-invocation.md) |
 | Filesystem | `mv` | Move or rename files | [✅](spec/markdown/posix/mv.md) | [❌](spec/markdown/gnu/mv-invocation.md) |
 | Filesystem | `rm` | Remove files and directories | [✅](spec/markdown/posix/rm.md) | [✅](spec/markdown/gnu/rm-invocation.md) |
@@ -88,19 +88,19 @@ these copies (like `sed` or `tar`) link to their online documentation instead.
 | Filesystem | `pathchk` | Check pathnames for validity | [❌](spec/markdown/posix/pathchk.md) | [❌](spec/markdown/gnu/pathchk-invocation.md) |
 | Filesystem | `pax` | Read and write file archives | [❌](spec/markdown/posix/pax.md) | ❌ |
 | Text | `cut` | Cut out fields from input lines | [✅](spec/markdown/posix/cut.md) | [❌](spec/markdown/gnu/cut-invocation.md) |
-| Text | `join`**** | Join lines of two files on a common field | [✅](spec/markdown/posix/join.md) | [❌](spec/markdown/gnu/join-invocation.md) |
+| Text | `join`**** | Join lines of two files on a common field | [✅](spec/markdown/posix/join.md) | [✅](spec/markdown/gnu/join-invocation.md) |
 | Text | `sort` | Sort lines of text | [✅](spec/markdown/posix/sort.md) | [❌](spec/markdown/gnu/sort-invocation.md) |
 | Text | `paste` | Merge lines of files | [✅](spec/markdown/posix/paste.md) | [❌](spec/markdown/gnu/paste-invocation.md) |
 | Text | `tee` | Duplicate standard input | [✅](spec/markdown/posix/tee.md) | [❌](spec/markdown/gnu/tee-invocation.md) |
-| Text | `tr` | Translate or delete characters | [✅](spec/markdown/posix/tr.md) | [❌](spec/markdown/gnu/tr-invocation.md) |
+| Text | `tr` | Translate or delete characters | [✅](spec/markdown/posix/tr.md) | [✅](spec/markdown/gnu/tr-invocation.md) |
 | Text | `uniq` | Filter adjacent repeated lines | [✅](spec/markdown/posix/uniq.md) | [❌](spec/markdown/gnu/uniq-invocation.md) |
-| Text | `cmp` | Compare two files byte by byte | [✅](spec/markdown/posix/cmp.md) | [❌](https://web.archive.org/web/https://www.gnu.org/software/diffutils/manual/html_node/Invoking-cmp.html) |
+| Text | `cmp` | Compare two files byte by byte | [✅](spec/markdown/posix/cmp.md) | [✅](https://web.archive.org/web/https://www.gnu.org/software/diffutils/manual/html_node/Invoking-cmp.html) |
 | Text | `comm` | Compare sorted files line by line | [✅](spec/markdown/posix/comm.md) | [❌](spec/markdown/gnu/comm-invocation.md) |
 | Text | `csplit` | Split a file by context | [✅](spec/markdown/posix/csplit.md) | [❌](spec/markdown/gnu/csplit-invocation.md) |
 | Text | `diff` | Compare files line by line | [✅](spec/markdown/posix/diff.md) | [❌](https://web.archive.org/web/https://www.gnu.org/software/diffutils/manual/html_node/Invoking-diff.html) |
 | Text | `expand` | Convert tabs to spaces | [✅](spec/markdown/posix/expand.md) | [❌](spec/markdown/gnu/expand-invocation.md) |
 | Text | `fold` | Wrap long input lines | [✅](spec/markdown/posix/fold.md) | [✅](spec/markdown/gnu/fold-invocation.md) |
-| Text | `nl` | Number lines of files | [✅](spec/markdown/posix/nl.md) | [❌](spec/markdown/gnu/nl-invocation.md) |
+| Text | `nl` | Number lines of files | [✅](spec/markdown/posix/nl.md) | [✅](spec/markdown/gnu/nl-invocation.md) |
 | Text | `od` | Dump files in octal and other formats | [✅](spec/markdown/posix/od.md) | [❌](spec/markdown/gnu/od-invocation.md) |
 | Text | `pr` | Paginate files for printing | [✅](spec/markdown/posix/pr.md) | [❌](spec/markdown/gnu/pr-invocation.md) |
 | Text | `sed`****** | Filter and transform text | [✅](spec/markdown/posix/sed.md) | [❌](https://web.archive.org/web/https://www.gnu.org/software/sed/manual/sed.html) |
