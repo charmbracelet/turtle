@@ -18,6 +18,7 @@ type testCase struct {
 	args     []string
 	present  []string
 	absent   []string
+	wantOut  string
 	wantErr  string
 	wantExit int
 }
@@ -25,9 +26,10 @@ type testCase struct {
 func runCase(t *testing.T, test testCase) {
 	t.Helper()
 
+	stdout := new(bytes.Buffer)
 	stderr := new(bytes.Buffer)
 	rt := &coreutils.Runtime{
-		Stdout: io.Discard,
+		Stdout: stdout,
 		Stderr: stderr,
 		FS:     test.files,
 	}
@@ -36,6 +38,9 @@ func runCase(t *testing.T, test testCase) {
 
 	if code := exitCode(t, err); code != test.wantExit {
 		t.Errorf("Run() exit code = %d, want %d (error = %v)", code, test.wantExit, err)
+	}
+	if got := stdout.String(); got != test.wantOut {
+		t.Errorf("Run() stdout = %q, want %q", got, test.wantOut)
 	}
 	if got := stderr.String(); got != test.wantErr {
 		t.Errorf("Run() stderr = %q, want %q", got, test.wantErr)
@@ -241,6 +246,88 @@ func TestRunLongOptions(t *testing.T) {
 			},
 			args:   []string{"--parents", "a/b/c"},
 			absent: []string{"a", "a/b", "a/b/c"},
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			runCase(t, test)
+		})
+	}
+}
+
+func TestRunIgnoreFailOnNonEmpty(t *testing.T) {
+	tests := []testCase{
+		{
+			name:    "a non-empty directory is ignored",
+			files:   fsx.MemFS{"d/keep.txt": {Data: []byte("keep")}},
+			args:    []string{"--ignore-fail-on-non-empty", "d"},
+			present: []string{"d/keep.txt"},
+		},
+		{
+			name: "a non-empty directory stops the parents quietly",
+			files: fsx.MemFS{
+				"a":          {Mode: fs.ModeDir},
+				"a/keep.txt": {Data: []byte("keep")},
+				"a/b":        {Mode: fs.ModeDir},
+				"a/b/c":      {Mode: fs.ModeDir},
+			},
+			args:    []string{"--ignore-fail-on-non-empty", "-p", "a/b/c"},
+			present: []string{"a", "a/keep.txt"},
+			absent:  []string{"a/b", "a/b/c"},
+		},
+		{
+			name:     "a missing directory is still an error",
+			files:    fsx.MemFS{},
+			args:     []string{"--ignore-fail-on-non-empty", "missing"},
+			wantErr:  "rmdir: missing: file does not exist\n",
+			wantExit: 1,
+		},
+		{
+			name:     "a file is still an error",
+			files:    fsx.MemFS{"file.txt": {Data: []byte("hello")}},
+			args:     []string{"--ignore-fail-on-non-empty", "file.txt"},
+			present:  []string{"file.txt"},
+			wantErr:  "rmdir: file.txt: not a directory\n",
+			wantExit: 1,
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			runCase(t, test)
+		})
+	}
+}
+
+func TestRunVerbose(t *testing.T) {
+	tests := []testCase{
+		{
+			name:    "prints every removed directory",
+			files:   fsx.MemFS{"one": {Mode: fs.ModeDir}, "two": {Mode: fs.ModeDir}},
+			args:    []string{"-v", "one", "two"},
+			absent:  []string{"one", "two"},
+			wantOut: "rmdir: removing directory, 'one'\nrmdir: removing directory, 'two'\n",
+		},
+		{
+			name: "prints every component of the path",
+			files: fsx.MemFS{
+				"a":     {Mode: fs.ModeDir},
+				"a/b":   {Mode: fs.ModeDir},
+				"a/b/c": {Mode: fs.ModeDir},
+			},
+			args:    []string{"--verbose", "-p", "a/b/c"},
+			absent:  []string{"a", "a/b", "a/b/c"},
+			wantOut: "rmdir: removing directory, 'a/b/c'\nrmdir: removing directory, 'a/b'\nrmdir: removing directory, 'a'\n",
+		},
+		{
+			name:     "announces a directory which fails to be removed",
+			files:    fsx.MemFS{"d/keep.txt": {Data: []byte("keep")}},
+			args:     []string{"-v", "d"},
+			present:  []string{"d/keep.txt"},
+			wantOut:  "rmdir: removing directory, 'd'\n",
+			wantErr:  "rmdir: d: directory not empty\n",
+			wantExit: 1,
 		},
 	}
 
