@@ -119,21 +119,27 @@ func buildArchive(t *testing.T, entries ...entry) string {
 	return buf.String()
 }
 
+// environ converts a map to a list of KEY=VALUE strings.
+func environ(env map[string]string) []string {
+	entries := make([]string, 0, len(env))
+	for name, value := range env {
+		entries = append(entries, name+"="+value)
+	}
+	return entries
+}
+
 // run executes the utility against files, returning its streams and status.
 func run(t *testing.T, files fsx.FS, stdin string, env map[string]string, umask fs.FileMode, args ...string) (*bytes.Buffer, *bytes.Buffer, error) {
 	t.Helper()
 
 	stdout, stderr := new(bytes.Buffer), new(bytes.Buffer)
 	rt := &coreutils.Runtime{
-		Stdin:  strings.NewReader(stdin),
-		Stdout: stdout,
-		Stderr: stderr,
-		FS:     files,
-		Umask:  umask,
-		LookupEnv: func(key string) (string, bool) {
-			v, ok := env[key]
-			return v, ok
-		},
+		Stdin:   strings.NewReader(stdin),
+		Stdout:  stdout,
+		Stderr:  stderr,
+		FS:      files,
+		Umask:   umask,
+		Environ: func() []string { return environ(env) },
 	}
 	err := New(rt).Run(t.Context(), args...)
 	return stdout, stderr, err

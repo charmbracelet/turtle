@@ -283,11 +283,11 @@ func TestRemoveInputFailure(t *testing.T) {
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
 			rt := &coreutils.Runtime{
-				Stdin:     strings.NewReader(""),
-				Stdout:    io.Discard,
-				Stderr:    io.Discard,
-				FS:        removeErrFS{MemFS: test.fsys, blocked: test.blocked},
-				LookupEnv: func(string) (string, bool) { return "", false },
+				Stdin:   strings.NewReader(""),
+				Stdout:  io.Discard,
+				Stderr:  io.Discard,
+				FS:      removeErrFS{MemFS: test.fsys, blocked: test.blocked},
+				Environ: func() []string { return nil },
 			}
 
 			err := Run(t.Context(), rt, test.opts, []string{test.operand})
@@ -345,11 +345,11 @@ func TestStdoutWriteFailure(t *testing.T) {
 				test.fsys = fsx.MemFS{}
 			}
 			rt := &coreutils.Runtime{
-				Stdin:     test.stdin,
-				Stdout:    errorWriter{},
-				Stderr:    io.Discard,
-				FS:        test.fsys,
-				LookupEnv: func(string) (string, bool) { return "", false },
+				Stdin:   test.stdin,
+				Stdout:  errorWriter{},
+				Stderr:  io.Discard,
+				FS:      test.fsys,
+				Environ: func() []string { return nil },
 			}
 
 			var operands []string
@@ -368,10 +368,10 @@ func TestStdoutWriteFailure(t *testing.T) {
 func TestMissingRuntimeValues(t *testing.T) {
 	t.Run("no standard input", func(t *testing.T) {
 		rt := &coreutils.Runtime{
-			Stdout:    io.Discard,
-			Stderr:    io.Discard,
-			FS:        fsx.MemFS{},
-			LookupEnv: func(string) (string, bool) { return "", false },
+			Stdout:  io.Discard,
+			Stderr:  io.Discard,
+			FS:      fsx.MemFS{},
+			Environ: func() []string { return nil },
 		}
 		err := Run(t.Context(), rt, Options{Prog: "gzip", Algorithm: Gzip, Level: -1}, nil)
 		var exitErr *coreutils.ExitError
@@ -382,10 +382,10 @@ func TestMissingRuntimeValues(t *testing.T) {
 
 	t.Run("no file system", func(t *testing.T) {
 		rt := &coreutils.Runtime{
-			Stdin:     strings.NewReader(""),
-			Stdout:    io.Discard,
-			Stderr:    io.Discard,
-			LookupEnv: func(string) (string, bool) { return "", false },
+			Stdin:   strings.NewReader(""),
+			Stdout:  io.Discard,
+			Stderr:  io.Discard,
+			Environ: func() []string { return nil },
 		}
 		err := Run(t.Context(), rt, Options{Prog: "gzip", Algorithm: Gzip, Level: -1}, []string{"a.txt"})
 		var exitErr *coreutils.ExitError
@@ -398,11 +398,11 @@ func TestMissingRuntimeValues(t *testing.T) {
 func TestStoreNameHeaderFailure(t *testing.T) {
 	fsys := fsx.MemFS{"a.gz": {Data: []byte{0x1f, 0x8b}, Mode: 0o644}}
 	rt := &coreutils.Runtime{
-		Stdin:     strings.NewReader(""),
-		Stdout:    io.Discard,
-		Stderr:    io.Discard,
-		FS:        fsys,
-		LookupEnv: func(string) (string, bool) { return "", false },
+		Stdin:   strings.NewReader(""),
+		Stdout:  io.Discard,
+		Stderr:  io.Discard,
+		FS:      fsys,
+		Environ: func() []string { return nil },
 	}
 
 	opts := Options{Prog: "gunzip", Algorithm: Gzip, Level: -1, Decompress: true, StoreName: true}

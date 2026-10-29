@@ -102,11 +102,9 @@ func (p *Prog) referenceTime(opts options) (time.Time, time.Time, error) {
 
 // location returns the time zone to interpret times with, honoring TZ.
 func (p *Prog) location() *time.Location {
-	if p.LookupEnv != nil {
-		if tz, ok := p.LookupEnv("TZ"); ok && tz != "" {
-			if loc, err := time.LoadLocation(tz); err == nil {
-				return loc
-			}
+	if tz, ok := p.LookupEnv("TZ"); ok && tz != "" {
+		if loc, err := time.LoadLocation(tz); err == nil {
+			return loc
 		}
 	}
 	return time.Local

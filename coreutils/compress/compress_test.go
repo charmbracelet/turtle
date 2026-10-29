@@ -26,11 +26,11 @@ func run(t *testing.T, new coreutils.NewFunc, fsys fsx.MemFS, args ...string) (i
 
 	var stdout, stderr strings.Builder
 	rt := &coreutils.Runtime{
-		Stdin:     strings.NewReader(""),
-		Stdout:    &stdout,
-		Stderr:    &stderr,
-		FS:        fsys,
-		LookupEnv: func(string) (string, bool) { return "", false },
+		Stdin:   strings.NewReader(""),
+		Stdout:  &stdout,
+		Stderr:  &stderr,
+		FS:      fsys,
+		Environ: func() []string { return nil },
 	}
 	err := new(rt).Run(t.Context(), args...)
 	if err == nil {
@@ -273,11 +273,11 @@ func TestCompressOptions(t *testing.T) {
 func TestCompressStdin(t *testing.T) {
 	var stdout, stderr strings.Builder
 	rt := &coreutils.Runtime{
-		Stdin:     strings.NewReader(strings.Repeat("alpha ", 30)),
-		Stdout:    &stdout,
-		Stderr:    &stderr,
-		FS:        testFS(),
-		LookupEnv: func(string) (string, bool) { return "", false },
+		Stdin:   strings.NewReader(strings.Repeat("alpha ", 30)),
+		Stdout:  &stdout,
+		Stderr:  &stderr,
+		FS:      testFS(),
+		Environ: func() []string { return nil },
 	}
 	err := New(rt).Run(t.Context(), "-g")
 	if err != nil {
@@ -303,11 +303,11 @@ func TestCompressContext(t *testing.T) {
 	ctx, cancel := context.WithCancel(t.Context())
 	cancel()
 	rt := &coreutils.Runtime{
-		Stdin:     strings.NewReader("data"),
-		Stdout:    io.Discard,
-		Stderr:    io.Discard,
-		FS:        testFS(),
-		LookupEnv: func(string) (string, bool) { return "", false },
+		Stdin:   strings.NewReader("data"),
+		Stdout:  io.Discard,
+		Stderr:  io.Discard,
+		FS:      testFS(),
+		Environ: func() []string { return nil },
 	}
 	if err := New(rt).Run(ctx, "-g", "-"); !errors.Is(err, context.Canceled) {
 		t.Errorf("Run() error = %v, want context.Canceled", err)
@@ -318,11 +318,11 @@ func gzipData(t *testing.T, data string) []byte {
 	t.Helper()
 	var stdout strings.Builder
 	rt := &coreutils.Runtime{
-		Stdin:     strings.NewReader(data),
-		Stdout:    &stdout,
-		Stderr:    io.Discard,
-		FS:        fsx.MemFS{},
-		LookupEnv: func(string) (string, bool) { return "", false },
+		Stdin:   strings.NewReader(data),
+		Stdout:  &stdout,
+		Stderr:  io.Discard,
+		FS:      fsx.MemFS{},
+		Environ: func() []string { return nil },
 	}
 	if err := gzip.New(rt).Run(t.Context(), "-c"); err != nil {
 		t.Fatalf("gzip.Run() error = %v", err)

@@ -32,11 +32,9 @@ type Runtime struct {
 
 	FS         fsx.FS
 	WorkingDir string
-	LookupEnv  LookupEnvFunc
 
-	// Environ enumerates the current environment, as "KEY=VALUE" strings.
-	// It's used by utilities that need the whole environment, like env. If
-	// nil, the environment is treated as empty.
+	// Environ enumerates the environment of the runtime, as "KEY=VALUE"
+	// strings. If nil, the environment is treated as empty.
 	Environ EnvironFunc
 
 	// Umask is the file mode creation mask. It's used by utilities like chmod
@@ -66,12 +64,6 @@ type Runtime struct {
 	// utilities that invoke other programs, like xargs. If nil, such
 	// utilities fail instead of running anything.
 	Exec ExecFunc
-
-	// Env is the environment the utilities spawned through Exec run
-	// with, as "KEY=VALUE" strings. When nil, they inherit the current
-	// environment. Utilities that modify the environment, like env, set
-	// it before invoking the utility operand.
-	Env []string
 }
 
 // OsRuntime returns a Runtime wired to the real operating system.
@@ -89,12 +81,11 @@ func OsRuntime() *Runtime {
 		Stderr:     os.Stderr,
 		FS:         fsx.OsFS(""),
 		WorkingDir: wd,
-		LookupEnv:  os.LookupEnv,
 		Environ:    os.Environ,
 		Clock:      time.Now,
 	}
-	rt.Exec = func(ctx context.Context, name string, args []string) (int, error) {
-		return osExec(ctx, rt, name, args)
+	rt.Exec = func(ctx context.Context, name string, args, env []string) (int, error) {
+		return osExec(ctx, rt, name, args, env)
 	}
 	return rt
 }
@@ -159,19 +150,35 @@ func (r *Runtime) Now() time.Time {
 	return time.Now()
 }
 
-// Getenv is a helper to retrieve an environment variable value without the
-// extra bool return. An empty string is returned when no lookup function is
-// set.
-func (r *Runtime) Getenv(key string) string {
-	if r.LookupEnv == nil {
-		return ""
+// LookupEnv returns the value of an environment variable of the runtime,
+// reporting whether it's set. It returns "", false when Environ is nil.
+func (r *Runtime) LookupEnv(key string) (string, bool) {
+	if r.Environ == nil {
+		return "", false
 	}
+	for _, entry := range r.Environ() {
+		if k, v, _ := strings.Cut(entry, "="); k == key {
+			return v, true
+		}
+	}
+	return "", false
+}
+
+// Getenv returns the value of an environment variable of the runtime, or
+// the empty string when it's not set.
+func (r *Runtime) Getenv(key string) string {
 	v, _ := r.LookupEnv(key)
 	return v
 }
 
-// LookupEnvFunc is a function signature for the LookupEnv function.
-type LookupEnvFunc func(string) (string, bool)
+// EnvList returns the environment of the runtime, as "KEY=VALUE" strings,
+// to give to Exec. It returns nil when there's no environment.
+func (r *Runtime) EnvList() []string {
+	if r.Environ == nil {
+		return nil
+	}
+	return r.Environ()
+}
 
 // EnvironFunc is a function signature for the Runtime.Environ function.
 type EnvironFunc func() []string
@@ -184,37 +191,43 @@ type SleepFunc func(ctx context.Context, d time.Duration) error
 
 // ExecFunc is a function signature for the Runtime.Exec function. It runs
 // the named utility with the given arguments and waits for its completion,
-// returning its exit status. When the utility cannot be found, cannot be
+// returning its exit status. The env parameter is the exact environment the
+// utility runs with, as "KEY=VALUE" strings; nil means an empty environment,
+// never the process one. When the utility cannot be found, cannot be
 // invoked, or is terminated by a signal, it returns an error along with the
 // status the caller should exit with: 127, 126 or 125, respectively.
-type ExecFunc func(ctx context.Context, name string, args []string) (status int, err error)
+type ExecFunc func(ctx context.Context, name string, args []string, env []string) (status int, err error)
 
 // osExec runs a utility, wiring it to the runtime outputs and to the null
 // device as its standard input, since the results of the utility reading
 // the same input as xargs are unspecified.
-func osExec(ctx context.Context, rt *Runtime, name string, args []string) (int, error) {
-	path, err := lookup(rt, name)
+func osExec(ctx context.Context, rt *Runtime, name string, args, env []string) (int, error) {
+	path, err := lookup(rt, env, name)
 	if err != nil {
 		if errors.Is(err, exec.ErrNotFound) {
 			return 127, err
 		}
 		return 126, err
 	}
-	status, err := run(ctx, rt, path, args)
+	status, err := run(ctx, rt, path, args, env)
 	if err != nil && errors.Is(err, syscall.ENOEXEC) && runtime.GOOS != "windows" {
 		// An executable file with no executable format runs through the
 		// command interpreter, as execvp does.
-		return run(ctx, rt, "/bin/sh", append([]string{path}, args...))
+		return run(ctx, rt, "/bin/sh", append([]string{path}, args...), env)
 	}
 	return status, err
 }
 
 // run starts the utility and waits for its completion, wiring it to the
 // runtime outputs and to the null device as its standard input.
-func run(ctx context.Context, rt *Runtime, path string, args []string) (int, error) {
+func run(ctx context.Context, rt *Runtime, path string, args, env []string) (int, error) {
 	cmd := exec.CommandContext(ctx, path, args...)
 	cmd.Dir = rt.WorkingDir
-	cmd.Env = rt.Env
+	cmd.Env = env
+	if cmd.Env == nil {
+		// A nil Env would make the process environment be inherited.
+		cmd.Env = []string{}
+	}
 	cmd.Stdout = rt.Stdout
 	cmd.Stderr = rt.Stderr
 	if f, err := os.OpenFile(os.DevNull, os.O_RDONLY, 0); err == nil {
@@ -242,12 +255,26 @@ func run(ctx context.Context, rt *Runtime, path string, args []string) (int, err
 // confstr(_CS_PATH) yields on Unix systems.
 const defaultPath = "/bin:/usr/bin"
 
-// lookup finds the utility in the PATH of the runtime, like exec.LookPath
-// does for the process one. Names holding a path separator are returned as
-// they are, so they run relative to the runtime working directory, which is
-// also where the relative PATH entries are resolved. An empty PATH means
-// the current directory, and an unset one the default search path.
-func lookup(rt *Runtime, name string) (string, error) {
+// lookupEnvVar returns the value of the variable named key in a list of
+// "KEY=VALUE" strings, reporting whether it's set.
+func lookupEnvVar(env []string, key string) (string, bool) {
+	for _, entry := range env {
+		if k, v, _ := strings.Cut(entry, "="); k == key {
+			return v, true
+		}
+	}
+	return "", false
+}
+
+// lookup finds the utility in the PATH of the environment it runs with,
+// like exec.LookPath does for the process one. The PATH comes from the
+// given environment when it's not nil, as env requires for a PATH operand,
+// or from the runtime one otherwise. Names holding a path separator are
+// returned as they are, so they run relative to the runtime working
+// directory, which is also where the relative PATH entries are resolved. An
+// empty PATH means the current directory, and an unset one the default
+// search path.
+func lookup(rt *Runtime, env []string, name string) (string, error) {
 	if filepath.IsAbs(name) || strings.ContainsRune(name, '/') ||
 		runtime.GOOS == "windows" && strings.ContainsRune(name, '\\') {
 		return name, nil
@@ -259,7 +286,9 @@ func lookup(rt *Runtime, name string) (string, error) {
 		wd = rt.WorkingDir
 	}
 	path, ok := "", false
-	if rt.LookupEnv != nil {
+	if env != nil {
+		path, ok = lookupEnvVar(env, "PATH")
+	} else {
 		path, ok = rt.LookupEnv("PATH")
 	}
 	if !ok {

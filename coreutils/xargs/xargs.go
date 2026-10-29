@@ -111,7 +111,7 @@ func (p *Prog) Run(ctx context.Context, args ...string) error {
 				continue
 			}
 		}
-		status, err := p.Exec(ctx, utility, args)
+		status, err := p.Exec(ctx, utility, args, p.EnvList())
 		if err != nil {
 			if ctxErr := ctx.Err(); ctxErr != nil {
 				return ctxErr

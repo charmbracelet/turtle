@@ -66,19 +66,25 @@ type result struct {
 
 // run executes the program built by new against the given arguments, returning
 // what it wrote along with the file system it left behind.
+// environ converts a map to a list of KEY=VALUE strings.
+func environ(env map[string]string) []string {
+	entries := make([]string, 0, len(env))
+	for name, value := range env {
+		entries = append(entries, name+"="+value)
+	}
+	return entries
+}
+
 func run(t *testing.T, new coreutils.NewFunc, fsys fsx.MemFS, stdin io.Reader, env map[string]string, args ...string) (result, fsx.MemFS) {
 	t.Helper()
 
 	var stdout, stderr bytes.Buffer
 	rt := &coreutils.Runtime{
-		Stdin:  stdin,
-		Stdout: &stdout,
-		Stderr: &stderr,
-		FS:     fsys,
-		LookupEnv: func(key string) (string, bool) {
-			value, ok := env[key]
-			return value, ok
-		},
+		Stdin:   stdin,
+		Stdout:  &stdout,
+		Stderr:  &stderr,
+		FS:      fsys,
+		Environ: func() []string { return environ(env) },
 	}
 
 	err := new(rt).Run(t.Context(), args...)
@@ -966,11 +972,11 @@ func TestGzipContext(t *testing.T) {
 	var stdout bytes.Buffer
 	ctx, cancel := context.WithCancel(t.Context())
 	rt := &coreutils.Runtime{
-		Stdin:     &cancelReader{cancel: cancel},
-		Stdout:    &stdout,
-		Stderr:    io.Discard,
-		FS:        testFS(),
-		LookupEnv: func(string) (string, bool) { return "", false },
+		Stdin:   &cancelReader{cancel: cancel},
+		Stdout:  &stdout,
+		Stderr:  io.Discard,
+		FS:      testFS(),
+		Environ: func() []string { return nil },
 	}
 
 	if err := New(rt).Run(ctx, "-"); !errors.Is(err, context.Canceled) {

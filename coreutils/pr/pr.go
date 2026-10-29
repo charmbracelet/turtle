@@ -442,11 +442,9 @@ func allDigits(s string) bool {
 
 // location returns the time zone of the header dates, honoring TZ.
 func (p *Prog) location() *time.Location {
-	if p.LookupEnv != nil {
-		if tz, ok := p.LookupEnv("TZ"); ok && tz != "" {
-			if loc, err := time.LoadLocation(tz); err == nil {
-				return loc
-			}
+	if tz, ok := p.LookupEnv("TZ"); ok && tz != "" {
+		if loc, err := time.LoadLocation(tz); err == nil {
+			return loc
 		}
 	}
 	return time.Local
