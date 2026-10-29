@@ -161,7 +161,7 @@ these copies (like `sed` or `tar`) link to their online documentation instead.
 | GNU | `truncate` | Shrink or extend the size of files | — | [❌](spec/markdown/gnu/truncate-invocation.md) |
 | GNU | `which` | Locate a command in the search path | — | ❌ |
 | GNU | `whoami` | Print the effective user name | — | [❌](spec/markdown/gnu/whoami-invocation.md) |
-| GNU | `yes` | Print a string repeatedly | — | [❌](spec/markdown/gnu/yes-invocation.md) |
+| GNU | `yes` | Print a string repeatedly | — | [✅](spec/markdown/gnu/yes-invocation.md) |
 
 > [!NOTE]
 > `*` The LZW algorithm (the POSIX default, with its `.Z` suffix) is not yet
