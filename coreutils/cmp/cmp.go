@@ -12,6 +12,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"strconv"
 
 	"charm.land/snail/coreutils"
 
@@ -101,16 +102,25 @@ func (p *Prog) compare(ctx context.Context, r1, r2 io.Reader, names [2]string, o
 		lineNumber  int64 = 1
 		atLineStart       = true
 		differing         = false
+		// remaining counts the bytes still to be compared; it is negative when
+		// the comparison is unlimited.
+		remaining = opts.bytes
 	)
 	for {
 		if err := ctx.Err(); err != nil {
 			return 0, err
 		}
-		n1, err1 := io.ReadFull(br1, buf1)
+		size := bufSize
+		if remaining >= 0 && remaining < int64(bufSize) {
+			size = int(remaining)
+		}
+		remaining -= int64(size)
+
+		n1, err1 := io.ReadFull(br1, buf1[:size])
 		if err := readErr(err1); err != nil {
 			return 0, &input.ReadError{Label: names[0], Err: err}
 		}
-		n2, err2 := io.ReadFull(br2, buf2)
+		n2, err2 := io.ReadFull(br2, buf2[:size])
 		if err := readErr(err2); err != nil {
 			return 0, &input.ReadError{Label: names[1], Err: err}
 		}
@@ -156,7 +166,7 @@ func (p *Prog) compare(ctx context.Context, r1, r2 io.Reader, names [2]string, o
 			}
 			return 1, nil
 		}
-		if n1 < bufSize {
+		if n1 < size || remaining == 0 {
 			if differing {
 				return 1, nil
 			}
@@ -208,10 +218,12 @@ func (p *Prog) errorf(format string, args ...any) {
 type options struct {
 	list   bool
 	silent bool
+	bytes  int64 // -n; negative when the comparison is unlimited
 }
 
 // longOptions maps the long options of cmp to the short ones they stand for.
 var longOptions = map[string]rune{
+	"bytes":   'n',
 	"verbose": 'l',
 	"quiet":   's',
 	"silent":  's',
@@ -220,9 +232,9 @@ var longOptions = map[string]rune{
 // parseFlags parses the command line options. Option parsing stops at the
 // first operand or at "--".
 func parseFlags(args []string) (options, []string, error) {
-	var opts options
+	opts := options{bytes: -1}
 	var mode byte
-	operands, err := getopt.Set{Long: longOptions}.Parse(args, func(opt rune, _ string) error {
+	operands, err := getopt.Set{Valued: "n", Long: longOptions}.Parse(args, func(opt rune, value string) error {
 		switch opt {
 		case 'l':
 			if mode != 0 && mode != 'l' {
@@ -236,6 +248,14 @@ func parseFlags(args []string) (options, []string, error) {
 			}
 			mode = 's'
 			opts.silent = true
+		case 'n':
+			limit, err := parseLimit(value)
+			if err != nil {
+				return err
+			}
+			if opts.bytes < 0 || limit < opts.bytes {
+				opts.bytes = limit
+			}
 		default:
 			return getopt.InvalidOption(opt)
 		}
@@ -245,6 +265,18 @@ func parseFlags(args []string) (options, []string, error) {
 		return options{}, nil, err
 	}
 	return opts, operands, nil
+}
+
+// parseLimit parses a non-negative decimal byte count.
+func parseLimit(value string) (int64, error) {
+	if value == "" || value[0] == '+' || value[0] == '-' {
+		return 0, fmt.Errorf("invalid --bytes value '%s'", value)
+	}
+	limit, err := strconv.ParseInt(value, 10, 64)
+	if err != nil {
+		return 0, fmt.Errorf("invalid --bytes value '%s'", value)
+	}
+	return limit, nil
 }
 
 // readErr returns the error of a read result, or nil when it only signals
