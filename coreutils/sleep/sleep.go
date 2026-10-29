@@ -1,4 +1,4 @@
-// Package sleep implements the POSIX sleep utility.
+// Package sleep implements the sleep utility.
 package sleep
 
 import (
@@ -23,7 +23,7 @@ func New(rt *coreutils.Runtime) coreutils.Program {
 	return &Prog{Runtime: rt}
 }
 
-// Run suspends execution for the number of seconds given in the time operand,
+// Run suspends execution for the sum of the durations given in the operands,
 // returning the context error as-is when the context is done first.
 func (p *Prog) Run(ctx context.Context, args ...string) error {
 	d, err := parseArgs(args)
@@ -37,7 +37,7 @@ func (p *Prog) Run(ctx context.Context, args ...string) error {
 	return p.Wait(ctx, d)
 }
 
-// parseArgs parses the options and the single time operand. sleep takes no
+// parseArgs parses the options and the time operands. sleep takes no
 // options, so any argument starting with a single dash is an invalid option.
 func parseArgs(args []string) (time.Duration, error) {
 	operands, err := getopt.Set{}.Parse(args, func(opt rune, _ string) error {
@@ -46,24 +46,55 @@ func parseArgs(args []string) (time.Duration, error) {
 	if err != nil {
 		return 0, err
 	}
-	switch len(operands) {
-	case 0:
+	if len(operands) == 0 {
 		return 0, errors.New("missing operand")
-	case 1:
-		return parseSeconds(operands[0])
-	default:
-		return 0, fmt.Errorf("extra operand: %q", operands[1])
 	}
+	return parseOperands(operands)
 }
 
-// parseSeconds converts the time operand, a non-negative decimal integer of
-// seconds, into a duration.
-func parseSeconds(s string) (time.Duration, error) {
-	n, err := strconv.ParseUint(s, 10, 64)
-	if err != nil || n > math.MaxInt64/uint64(time.Second) {
-		return 0, fmt.Errorf("invalid number: '%s'", s)
+// parseOperands sums the duration operands into a single duration.
+func parseOperands(operands []string) (time.Duration, error) {
+	var total time.Duration
+	for _, operand := range operands {
+		d, err := parseOperand(operand)
+		if err != nil {
+			return 0, err
+		}
+		if d > 0 && total > math.MaxInt64-d {
+			return 0, fmt.Errorf("invalid number: '%s'", operand)
+		}
+		total += d
 	}
-	return time.Duration(n) * time.Second, nil
+	return total, nil
+}
+
+// unitSeconds maps each unit suffix to its length in seconds.
+var unitSeconds = map[byte]float64{
+	's': 1,
+	'm': 60,
+	'h': 60 * 60,
+	'd': 24 * 60 * 60,
+}
+
+// maxSeconds is the largest number of seconds representable as a duration.
+const maxSeconds = float64(math.MaxInt64 / int64(time.Second))
+
+// parseOperand converts a duration operand, a non-negative fractional number
+// with an optional s, m, h or d unit suffix, into a duration.
+func parseOperand(operand string) (time.Duration, error) {
+	s := operand
+	seconds := 1.0
+	if len(s) > 0 {
+		if mult, ok := unitSeconds[s[len(s)-1]]; ok {
+			seconds = mult
+			s = s[:len(s)-1]
+		}
+	}
+	f, err := strconv.ParseFloat(s, 64)
+	if err != nil || f < 0 || math.IsNaN(f) || math.IsInf(f, 0) || f > maxSeconds/seconds {
+		return 0, fmt.Errorf("invalid number: '%s'", operand)
+	}
+	return time.Duration(f * seconds * float64(time.Second)), nil
 }
 
 // errorf writes a diagnostic message to standard error.

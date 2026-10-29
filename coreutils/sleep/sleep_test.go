@@ -71,6 +71,46 @@ func TestRun(t *testing.T) {
 				want: []time.Duration{7 * time.Second},
 			},
 			{
+				name: "fractional number",
+				args: []string{"0.5"},
+				want: []time.Duration{500 * time.Millisecond},
+			},
+			{
+				name: "seconds suffix",
+				args: []string{"1s"},
+				want: []time.Duration{time.Second},
+			},
+			{
+				name: "minutes suffix",
+				args: []string{"2m"},
+				want: []time.Duration{2 * time.Minute},
+			},
+			{
+				name: "hours suffix",
+				args: []string{"1h"},
+				want: []time.Duration{time.Hour},
+			},
+			{
+				name: "days suffix",
+				args: []string{"1d"},
+				want: []time.Duration{24 * time.Hour},
+			},
+			{
+				name: "fractional number with suffix",
+				args: []string{"1.5m"},
+				want: []time.Duration{90 * time.Second},
+			},
+			{
+				name: "multiple operands are summed",
+				args: []string{"1", "2"},
+				want: []time.Duration{3 * time.Second},
+			},
+			{
+				name: "multiple operands with suffixes are summed",
+				args: []string{"1m", "30s", "0.5"},
+				want: []time.Duration{90*time.Second + 500*time.Millisecond},
+			},
+			{
 				name: "the maximum required value",
 				args: []string{"2147483647"},
 				want: []time.Duration{2147483647 * time.Second},
@@ -159,11 +199,6 @@ func TestRun(t *testing.T) {
 				wantErr: "sleep: missing operand\n",
 			},
 			{
-				name:    "extra operand",
-				args:    []string{"1", "2"},
-				wantErr: "sleep: extra operand: \"2\"\n",
-			},
-			{
 				name:    "invalid option",
 				args:    []string{"-x"},
 				wantErr: "sleep: invalid option -- 'x'\n",
@@ -174,9 +209,9 @@ func TestRun(t *testing.T) {
 				wantErr: "sleep: invalid option -- '5'\n",
 			},
 			{
-				name:    "fractional operand",
-				args:    []string{"1.5"},
-				wantErr: "sleep: invalid number: '1.5'\n",
+				name:    "malformed fractional operand",
+				args:    []string{"1.2.3"},
+				wantErr: "sleep: invalid number: '1.2.3'\n",
 			},
 			{
 				name:    "non-numeric operand",
@@ -189,6 +224,11 @@ func TestRun(t *testing.T) {
 				wantErr: "sleep: invalid number: ''\n",
 			},
 			{
+				name:    "suffix without a number",
+				args:    []string{"m"},
+				wantErr: "sleep: invalid number: 'm'\n",
+			},
+			{
 				name:    "trailing garbage",
 				args:    []string{"1x"},
 				wantErr: "sleep: invalid number: '1x'\n",
@@ -197,6 +237,16 @@ func TestRun(t *testing.T) {
 				name:    "value too large",
 				args:    []string{"9223372036854775808"},
 				wantErr: "sleep: invalid number: '9223372036854775808'\n",
+			},
+			{
+				name:    "value too large for the unit",
+				args:    []string{"1073741824d"},
+				wantErr: "sleep: invalid number: '1073741824d'\n",
+			},
+			{
+				name:    "the sum of the operands overflows",
+				args:    []string{"9223372036s", "9223372036s"},
+				wantErr: "sleep: invalid number: '9223372036s'\n",
 			},
 		}
 
