@@ -52,10 +52,10 @@ these copies (like `sed` or `tar`) link to their online documentation instead.
 
 | Category | Program | Description | POSIX | GNU |
 | --- | --- | --- | --- | --- |
-| Foundational | `true` | Return a zero exit status | [✅](spec/markdown/posix/true.md) | [❌](spec/markdown/gnu/true-invocation.md) |
-| Foundational | `false` | Return a non-zero exit status | [✅](spec/markdown/posix/false.md) | [❌](spec/markdown/gnu/false-invocation.md) |
+| Foundational | `true` | Return a zero exit status | [✅](spec/markdown/posix/true.md) | [✅](spec/markdown/gnu/true-invocation.md) |
+| Foundational | `false` | Return a non-zero exit status | [✅](spec/markdown/posix/false.md) | [✅](spec/markdown/gnu/false-invocation.md) |
 | Foundational | `echo` | Write arguments to standard output | [✅](spec/markdown/posix/echo.md) | [❌](spec/markdown/gnu/echo-invocation.md) |
-| Foundational | `pwd` | Print the current working directory | [✅](spec/markdown/posix/pwd.md) | [❌](spec/markdown/gnu/pwd-invocation.md) |
+| Foundational | `pwd` | Print the current working directory | [✅](spec/markdown/posix/pwd.md) | [✅](spec/markdown/gnu/pwd-invocation.md) |
 | Foundational | `basename` | Print a path without its directory | [✅](spec/markdown/posix/basename.md) | [❌](spec/markdown/gnu/basename-invocation.md) |
 | Foundational | `dirname` | Print the directory part of a path | [✅](spec/markdown/posix/dirname.md) | [❌](spec/markdown/gnu/dirname-invocation.md) |
 | Foundational | `wc` | Count lines, words, and bytes | [✅](spec/markdown/posix/wc.md) | [❌](spec/markdown/gnu/wc-invocation.md) |
@@ -72,13 +72,13 @@ these copies (like `sed` or `tar`) link to their online documentation instead.
 | Filesystem | `rmdir` | Remove empty directories | [✅](spec/markdown/posix/rmdir.md) | [❌](spec/markdown/gnu/rmdir-invocation.md) |
 | Filesystem | `cp` | Copy files and directories | [✅](spec/markdown/posix/cp.md) | [❌](spec/markdown/gnu/cp-invocation.md) |
 | Filesystem | `mv` | Move or rename files | [✅](spec/markdown/posix/mv.md) | [❌](spec/markdown/gnu/mv-invocation.md) |
-| Filesystem | `rm` | Remove files and directories | [✅](spec/markdown/posix/rm.md) | [❌](spec/markdown/gnu/rm-invocation.md) |
+| Filesystem | `rm` | Remove files and directories | [✅](spec/markdown/posix/rm.md) | [✅](spec/markdown/gnu/rm-invocation.md) |
 | Filesystem | `ln` | Create links between files | [✅](spec/markdown/posix/ln.md) | [❌](spec/markdown/gnu/ln-invocation.md) |
 | Filesystem | `ls` | List directory contents | [✅](spec/markdown/posix/ls.md) | [❌](spec/markdown/gnu/ls-invocation.md) |
 | Filesystem | `chgrp` | Change file group ownership | [❌](spec/markdown/posix/chgrp.md) | [❌](spec/markdown/gnu/chgrp-invocation.md) |
 | Filesystem | `chown` | Change file ownership | [❌](spec/markdown/posix/chown.md) | [❌](spec/markdown/gnu/chown-invocation.md) |
-| Filesystem | `link` | Create a hard link to a file | [✅](spec/markdown/posix/link.md) | [❌](spec/markdown/gnu/link-invocation.md) |
-| Filesystem | `unlink` | Remove a directory entry | [✅](spec/markdown/posix/unlink.md) | [❌](spec/markdown/gnu/unlink-invocation.md) |
+| Filesystem | `link` | Create a hard link to a file | [✅](spec/markdown/posix/link.md) | [✅](spec/markdown/gnu/link-invocation.md) |
+| Filesystem | `unlink` | Remove a directory entry | [✅](spec/markdown/posix/unlink.md) | [✅](spec/markdown/gnu/unlink-invocation.md) |
 | Filesystem | `mkfifo` | Create FIFO special files | [❌](spec/markdown/posix/mkfifo.md) | [❌](spec/markdown/gnu/mkfifo-invocation.md) |
 | Filesystem | `readlink` | Print the target of a symbolic link | [❌](spec/markdown/posix/readlink.md) | [❌](spec/markdown/gnu/readlink-invocation.md) |
 | Filesystem | `realpath` | Print the resolved absolute path | [❌](spec/markdown/posix/realpath.md) | [❌](spec/markdown/gnu/realpath-invocation.md) |
@@ -99,7 +99,7 @@ these copies (like `sed` or `tar`) link to their online documentation instead.
 | Text | `csplit` | Split a file by context | [✅](spec/markdown/posix/csplit.md) | [❌](spec/markdown/gnu/csplit-invocation.md) |
 | Text | `diff` | Compare files line by line | [✅](spec/markdown/posix/diff.md) | [❌](https://web.archive.org/web/https://www.gnu.org/software/diffutils/manual/html_node/Invoking-diff.html) |
 | Text | `expand` | Convert tabs to spaces | [✅](spec/markdown/posix/expand.md) | [❌](spec/markdown/gnu/expand-invocation.md) |
-| Text | `fold` | Wrap long input lines | [✅](spec/markdown/posix/fold.md) | [❌](spec/markdown/gnu/fold-invocation.md) |
+| Text | `fold` | Wrap long input lines | [✅](spec/markdown/posix/fold.md) | [✅](spec/markdown/gnu/fold-invocation.md) |
 | Text | `nl` | Number lines of files | [✅](spec/markdown/posix/nl.md) | [❌](spec/markdown/gnu/nl-invocation.md) |
 | Text | `od` | Dump files in octal and other formats | [✅](spec/markdown/posix/od.md) | [❌](spec/markdown/gnu/od-invocation.md) |
 | Text | `pr` | Paginate files for printing | [✅](spec/markdown/posix/pr.md) | [❌](spec/markdown/gnu/pr-invocation.md) |
@@ -108,7 +108,7 @@ these copies (like `sed` or `tar`) link to their online documentation instead.
 | Text | `strings` | Print printable strings in files | [✅](spec/markdown/posix/strings.md) | [❌](https://web.archive.org/web/https://sourceware.org/binutils/docs/binutils/strings.html) |
 | Text | `unexpand` | Convert spaces to tabs | [✅](spec/markdown/posix/unexpand.md) | [❌](spec/markdown/gnu/unexpand-invocation.md) |
 | Text | `cksum` | Compute CRC checksums for files | [✅](spec/markdown/posix/cksum.md) | [❌](spec/markdown/gnu/cksum-invocation.md) |
-| Text | `patch`** | Apply a diff file to an original | [✅](spec/markdown/posix/patch.md) | ❌ |
+| Text | `patch`** | Apply a diff file to an original | [✅](spec/markdown/posix/patch.md) | ✅ |
 | Search / Filtering | `find` | Find files matching given criteria | [❌](spec/markdown/posix/find.md) | [❌](https://web.archive.org/web/https://www.gnu.org/software/findutils/manual/html_node/find_html/Invoking-find.html) |
 | Search / Filtering | `grep` | Print lines matching a pattern | [❌](spec/markdown/posix/grep.md) | [❌](https://web.archive.org/web/https://www.gnu.org/software/grep/manual/grep.html) |
 | Search / Filtering | `xargs` | Build and execute command lines | [✅](spec/markdown/posix/xargs.md) | [❌](https://web.archive.org/web/https://www.gnu.org/software/findutils/manual/html_node/find_html/Invoking-xargs.html) |
