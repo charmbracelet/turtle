@@ -515,3 +515,40 @@ func TestOsFSSymlink(t *testing.T) {
 		t.Error("ReadLink() of a regular file error = nil, want an error")
 	}
 }
+
+func TestOsFSSync(t *testing.T) {
+	dir := t.TempDir()
+	fsys := OsFS(dir)
+
+	f, err := fsys.OpenFile("file.txt", os.O_CREATE|os.O_WRONLY, 0o644)
+	if err != nil {
+		t.Fatalf("OpenFile() error = %v", err)
+	}
+	if _, err := f.Write([]byte("hello")); err != nil {
+		t.Fatalf("Write() error = %v", err)
+	}
+
+	t.Run("an open file syncs", func(t *testing.T) {
+		syncer, ok := f.(interface{ Sync() error })
+		if !ok {
+			t.Fatalf("OpenFile() = %T, want a file with a Sync method", f)
+		}
+		if err := syncer.Sync(); err != nil {
+			t.Errorf("Sync() error = %v", err)
+		}
+	})
+
+	t.Run("the file system syncs", func(t *testing.T) {
+		syncer, ok := fsys.(SyncFS)
+		if !ok {
+			t.Fatalf("OsFS() = %T, want a SyncFS", fsys)
+		}
+		if err := syncer.Sync(); err != nil {
+			t.Errorf("Sync() error = %v", err)
+		}
+	})
+
+	if err := f.Close(); err != nil {
+		t.Fatalf("Close() error = %v", err)
+	}
+}

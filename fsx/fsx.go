@@ -98,6 +98,18 @@ type SymlinkFS interface {
 	fs.ReadLinkFS
 }
 
+// SyncFS can flush the data buffered by a whole file system.
+//
+// It isn't embedded into FS because not every file system can be flushed,
+// like a network one: callers must check for it, with a type assertion, and
+// treat the absence as a successful no-op otherwise.
+type SyncFS interface {
+	// Sync flushes any data the file system still holds in memory, like
+	// sync(2). It reports the errors of the flush itself, never of any
+	// single write, which are only flushed on a best-effort basis.
+	Sync() error
+}
+
 // FS is the main interface of this package, which embeds `io/fs.FS` from the
 // stdlib and all the extra interfaces that we added to this package.
 type FS interface {
