@@ -1,13 +1,13 @@
-// Package nl implements the POSIX nl utility.
+// Package nl implements the POSIX nl utility with the GNU extensions.
 //
-// It numbers the lines of a file on the left, in terms of logical pages. A
-// logical page consists of header, body and footer sections, each with its
-// own numbering style, started by input lines holding nothing but the
-// delimiter characters ("\:\:\:", "\:\:" and "\:" by default). Line
-// numbering restarts at the start of each logical page, unless -p is given.
-// When a line isn't numbered, both the line number and the separator are
-// suppressed, as POSIX requires; delimiter lines are reproduced as empty
-// lines.
+// It numbers the lines of the given files, treated as a single document, on
+// the left, in terms of logical pages. A logical page consists of header,
+// body and footer sections, each with its own numbering style, started by
+// input lines holding nothing but the delimiter characters ("\:\:\:",
+// "\:\:" and "\:" by default). Line numbering restarts at the start of each
+// section, unless -p is given. When a line isn't numbered, a blank number
+// field of the given width and separator takes its place; delimiter lines are
+// reproduced as empty lines.
 package nl
 
 import (
@@ -38,9 +38,12 @@ func New(rt *coreutils.Runtime) coreutils.Program {
 	return &Prog{Runtime: rt}
 }
 
-// Run writes the lines of the input to the standard output, adding line
+// Run writes the lines of the given files to the standard output, adding line
 // numbers according to the numbering style of the logical page section each
-// line is in. It returns an exit status of 1 for any error.
+// line is in. The files are treated as a single document, so numbering isn't
+// reset between them, and a file which can't be read is reported while the
+// remaining ones are still processed. It returns an exit status of 1 for any
+// error.
 //
 // Reading is interrupted when ctx is done, and the context error is returned.
 func (p *Prog) Run(ctx context.Context, args ...string) error {
@@ -49,48 +52,52 @@ func (p *Prog) Run(ctx context.Context, args ...string) error {
 		p.errorf("%v", err)
 		return &coreutils.ExitError{Code: 1}
 	}
-	if len(operands) > 1 {
-		p.errorf("extra operand '%s'", operands[1])
-		return &coreutils.ExitError{Code: 1}
-	}
 
-	name := ""
-	if len(operands) == 1 {
-		name = operands[0]
-	}
-	in := input.Input{Name: name, Stdin: name == "" || name == "-"}
-	r, err := input.Open(p.Runtime, ctx, in)
-	if err != nil {
-		p.errorf("%s: %v", in.Label(), patherr.Unwrap(err))
-		return &coreutils.ExitError{Code: 1}
-	}
-	defer r.Close()
+	n := &numberer{opts: opts, out: bufio.NewWriter(p.Stdout)}
+	n.reset()
+	n.style = opts.body
 
-	if err := p.number(ctx, r, opts); err != nil {
-		var writeErr *writeError
-		switch {
-		case errors.As(err, &writeErr):
-			p.errorf("write error: %v", writeErr.err)
-			return &coreutils.ExitError{Code: 1, Err: writeErr.err}
-		case ctx.Err() != nil:
-			return ctx.Err()
-		case errors.Is(err, errOverflow):
-			p.errorf("%v", err)
-			return &coreutils.ExitError{Code: 1, Err: err}
-		default:
-			p.errorf("%s: %v", in.Label(), patherr.Unwrap(err))
-			return &coreutils.ExitError{Code: 1, Err: err}
+	ok := true
+	for _, in := range input.List(operands) {
+		if err := ctx.Err(); err != nil {
+			return err
 		}
+		if !in.Stdin && in.Name == "" {
+			p.errorf("invalid zero-length file name")
+			ok = false
+			continue
+		}
+		if err := p.number(ctx, in, n); err != nil {
+			var writeErr *writeError
+			switch {
+			case errors.As(err, &writeErr):
+				p.errorf("write error: %v", writeErr.err)
+				return &coreutils.ExitError{Code: 1, Err: writeErr.err}
+			case ctx.Err() != nil:
+				return ctx.Err()
+			case errors.Is(err, errOverflow):
+				p.errorf("%v", err)
+				return &coreutils.ExitError{Code: 1, Err: err}
+			default:
+				p.errorf("%s: %v", in.Label(), patherr.Unwrap(err))
+				ok = false
+			}
+		}
+	}
+	if !ok {
+		return &coreutils.ExitError{Code: 1}
 	}
 	return nil
 }
 
-// number reads the lines of r and writes them numbered to the standard
-// output.
-func (p *Prog) number(ctx context.Context, r io.Reader, opts options) error {
-	n := &numberer{opts: opts, out: bufio.NewWriter(p.Stdout)}
-	n.reset()
-	n.style = opts.body
+// number reads the lines of the input and writes them numbered, continuing
+// the numbering state held by n.
+func (p *Prog) number(ctx context.Context, in input.Input, n *numberer) error {
+	r, err := input.Open(p.Runtime, ctx, in)
+	if err != nil {
+		return err
+	}
+	defer r.Close()
 
 	// fail flushes what was already produced before returning the error.
 	fail := func(err error) error {
@@ -163,13 +170,13 @@ func (n *numberer) line(content []byte, terminated bool) error {
 		switch sec {
 		case header:
 			n.style = n.opts.header
-			if n.opts.restart {
-				n.reset()
-			}
 		case body:
 			n.style = n.opts.body
 		case footer:
 			n.style = n.opts.footer
+		}
+		if n.opts.restart {
+			n.reset()
 		}
 		return nil
 	}
@@ -196,6 +203,8 @@ func (n *numberer) line(content []byte, terminated bool) error {
 		if err := n.printNo(); err != nil {
 			return err
 		}
+	} else if err := n.printNoLine(); err != nil {
+		return err
 	}
 	if _, err := n.out.Write(content); err != nil {
 		return &writeError{err: err}
@@ -204,6 +213,14 @@ func (n *numberer) line(content []byte, terminated bool) error {
 		if err := n.out.WriteByte('\n'); err != nil {
 			return &writeError{err: err}
 		}
+	}
+	return nil
+}
+
+// printNoLine writes a blank number field for an unnumbered line.
+func (n *numberer) printNoLine() error {
+	if _, err := fmt.Fprintf(n.out, "%*s%s", n.opts.width, "", n.opts.sep); err != nil {
+		return &writeError{err: err}
 	}
 	return nil
 }
@@ -277,6 +294,21 @@ type style struct {
 	re   *regexp.Regexp
 }
 
+// longOptions maps the long options of nl to the short ones they stand for.
+var longOptions = map[string]rune{
+	"body-numbering":       'b',
+	"footer-numbering":     'f',
+	"header-numbering":     'h',
+	"join-blank-lines":     'l',
+	"line-increment":       'i',
+	"no-renumber":          'p',
+	"number-format":        'n',
+	"number-separator":     's',
+	"number-width":         'w',
+	"section-delimiter":    'd',
+	"starting-line-number": 'v',
+}
+
 // parseFlags parses the command line options. Option parsing stops at the
 // first operand or at "--".
 func parseFlags(args []string) (options, []string, error) {
@@ -293,7 +325,7 @@ func parseFlags(args []string) (options, []string, error) {
 		start:   1,
 		width:   6,
 	}
-	operands, err := getopt.Set{Valued: "bdfhilnsvw"}.Parse(args, func(opt rune, value string) error {
+	operands, err := getopt.Set{Valued: "bdfhilnsvw", Long: longOptions}.Parse(args, func(opt rune, value string) error {
 		var err error
 		switch opt {
 		case 'b':
