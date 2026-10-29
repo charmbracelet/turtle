@@ -31,7 +31,7 @@ This repository is a collection of tools and libraries for Go.
   interface from the Go standard library.
 * The original one only support read operations, like `Read` and `Stat`.
 * We want to be able to embed that interface, but add extra methods to allow
-  some write operations as well (like `Write`, `Chmod`, etc).
+  some write operations as well (like `OpenFile`, `Chmod`, etc).
 * We'll likely implement functionality incrementally as we need while working on
   coreutils rather than implementing it all at once.
 * We'll also want to have at least two implementations here:
@@ -45,29 +45,27 @@ This repository is a collection of tools and libraries for Go.
 * The main use case for this project will be empowering the next project
   described below: `charm.land/snail/coreutils`.
 
-A draft / proposed implementation would be something like this:
+The main `fsx.FS` interface embeds `fs.FS` from the standard library plus the
+extra functionality, split into multiple smaller interfaces:
 
 ```go
 type FS interface {
     fs.FS
 
-    OpenFile(name string, flag int, perm fs.FileMode) (fs.File, error)
-    Remove(name string) error
-    Rename(oldPath, newPath string) error
-    Mkdir(name string, perm fs.FileMode) error
-    Chmod(name string, mode fs.FileMode) error
+    WriteFS
+    ChtimesFS
+    ChmodFS
+    ChownFS
+    MkdirFS
+    RemoveFS
+    RenameFS
+    LinkFS
+    SymlinkFS
 }
 ```
 
-In practice it will make sense to actually have multiple interfaces and embed
-then into the main `fsx.FS` interface.
-
-```go
-type ReadFS interface { ... }
-type WriteFS interface { ... }
-type ChmodFS interface { ... }
-type SymlinkFS interface { ... }
-```
+Each of these interfaces covers one group of write-like operations, so
+callers and implementations can depend on only what they need.
 
 ## charm.land/snail/coreutils
 
@@ -75,7 +73,7 @@ This Go module will hold the implementation of many coreutils in Go.
 
 * We'll have a common Go interface in the root (`charm.land/snail/coreutils`)
   that every coreutil will need to implement.
-* We'll also have in root a type call `NewFunc` with a function signature all
+* We'll also have in root a type called `NewFunc` with a function signature all
   coreutils should respect for their `{package}.New` functions.
 * The package that will hold every implementation will be in
   `charm.land/snail/coreutils/{prog}`.
@@ -127,8 +125,8 @@ Code style guidelines:
 * Be sure to read `coreutils/coreutils.go` to understand how the shared
   interface work. We might need to add some small bits of functionality there
   as we progress.
-* All the `main` files in `charm.land/snail/coreutils/{proj}/` should be called
-  `main.go` and be a thin wrapper around the implementation.
+* All the `main` files in `charm.land/snail/coreutils/cmd/{proj}/` should be
+  called `main.go` and be a thin wrapper around the implementation.
 * `main` packages should delegate to `cmdutil.Main` from
   `charm.land/snail/coreutils/internal/cmdutil`, which builds the `Runtime`,
   runs the utility and maps errors to exit statuses.

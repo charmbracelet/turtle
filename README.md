@@ -7,7 +7,7 @@ Snail is a collection of shell tools and libraries in Go.
 
 ## [charm.land/snail/coreutils](/coreutils)
 
-A brand-new implementation of coreutils in Go. I'm aiming for POSIX compatibity
+A brand-new implementation of coreutils in Go. I'm aiming for POSIX compatibility
 first, potentially following-up with GNU extensions later.
 
 This was built to be importable as Go module to be used on shell interpreters

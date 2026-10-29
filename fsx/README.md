@@ -15,8 +15,8 @@ The main interface, `fsx.FS`, embeds `io/fs.FS` plus:
   `os.OpenFile`.
 - `ChtimesFS`: `Chtimes` sets the access and modification times of a file.
 - `ChmodFS`: `Chmod` changes the file mode bits of a file, like `os.Chmod`.
-- `ChownFS`: optional capability; `Chown` changes the numeric owner and group
-  of a file, like `os.Chown`.
+- `ChownFS`: `Chown` changes the numeric owner and group of a file, like
+  `os.Chown`, where a uid or gid of -1 means to not change that value.
 - `MkdirFS`: `Mkdir` creates a new directory, like `os.Mkdir`.
 - `RemoveFS`: `Remove` removes a file or an empty directory, like
   `os.Remove`.
@@ -43,7 +43,8 @@ Two implementations are available:
 
 - `fsx.OsFS(dir)` operates on the operating system's file system. Names are
   resolved inside `dir`, which works like a working directory, except that
-  absolute paths are used as given.
+  absolute paths are used as given. An empty `dir` means the current working
+  directory of the process.
 - `fsx.MemFS` is an in-memory file system, meant mostly for writing tests of
   code that uses this package. Files are seeded with a map literal, like in
   `testing/fstest.MapFS`:
@@ -53,6 +54,9 @@ fsys := fsx.MemFS{
 	"file.txt": {Data: []byte("contents")},
 }
 ```
+
+Directories are implicit: a name of the form "dir/file" makes "dir" statable
+as a directory.
 
 Symbolic links are entries with the `fs.ModeSymlink` mode bit and the link
 target as their data, and are followed by the read operations, like `Open` and
