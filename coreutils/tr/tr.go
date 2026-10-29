@@ -148,11 +148,20 @@ type options struct {
 	complement bool
 	delete     bool
 	squeeze    bool
+	truncate   bool
+}
+
+// longOptions maps the long options of tr to the short ones they stand for.
+var longOptions = map[string]rune{
+	"complement":      'c',
+	"delete":          'd',
+	"squeeze-repeats": 's',
+	"truncate-set1":   't',
 }
 
 func parseFlags(args []string) (options, []string, error) {
 	var opts options
-	operands, err := (getopt.Set{}).Parse(args, func(opt rune, _ string) error {
+	operands, err := getopt.Set{Long: longOptions}.Parse(args, func(opt rune, _ string) error {
 		switch opt {
 		case 'c', 'C':
 			opts.complement = true
@@ -160,6 +169,10 @@ func parseFlags(args []string) (options, []string, error) {
 			opts.delete = true
 		case 's':
 			opts.squeeze = true
+		case 't':
+			opts.truncate = true
+		case 'u':
+			// Accepted for FreeBSD compatibility, doing nothing.
 		default:
 			return getopt.InvalidOption(opt)
 		}
@@ -238,12 +251,12 @@ func newTranslator(opts options, operands []string) (*translator, error) {
 		if err != nil {
 			return nil, err
 		}
-		members1, members2, plain, err := expandPair(elems1, elems2, conversions, opts.complement)
+		members1, members2, plain, err := expandPair(elems1, elems2, conversions, opts.complement, opts.truncate)
 		if err != nil {
 			return nil, err
 		}
 		t.replace = mapOf(members1, members2)
-		if opts.complement {
+		if opts.complement && !opts.truncate {
 			t.complSet = setOf(plain)
 			var last *charset.Member
 			if len(members2) > 0 {
@@ -356,8 +369,10 @@ func newSet(elems []charset.Elem, complement bool) (set, error) {
 // expandPair expands the operands of a translation, returning the arrays of
 // string1 and string2, and the characters string1 holds before a
 // complement. Case conversions replace the classes that form them, and
-// string2 is padded with its last character.
-func expandPair(elems1, elems2 []charset.Elem, conversions map[int]bool, complement bool) ([]charset.Member, []charset.Member, []charset.Member, error) {
+// string2 is padded with its last character, unless the extra characters of
+// string1 are dropped with -t, which happens after the complement is
+// expanded.
+func expandPair(elems1, elems2 []charset.Elem, conversions map[int]bool, complement, truncate bool) ([]charset.Member, []charset.Member, []charset.Member, error) {
 	var members1, plain []charset.Member
 	for i, e := range elems1 {
 		var expanded []charset.Member
@@ -394,6 +409,9 @@ func expandPair(elems1, elems2 []charset.Elem, conversions map[int]bool, complem
 	}
 	if len(members2) == 0 && len(members1) > 0 {
 		return nil, nil, nil, errors.New("when translating, string2 must be non-empty")
+	}
+	if truncate && len(members1) > len(members2) {
+		members1 = members1[:len(members2)]
 	}
 	if last := len(members2) - 1; last >= 0 {
 		for len(members2) < len(members1) {
