@@ -62,7 +62,7 @@ these copies (like `sed` or `tar`) link to their online documentation instead.
 | Foundational | `printf` | Format and print arguments | [✅](spec/markdown/posix/printf.md) | [❌](spec/markdown/gnu/printf-invocation.md) |
 | Foundational | `test` | Evaluate a conditional expression | [❌](spec/markdown/posix/test.md) | [❌](spec/markdown/gnu/test-invocation.md) |
 | Foundational | `expr` | Evaluate an expression | [❌](spec/markdown/posix/expr.md) | [❌](spec/markdown/gnu/expr-invocation.md) |
-| Foundational | `sleep` | Suspend execution for an interval | [❌](spec/markdown/posix/sleep.md) | [❌](spec/markdown/gnu/sleep-invocation.md) |
+| Foundational | `sleep` | Suspend execution for an interval | [✅](spec/markdown/posix/sleep.md) | [❌](spec/markdown/gnu/sleep-invocation.md) |
 | Filesystem | `touch` | Change file access and modification times | [✅](spec/markdown/posix/touch.md) | [❌](spec/markdown/gnu/touch-invocation.md) |
 | Filesystem | `chmod` | Change file permission modes | [✅](spec/markdown/posix/chmod.md) | [❌](spec/markdown/gnu/chmod-invocation.md) |
 | Filesystem | `cat` | Concatenate and print files | [✅](spec/markdown/posix/cat.md) | [❌](spec/markdown/gnu/cat-invocation.md) |
