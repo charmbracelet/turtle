@@ -1,4 +1,5 @@
-// Package dirname implements the POSIX dirname utility.
+// Package dirname implements the POSIX dirname utility, with the GNU
+// extensions of accepting several name operands and of -z.
 //
 // POSIX leaves the removal of redundant slashes and "." components
 // unspecified; this implementation removes redundant slashes, like the GNU one
@@ -7,13 +8,13 @@ package dirname
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"io"
 	"path/filepath"
 	"strings"
 
 	"charm.land/snail/coreutils"
+	"charm.land/snail/coreutils/internal/getopt"
 )
 
 // Prog is the dirname core utility.
@@ -26,35 +27,59 @@ func New(rt *coreutils.Runtime) coreutils.Program {
 	return &Prog{Runtime: rt}
 }
 
-// Run writes the directory portion of the string operand to standard output.
-func (p *Prog) Run(_ context.Context, args ...string) error {
-	path, err := parseArgs(args)
+// Run writes the directory portion of each name operand to standard output,
+// one result per line, or separated by NUL bytes with -z.
+func (p *Prog) Run(ctx context.Context, args ...string) error {
+	zero, names, err := parseFlags(args)
 	if err != nil {
-		return &coreutils.ExitError{Code: 2, Err: err}
+		p.errorf("%v", err)
+		return &coreutils.ExitError{Code: 2}
 	}
-	// Windows treats backslashes as path separators, so normalize them like
-	// the other implementations do before parsing.
-	result := dirname(filepath.ToSlash(path))
-	if _, err := io.WriteString(p.Stdout, result+"\n"); err != nil {
-		return &coreutils.ExitError{Code: 1, Err: err}
+	if len(names) == 0 {
+		p.errorf("missing operand")
+		return &coreutils.ExitError{Code: 2}
+	}
+
+	sep := "\n"
+	if zero {
+		sep = "\x00"
+	}
+	for _, name := range names {
+		if err := ctx.Err(); err != nil {
+			return err
+		}
+		// Windows treats backslashes as path separators, so normalize them
+		// like the other implementations do before parsing.
+		result := dirname(filepath.ToSlash(name)) + sep
+		if _, err := io.WriteString(p.Stdout, result); err != nil {
+			return &coreutils.ExitError{Code: 1, Err: err}
+		}
 	}
 	return nil
 }
 
-// parseArgs reads the single string operand. dirname has no options, but a
-// leading "--" is still accepted as the end of options marker and skipped.
-func parseArgs(args []string) (string, error) {
-	if len(args) > 0 && args[0] == "--" {
-		args = args[1:]
-	}
-	switch len(args) {
-	case 0:
-		return "", errors.New("missing operand")
-	case 1:
-		return args[0], nil
-	default:
-		return "", fmt.Errorf("extra operand: %q", args[1])
-	}
+// errorf writes a diagnostic message to standard error.
+func (p *Prog) errorf(format string, args ...any) {
+	fmt.Fprintf(p.Stderr, "dirname: "+format+"\n", args...)
+}
+
+// longOptions maps the long options of dirname to the short ones they stand
+// for.
+var longOptions = map[string]rune{
+	"zero": 'z',
+}
+
+// parseFlags parses the options and operands. Option parsing stops at the
+// first operand or at "--".
+func parseFlags(args []string) (zero bool, names []string, err error) {
+	names, err = getopt.Set{Long: longOptions}.Parse(args, func(opt rune, _ string) error {
+		if opt != 'z' {
+			return getopt.InvalidOption(opt)
+		}
+		zero = true
+		return nil
+	})
+	return zero, names, err
 }
 
 // dirname returns the directory portion of path, i.e. everything before its
