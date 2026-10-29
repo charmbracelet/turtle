@@ -206,7 +206,7 @@ var unaryOps = map[string]bool{
 // binaryOps are the binary primary operators. The '-a' and '-o' connectives
 // are left out, so they are only ever handled by the parser precedence.
 var binaryOps = map[string]bool{
-	"=": true, "!=": true, "<": true, ">": true,
+	"=": true, "==": true, "!=": true, "<": true, ">": true,
 	"-eq": true, "-ne": true, "-gt": true, "-ge": true, "-lt": true, "-le": true,
 	"-nt": true, "-ot": true, "-ef": true,
 }
@@ -283,7 +283,7 @@ func fileTest(op string, fi fs.FileInfo) bool {
 // binary evaluates a binary primary between its two operands.
 func (p *Prog) binary(a, op, b string) (bool, error) {
 	switch op {
-	case "=":
+	case "=", "==":
 		return a == b, nil
 	case "!=":
 		return a != b, nil
