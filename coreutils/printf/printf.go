@@ -9,6 +9,7 @@ import (
 	"math"
 	"strconv"
 	"strings"
+	"unicode/utf8"
 
 	"charm.land/snail/coreutils"
 )
@@ -78,7 +79,12 @@ func (pr *printer) print(segs []segment) {
 		pr.consumed = false
 		for _, seg := range segs {
 			if seg.conv == nil {
-				if expandEscapes(&pr.out, seg.text, -1, true) {
+				stopped, err := expandEscapes(&pr.out, seg.text, -1, true)
+				if err != nil {
+					pr.escapeError(err)
+					return
+				}
+				if stopped {
 					pr.stopped = true
 					return
 				}
@@ -133,9 +139,15 @@ func (pr *printer) writeConv(c *conv) {
 		pr.writePadded(truncate(arg, c.prec), c)
 	case 'b':
 		var b strings.Builder
-		if expandEscapes(&b, arg, int(c.prec), false) {
-			// The bytes before the '\c' escape were already converted.
+		stopped, err := expandEscapes(&b, arg, int(c.prec), false)
+		if err != nil || stopped {
+			// The bytes before the '\c' escape or the invalid one
+			// were already converted.
 			pr.out.WriteString(b.String())
+			if err != nil {
+				pr.escapeError(err)
+				return
+			}
 			pr.stopped = true
 			return
 		}
@@ -394,17 +406,27 @@ func truncate(s string, n int64) string {
 	return s
 }
 
+// escapeError diagnoses an invalid escape sequence, stopping all further
+// processing like GNU printf does on a bad escape.
+func (pr *printer) escapeError(err error) {
+	pr.p.diag(err.Error())
+	pr.failed = true
+	pr.halted = true
+}
+
 // expandEscapes writes s to out, interpreting the XSI backslash escape
-// sequences. In the format operand the octal escapes are "\ddd" with one
+// sequences, plus the GNU \e, \xHH, \uHHHH, \UHHHHHHHH and \" ones.
+// In the format operand the octal escapes are "\ddd" with one
 // to three digits, while in a b conversion argument they are "\0ddd",
 // with the leading zero and up to three digits. The expansion stops after
 // max bytes (when non-negative) or at a '\c' escape, which is reported
-// back so all further output can be suppressed.
-func expandEscapes(out *strings.Builder, s string, max int, format bool) bool {
+// back so all further output can be suppressed. An invalid escape is
+// reported back as well.
+func expandEscapes(out *strings.Builder, s string, max int, format bool) (bool, error) {
 	written := 0
 	for i := 0; i < len(s); i++ {
 		if max >= 0 && written >= max {
-			return false
+			return false, nil
 		}
 		c := s[i]
 		if c != '\\' || i+1 == len(s) {
@@ -419,7 +441,9 @@ func expandEscapes(out *strings.Builder, s string, max int, format bool) bool {
 		case 'b':
 			c = '\b'
 		case 'c':
-			return true
+			return true, nil
+		case 'e':
+			c = '\x1b'
 		case 'f':
 			c = '\f'
 		case 'n':
@@ -430,7 +454,30 @@ func expandEscapes(out *strings.Builder, s string, max int, format bool) bool {
 			c = '\t'
 		case 'v':
 			c = '\v'
-		case '\\':
+		case '"', '\\':
+		case 'x':
+			v, n := scanHex(s[i+1:], 2)
+			if n == 0 {
+				return false, errors.New("missing hexadecimal number in escape")
+			}
+			c, i = byte(v), i+n
+		case 'u', 'U':
+			r, err := unicodeEscape(c, s[i+1:])
+			if err != nil {
+				return false, err
+			}
+			i += 4
+			if c == 'U' {
+				i += 4
+			}
+			var b [utf8.UTFMax]byte
+			n := utf8.EncodeRune(b[:], r)
+			if max >= 0 && written+n > max {
+				n = max - written
+			}
+			out.Write(b[:n])
+			written += n
+			continue
 		default:
 			octal := format && isOctalDigit(c) || !format && c == '0'
 			if !octal {
@@ -453,7 +500,47 @@ func expandEscapes(out *strings.Builder, s string, max int, format bool) bool {
 		out.WriteByte(c)
 		written++
 	}
-	return false
+	return false, nil
+}
+
+// unicodeEscape evaluates a \u or \U escape, whose escape character is
+// followed by exactly four or eight hexadecimal digits. Surrogates are
+// invalid universal character names, and values beyond the Unicode range
+// are not representable in UTF-8.
+func unicodeEscape(esc byte, s string) (rune, error) {
+	lim := 4
+	if esc == 'U' {
+		lim = 8
+	}
+	v, n := scanHex(s, lim)
+	if n < lim {
+		return 0, errors.New("missing hexadecimal number in escape")
+	}
+	if v >= 0xd800 && v <= 0xdfff || v > utf8.MaxRune {
+		return 0, fmt.Errorf(`invalid universal character name \%c%0*x`, esc, lim, v)
+	}
+	return rune(v), nil
+}
+
+// scanHex reads up to lim hexadecimal digits from the start of s,
+// returning their value and how many digits it read.
+func scanHex(s string, lim int) (int64, int) {
+	var v int64
+	n := 0
+	for n < lim && n < len(s) && isHexDigit(s[n]) {
+		d := s[n]
+		switch {
+		case d >= '0' && d <= '9':
+			d = d - '0'
+		case d >= 'a' && d <= 'f':
+			d = d - 'a' + 10
+		default:
+			d = d - 'A' + 10
+		}
+		v = v*16 + int64(d)
+		n++
+	}
+	return v, n
 }
 
 // convKind classifies the result of converting an argument operand to a

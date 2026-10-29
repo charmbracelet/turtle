@@ -217,6 +217,41 @@ func TestRun(t *testing.T) {
 				args: []string{"%b", `a\zb`},
 				want: `a\zb`,
 			},
+			{
+				name: "b conversion escape character",
+				args: []string{"%b", `\e`},
+				want: "\x1b",
+			},
+			{
+				name: "b conversion double quote",
+				args: []string{"%b", `\"`},
+				want: `"`,
+			},
+			{
+				name: "b conversion hexadecimal escape",
+				args: []string{"%b", `\x41\x7e`},
+				want: "A~",
+			},
+			{
+				name: "b conversion hexadecimal escape consumes at most two digits",
+				args: []string{"%b", `\x07e`},
+				want: "\ae",
+			},
+			{
+				name: "b conversion unicode escapes",
+				args: []string{"%b", `\u0032\U00000032`},
+				want: "22",
+			},
+			{
+				name: "b conversion precision counts multibyte escapes",
+				args: []string{"%.3b|", `\u20acab`},
+				want: "\u20ac|",
+			},
+			{
+				name: "b conversion precision truncates multibyte escapes",
+				args: []string{"%.2b|", `\u20acab`},
+				want: "\xe2\x82|",
+			},
 		}
 
 		for _, test := range tests {
@@ -381,6 +416,16 @@ func TestRun(t *testing.T) {
 				want: `\`,
 			},
 			{
+				name: "double quote",
+				args: []string{`\"`},
+				want: `"`,
+			},
+			{
+				name: "escape character",
+				args: []string{`a\eb`},
+				want: "a\x1bb",
+			},
+			{
 				name: "octal escape",
 				args: []string{`\101`},
 				want: "A",
@@ -399,6 +444,32 @@ func TestRun(t *testing.T) {
 				name: "octal escape wraps past a byte",
 				args: []string{`\777`},
 				want: "\xff",
+			},
+			{
+				name: "hexadecimal escape",
+				args: []string{`a\x41b`},
+				want: "aAb",
+			},
+			{
+				name: "hexadecimal escape of one digit",
+				args: []string{`\x7e`},
+				want: "~",
+			},
+			{
+				// Example from the GNU manual.
+				name: "hexadecimal escape consumes at most two digits",
+				args: []string{`\x07e`},
+				want: "\ae",
+			},
+			{
+				name: "unicode escapes",
+				args: []string{`\u0032 \U00000032`},
+				want: "2 2",
+			},
+			{
+				name: "unicode escapes are encoded as UTF-8",
+				args: []string{`\u20ac \U0001F600`},
+				want: "\u20ac \U0001F600",
 			},
 			{
 				name: "unrecognized escape is kept",
@@ -653,6 +724,43 @@ func TestRun(t *testing.T) {
 				args:       []string{"100%"},
 				want:       "100",
 				wantStderr: `printf: "%" invalid directive` + "\n",
+			},
+			{
+				name:       "hexadecimal escape without digits",
+				args:       []string{`a\x`},
+				want:       "a",
+				wantStderr: "printf: missing hexadecimal number in escape\n",
+			},
+			{
+				name:       "unicode escape without digits",
+				args:       []string{`\u`},
+				wantStderr: "printf: missing hexadecimal number in escape\n",
+			},
+			{
+				name:       "unicode escape with too few digits",
+				args:       []string{`\u00`},
+				wantStderr: "printf: missing hexadecimal number in escape\n",
+			},
+			{
+				name:       "eight digit unicode escape with too few digits",
+				args:       []string{`\U0000`},
+				wantStderr: "printf: missing hexadecimal number in escape\n",
+			},
+			{
+				name:       "surrogate unicode escape",
+				args:       []string{`\ud800`},
+				wantStderr: `printf: invalid universal character name \ud800` + "\n",
+			},
+			{
+				name:       "surrogate eight digit unicode escape",
+				args:       []string{`\U0000d800`},
+				wantStderr: `printf: invalid universal character name \U0000d800` + "\n",
+			},
+			{
+				name:       "invalid escape in a b conversion argument",
+				args:       []string{"%b\n", `a\xz`},
+				want:       "a",
+				wantStderr: "printf: missing hexadecimal number in escape\n",
 			},
 			{
 				name:       "missing numbered argument",
