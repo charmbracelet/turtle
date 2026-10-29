@@ -146,7 +146,7 @@ these copies (like `sed` or `tar`) link to their online documentation instead.
 | GNU | `mktemp` | Create a temporary file or directory | — | [✅](spec/markdown/gnu/mktemp-invocation.md) |
 | GNU | `nproc` | Print the number of processing units | — | [❌](spec/markdown/gnu/nproc-invocation.md) |
 | GNU | `printenv` | Print environment variables | — | [❌](spec/markdown/gnu/printenv-invocation.md) |
-| GNU | `seq` | Print a sequence of numbers | — | [❌](spec/markdown/gnu/seq-invocation.md) |
+| GNU | `seq` | Print a sequence of numbers | — | [✅](spec/markdown/gnu/seq-invocation.md) |
 | GNU | `sha1sum` | Compute SHA-1 checksums | — | [✅](spec/markdown/gnu/sha1sum-invocation.md) |
 | GNU | `sha224sum` | Compute SHA-224 checksums | — | [✅](spec/markdown/gnu/sha2-utilities.md) |
 | GNU | `sha256sum` | Compute SHA-256 checksums | — | [✅](spec/markdown/gnu/sha2-utilities.md) |
