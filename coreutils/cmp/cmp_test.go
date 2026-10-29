@@ -396,6 +396,167 @@ func TestRunOptions(t *testing.T) {
 	}
 }
 
+func TestRunBytesLimit(t *testing.T) {
+	big := fsx.MemFS{
+		"big1.txt": {Data: []byte(strings.Repeat("a", 40000) + "b")},
+		"big2.txt": {Data: []byte(strings.Repeat("a", 40000) + "c")},
+		"big0.txt": {Data: []byte(strings.Repeat("a", 40000))},
+	}
+
+	tests := []testCase{
+		{
+			name:     "a difference within the limit is reported",
+			fsys:     testFS(),
+			args:     []string{"-n", "5", "a.txt", "b.txt"},
+			want:     "a.txt b.txt differ: char 5, line 2\n",
+			wantExit: 1,
+		},
+		{
+			name:     "a limit beyond the files still reports the difference",
+			fsys:     testFS(),
+			args:     []string{"-n", "100", "a.txt", "b.txt"},
+			want:     "a.txt b.txt differ: char 5, line 2\n",
+			wantExit: 1,
+		},
+		{
+			name: "a difference beyond the limit is not reported",
+			fsys: testFS(),
+			args: []string{"-n", "4", "a.txt", "b.txt"},
+		},
+		{
+			name: "identical files compare equal within the limit",
+			fsys: testFS(),
+			args: []string{"-n", "3", "same1.txt", "same2.txt"},
+		},
+		{
+			name: "a zero limit compares nothing",
+			fsys: testFS(),
+			args: []string{"-n", "0", "a.txt", "b.txt"},
+		},
+		{
+			name:     "an empty file is reported within the limit",
+			fsys:     testFS(),
+			args:     []string{"-n", "3", "empty.txt", "a.txt"},
+			wantErr:  "cmp: EOF on 'empty.txt' which is empty\n",
+			wantExit: 1,
+		},
+		{
+			name:     "a prefix ending within the limit is reported",
+			fsys:     testFS(),
+			args:     []string{"-n", "5", "a.txt", "c.txt"},
+			wantErr:  "cmp: EOF on 'c.txt' after byte 3, line 1\n",
+			wantExit: 1,
+		},
+		{
+			name: "a prefix ending beyond the limit is not reported",
+			fsys: testFS(),
+			args: []string{"-n", "2", "a.txt", "c.txt"},
+		},
+		{
+			name: "a file ending exactly at the limit is not reported",
+			fsys: testFS(),
+			args: []string{"-n", "3", "a.txt", "c.txt"},
+		},
+		{
+			name:     "a difference after a block within the limit is reported",
+			fsys:     big,
+			args:     []string{"-n", "40001", "big1.txt", "big2.txt"},
+			want:     "big1.txt big2.txt differ: char 40001, line 1\n",
+			wantExit: 1,
+		},
+		{
+			name: "a difference after a block beyond the limit is not reported",
+			fsys: big,
+			args: []string{"-n", "40000", "big1.txt", "big2.txt"},
+		},
+		{
+			name:     "a prefix after a block within the limit is reported",
+			fsys:     big,
+			args:     []string{"-n", "40001", "big1.txt", "big0.txt"},
+			wantErr:  "cmp: EOF on 'big0.txt' after byte 40000, in line 1\n",
+			wantExit: 1,
+		},
+		{
+			name:     "-l stops listing differences after the limit",
+			fsys:     testFS(),
+			args:     []string{"-l", "-n", "3", "multi1.txt", "multi2.txt"},
+			want:     "1 141 170\n",
+			wantExit: 1,
+		},
+		{
+			name:     "-l lists every difference within the limit",
+			fsys:     testFS(),
+			args:     []string{"-l", "-n", "5", "multi1.txt", "multi2.txt"},
+			want:     "1 141 170\n4 141 171\n",
+			wantExit: 1,
+		},
+		{
+			name:     "-l with a limit beyond the files",
+			fsys:     testFS(),
+			args:     []string{"-l", "-n", "10", "multi1.txt", "multi2.txt"},
+			want:     "1 141 170\n4 141 171\n6 143 172\n",
+			wantExit: 1,
+		},
+		{
+			name:     "-l reports the end of a prefix within the limit",
+			fsys:     testFS(),
+			args:     []string{"-l", "-n", "5", "a.txt", "c.txt"},
+			wantErr:  "cmp: EOF on 'c.txt' after byte 3\n",
+			wantExit: 1,
+		},
+		{
+			name:     "-s keeps the status of a difference within the limit",
+			fsys:     testFS(),
+			args:     []string{"-s", "-n", "6", "a.txt", "b.txt"},
+			wantExit: 1,
+		},
+		{
+			name: "-s keeps the identical status beyond a difference",
+			fsys: testFS(),
+			args: []string{"-s", "-n", "4", "a.txt", "b.txt"},
+		},
+		{
+			name:     "the limit can be attached",
+			fsys:     testFS(),
+			args:     []string{"-n5", "a.txt", "b.txt"},
+			want:     "a.txt b.txt differ: char 5, line 2\n",
+			wantExit: 1,
+		},
+		{
+			name:     "the limit can be grouped with other options",
+			fsys:     testFS(),
+			args:     []string{"-ln3", "multi1.txt", "multi2.txt"},
+			want:     "1 141 170\n",
+			wantExit: 1,
+		},
+		{
+			name:     "--bytes stands for -n",
+			fsys:     testFS(),
+			args:     []string{"--bytes=5", "a.txt", "b.txt"},
+			want:     "a.txt b.txt differ: char 5, line 2\n",
+			wantExit: 1,
+		},
+		{
+			name:     "--bytes takes its argument separately",
+			fsys:     testFS(),
+			args:     []string{"--bytes", "5", "a.txt", "b.txt"},
+			want:     "a.txt b.txt differ: char 5, line 2\n",
+			wantExit: 1,
+		},
+		{
+			name: "the least of repeated limits is used",
+			fsys: testFS(),
+			args: []string{"-n", "5", "-n", "4", "a.txt", "b.txt"},
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			runCase(t, test)
+		})
+	}
+}
+
 func TestRunInvalidUsage(t *testing.T) {
 	tests := []testCase{
 		{
@@ -428,8 +589,43 @@ func TestRunInvalidUsage(t *testing.T) {
 		{
 			name:     "an unsupported long option",
 			fsys:     testFS(),
-			args:     []string{"--bytes", "a.txt", "b.txt"},
-			wantErr:  "cmp: unrecognized option '--bytes'\n",
+			args:     []string{"--initial", "a.txt", "b.txt"},
+			wantErr:  "cmp: unrecognized option '--initial'\n",
+			wantExit: 2,
+		},
+		{
+			name:     "an invalid limit",
+			fsys:     testFS(),
+			args:     []string{"-n", "x", "a.txt", "b.txt"},
+			wantErr:  "cmp: invalid --bytes value 'x'\n",
+			wantExit: 2,
+		},
+		{
+			name:     "a negative limit",
+			fsys:     testFS(),
+			args:     []string{"-n", "-1", "a.txt", "b.txt"},
+			wantErr:  "cmp: invalid --bytes value '-1'\n",
+			wantExit: 2,
+		},
+		{
+			name:     "an empty limit",
+			fsys:     testFS(),
+			args:     []string{"--bytes=", "a.txt", "b.txt"},
+			wantErr:  "cmp: invalid --bytes value ''\n",
+			wantExit: 2,
+		},
+		{
+			name:     "-n without an argument",
+			fsys:     testFS(),
+			args:     []string{"-n"},
+			wantErr:  "cmp: option requires an argument -- 'n'\n",
+			wantExit: 2,
+		},
+		{
+			name:     "--bytes without an argument",
+			fsys:     testFS(),
+			args:     []string{"--bytes"},
+			wantErr:  "cmp: option '--bytes' requires an argument\n",
 			wantExit: 2,
 		},
 	}
