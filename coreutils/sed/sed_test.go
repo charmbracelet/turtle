@@ -5,6 +5,8 @@ import (
 	"errors"
 	"io"
 	"io/fs"
+	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 
@@ -912,4 +914,238 @@ func TestRunClosesWritersWhenOpenFails(t *testing.T) {
 	if len(closed) != 1 || closed[0] != "out" {
 		t.Errorf("files closed on failure = %v, want [out]", closed)
 	}
+}
+
+func TestRunInPlace(t *testing.T) {
+	tests := []testCase{
+		{
+			name: "a file is edited in place",
+			fsys: stringsFS(map[string]string{"f.txt": "banana\n"}),
+			args: []string{"-i", "s/an/-/g", "f.txt"},
+			want: "",
+			wantFiles: map[string]string{
+				"f.txt": "b--a\n",
+			},
+		},
+		{
+			name: "a missing trailing newline is kept",
+			fsys: stringsFS(map[string]string{"f": "a\nb"}),
+			args: []string{"-i", "s/a/X/", "f"},
+			wantFiles: map[string]string{
+				"f": "X\nb",
+			},
+		},
+		{
+			name: "a suffix preserves the original contents",
+			fsys: stringsFS(map[string]string{"f.txt": "a\n"}),
+			args: []string{"-i.bak", "s/a/b/", "f.txt"},
+			wantFiles: map[string]string{
+				"f.txt":     "b\n",
+				"f.txt.bak": "a\n",
+			},
+		},
+		{
+			name: "a suffix attaches to a short option group",
+			fsys: stringsFS(map[string]string{"f": "a\nb\n"}),
+			args: []string{"-nibak", "s/a/X/p", "f"},
+			wantFiles: map[string]string{
+				"f":    "X\n",
+				"fbak": "a\nb\n",
+			},
+		},
+		{
+			name: "the long form takes an attached suffix",
+			fsys: stringsFS(map[string]string{"f.txt": "a\n"}),
+			args: []string{"--in-place=.suf", "s/a/b/", "f.txt"},
+			wantFiles: map[string]string{
+				"f.txt":     "b\n",
+				"f.txt.suf": "a\n",
+			},
+		},
+		{
+			name: "the long form without a value replaces the file",
+			fsys: stringsFS(map[string]string{"f.txt": "a\n"}),
+			args: []string{"--in-place", "s/a/b/", "f.txt"},
+			wantFiles: map[string]string{
+				"f.txt": "b\n",
+			},
+		},
+		{
+			// GNU sed handles each file like a separate invocation, so the
+			// line numbers start over for every one of them.
+			name: "each file starts a fresh script state",
+			fsys: stringsFS(map[string]string{"one": "a\nb\n", "two": "c\nd\n"}),
+			args: []string{"-i", "=", "one", "two"},
+			wantFiles: map[string]string{
+				"one": "1\na\n2\nb\n",
+				"two": "1\nc\n2\nd\n",
+			},
+		},
+		{
+			name: "a file without any output is emptied",
+			fsys: stringsFS(map[string]string{"f": "a\nb\n"}),
+			args: []string{"-i", "d", "f"},
+			wantFiles: map[string]string{
+				"f": "",
+			},
+		},
+		{
+			name: "q quits one file but not the remaining ones",
+			fsys: stringsFS(map[string]string{"one": "1\n2\n", "two": "3\n4\n"}),
+			args: []string{"-i", "1q", "one", "two"},
+			wantFiles: map[string]string{
+				"one": "1\n",
+				"two": "3\n",
+			},
+		},
+		{
+			name: "-n writes only what the script prints",
+			fsys: stringsFS(map[string]string{"f": "a\nb\n"}),
+			args: []string{"-i", "-n", "s/a/X/p", "f"},
+			wantFiles: map[string]string{
+				"f": "X\n",
+			},
+		},
+		{
+			name: "-E takes extended regular expressions",
+			fsys: stringsFS(map[string]string{"f": "abc\n"}),
+			args: []string{"-i", "-E", "s/a+/X/", "f"},
+			wantFiles: map[string]string{
+				"f": "Xbc\n",
+			},
+		},
+		{
+			name: "-e and -f parts join into the script",
+			fsys: stringsFS(map[string]string{"f": "a\nb\n", "script.sed": "s/a/X/\n"}),
+			args: []string{"-i", "-f", "script.sed", "-e", "s/b/Y/", "f"},
+			wantFiles: map[string]string{
+				"f": "X\nY\n",
+			},
+		},
+		{
+			name:     "stdin with -i is a usage error",
+			stdin:    strings.NewReader("a\n"),
+			args:     []string{"-i", "s/a/b/"},
+			wantErr:  "sed: -i may not be used with stdin\n",
+			wantExit: 2,
+		},
+		{
+			name:     "a - operand with -i is a usage error",
+			stdin:    strings.NewReader("a\n"),
+			args:     []string{"-i", "s/a/b/", "-"},
+			wantErr:  "sed: -i may not be used with stdin\n",
+			wantExit: 2,
+		},
+		{
+			// A file that fails doesn't keep the ones after it from
+			// being edited.
+			name:     "a missing input file fails without touching it",
+			fsys:     stringsFS(map[string]string{"ok": "x\n"}),
+			args:     []string{"-i", "s/x/y/", "missing", "ok"},
+			wantErr:  "sed: can't read missing: file does not exist\n",
+			wantExit: 1,
+			wantFiles: map[string]string{
+				"ok": "y\n",
+			},
+		},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			runCase(t, test)
+		})
+	}
+}
+
+func TestRunInPlaceOsFS(t *testing.T) {
+	// runOs edits f.txt in place, returning the error of the run and the
+	// names the directory holds afterwards.
+	runOs := func(t *testing.T, args ...string) (error, []string) {
+		t.Helper()
+
+		dir := t.TempDir()
+		if err := os.WriteFile(filepath.Join(dir, "f.txt"), []byte("a\nb\n"), 0o644); err != nil {
+			t.Fatal(err)
+		}
+		rt := &coreutils.Runtime{
+			Stdin:      strings.NewReader(""),
+			Stdout:     new(bytes.Buffer),
+			Stderr:     new(bytes.Buffer),
+			FS:         fsx.OsFS(dir),
+			WorkingDir: dir,
+		}
+		err := New(rt).Run(t.Context(), args...)
+		entries, readErr := os.ReadDir(dir)
+		if readErr != nil {
+			t.Fatal(readErr)
+		}
+		names := make([]string, len(entries))
+		for i, e := range entries {
+			names[i] = e.Name()
+		}
+		return err, names
+	}
+
+	t.Run("the file is replaced with the output", func(t *testing.T) {
+		err, names := runOs(t, "-i.bak", "s/a/X/", "f.txt")
+		if err != nil {
+			t.Fatalf("Run() error = %v", err)
+		}
+		if want := []string{"f.txt", "f.txt.bak"}; !slicesEqual(names, want) {
+			t.Errorf("directory = %v, want %v", names, want)
+		}
+	})
+
+	t.Run("a failed run leaves no temporary file", func(t *testing.T) {
+		err, names := runOs(t, "-i", "s/a/X/", "missing")
+		if err == nil {
+			t.Fatal("Run() error = nil, want failure reading missing")
+		}
+		if want := []string{"f.txt"}; !slicesEqual(names, want) {
+			t.Errorf("directory = %v, want %v", names, want)
+		}
+	})
+}
+
+func TestRunInPlaceMode(t *testing.T) {
+	files := fsx.MemFS{"f.txt": {Data: []byte("a\nb\n"), Mode: 0o600}}
+	rt := &coreutils.Runtime{
+		Stdin:  strings.NewReader(""),
+		Stdout: new(bytes.Buffer),
+		Stderr: new(bytes.Buffer),
+		FS:     files,
+	}
+
+	if err := New(rt).Run(t.Context(), "-i", "s/a/X/", "f.txt"); err != nil {
+		t.Fatalf("Run() error = %v", err)
+	}
+	fi, err := fs.Stat(files, "f.txt")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got, want := fi.Mode().Perm(), fs.FileMode(0o600); got != want {
+		t.Errorf("f.txt mode = %v, want %v", got, want)
+	}
+}
+
+// slicesEqual tells whether two lists hold the same members, in any order.
+func slicesEqual(a, b []string) bool {
+	if len(a) != len(b) {
+		return false
+	}
+	slices := make([]string, len(b))
+	copy(slices, b)
+	for _, s := range a {
+		found := false
+		for i, t := range slices {
+			if s == t {
+				slices = append(slices[:i], slices[i+1:]...)
+				found = true
+				break
+			}
+		}
+		if !found {
+			return false
+		}
+	}
+	return true
 }
