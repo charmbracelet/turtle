@@ -7,10 +7,12 @@ import (
 	"fmt"
 	"io/fs"
 	"path/filepath"
+	"syscall"
 
 	"charm.land/snail/coreutils"
 	"charm.land/snail/coreutils/internal/getopt"
 	"charm.land/snail/coreutils/internal/patherr"
+	"charm.land/snail/fsx"
 )
 
 // Prog is the rmdir core utility.
@@ -25,9 +27,9 @@ func New(rt *coreutils.Runtime) coreutils.Program {
 
 // Run removes the given directories, in the order given. With -p, the
 // directories above each operand are removed too, as long as they become
-// empty.
+// empty. Non-empty failures are silently ignored when asked to.
 func (p *Prog) Run(ctx context.Context, args ...string) error {
-	parents, dirs, err := parseFlags(args)
+	opts, dirs, err := parseFlags(args)
 	if err != nil {
 		p.errorf("%v", err)
 		return &coreutils.ExitError{Code: 2}
@@ -46,7 +48,7 @@ func (p *Prog) Run(ctx context.Context, args ...string) error {
 		if err := ctx.Err(); err != nil {
 			return err
 		}
-		failed, err := p.rmdir(dir, parents)
+		failed, err := p.rmdir(dir, opts)
 		if err != nil {
 			p.errorf("%s: %v", failed, patherr.Unwrap(err))
 			ok = false
@@ -59,9 +61,10 @@ func (p *Prog) Run(ctx context.Context, args ...string) error {
 }
 
 // rmdir removes a single directory and, with parents, the directories above
-// it, stopping at the first error. It returns the path of the directory that
-// failed to be removed, if any.
-func (p *Prog) rmdir(dir string, parents bool) (string, error) {
+// it, stopping at the first error. A failure of a non-empty directory is
+// ignored when asked to, as if the directory had been removed. It returns the
+// path of the directory that failed to be removed, if any.
+func (p *Prog) rmdir(dir string, opts options) (string, error) {
 	comps := coreutils.SplitPath(dir)
 	if len(comps) == 0 {
 		comps = []string{"."}
@@ -72,10 +75,17 @@ func (p *Prog) rmdir(dir string, parents bool) (string, error) {
 		if i == len(comps) {
 			display = dir
 		}
-		if err := p.remove(filepath.ToSlash(p.ResolvePath(name))); err != nil {
+		if opts.verbose {
+			fmt.Fprintf(p.Stdout, "rmdir: removing directory, '%s'\n", display)
+		}
+		resolved := filepath.ToSlash(p.ResolvePath(name))
+		if err := p.remove(resolved); err != nil {
+			if opts.ignoreFailOnNonEmpty && p.nonEmpty(resolved, err) {
+				return "", nil
+			}
 			return display, err
 		}
-		if !parents {
+		if !opts.parents {
 			break
 		}
 	}
@@ -98,28 +108,65 @@ func (p *Prog) remove(name string) error {
 // directory.
 var errNotDir = errors.New("not a directory")
 
+// nonEmpty reports whether err comes from removing a directory which holds
+// entries. The errno check covers the common platforms, and reading the
+// directory covers the rest, including failures which may or may not be
+// caused by a non-empty directory.
+func (p *Prog) nonEmpty(name string, err error) bool {
+	if errors.Is(err, fsx.ErrNotEmpty) ||
+		errors.Is(err, syscall.ENOTEMPTY) ||
+		errors.Is(err, syscall.EEXIST) {
+		return true
+	}
+	entries, readErr := fs.ReadDir(p.FS, name)
+	return readErr == nil && len(entries) > 0
+}
+
 // errorf writes a diagnostic message to standard error.
 func (p *Prog) errorf(format string, args ...any) {
 	fmt.Fprintf(p.Stderr, "rmdir: "+format+"\n", args...)
 }
 
+// optIgnoreFail is the pseudo option which --ignore-fail-on-non-empty
+// stands for, having no short form.
+const optIgnoreFail = 0x100
+
+// options holds the -p, --ignore-fail-on-non-empty and -v flags.
+type options struct {
+	parents              bool
+	ignoreFailOnNonEmpty bool
+	verbose              bool
+}
+
 // longOptions maps the long options of rmdir to the short ones they stand
 // for.
 var longOptions = map[string]rune{
-	"parents": 'p',
+	"ignore-fail-on-non-empty": optIgnoreFail,
+	"parents":                  'p',
+	"verbose":                  'v',
 }
 
 // parseFlags parses the options and operands. Option parsing stops at the
 // first operand or at "--".
-func parseFlags(args []string) (parents bool, dirs []string, err error) {
-	dirs, err = getopt.Set{Long: longOptions}.Parse(args, func(opt rune, _ string) error {
-		if opt != 'p' {
+func parseFlags(args []string) (options, []string, error) {
+	var opts options
+	dirs, err := getopt.Set{Long: longOptions}.Parse(args, func(opt rune, _ string) error {
+		switch opt {
+		case 'p':
+			opts.parents = true
+		case 'v':
+			opts.verbose = true
+		case optIgnoreFail:
+			opts.ignoreFailOnNonEmpty = true
+		default:
 			return getopt.InvalidOption(opt)
 		}
-		parents = true
 		return nil
 	})
-	return parents, dirs, err
+	if err != nil {
+		return options{}, nil, err
+	}
+	return opts, dirs, nil
 }
 
 var (
