@@ -115,6 +115,8 @@ func writeEscaped(out *strings.Builder, operand string) bool {
 			c = '\t'
 		case 'v':
 			c = '\v'
+		case 'e':
+			c = '\x1b'
 		case '\\':
 		case '0':
 			// \0num: an octal number of up to three digits.
@@ -122,6 +124,32 @@ func writeEscaped(out *strings.Builder, operand string) bool {
 			j := i + 1
 			for ; j < len(operand) && j <= i+3 && isOctalDigit(operand[j]); j++ {
 				value = value*8 + int(operand[j]-'0')
+			}
+			out.WriteByte(byte(value))
+			i = j - 1
+			continue
+		case '1', '2', '3', '4', '5', '6', '7':
+			// \num: an octal number of up to three digits, without the leading 0.
+			value := int(c - '0')
+			j := i + 1
+			for ; j < len(operand) && j <= i+2 && isOctalDigit(operand[j]); j++ {
+				value = value*8 + int(operand[j]-'0')
+			}
+			out.WriteByte(byte(value))
+			i = j - 1
+			continue
+		case 'x':
+			// \xnum: a hexadecimal number of up to two digits. Without any
+			// digit the sequence is kept literally.
+			value, digits := 0, 0
+			j := i + 1
+			for ; digits < 2 && j < len(operand) && isHexDigit(operand[j]); j++ {
+				value = value*16 + hexDigit(operand[j])
+				digits++
+			}
+			if digits == 0 {
+				out.WriteByte('\\')
+				break
 			}
 			out.WriteByte(byte(value))
 			i = j - 1
@@ -137,6 +165,21 @@ func writeEscaped(out *strings.Builder, operand string) bool {
 
 func isOctalDigit(c byte) bool {
 	return c >= '0' && c <= '7'
+}
+
+func isHexDigit(c byte) bool {
+	return c >= '0' && c <= '9' || c >= 'a' && c <= 'f' || c >= 'A' && c <= 'F'
+}
+
+func hexDigit(c byte) int {
+	switch {
+	case c >= 'a':
+		return int(c-'a') + 10
+	case c >= 'A':
+		return int(c-'A') + 10
+	default:
+		return int(c - '0')
+	}
 }
 
 var (
