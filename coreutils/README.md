@@ -46,120 +46,122 @@ These are same of our needs that other implementations don't fit:
 > This is a working in progress. We'll be breaking compatibility while this is a
 v0 and we do progress. We have some progress tracking below.
 
-The status icons link to the respective POSIX and GNU documentation pages.
+The status icons link to the respective POSIX and GNU documentation, from
+the copies committed at `spec/markdown`. Tools whose manuals aren't part of
+these copies (like `sed` or `tar`) link to their online documentation instead.
 
 | Category | Program | Description | POSIX | GNU |
 | --- | --- | --- | --- | --- |
-| Foundational | `true` | Return a zero exit status | [✅](https://pubs.opengroup.org/onlinepubs/9799919799/utilities/true.html) | [❌](https://web.archive.org/web/https://www.gnu.org/software/coreutils/manual/html_node/true-invocation.html) |
-| Foundational | `false` | Return a non-zero exit status | [✅](https://pubs.opengroup.org/onlinepubs/9799919799/utilities/false.html) | [❌](https://web.archive.org/web/https://www.gnu.org/software/coreutils/manual/html_node/false-invocation.html) |
-| Foundational | `echo` | Write arguments to standard output | [✅](https://pubs.opengroup.org/onlinepubs/9799919799/utilities/echo.html) | [❌](https://web.archive.org/web/https://www.gnu.org/software/coreutils/manual/html_node/echo-invocation.html) |
-| Foundational | `pwd` | Print the current working directory | [✅](https://pubs.opengroup.org/onlinepubs/9799919799/utilities/pwd.html) | [❌](https://web.archive.org/web/https://www.gnu.org/software/coreutils/manual/html_node/pwd-invocation.html) |
-| Foundational | `basename` | Print a path without its directory | [✅](https://pubs.opengroup.org/onlinepubs/9799919799/utilities/basename.html) | [❌](https://web.archive.org/web/https://www.gnu.org/software/coreutils/manual/html_node/basename-invocation.html) |
-| Foundational | `dirname` | Print the directory part of a path | [✅](https://pubs.opengroup.org/onlinepubs/9799919799/utilities/dirname.html) | [❌](https://web.archive.org/web/https://www.gnu.org/software/coreutils/manual/html_node/dirname-invocation.html) |
-| Foundational | `wc` | Count lines, words, and bytes | [✅](https://pubs.opengroup.org/onlinepubs/9799919799/utilities/wc.html) | [❌](https://web.archive.org/web/https://www.gnu.org/software/coreutils/manual/html_node/wc-invocation.html) |
-| Foundational | `printf` | Format and print arguments | [❌](https://pubs.opengroup.org/onlinepubs/9799919799/utilities/printf.html) | [❌](https://web.archive.org/web/https://www.gnu.org/software/coreutils/manual/html_node/printf-invocation.html) |
-| Foundational | `test` | Evaluate a conditional expression | [❌](https://pubs.opengroup.org/onlinepubs/9799919799/utilities/test.html) | [❌](https://web.archive.org/web/https://www.gnu.org/software/coreutils/manual/html_node/test-invocation.html) |
-| Foundational | `expr` | Evaluate an expression | [❌](https://pubs.opengroup.org/onlinepubs/9799919799/utilities/expr.html) | [❌](https://web.archive.org/web/https://www.gnu.org/software/coreutils/manual/html_node/expr-invocation.html) |
-| Foundational | `sleep` | Suspend execution for an interval | [❌](https://pubs.opengroup.org/onlinepubs/9799919799/utilities/sleep.html) | [❌](https://web.archive.org/web/https://www.gnu.org/software/coreutils/manual/html_node/sleep-invocation.html) |
-| Filesystem | `touch` | Change file access and modification times | [✅](https://pubs.opengroup.org/onlinepubs/9799919799/utilities/touch.html) | [❌](https://web.archive.org/web/https://www.gnu.org/software/coreutils/manual/html_node/touch-invocation.html) |
-| Filesystem | `chmod` | Change file permission modes | [✅](https://pubs.opengroup.org/onlinepubs/9799919799/utilities/chmod.html) | [❌](https://web.archive.org/web/https://www.gnu.org/software/coreutils/manual/html_node/chmod-invocation.html) |
-| Filesystem | `cat` | Concatenate and print files | [✅](https://pubs.opengroup.org/onlinepubs/9799919799/utilities/cat.html) | [❌](https://web.archive.org/web/https://www.gnu.org/software/coreutils/manual/html_node/cat-invocation.html) |
-| Filesystem | `head` | Print the first part of files | [✅](https://pubs.opengroup.org/onlinepubs/9799919799/utilities/head.html) | [❌](https://web.archive.org/web/https://www.gnu.org/software/coreutils/manual/html_node/head-invocation.html) |
-| Filesystem | `tail` | Print the last part of files | [✅](https://pubs.opengroup.org/onlinepubs/9799919799/utilities/tail.html) | [❌](https://web.archive.org/web/https://www.gnu.org/software/coreutils/manual/html_node/tail-invocation.html) |
-| Filesystem | `mkdir` | Create directories | [✅](https://pubs.opengroup.org/onlinepubs/9799919799/utilities/mkdir.html) | [❌](https://web.archive.org/web/https://www.gnu.org/software/coreutils/manual/html_node/mkdir-invocation.html) |
-| Filesystem | `rmdir` | Remove empty directories | [✅](https://pubs.opengroup.org/onlinepubs/9799919799/utilities/rmdir.html) | [❌](https://web.archive.org/web/https://www.gnu.org/software/coreutils/manual/html_node/rmdir-invocation.html) |
-| Filesystem | `cp` | Copy files and directories | [✅](https://pubs.opengroup.org/onlinepubs/9799919799/utilities/cp.html) | [❌](https://web.archive.org/web/https://www.gnu.org/software/coreutils/manual/html_node/cp-invocation.html) |
-| Filesystem | `mv` | Move or rename files | [✅](https://pubs.opengroup.org/onlinepubs/9799919799/utilities/mv.html) | [❌](https://web.archive.org/web/https://www.gnu.org/software/coreutils/manual/html_node/mv-invocation.html) |
-| Filesystem | `rm` | Remove files and directories | [✅](https://pubs.opengroup.org/onlinepubs/9799919799/utilities/rm.html) | [❌](https://web.archive.org/web/https://www.gnu.org/software/coreutils/manual/html_node/rm-invocation.html) |
-| Filesystem | `ln` | Create links between files | [✅](https://pubs.opengroup.org/onlinepubs/9799919799/utilities/ln.html) | [❌](https://web.archive.org/web/https://www.gnu.org/software/coreutils/manual/html_node/ln-invocation.html) |
-| Filesystem | `ls` | List directory contents | [✅](https://pubs.opengroup.org/onlinepubs/9799919799/utilities/ls.html) | [❌](https://web.archive.org/web/https://www.gnu.org/software/coreutils/manual/html_node/ls-invocation.html) |
-| Filesystem | `chgrp` | Change file group ownership | [❌](https://pubs.opengroup.org/onlinepubs/9799919799/utilities/chgrp.html) | [❌](https://web.archive.org/web/https://www.gnu.org/software/coreutils/manual/html_node/chgrp-invocation.html) |
-| Filesystem | `chown` | Change file ownership | [❌](https://pubs.opengroup.org/onlinepubs/9799919799/utilities/chown.html) | [❌](https://web.archive.org/web/https://www.gnu.org/software/coreutils/manual/html_node/chown-invocation.html) |
-| Filesystem | `link` | Create a hard link to a file | [❌](https://pubs.opengroup.org/onlinepubs/9799919799/utilities/link.html) | [❌](https://web.archive.org/web/https://www.gnu.org/software/coreutils/manual/html_node/link-invocation.html) |
-| Filesystem | `unlink` | Remove a directory entry | [❌](https://pubs.opengroup.org/onlinepubs/9799919799/utilities/unlink.html) | [❌](https://web.archive.org/web/https://www.gnu.org/software/coreutils/manual/html_node/unlink-invocation.html) |
-| Filesystem | `mkfifo` | Create FIFO special files | [❌](https://pubs.opengroup.org/onlinepubs/9799919799/utilities/mkfifo.html) | [❌](https://web.archive.org/web/https://www.gnu.org/software/coreutils/manual/html_node/mkfifo-invocation.html) |
-| Filesystem | `readlink` | Print the target of a symbolic link | [❌](https://pubs.opengroup.org/onlinepubs/9799919799/utilities/readlink.html) | [❌](https://web.archive.org/web/https://www.gnu.org/software/coreutils/manual/html_node/readlink-invocation.html) |
-| Filesystem | `realpath` | Print the resolved absolute path | [❌](https://pubs.opengroup.org/onlinepubs/9799919799/utilities/realpath.html) | [❌](https://web.archive.org/web/https://www.gnu.org/software/coreutils/manual/html_node/realpath-invocation.html) |
-| Filesystem | `dd` | Convert and copy a file | [❌](https://pubs.opengroup.org/onlinepubs/9799919799/utilities/dd.html) | [❌](https://web.archive.org/web/https://www.gnu.org/software/coreutils/manual/html_node/dd-invocation.html) |
-| Filesystem | `df` | Report file system space usage | [❌](https://pubs.opengroup.org/onlinepubs/9799919799/utilities/df.html) | [❌](https://web.archive.org/web/https://www.gnu.org/software/coreutils/manual/html_node/df-invocation.html) |
-| Filesystem | `du` | Estimate file space usage | [❌](https://pubs.opengroup.org/onlinepubs/9799919799/utilities/du.html) | [❌](https://web.archive.org/web/https://www.gnu.org/software/coreutils/manual/html_node/du-invocation.html) |
-| Filesystem | `pathchk` | Check pathnames for validity | [❌](https://pubs.opengroup.org/onlinepubs/9799919799/utilities/pathchk.html) | [❌](https://web.archive.org/web/https://www.gnu.org/software/coreutils/manual/html_node/pathchk-invocation.html) |
-| Filesystem | `pax` | Read and write file archives | [❌](https://pubs.opengroup.org/onlinepubs/9799919799/utilities/pax.html) | ❌ |
-| Text | `cut` | Cut out fields from input lines | [✅](https://pubs.opengroup.org/onlinepubs/9799919799/utilities/cut.html) | [❌](https://web.archive.org/web/https://www.gnu.org/software/coreutils/manual/html_node/cut-invocation.html) |
-| Text | `join`**** | Join lines of two files on a common field | [✅](https://pubs.opengroup.org/onlinepubs/9799919799/utilities/join.html) | [❌](https://web.archive.org/web/https://www.gnu.org/software/coreutils/manual/html_node/join-invocation.html) |
-| Text | `sort` | Sort lines of text | [✅](https://pubs.opengroup.org/onlinepubs/9799919799/utilities/sort.html) | [❌](https://web.archive.org/web/https://www.gnu.org/software/coreutils/manual/html_node/sort-invocation.html) |
-| Text | `paste` | Merge lines of files | [✅](https://pubs.opengroup.org/onlinepubs/9799919799/utilities/paste.html) | [❌](https://web.archive.org/web/https://www.gnu.org/software/coreutils/manual/html_node/paste-invocation.html) |
-| Text | `tee` | Duplicate standard input | [✅](https://pubs.opengroup.org/onlinepubs/9799919799/utilities/tee.html) | [❌](https://web.archive.org/web/https://www.gnu.org/software/coreutils/manual/html_node/tee-invocation.html) |
-| Text | `tr` | Translate or delete characters | [✅](https://pubs.opengroup.org/onlinepubs/9799919799/utilities/tr.html) | [❌](https://web.archive.org/web/https://www.gnu.org/software/coreutils/manual/html_node/tr-invocation.html) |
-| Text | `uniq` | Filter adjacent repeated lines | [✅](https://pubs.opengroup.org/onlinepubs/9799919799/utilities/uniq.html) | [❌](https://web.archive.org/web/https://www.gnu.org/software/coreutils/manual/html_node/uniq-invocation.html) |
-| Text | `cmp` | Compare two files byte by byte | [✅](https://pubs.opengroup.org/onlinepubs/9799919799/utilities/cmp.html) | [❌](https://web.archive.org/web/https://www.gnu.org/software/diffutils/manual/html_node/Invoking-cmp.html) |
-| Text | `comm` | Compare sorted files line by line | [✅](https://pubs.opengroup.org/onlinepubs/9799919799/utilities/comm.html) | [❌](https://web.archive.org/web/https://www.gnu.org/software/coreutils/manual/html_node/comm-invocation.html) |
-| Text | `csplit` | Split a file by context | [✅](https://pubs.opengroup.org/onlinepubs/9799919799/utilities/csplit.html) | [❌](https://web.archive.org/web/https://www.gnu.org/software/coreutils/manual/html_node/csplit-invocation.html) |
-| Text | `diff` | Compare files line by line | [✅](https://pubs.opengroup.org/onlinepubs/9799919799/utilities/diff.html) | [❌](https://web.archive.org/web/https://www.gnu.org/software/diffutils/manual/html_node/Invoking-diff.html) |
-| Text | `expand` | Convert tabs to spaces | [✅](https://pubs.opengroup.org/onlinepubs/9799919799/utilities/expand.html) | [❌](https://web.archive.org/web/https://www.gnu.org/software/coreutils/manual/html_node/expand-invocation.html) |
-| Text | `fold` | Wrap long input lines | [✅](https://pubs.opengroup.org/onlinepubs/9799919799/utilities/fold.html) | [❌](https://web.archive.org/web/https://www.gnu.org/software/coreutils/manual/html_node/fold-invocation.html) |
-| Text | `nl` | Number lines of files | [✅](https://pubs.opengroup.org/onlinepubs/9799919799/utilities/nl.html) | [❌](https://web.archive.org/web/https://www.gnu.org/software/coreutils/manual/html_node/nl-invocation.html) |
-| Text | `od` | Dump files in octal and other formats | [✅](https://pubs.opengroup.org/onlinepubs/9799919799/utilities/od.html) | [❌](https://web.archive.org/web/https://www.gnu.org/software/coreutils/manual/html_node/od-invocation.html) |
-| Text | `pr` | Paginate files for printing | [✅](https://pubs.opengroup.org/onlinepubs/9799919799/utilities/pr.html) | [❌](https://web.archive.org/web/https://www.gnu.org/software/coreutils/manual/html_node/pr-invocation.html) |
-| Text | `sed`****** | Filter and transform text | [✅](https://pubs.opengroup.org/onlinepubs/9799919799/utilities/sed.html) | [❌](https://web.archive.org/web/https://www.gnu.org/software/sed/manual/sed.html) |
-| Text | `split` | Split a file into pieces | [✅](https://pubs.opengroup.org/onlinepubs/9799919799/utilities/split.html) | [❌](https://web.archive.org/web/https://www.gnu.org/software/coreutils/manual/html_node/split-invocation.html) |
-| Text | `strings` | Print printable strings in files | [✅](https://pubs.opengroup.org/onlinepubs/9799919799/utilities/strings.html) | [❌](https://web.archive.org/web/https://sourceware.org/binutils/docs/binutils/strings.html) |
-| Text | `unexpand` | Convert spaces to tabs | [✅](https://pubs.opengroup.org/onlinepubs/9799919799/utilities/unexpand.html) | [❌](https://web.archive.org/web/https://www.gnu.org/software/coreutils/manual/html_node/unexpand-invocation.html) |
-| Text | `cksum` | Compute CRC checksums for files | [✅](https://pubs.opengroup.org/onlinepubs/9799919799/utilities/cksum.html) | [❌](https://web.archive.org/web/https://www.gnu.org/software/coreutils/manual/html_node/cksum-invocation.html) |
-| Text | `patch`** | Apply a diff file to an original | [✅](https://pubs.opengroup.org/onlinepubs/9799919799/utilities/patch.html) | ❌ |
-| Search / Filtering | `find` | Find files matching given criteria | [❌](https://pubs.opengroup.org/onlinepubs/9799919799/utilities/find.html) | [❌](https://web.archive.org/web/https://www.gnu.org/software/findutils/manual/html_node/find_html/Invoking-find.html) |
-| Search / Filtering | `grep` | Print lines matching a pattern | [❌](https://pubs.opengroup.org/onlinepubs/9799919799/utilities/grep.html) | [❌](https://web.archive.org/web/https://www.gnu.org/software/grep/manual/grep.html) |
-| Search / Filtering | `xargs` | Build and execute command lines | [✅](https://pubs.opengroup.org/onlinepubs/9799919799/utilities/xargs.html) | [❌](https://web.archive.org/web/https://www.gnu.org/software/findutils/manual/html_node/find_html/Invoking-xargs.html) |
-| System / Process | `date`******* | Print or set the date and time | [✅](https://pubs.opengroup.org/onlinepubs/9799919799/utilities/date.html) | [❌](https://web.archive.org/web/https://www.gnu.org/software/coreutils/manual/html_node/date-invocation.html) |
-| System / Process | `env` | Run a command in a modified environment | [❌](https://pubs.opengroup.org/onlinepubs/9799919799/utilities/env.html) | [❌](https://web.archive.org/web/https://www.gnu.org/software/coreutils/manual/html_node/env-invocation.html) |
-| System / Process | `id` | Print user and group IDs | [❌](https://pubs.opengroup.org/onlinepubs/9799919799/utilities/id.html) | [❌](https://web.archive.org/web/https://www.gnu.org/software/coreutils/manual/html_node/id-invocation.html) |
-| System / Process | `kill` | Send a signal to processes | [❌](https://pubs.opengroup.org/onlinepubs/9799919799/utilities/kill.html) | ❌ |
-| System / Process | `logname` | Print the user's login name | [❌](https://pubs.opengroup.org/onlinepubs/9799919799/utilities/logname.html) | [❌](https://web.archive.org/web/https://www.gnu.org/software/coreutils/manual/html_node/logname-invocation.html) |
-| System / Process | `nice` | Run a command with modified priority | [❌](https://pubs.opengroup.org/onlinepubs/9799919799/utilities/nice.html) | [❌](https://web.archive.org/web/https://www.gnu.org/software/coreutils/manual/html_node/nice-invocation.html) |
-| System / Process | `nohup` | Run a command immune to hangups | [❌](https://pubs.opengroup.org/onlinepubs/9799919799/utilities/nohup.html) | [❌](https://web.archive.org/web/https://www.gnu.org/software/coreutils/manual/html_node/nohup-invocation.html) |
-| System / Process | `ps` | Report process status | [❌](https://pubs.opengroup.org/onlinepubs/9799919799/utilities/ps.html) | ❌ |
-| System / Process | `time` | Time the execution of a command | [❌](https://pubs.opengroup.org/onlinepubs/9799919799/utilities/time.html) | ❌ |
-| System / Process | `timeout` | Run a command with a time limit | [❌](https://pubs.opengroup.org/onlinepubs/9799919799/utilities/timeout.html) | [❌](https://web.archive.org/web/https://www.gnu.org/software/coreutils/manual/html_node/timeout-invocation.html) |
-| System / Process | `uname` | Print system information | [❌](https://pubs.opengroup.org/onlinepubs/9799919799/utilities/uname.html) | [❌](https://web.archive.org/web/https://www.gnu.org/software/coreutils/manual/html_node/uname-invocation.html) |
-| System / Process | `who` | Print who is logged in | [❌](https://pubs.opengroup.org/onlinepubs/9799919799/utilities/who.html) | [❌](https://web.archive.org/web/https://www.gnu.org/software/coreutils/manual/html_node/who-invocation.html) |
-| Terminal | `stty` | Set the options for a terminal | [❌](https://pubs.opengroup.org/onlinepubs/9799919799/utilities/stty.html) | [❌](https://web.archive.org/web/https://www.gnu.org/software/coreutils/manual/html_node/stty-invocation.html) |
-| Terminal | `tput` | Query terminal capabilities | [❌](https://pubs.opengroup.org/onlinepubs/9799919799/utilities/tput.html) | ❌ |
-| Terminal | `tabs` | Set terminal tab stops | [❌](https://pubs.opengroup.org/onlinepubs/9799919799/utilities/tabs.html) | ❌ |
-| Terminal | `tty` | Print the terminal's file name | [❌](https://pubs.opengroup.org/onlinepubs/9799919799/utilities/tty.html) | [❌](https://web.archive.org/web/https://www.gnu.org/software/coreutils/manual/html_node/tty-invocation.html) |
-| Terminal | `more` | Page through text files | [❌](https://pubs.opengroup.org/onlinepubs/9799919799/utilities/more.html) | ❌ |
-| Encoding / Archive | `iconv` | Convert text between character encodings | [❌](https://pubs.opengroup.org/onlinepubs/9799919799/utilities/iconv.html) | ❌ |
-| Encoding / Archive | `compress`* | Compress files | [✅](https://pubs.opengroup.org/onlinepubs/9799919799/utilities/compress.html) | ❌ |
-| Encoding / Archive | `uncompress` | Decompress files | [✅](https://pubs.opengroup.org/onlinepubs/9799919799/utilities/uncompress.html) | ❌ |
-| Encoding / Archive | `zcat` | Decompress files to standard output | [✅](https://pubs.opengroup.org/onlinepubs/9799919799/utilities/zcat.html) | ❌ |
-| Encoding / Archive | `uudecode` | Decode a uuencoded file | [✅](https://pubs.opengroup.org/onlinepubs/9799919799/utilities/uudecode.html) | ❌ |
-| Encoding / Archive | `uuencode` | Encode a binary file as text | [✅](https://pubs.opengroup.org/onlinepubs/9799919799/utilities/uuencode.html) | ❌ |
-| GNU | `base32` | Encode and decode base32 data | — | [✅](https://web.archive.org/web/https://www.gnu.org/software/coreutils/manual/html_node/base32-invocation.html) |
-| GNU | `base64` | Encode and decode base64 data | — | [✅](https://web.archive.org/web/https://www.gnu.org/software/coreutils/manual/html_node/base64-invocation.html) |
+| Foundational | `true` | Return a zero exit status | [✅](spec/markdown/posix/true.md) | [❌](spec/markdown/gnu/true-invocation.md) |
+| Foundational | `false` | Return a non-zero exit status | [✅](spec/markdown/posix/false.md) | [❌](spec/markdown/gnu/false-invocation.md) |
+| Foundational | `echo` | Write arguments to standard output | [✅](spec/markdown/posix/echo.md) | [❌](spec/markdown/gnu/echo-invocation.md) |
+| Foundational | `pwd` | Print the current working directory | [✅](spec/markdown/posix/pwd.md) | [❌](spec/markdown/gnu/pwd-invocation.md) |
+| Foundational | `basename` | Print a path without its directory | [✅](spec/markdown/posix/basename.md) | [❌](spec/markdown/gnu/basename-invocation.md) |
+| Foundational | `dirname` | Print the directory part of a path | [✅](spec/markdown/posix/dirname.md) | [❌](spec/markdown/gnu/dirname-invocation.md) |
+| Foundational | `wc` | Count lines, words, and bytes | [✅](spec/markdown/posix/wc.md) | [❌](spec/markdown/gnu/wc-invocation.md) |
+| Foundational | `printf` | Format and print arguments | [❌](spec/markdown/posix/printf.md) | [❌](spec/markdown/gnu/printf-invocation.md) |
+| Foundational | `test` | Evaluate a conditional expression | [❌](spec/markdown/posix/test.md) | [❌](spec/markdown/gnu/test-invocation.md) |
+| Foundational | `expr` | Evaluate an expression | [❌](spec/markdown/posix/expr.md) | [❌](spec/markdown/gnu/expr-invocation.md) |
+| Foundational | `sleep` | Suspend execution for an interval | [❌](spec/markdown/posix/sleep.md) | [❌](spec/markdown/gnu/sleep-invocation.md) |
+| Filesystem | `touch` | Change file access and modification times | [✅](spec/markdown/posix/touch.md) | [❌](spec/markdown/gnu/touch-invocation.md) |
+| Filesystem | `chmod` | Change file permission modes | [✅](spec/markdown/posix/chmod.md) | [❌](spec/markdown/gnu/chmod-invocation.md) |
+| Filesystem | `cat` | Concatenate and print files | [✅](spec/markdown/posix/cat.md) | [❌](spec/markdown/gnu/cat-invocation.md) |
+| Filesystem | `head` | Print the first part of files | [✅](spec/markdown/posix/head.md) | [❌](spec/markdown/gnu/head-invocation.md) |
+| Filesystem | `tail` | Print the last part of files | [✅](spec/markdown/posix/tail.md) | [❌](spec/markdown/gnu/tail-invocation.md) |
+| Filesystem | `mkdir` | Create directories | [✅](spec/markdown/posix/mkdir.md) | [❌](spec/markdown/gnu/mkdir-invocation.md) |
+| Filesystem | `rmdir` | Remove empty directories | [✅](spec/markdown/posix/rmdir.md) | [❌](spec/markdown/gnu/rmdir-invocation.md) |
+| Filesystem | `cp` | Copy files and directories | [✅](spec/markdown/posix/cp.md) | [❌](spec/markdown/gnu/cp-invocation.md) |
+| Filesystem | `mv` | Move or rename files | [✅](spec/markdown/posix/mv.md) | [❌](spec/markdown/gnu/mv-invocation.md) |
+| Filesystem | `rm` | Remove files and directories | [✅](spec/markdown/posix/rm.md) | [❌](spec/markdown/gnu/rm-invocation.md) |
+| Filesystem | `ln` | Create links between files | [✅](spec/markdown/posix/ln.md) | [❌](spec/markdown/gnu/ln-invocation.md) |
+| Filesystem | `ls` | List directory contents | [✅](spec/markdown/posix/ls.md) | [❌](spec/markdown/gnu/ls-invocation.md) |
+| Filesystem | `chgrp` | Change file group ownership | [❌](spec/markdown/posix/chgrp.md) | [❌](spec/markdown/gnu/chgrp-invocation.md) |
+| Filesystem | `chown` | Change file ownership | [❌](spec/markdown/posix/chown.md) | [❌](spec/markdown/gnu/chown-invocation.md) |
+| Filesystem | `link` | Create a hard link to a file | [❌](spec/markdown/posix/link.md) | [❌](spec/markdown/gnu/link-invocation.md) |
+| Filesystem | `unlink` | Remove a directory entry | [❌](spec/markdown/posix/unlink.md) | [❌](spec/markdown/gnu/unlink-invocation.md) |
+| Filesystem | `mkfifo` | Create FIFO special files | [❌](spec/markdown/posix/mkfifo.md) | [❌](spec/markdown/gnu/mkfifo-invocation.md) |
+| Filesystem | `readlink` | Print the target of a symbolic link | [❌](spec/markdown/posix/readlink.md) | [❌](spec/markdown/gnu/readlink-invocation.md) |
+| Filesystem | `realpath` | Print the resolved absolute path | [❌](spec/markdown/posix/realpath.md) | [❌](spec/markdown/gnu/realpath-invocation.md) |
+| Filesystem | `dd` | Convert and copy a file | [❌](spec/markdown/posix/dd.md) | [❌](spec/markdown/gnu/dd-invocation.md) |
+| Filesystem | `df` | Report file system space usage | [❌](spec/markdown/posix/df.md) | [❌](spec/markdown/gnu/df-invocation.md) |
+| Filesystem | `du` | Estimate file space usage | [❌](spec/markdown/posix/du.md) | [❌](spec/markdown/gnu/du-invocation.md) |
+| Filesystem | `pathchk` | Check pathnames for validity | [❌](spec/markdown/posix/pathchk.md) | [❌](spec/markdown/gnu/pathchk-invocation.md) |
+| Filesystem | `pax` | Read and write file archives | [❌](spec/markdown/posix/pax.md) | ❌ |
+| Text | `cut` | Cut out fields from input lines | [✅](spec/markdown/posix/cut.md) | [❌](spec/markdown/gnu/cut-invocation.md) |
+| Text | `join`**** | Join lines of two files on a common field | [✅](spec/markdown/posix/join.md) | [❌](spec/markdown/gnu/join-invocation.md) |
+| Text | `sort` | Sort lines of text | [✅](spec/markdown/posix/sort.md) | [❌](spec/markdown/gnu/sort-invocation.md) |
+| Text | `paste` | Merge lines of files | [✅](spec/markdown/posix/paste.md) | [❌](spec/markdown/gnu/paste-invocation.md) |
+| Text | `tee` | Duplicate standard input | [✅](spec/markdown/posix/tee.md) | [❌](spec/markdown/gnu/tee-invocation.md) |
+| Text | `tr` | Translate or delete characters | [✅](spec/markdown/posix/tr.md) | [❌](spec/markdown/gnu/tr-invocation.md) |
+| Text | `uniq` | Filter adjacent repeated lines | [✅](spec/markdown/posix/uniq.md) | [❌](spec/markdown/gnu/uniq-invocation.md) |
+| Text | `cmp` | Compare two files byte by byte | [✅](spec/markdown/posix/cmp.md) | [❌](https://web.archive.org/web/https://www.gnu.org/software/diffutils/manual/html_node/Invoking-cmp.html) |
+| Text | `comm` | Compare sorted files line by line | [✅](spec/markdown/posix/comm.md) | [❌](spec/markdown/gnu/comm-invocation.md) |
+| Text | `csplit` | Split a file by context | [✅](spec/markdown/posix/csplit.md) | [❌](spec/markdown/gnu/csplit-invocation.md) |
+| Text | `diff` | Compare files line by line | [✅](spec/markdown/posix/diff.md) | [❌](https://web.archive.org/web/https://www.gnu.org/software/diffutils/manual/html_node/Invoking-diff.html) |
+| Text | `expand` | Convert tabs to spaces | [✅](spec/markdown/posix/expand.md) | [❌](spec/markdown/gnu/expand-invocation.md) |
+| Text | `fold` | Wrap long input lines | [✅](spec/markdown/posix/fold.md) | [❌](spec/markdown/gnu/fold-invocation.md) |
+| Text | `nl` | Number lines of files | [✅](spec/markdown/posix/nl.md) | [❌](spec/markdown/gnu/nl-invocation.md) |
+| Text | `od` | Dump files in octal and other formats | [✅](spec/markdown/posix/od.md) | [❌](spec/markdown/gnu/od-invocation.md) |
+| Text | `pr` | Paginate files for printing | [✅](spec/markdown/posix/pr.md) | [❌](spec/markdown/gnu/pr-invocation.md) |
+| Text | `sed`****** | Filter and transform text | [✅](spec/markdown/posix/sed.md) | [❌](https://web.archive.org/web/https://www.gnu.org/software/sed/manual/sed.html) |
+| Text | `split` | Split a file into pieces | [✅](spec/markdown/posix/split.md) | [❌](spec/markdown/gnu/split-invocation.md) |
+| Text | `strings` | Print printable strings in files | [✅](spec/markdown/posix/strings.md) | [❌](https://web.archive.org/web/https://sourceware.org/binutils/docs/binutils/strings.html) |
+| Text | `unexpand` | Convert spaces to tabs | [✅](spec/markdown/posix/unexpand.md) | [❌](spec/markdown/gnu/unexpand-invocation.md) |
+| Text | `cksum` | Compute CRC checksums for files | [✅](spec/markdown/posix/cksum.md) | [❌](spec/markdown/gnu/cksum-invocation.md) |
+| Text | `patch`** | Apply a diff file to an original | [✅](spec/markdown/posix/patch.md) | ❌ |
+| Search / Filtering | `find` | Find files matching given criteria | [❌](spec/markdown/posix/find.md) | [❌](https://web.archive.org/web/https://www.gnu.org/software/findutils/manual/html_node/find_html/Invoking-find.html) |
+| Search / Filtering | `grep` | Print lines matching a pattern | [❌](spec/markdown/posix/grep.md) | [❌](https://web.archive.org/web/https://www.gnu.org/software/grep/manual/grep.html) |
+| Search / Filtering | `xargs` | Build and execute command lines | [✅](spec/markdown/posix/xargs.md) | [❌](https://web.archive.org/web/https://www.gnu.org/software/findutils/manual/html_node/find_html/Invoking-xargs.html) |
+| System / Process | `date`******* | Print or set the date and time | [✅](spec/markdown/posix/date.md) | [❌](spec/markdown/gnu/date-invocation.md) |
+| System / Process | `env` | Run a command in a modified environment | [❌](spec/markdown/posix/env.md) | [❌](spec/markdown/gnu/env-invocation.md) |
+| System / Process | `id` | Print user and group IDs | [❌](spec/markdown/posix/id.md) | [❌](spec/markdown/gnu/id-invocation.md) |
+| System / Process | `kill` | Send a signal to processes | [❌](spec/markdown/posix/kill.md) | ❌ |
+| System / Process | `logname` | Print the user's login name | [❌](spec/markdown/posix/logname.md) | [❌](spec/markdown/gnu/logname-invocation.md) |
+| System / Process | `nice` | Run a command with modified priority | [❌](spec/markdown/posix/nice.md) | [❌](spec/markdown/gnu/nice-invocation.md) |
+| System / Process | `nohup` | Run a command immune to hangups | [❌](spec/markdown/posix/nohup.md) | [❌](spec/markdown/gnu/nohup-invocation.md) |
+| System / Process | `ps` | Report process status | [❌](spec/markdown/posix/ps.md) | ❌ |
+| System / Process | `time` | Time the execution of a command | [❌](spec/markdown/posix/time.md) | ❌ |
+| System / Process | `timeout` | Run a command with a time limit | [❌](spec/markdown/posix/timeout.md) | [❌](spec/markdown/gnu/timeout-invocation.md) |
+| System / Process | `uname` | Print system information | [❌](spec/markdown/posix/uname.md) | [❌](spec/markdown/gnu/uname-invocation.md) |
+| System / Process | `who` | Print who is logged in | [❌](spec/markdown/posix/who.md) | [❌](spec/markdown/gnu/who-invocation.md) |
+| Terminal | `stty` | Set the options for a terminal | [❌](spec/markdown/posix/stty.md) | [❌](spec/markdown/gnu/stty-invocation.md) |
+| Terminal | `tput` | Query terminal capabilities | [❌](spec/markdown/posix/tput.md) | ❌ |
+| Terminal | `tabs` | Set terminal tab stops | [❌](spec/markdown/posix/tabs.md) | ❌ |
+| Terminal | `tty` | Print the terminal's file name | [❌](spec/markdown/posix/tty.md) | [❌](spec/markdown/gnu/tty-invocation.md) |
+| Terminal | `more` | Page through text files | [❌](spec/markdown/posix/more.md) | ❌ |
+| Encoding / Archive | `iconv` | Convert text between character encodings | [❌](spec/markdown/posix/iconv.md) | ❌ |
+| Encoding / Archive | `compress`* | Compress files | [✅](spec/markdown/posix/compress.md) | ❌ |
+| Encoding / Archive | `uncompress` | Decompress files | [✅](spec/markdown/posix/uncompress.md) | ❌ |
+| Encoding / Archive | `zcat` | Decompress files to standard output | [✅](spec/markdown/posix/zcat.md) | ❌ |
+| Encoding / Archive | `uudecode` | Decode a uuencoded file | [✅](spec/markdown/posix/uudecode.md) | ❌ |
+| Encoding / Archive | `uuencode` | Encode a binary file as text | [✅](spec/markdown/posix/uuencode.md) | ❌ |
+| GNU | `base32` | Encode and decode base32 data | — | [✅](spec/markdown/gnu/base32-invocation.md) |
+| GNU | `base64` | Encode and decode base64 data | — | [✅](spec/markdown/gnu/base64-invocation.md) |
 | GNU | `gzip` | Compress files with gzip | — | [✅](https://web.archive.org/web/https://www.gnu.org/software/gzip/manual/gzip.html) |
 | GNU | `gunzip` | Decompress gzip files | — | [✅](https://web.archive.org/web/https://www.gnu.org/software/gzip/manual/gzip.html) |
 | GNU | `gzcat` | Decompress gzip files to standard output | — | [✅](https://web.archive.org/web/https://www.gnu.org/software/gzip/manual/gzip.html) |
 | GNU | `zcat` | Decompress gzip files to standard output | — | [✅](https://web.archive.org/web/https://www.gnu.org/software/gzip/manual/gzip.html) |
-| GNU | `install` | Copy files and set attributes | — | [❌](https://web.archive.org/web/https://www.gnu.org/software/coreutils/manual/html_node/install-invocation.html) |
-| GNU | `md5sum` | Compute MD5 checksums | — | [✅](https://web.archive.org/web/https://www.gnu.org/software/coreutils/manual/html_node/md5sum-invocation.html) |
-| GNU | `mktemp` | Create a temporary file or directory | — | [✅](https://web.archive.org/web/https://www.gnu.org/software/coreutils/manual/html_node/mktemp-invocation.html) |
-| GNU | `nproc` | Print the number of processing units | — | [❌](https://web.archive.org/web/https://www.gnu.org/software/coreutils/manual/html_node/nproc-invocation.html) |
-| GNU | `printenv` | Print environment variables | — | [❌](https://web.archive.org/web/https://www.gnu.org/software/coreutils/manual/html_node/printenv-invocation.html) |
-| GNU | `seq` | Print a sequence of numbers | — | [❌](https://web.archive.org/web/https://www.gnu.org/software/coreutils/manual/html_node/seq-invocation.html) |
-| GNU | `sha1sum` | Compute SHA-1 checksums | — | [✅](https://web.archive.org/web/https://www.gnu.org/software/coreutils/manual/html_node/sha1sum-invocation.html) |
-| GNU | `sha224sum` | Compute SHA-224 checksums | — | [✅](https://web.archive.org/web/https://www.gnu.org/software/coreutils/manual/html_node/sha2-utilities.html) |
-| GNU | `sha256sum` | Compute SHA-256 checksums | — | [✅](https://web.archive.org/web/https://www.gnu.org/software/coreutils/manual/html_node/sha2-utilities.html) |
-| GNU | `sha384sum` | Compute SHA-384 checksums | — | [✅](https://web.archive.org/web/https://www.gnu.org/software/coreutils/manual/html_node/sha2-utilities.html) |
-| GNU | `sha512sum` | Compute SHA-512 checksums | — | [✅](https://web.archive.org/web/https://www.gnu.org/software/coreutils/manual/html_node/sha2-utilities.html) |
+| GNU | `install` | Copy files and set attributes | — | [❌](spec/markdown/gnu/install-invocation.md) |
+| GNU | `md5sum` | Compute MD5 checksums | — | [✅](spec/markdown/gnu/md5sum-invocation.md) |
+| GNU | `mktemp` | Create a temporary file or directory | — | [✅](spec/markdown/gnu/mktemp-invocation.md) |
+| GNU | `nproc` | Print the number of processing units | — | [❌](spec/markdown/gnu/nproc-invocation.md) |
+| GNU | `printenv` | Print environment variables | — | [❌](spec/markdown/gnu/printenv-invocation.md) |
+| GNU | `seq` | Print a sequence of numbers | — | [❌](spec/markdown/gnu/seq-invocation.md) |
+| GNU | `sha1sum` | Compute SHA-1 checksums | — | [✅](spec/markdown/gnu/sha1sum-invocation.md) |
+| GNU | `sha224sum` | Compute SHA-224 checksums | — | [✅](spec/markdown/gnu/sha2-utilities.md) |
+| GNU | `sha256sum` | Compute SHA-256 checksums | — | [✅](spec/markdown/gnu/sha2-utilities.md) |
+| GNU | `sha384sum` | Compute SHA-384 checksums | — | [✅](spec/markdown/gnu/sha2-utilities.md) |
+| GNU | `sha512sum` | Compute SHA-512 checksums | — | [✅](spec/markdown/gnu/sha2-utilities.md) |
 | GNU | `shasum`*** | Print or check SHA checksums | — | [✅](https://perldoc.perl.org/shasum) |
-| GNU | `shuf` | Generate random permutations | — | [❌](https://web.archive.org/web/https://www.gnu.org/software/coreutils/manual/html_node/shuf-invocation.html) |
-| GNU | `stat` | Print file and file system status | — | [❌](https://web.archive.org/web/https://www.gnu.org/software/coreutils/manual/html_node/stat-invocation.html) |
-| GNU | `sync` | Flush file system buffers | — | [❌](https://web.archive.org/web/https://www.gnu.org/software/coreutils/manual/html_node/sync-invocation.html) |
-| GNU | `tac` | Concatenate and print files in reverse | — | [❌](https://web.archive.org/web/https://www.gnu.org/software/coreutils/manual/html_node/tac-invocation.html) |
+| GNU | `shuf` | Generate random permutations | — | [❌](spec/markdown/gnu/shuf-invocation.md) |
+| GNU | `stat` | Print file and file system status | — | [❌](spec/markdown/gnu/stat-invocation.md) |
+| GNU | `sync` | Flush file system buffers | — | [❌](spec/markdown/gnu/sync-invocation.md) |
+| GNU | `tac` | Concatenate and print files in reverse | — | [❌](spec/markdown/gnu/tac-invocation.md) |
 | GNU | `tar`***** | Create and extract file archives | — | [✅](https://web.archive.org/web/https://www.gnu.org/software/tar/manual/tar.html) |
-| GNU | `truncate` | Shrink or extend the size of files | — | [❌](https://web.archive.org/web/https://www.gnu.org/software/coreutils/manual/html_node/truncate-invocation.html) |
+| GNU | `truncate` | Shrink or extend the size of files | — | [❌](spec/markdown/gnu/truncate-invocation.md) |
 | GNU | `which` | Locate a command in the search path | — | ❌ |
-| GNU | `whoami` | Print the effective user name | — | [❌](https://web.archive.org/web/https://www.gnu.org/software/coreutils/manual/html_node/whoami-invocation.html) |
-| GNU | `yes` | Print a string repeatedly | — | [❌](https://web.archive.org/web/https://www.gnu.org/software/coreutils/manual/html_node/yes-invocation.html) |
+| GNU | `whoami` | Print the effective user name | — | [❌](spec/markdown/gnu/whoami-invocation.md) |
+| GNU | `yes` | Print a string repeatedly | — | [❌](spec/markdown/gnu/yes-invocation.md) |
 
 > [!NOTE]
 > `*` The LZW algorithm (the POSIX default, with its `.Z` suffix) is not yet
