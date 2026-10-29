@@ -130,16 +130,30 @@ func TestRunInput(t *testing.T) {
 			name:     "options stop at the first operand",
 			fsys:     testFS(),
 			args:     []string{"lorem.txt", "-b", "a"},
-			want:     "",
-			wantErr:  "nl: extra operand '-b'\n",
+			want:     "     1\tlorem\n     2\tipsum\n     3\tdolor\n",
+			wantErr:  "nl: -b: file does not exist\nnl: a: file does not exist\n",
 			wantExit: 1,
 		},
 		{
-			name:     "extra operand",
+			name: "multiple files are numbered as one document",
+			fsys: testFS(),
+			args: []string{"lorem.txt", "nonl.txt"},
+			want: "     1\tlorem\n     2\tipsum\n     3\tdolor\n     4\tlorem\n     5\tipsum",
+		},
+		{
+			name:     "a file which can't be read doesn't stop the remaining ones",
 			fsys:     testFS(),
-			args:     []string{"lorem.txt", "blanks.txt"},
-			wantErr:  "nl: extra operand 'blanks.txt'\n",
+			args:     []string{"missing.txt", "lorem.txt"},
+			want:     "     1\tlorem\n     2\tipsum\n     3\tdolor\n",
+			wantErr:  "nl: missing.txt: file does not exist\n",
 			wantExit: 1,
+		},
+		{
+			name:  "the standard input is concatenated between files",
+			fsys:  testFS(),
+			stdin: strings.NewReader("b\n"),
+			args:  []string{"lorem.txt", "-"},
+			want:  "     1\tlorem\n     2\tipsum\n     3\tdolor\n     4\tb\n",
 		},
 		{
 			name:     "missing file",
@@ -151,7 +165,7 @@ func TestRunInput(t *testing.T) {
 		{
 			name:  "blank lines are not numbered by default",
 			stdin: strings.NewReader("a\n\nb\n"),
-			want:  "     1\ta\n\n     2\tb\n",
+			want:  "     1\ta\n      \t\n     2\tb\n",
 		},
 		{
 			name:  "a line holding only blanks is numbered",
@@ -197,25 +211,26 @@ func TestRunStyles(t *testing.T) {
 			name: "number no lines",
 			fsys: testFS(),
 			args: []string{"-b", "n", "lorem.txt"},
-			want: "lorem\nipsum\ndolor\n",
+			want: "      \tlorem\n      \tipsum\n      \tdolor\n",
 		},
 		{
 			name: "number non-empty lines",
 			fsys: testFS(),
 			args: []string{"-b", "t", "blanks.txt"},
-			want: "     1\ta\n\n\n     2\tb\n\n\n\n     3\tc\n",
+			want: "     1\ta\n      \t\n      \t\n     2\tb\n" +
+				"      \t\n      \t\n      \t\n     3\tc\n",
 		},
 		{
 			name: "number lines matching a regular expression",
 			fsys: testFS(),
 			args: []string{"-bpfoo", "regex.txt"},
-			want: "     1\tfoo\nbar\n     2\tfoobar\n",
+			want: "     1\tfoo\n      \tbar\n     2\tfoobar\n",
 		},
 		{
 			name: "number lines matching an anchored regular expression",
 			fsys: testFS(),
 			args: []string{"-b", "p^bar$", "regex.txt"},
-			want: "foo\n     1\tbar\nfoobar\n",
+			want: "      \tfoo\n     1\tbar\n      \tfoobar\n",
 		},
 		{
 			name: "an empty regular expression matches every line",
@@ -272,21 +287,22 @@ func TestRunSections(t *testing.T) {
 			name: "header and footer lines are not numbered by default",
 			fsys: testFS(),
 			args: []string{"pages.txt"},
-			want: "\nh1\nh2\n\n     1\tb1\n\n     2\tb3\n\nf1\nf2\n",
+			want: "\n      \th1\n      \th2\n\n     1\tb1\n      \t\n     2\tb3\n" +
+				"\n      \tf1\n      \tf2\n",
 		},
 		{
-			name: "numbering continues within a logical page",
+			name: "numbering restarts at each section",
 			fsys: testFS(),
 			args: []string{"-h", "a", "-f", "a", "-b", "a", "pages.txt"},
-			want: "\n     1\th1\n     2\th2\n\n     3\tb1\n     4\t\n     5\tb3\n" +
-				"\n     6\tf1\n     7\tf2\n",
+			want: "\n     1\th1\n     2\th2\n\n     1\tb1\n     2\t\n     3\tb3\n" +
+				"\n     1\tf1\n     2\tf2\n",
 		},
 		{
 			name: "numbering restarts at each logical page",
 			stdin: strings.NewReader("\\:\\:\\:\nh1\n\\:\\:\nb1\n" +
 				"\\:\\:\\:\nh2\n\\:\\:\nb2\n"),
 			args: []string{"-h", "a", "-b", "a"},
-			want: "\n     1\th1\n\n     2\tb1\n\n     1\th2\n\n     2\tb2\n",
+			want: "\n     1\th1\n\n     1\tb1\n\n     1\th2\n\n     1\tb2\n",
 		},
 		{
 			name: "numbering does not restart with -p",
@@ -305,13 +321,13 @@ func TestRunSections(t *testing.T) {
 			name:  "custom delimiter characters",
 			stdin: strings.NewReader("!+!+!+\nh\n!+!+\nb\n!+\nf\n"),
 			args:  []string{"-d", "!+", "-h", "a", "-f", "a"},
-			want:  "\n     1\th\n\n     2\tb\n\n     3\tf\n",
+			want:  "\n     1\th\n\n     1\tb\n\n     1\tf\n",
 		},
 		{
 			name:  "a single delimiter character implies a colon",
 			stdin: strings.NewReader("!:!:!:\nh\n!:!:\nb\n"),
 			args:  []string{"-d", "!", "-h", "a"},
-			want:  "\n     1\th\n\n     2\tb\n",
+			want:  "\n     1\th\n\n     1\tb\n",
 		},
 		{
 			name:  "an empty delimiter disables section matching",
@@ -323,6 +339,105 @@ func TestRunSections(t *testing.T) {
 			name:  "a line holding extra characters is not a delimiter",
 			stdin: strings.NewReader("\\: \nb\n"),
 			want:  "     1\t\\: \n     2\tb\n",
+		},
+		{
+			name: "numbering is not reset between files",
+			fsys: fsx.MemFS{
+				"page1.txt": {Data: []byte("\\:\\:\\:\nh1\n\\:\\:\nb1\n")},
+				"page2.txt": {Data: []byte("\\:\\:\nb2\n")},
+			},
+			args: []string{"-h", "a", "page1.txt", "page2.txt"},
+			want: "\n     1\th1\n\n     1\tb1\n\n     1\tb2\n",
+		},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			runCase(t, test)
+		})
+	}
+}
+
+func TestRunLongOptions(t *testing.T) {
+	tests := []testCase{
+		{
+			name:  "header numbering",
+			stdin: strings.NewReader("\\:\\:\\:\nh\n"),
+			args:  []string{"--header-numbering=a"},
+			want:  "\n     1\th\n",
+		},
+		{
+			name:  "body numbering",
+			stdin: strings.NewReader("a\n"),
+			args:  []string{"--body-numbering=n"},
+			want:  "      \ta\n",
+		},
+		{
+			name:  "footer numbering",
+			stdin: strings.NewReader("\\:\nf\n"),
+			args:  []string{"--footer-numbering=a"},
+			want:  "\n     1\tf\n",
+		},
+		{
+			name:  "section delimiter",
+			stdin: strings.NewReader("!+!+!+\nh\n"),
+			args:  []string{"--section-delimiter=!+", "--header-numbering=a"},
+			want:  "\n     1\th\n",
+		},
+		{
+			name:  "starting line number",
+			stdin: strings.NewReader("a\nb\n"),
+			args:  []string{"--starting-line-number=10"},
+			want:  "    10\ta\n    11\tb\n",
+		},
+		{
+			name:  "line increment",
+			stdin: strings.NewReader("a\nb\n"),
+			args:  []string{"--line-increment=5"},
+			want:  "     1\ta\n     6\tb\n",
+		},
+		{
+			name:  "join blank lines",
+			stdin: strings.NewReader("a\n\n\nb\n"),
+			args:  []string{"--body-numbering=a", "--join-blank-lines=2"},
+			want:  "     1\ta\n      \t\n     2\t\n     3\tb\n",
+		},
+		{
+			name:  "number format and width",
+			stdin: strings.NewReader("a\nb\n"),
+			args:  []string{"--number-format=rz", "--number-width=3"},
+			want:  "001\ta\n002\tb\n",
+		},
+		{
+			name:  "number separator",
+			stdin: strings.NewReader("a\n"),
+			args:  []string{"--number-separator=::"},
+			want:  "     1::a\n",
+		},
+		{
+			name:  "an argument in the next argument",
+			stdin: strings.NewReader("a\n"),
+			args:  []string{"--number-width", "3"},
+			want:  "  1\ta\n",
+		},
+		{
+			name:  "no renumber",
+			stdin: strings.NewReader("\\:\\:\\:\nh\n\\:\\:\nb\n\\:\nc\n"),
+			args:  []string{"--no-renumber", "--header-numbering=a"},
+			want:  "\n     1\th\n\n     2\tb\n\n      \tc\n",
+		},
+		{
+			name:     "a missing argument",
+			stdin:    strings.NewReader("a\n"),
+			args:     []string{"--number-width"},
+			wantErr:  "nl: option '--number-width' requires an argument\n",
+			wantExit: 1,
+		},
+		{
+			name:     "an unrecognized option",
+			stdin:    strings.NewReader("a\n"),
+			args:     []string{"--bogus"},
+			wantErr:  "nl: unrecognized option '--bogus'\n",
+			wantExit: 1,
 		},
 	}
 	for _, test := range tests {
@@ -386,19 +501,37 @@ func TestRunNumbering(t *testing.T) {
 			name:  "blank lines are grouped with -l",
 			stdin: strings.NewReader("a\n\n\n\nb\n"),
 			args:  []string{"-b", "a", "-l", "2"},
-			want:  "     1\ta\n\n     2\t\n\n     3\tb\n",
+			want:  "     1\ta\n      \t\n     2\t\n      \t\n     3\tb\n",
 		},
 		{
 			name:  "blank line groups restart after a numbered line",
 			stdin: strings.NewReader("a\n\n\n\n\nb\n"),
 			args:  []string{"-b", "a", "-l", "2"},
-			want:  "     1\ta\n\n     2\t\n\n     3\t\n     4\tb\n",
+			want:  "     1\ta\n      \t\n     2\t\n      \t\n     3\t\n     4\tb\n",
 		},
 		{
 			name:  "-l does not apply to the default style",
 			stdin: strings.NewReader("a\n\n\n\nb\n"),
 			args:  []string{"-l", "2"},
-			want:  "     1\ta\n\n\n\n     2\tb\n",
+			want:  "     1\ta\n      \t\n      \t\n      \t\n     2\tb\n",
+		},
+		{
+			name:  "an unnumbered line has a blank number field",
+			stdin: strings.NewReader("a\n"),
+			args:  []string{"-b", "n"},
+			want:  "      \ta\n",
+		},
+		{
+			name:  "the blank field uses spaces even with -n rz",
+			stdin: strings.NewReader("a\n\nb\n"),
+			args:  []string{"-n", "rz", "-b", "a", "-l", "2"},
+			want:  "000001\ta\n      \t\n000002\tb\n",
+		},
+		{
+			name:  "the blank field follows the width and the separator",
+			stdin: strings.NewReader("a\n\nb\n"),
+			args:  []string{"-b", "t", "-w", "3", "-s", "##"},
+			want:  "  1##a\n   ##\n  2##b\n",
 		},
 		{
 			name:     "an invalid starting number",
