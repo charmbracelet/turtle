@@ -1,0 +1,105 @@
+// Package unlink implements the POSIX unlink utility.
+//
+// The utility takes no options, so every argument is taken as an operand,
+// even one starting with a dash. The file is removed with the file system's
+// Remove operation, which removes a final symbolic link itself, like
+// unlink(2), and directories are refused.
+package unlink
+
+import (
+	"context"
+	"errors"
+	"fmt"
+	"path/filepath"
+	"strings"
+
+	"charm.land/snail/coreutils"
+	"charm.land/snail/coreutils/internal/patherr"
+)
+
+// Prog is the unlink core utility.
+type Prog struct {
+	*coreutils.Runtime
+}
+
+// New returns a new Prog.
+func New(rt *coreutils.Runtime) coreutils.Program {
+	return &Prog{Runtime: rt}
+}
+
+// Run unlinks the file named by the single operand. As the utility takes no
+// options, every argument, including one starting with a dash, is an operand.
+func (p *Prog) Run(ctx context.Context, args ...string) error {
+	switch len(args) {
+	case 0:
+		p.errorf("missing operand")
+		return &coreutils.ExitError{Code: 2}
+	case 1:
+	default:
+		p.errorf("extra operand '%s'", args[1])
+		return &coreutils.ExitError{Code: 2}
+	}
+	if p.FS == nil {
+		p.errorf("no file system available")
+		return &coreutils.ExitError{Code: 1}
+	}
+	if err := ctx.Err(); err != nil {
+		return err
+	}
+	if err := p.unlink(args[0]); err != nil {
+		p.errorf("%v", err)
+		return &coreutils.ExitError{Code: 1}
+	}
+	return nil
+}
+
+// unlink removes the operand, which must not name a directory. A final
+// symbolic link is removed itself, not the file it points to. Errors are
+// returned ready to be reported.
+func (p *Prog) unlink(operand string) error {
+	if operand == "" {
+		return errors.New("invalid zero-length file name")
+	}
+	name := p.resolve(operand)
+	fi, err := p.FS.Lstat(name)
+	if err != nil {
+		return fmt.Errorf("%s: %v", operand, patherr.Unwrap(err))
+	}
+	if fi.IsDir() {
+		return fmt.Errorf("%s: %v", operand, errIsDir)
+	}
+	if err := p.FS.Remove(name); err != nil {
+		return fmt.Errorf("%s: %v", operand, patherr.Unwrap(err))
+	}
+	return nil
+}
+
+// resolve converts an operand into the slash-separated path used with the
+// file system, relative to the working directory. The path isn't resolved
+// lexically: components like "." and ".." and a trailing slash are kept,
+// so only the file system resolves them, following symbolic links on the
+// way.
+func (p *Prog) resolve(operand string) string {
+	operand = filepath.ToSlash(operand)
+	if p.WorkingDir == "" || filepath.IsAbs(operand) {
+		return operand
+	}
+	wd := filepath.ToSlash(p.WorkingDir)
+	if strings.HasSuffix(wd, "/") {
+		return wd + operand
+	}
+	return wd + "/" + operand
+}
+
+// errIsDir is returned when the operand names a directory.
+var errIsDir = errors.New("is a directory")
+
+// errorf writes a diagnostic message to standard error.
+func (p *Prog) errorf(format string, args ...any) {
+	fmt.Fprintf(p.Stderr, "unlink: "+format+"\n", args...)
+}
+
+var (
+	_ coreutils.Program = (*Prog)(nil)
+	_ coreutils.NewFunc = New
+)
