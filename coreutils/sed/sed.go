@@ -13,6 +13,7 @@ import (
 	"fmt"
 	"io"
 	"path/filepath"
+	"slices"
 	"strings"
 
 	"charm.land/snail/coreutils"
@@ -35,7 +36,8 @@ func New(rt *coreutils.Runtime) coreutils.Program {
 }
 
 // Run edits the standard input or the given files according to the script
-// given by the operands and the -e and -f options.
+// given by the operands and the -e and -f options. With -i, the given files
+// are edited in place, their contents replaced by the output of the script.
 //
 // Reading is interrupted when ctx is done, and the context error is returned.
 func (p *Prog) Run(ctx context.Context, args ...string) error {
@@ -60,7 +62,23 @@ func (p *Prog) Run(ctx context.Context, args ...string) error {
 		return &coreutils.ExitError{Code: 2}
 	}
 
-	if err := p.run(ctx, cmds, files, opts.quiet || strings.HasPrefix(script, "#n")); err != nil {
+	quiet := opts.quiet || strings.HasPrefix(script, "#n")
+	if opts.inPlace {
+		if len(files) == 0 || slices.Contains(files, "-") {
+			p.errorf("-i may not be used with stdin")
+			return &coreutils.ExitError{Code: 2}
+		}
+		if err := p.runInPlace(ctx, script, opts.extended, files, quiet, opts.suffix); err != nil {
+			if ctx.Err() != nil {
+				return ctx.Err()
+			}
+			p.errorf("%v", err)
+			return &coreutils.ExitError{Code: 1, Err: err}
+		}
+		return nil
+	}
+
+	if err := p.run(ctx, cmds, files, quiet, nil); err != nil {
 		if ctx.Err() != nil {
 			return ctx.Err()
 		}
@@ -83,12 +101,20 @@ type scriptPart struct {
 type options struct {
 	quiet    bool
 	extended bool
+	inPlace  bool
+	suffix   string
 	parts    []scriptPart
+}
+
+// longOptions maps the long options of sed to the short ones they stand for.
+var longOptions = map[string]rune{
+	"in-place": 'i',
 }
 
 func parseFlags(args []string) (*options, []string, error) {
 	opts := &options{}
-	operands, err := (getopt.Set{Valued: "ef"}).Parse(args, func(opt rune, value string) error {
+	set := getopt.Set{Valued: "ef", Optional: "i", Long: longOptions}
+	operands, err := set.Parse(expandInPlace(args), func(opt rune, value string) error {
 		switch opt {
 		case 'n':
 			opts.quiet = true
@@ -98,6 +124,8 @@ func parseFlags(args []string) (*options, []string, error) {
 			opts.parts = append(opts.parts, scriptPart{text: value})
 		case 'f':
 			opts.parts = append(opts.parts, scriptPart{file: value, fromFile: true})
+		case 'i':
+			opts.inPlace, opts.suffix = true, value
 		default:
 			return getopt.InvalidOption(opt)
 		}
@@ -107,6 +135,55 @@ func parseFlags(args []string) (*options, []string, error) {
 		return nil, nil, err
 	}
 	return opts, operands, nil
+}
+
+// expandInPlace rewrites the short groups holding an -i option, like
+// "-ni.bak", into the long form the parser understands, since the suffix of
+// -i must be attached to it, as in GNU sed, rather than taken from the next
+// argument. Everything past the first operand is left as it is.
+func expandInPlace(args []string) []string {
+	out := make([]string, 0, len(args))
+	for i := 0; i < len(args); i++ {
+		arg := args[i]
+		if arg == "--" || arg == "-" || !strings.HasPrefix(arg, "-") {
+			return append(out, args[i:]...) // the options ended
+		}
+		if strings.HasPrefix(arg, "--") {
+			out = append(out, arg)
+			continue
+		}
+		expanded, valued := expandShortInPlace(arg)
+		out = append(out, expanded...)
+		if valued {
+			i++ // the next argument is the value of the last option
+			if i < len(args) {
+				out = append(out, args[i])
+			}
+		}
+	}
+	return out
+}
+
+// expandShortInPlace rewrites one short option group, reporting the options
+// it stands for and whether the next argument is the value of its last
+// option. A group holding -i splits there, the rest of it being the suffix.
+func expandShortInPlace(arg string) ([]string, bool) {
+	for j := 1; j < len(arg); j++ {
+		switch arg[j] {
+		case 'i':
+			long := "--in-place"
+			if rest := arg[j+1:]; rest != "" {
+				long += "=" + rest
+			}
+			if j > 1 {
+				return []string{arg[:j], long}, false
+			}
+			return []string{long}, false
+		case 'e', 'f': // a valued option, the rest of the group is its value
+			return []string{arg}, j+1 == len(arg)
+		}
+	}
+	return []string{arg}, false
 }
 
 // assembleScript builds the script of editing commands from the -e and -f

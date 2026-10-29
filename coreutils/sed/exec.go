@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"io/fs"
 	"os"
 	"strings"
 	"unicode"
@@ -157,13 +158,18 @@ func (s *source) close() {
 	s.r = nil
 }
 
-// run executes the script against the input.
-func (p *Prog) run(ctx context.Context, cmds []*command, files []string, quiet bool) error {
+// run executes the script against the input, writing the output to out,
+// or the standard output when it's nil.
+func (p *Prog) run(ctx context.Context, cmds []*command, files []string, quiet bool, out io.Writer) error {
+	if out == nil {
+		out = p.Stdout
+	}
 	r := &runner{
 		p:     p,
 		ctx:   ctx,
 		cmds:  cmds,
 		quiet: quiet,
+		out:   out,
 		src:   p.newSource(ctx, files),
 	}
 	defer r.src.close()
@@ -231,12 +237,91 @@ func (p *Prog) run(ctx context.Context, cmds []*command, files []string, quiet b
 	}
 }
 
+// runInPlace edits each of the given files with the script. A file that
+// fails doesn't keep the ones after it from being edited, and the first
+// error is returned.
+//
+// The script is parsed again for each file, so line numbers, ranges and
+// branches start over for every one of them, as they do for GNU sed, which
+// handles each file like a separate invocation.
+func (p *Prog) runInPlace(ctx context.Context, script string, extended bool, files []string, quiet bool, suffix string) error {
+	var firstErr error
+	for _, name := range files {
+		cmds, err := parseScript(script, extended) // validated above, so it can't fail
+		if err != nil {
+			return err
+		}
+		if err := p.editInPlace(ctx, cmds, name, suffix, quiet); err != nil && firstErr == nil {
+			firstErr = err
+		}
+	}
+	return firstErr
+}
+
+// editInPlace edits the file named name with the script, collecting its
+// output in a temporary file next to it and renaming it over the original
+// when the script is done. When a suffix is given, the original contents
+// first move to the file named name plus the suffix.
+func (p *Prog) editInPlace(ctx context.Context, cmds []*command, name, suffix string, quiet bool) error {
+	if p.FS == nil {
+		return errors.New("no file system available")
+	}
+	tmp, tmpPath, err := p.openTemp(name)
+	if err != nil {
+		return err
+	}
+	err = p.run(ctx, cmds, []string{name}, quiet, tmp)
+	tmp.Close()
+	if err != nil {
+		p.FS.Remove(tmpPath) // the original stays as it was
+		return err
+	}
+
+	path := p.path(name)
+	if fi, err := fs.Stat(p.FS, path); err == nil {
+		if err := p.FS.Chmod(tmpPath, fi.Mode().Perm()); err != nil {
+			p.FS.Remove(tmpPath)
+			return fmt.Errorf("can't set mode of %s: %v", name, patherr.Unwrap(err))
+		}
+	}
+	if suffix != "" {
+		backup := p.path(name + suffix)
+		if err := p.FS.Rename(path, backup); err != nil {
+			p.FS.Remove(tmpPath)
+			return fmt.Errorf("can't create %s: %v", name+suffix, patherr.Unwrap(err))
+		}
+	}
+	if err := p.FS.Rename(tmpPath, path); err != nil {
+		return fmt.Errorf("can't create %s: %v", name, patherr.Unwrap(err))
+	}
+	return nil
+}
+
+// openTemp opens a temporary output file next to the file named name, with
+// the name it got returned as well. The names are tried in sequence until
+// one isn't taken, so the leftovers of a failed run aren't reused.
+func (p *Prog) openTemp(name string) (fsx.File, string, error) {
+	base := p.path(name + ".sedtmp")
+	for i := 1; ; i++ {
+		path := fmt.Sprintf("%s%d", base, i)
+		f, err := p.FS.OpenFile(path, os.O_WRONLY|os.O_CREATE|os.O_EXCL, 0o666&^p.Umask.Perm())
+		switch {
+		case errors.Is(err, fs.ErrExist):
+			continue
+		case err != nil:
+			return nil, "", fmt.Errorf("can't create %s: %v", path, patherr.Unwrap(err))
+		}
+		return f, path, nil
+	}
+}
+
 // runner is the state of a script running against the input.
 type runner struct {
 	p           *Prog
 	ctx         context.Context
 	cmds        []*command
 	quiet       bool
+	out         io.Writer
 	src         *source
 	pattern     string
 	hold        string
@@ -595,9 +680,9 @@ func (r *runner) writeTo(name string, s string) error {
 	return nil
 }
 
-// write writes a line to the standard output.
+// write writes a line to the output of the run.
 func (r *runner) write(s string) error {
-	if _, err := io.WriteString(r.p.Stdout, s); err != nil {
+	if _, err := io.WriteString(r.out, s); err != nil {
 		return fmt.Errorf("write error: %v", err)
 	}
 	return nil
