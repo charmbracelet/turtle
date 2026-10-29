@@ -112,20 +112,26 @@ func runCase(t *testing.T, test testCase) {
 //	fa.txt, fb.txt: repeated keys, for the combinations
 //	phone.txt:      the phone example of the specification
 //	fax.txt:        the fax example of the specification
+//	case1.txt, case2.txt: join fields differing in case, for -i
+//	caserep1.txt, caserep2.txt: repeated join fields differing in case
 var files = fsx.MemFS{
-	"f1.txt":     {Data: []byte("a 1\nb 2\nc 3\n")},
-	"f2.txt":     {Data: []byte("a x\nb y\nd z\n")},
-	"keys1.txt":  {Data: []byte("1 a\n2 b\n")},
-	"keys2.txt":  {Data: []byte("a x\nb y\n")},
-	"blanks.txt": {Data: []byte("  a   1\nb 2\n")},
-	"nonl1.txt":  {Data: []byte("a 1")},
-	"nonl2.txt":  {Data: []byte("a x")},
-	"fa.txt":     {Data: []byte("a x\na y\na z\n")},
-	"fb.txt":     {Data: []byte("a p\n")},
-	"fa2.txt":    {Data: []byte("a b c\na d e\n")},
-	"fb2.txt":    {Data: []byte("a w x\na y z\na o p\n")},
-	"phone.txt":  {Data: []byte("Name\tPhone Number\nDon\t+1 123-456-7890\nHal\t+1 234-567-8901\nYasushi\t+2 345-678-9012\n")},
-	"fax.txt":    {Data: []byte("Name\tFax Number\nDon\t+1 123-456-7899\nKeith\t+1 456-789-0122\nYasushi\t+2 345-678-9011\n")},
+	"f1.txt":       {Data: []byte("a 1\nb 2\nc 3\n")},
+	"f2.txt":       {Data: []byte("a x\nb y\nd z\n")},
+	"keys1.txt":    {Data: []byte("1 a\n2 b\n")},
+	"keys2.txt":    {Data: []byte("a x\nb y\n")},
+	"blanks.txt":   {Data: []byte("  a   1\nb 2\n")},
+	"nonl1.txt":    {Data: []byte("a 1")},
+	"nonl2.txt":    {Data: []byte("a x")},
+	"fa.txt":       {Data: []byte("a x\na y\na z\n")},
+	"fb.txt":       {Data: []byte("a p\n")},
+	"fa2.txt":      {Data: []byte("a b c\na d e\n")},
+	"fb2.txt":      {Data: []byte("a w x\na y z\na o p\n")},
+	"phone.txt":    {Data: []byte("Name\tPhone Number\nDon\t+1 123-456-7890\nHal\t+1 234-567-8901\nYasushi\t+2 345-678-9012\n")},
+	"fax.txt":      {Data: []byte("Name\tFax Number\nDon\t+1 123-456-7899\nKeith\t+1 456-789-0122\nYasushi\t+2 345-678-9011\n")},
+	"case1.txt":    {Data: []byte("A 1\nb 2\nc 3\n")},
+	"case2.txt":    {Data: []byte("a x\nB y\nd z\n")},
+	"caserep1.txt": {Data: []byte("a 1\nA 2\n")},
+	"caserep2.txt": {Data: []byte("A p\nB q\n")},
 }
 
 func TestRunJoin(t *testing.T) {
@@ -223,6 +229,58 @@ func TestRunUnpaired(t *testing.T) {
 	}
 }
 
+func TestRunIgnoreCase(t *testing.T) {
+	tests := []testCase{
+		{
+			name: "join fields differing in case match with -i",
+			args: []string{"-i", "case1.txt", "case2.txt"},
+			want: "A 1 x\nb 2 y\n",
+		},
+		{
+			name: "join fields differing in case match with --ignore-case",
+			args: []string{"--ignore-case", "case1.txt", "case2.txt"},
+			want: "A 1 x\nb 2 y\n",
+		},
+		{
+			name: "join fields differing in case do not match without -i",
+			args: []string{"case1.txt", "case2.txt"},
+			want: "",
+		},
+		{
+			name: "the join field is printed as it is in the input",
+			args: []string{"-i", "-o", "0,1.2,2.2", "case1.txt", "case2.txt"},
+			want: "A 1 x\nb 2 y\n",
+		},
+		{
+			name: "unpaired lines are reported with -i",
+			args: []string{"-i", "-a", "1", "-a", "2", "case1.txt", "case2.txt"},
+			want: "A 1 x\nb 2 y\nc 3\nd z\n",
+		},
+		{
+			name: "keys differing in case form one group",
+			args: []string{"-i", "caserep1.txt", "caserep2.txt"},
+			want: "a 1 p\nA 2 p\n",
+		},
+		{
+			name: "keys differing in case form two groups without -i",
+			args: []string{"caserep1.txt", "caserep2.txt"},
+			want: "",
+		},
+		{
+			name: "case-insensitive join fields beside the first",
+			args: []string{"-i", "-1", "2", "-2", "1", "icasekeys1.txt", "icasekeys2.txt"},
+			want: "A 1 x\nB 2 y\n",
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			test.fsys = withFiles(files)
+			runCase(t, test)
+		})
+	}
+}
+
 func TestRunOutputList(t *testing.T) {
 	tests := []testCase{
 		{
@@ -315,6 +373,12 @@ func TestRunSpecExample(t *testing.T) {
 
 func TestRunErrors(t *testing.T) {
 	tests := []testCase{
+		{
+			name:     "an unrecognized long option",
+			args:     []string{"--wrong", "f1.txt", "f2.txt"},
+			wantErr:  "join: unrecognized option '--wrong'\n",
+			wantExit: 1,
+		},
 		{
 			name:     "an invalid option",
 			args:     []string{"-z", "f1.txt", "f2.txt"},
@@ -542,5 +606,7 @@ func withFiles(base fsx.MemFS, args ...string) fsx.MemFS {
 	fsys["empty2.txt"] = &fsx.MemFile{Data: []byte("\nbar b\n")}
 	fsys["accents1.txt"] = &fsx.MemFile{Data: []byte("aé1\n")}
 	fsys["accents2.txt"] = &fsx.MemFile{Data: []byte("aéx\n")}
+	fsys["icasekeys1.txt"] = &fsx.MemFile{Data: []byte("1 A\n2 B\n")}
+	fsys["icasekeys2.txt"] = &fsx.MemFile{Data: []byte("a x\nb y\n")}
 	return fsys
 }
