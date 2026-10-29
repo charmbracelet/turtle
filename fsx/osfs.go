@@ -82,6 +82,12 @@ func (f *osFS) Lstat(name string) (fs.FileInfo, error) {
 	return os.Lstat(f.resolve(name))
 }
 
+// Sync implements SyncFS. It's a no-op on systems without a global sync,
+// like Windows.
+func (f *osFS) Sync() error {
+	return osSync()
+}
+
 // resolve converts name to an OS path and joins it to the base directory.
 func (f *osFS) resolve(name string) string {
 	name = filepath.FromSlash(name)
@@ -93,5 +99,6 @@ func (f *osFS) resolve(name string) string {
 
 var (
 	_ FS       = (*osFS)(nil)
+	_ SyncFS   = (*osFS)(nil)
 	_ SeekFile = (*os.File)(nil)
 )

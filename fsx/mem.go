@@ -390,6 +390,12 @@ func (m MemFS) Lstat(name string) (fs.FileInfo, error) {
 	return nil, &fs.PathError{Op: "lstat", Path: name, Err: fs.ErrNotExist}
 }
 
+// Sync implements SyncFS. It's a no-op, as the entries hold the data of the
+// files themselves instead of buffering it.
+func (m MemFS) Sync() error {
+	return nil
+}
+
 // checkParent reports whether the parent of name is an existing directory.
 func (m MemFS) checkParent(name string) error {
 	parent := path.Dir(name)
@@ -635,6 +641,15 @@ func (f *memOpenFile) Seek(offset int64, whence int) (int64, error) {
 	}
 	f.offset = int(pos)
 	return pos, nil
+}
+
+// Sync flushes the buffered data of the file. It's a no-op, as writes go
+// straight to the entry.
+func (f *memOpenFile) Sync() error {
+	if f.closed {
+		return f.err("sync", fs.ErrClosed)
+	}
+	return nil
 }
 
 // err returns a path error for an operation on f.

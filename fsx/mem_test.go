@@ -1617,3 +1617,47 @@ func assertFile(t *testing.T, fsys MemFS, name, want string) {
 		t.Errorf("ReadFile(%q) = %q, want %q", name, got, want)
 	}
 }
+
+func TestMemFSSync(t *testing.T) {
+	fsys := MemFS{}
+
+	t.Run("the file system syncs", func(t *testing.T) {
+		if err := fsys.Sync(); err != nil {
+			t.Errorf("Sync() error = %v, want nil", err)
+		}
+	})
+
+	t.Run("an open file syncs", func(t *testing.T) {
+		f, err := fsys.OpenFile("file.txt", os.O_CREATE|os.O_WRONLY, 0o644)
+		if err != nil {
+			t.Fatalf("OpenFile() error = %v", err)
+		}
+		defer f.Close()
+
+		syncer, ok := f.(interface{ Sync() error })
+		if !ok {
+			t.Fatalf("OpenFile() = %T, want a file with a Sync method", f)
+		}
+		if err := syncer.Sync(); err != nil {
+			t.Errorf("Sync() error = %v, want nil", err)
+		}
+	})
+
+	t.Run("a closed file doesn't sync", func(t *testing.T) {
+		f, err := fsys.OpenFile("file.txt", os.O_RDONLY, 0o644)
+		if err != nil {
+			t.Fatalf("OpenFile() error = %v", err)
+		}
+		if err := f.Close(); err != nil {
+			t.Fatalf("Close() error = %v", err)
+		}
+
+		syncer, ok := f.(interface{ Sync() error })
+		if !ok {
+			t.Fatalf("OpenFile() = %T, want a file with a Sync method", f)
+		}
+		if err := syncer.Sync(); !errors.Is(err, fs.ErrClosed) {
+			t.Errorf("Sync() error = %v, want fs.ErrClosed", err)
+		}
+	})
+}
