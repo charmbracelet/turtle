@@ -23,6 +23,7 @@ import (
 	"charm.land/snail/coreutils/internal/getopt"
 	"charm.land/snail/coreutils/internal/input"
 	"charm.land/snail/coreutils/internal/patherr"
+	"charm.land/snail/coreutils/internal/stdopts"
 	"charm.land/snail/coreutils/internal/textutil"
 )
 
@@ -39,6 +40,9 @@ func New(rt *coreutils.Runtime) coreutils.Program {
 // Run joins the lines of the two files with equal join fields, writing the
 // result to the standard output.
 func (p *Prog) Run(ctx context.Context, args ...string) error {
+	if done, err := stdopts.Check(p.Runtime, "join", usage, optSet, args); done {
+		return err
+	}
 	opts, operands, err := parseFlags(args)
 	if err != nil {
 		p.errorf("%v", err)
@@ -360,9 +364,30 @@ var longOptions = map[string]rune{
 	"ignore-case": 'i',
 }
 
+// optSet describes the options of join.
+var optSet = getopt.Set{Valued: "12aeotv", Long: longOptions}
+
+// usage describes the options of join.
+const usage = `Usage: join [OPTION]... FILE1 FILE2
+For each pair of input lines with identical join fields, write them to
+standard output. The default join field is the first, separated by
+blanks. When FILE1 or FILE2 (not both) is -, read standard input.
+
+  -a FILenum             also print unpairable lines from file FILenum
+  -e EMPTY               replace missing input fields with EMPTY
+  -i, --ignore-case      ignore differences in case when comparing fields
+  -1 FIELD               join on this FIELD of file 1
+  -2 FIELD               join on this FIELD of file 2
+  -o FORMAT              obey FORMAT while constructing output line
+  -t CHAR                use CHAR as input and output field separator
+  -v FILenum             like -a FILenum, but suppress joined output lines
+      --help     display this help and exit
+      --version  output version information and exit
+`
+
 func parseFlags(args []string) (options, []string, error) {
 	opts := options{paired: true, key1: 1, key2: 1}
-	operands, err := (getopt.Set{Valued: "12aeotv", Long: longOptions}).Parse(args, func(opt rune, value string) error {
+	operands, err := optSet.Parse(args, func(opt rune, value string) error {
 		switch opt {
 		case '1':
 			key, err := parseField(value)
