@@ -153,6 +153,9 @@ Code style guidelines:
   the GNU layout and describing only what the utility implements. The
   exceptions are `echo`, `printf` and `test`, whose specifications forbid
   options. `false` still exits with status 1 after handling them.
+* Usage errors, like invalid options and missing or extra operands, are
+  followed by the GNU hint on the standard error, written with
+  `stdopts.TryHelp`.
 * Avoid `panic`s. We should return errors instead.
 * Make sure to implement code in smaller functions rather than having a big
   `Run` implementation.
