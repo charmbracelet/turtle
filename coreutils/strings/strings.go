@@ -41,7 +41,8 @@ func (p *Prog) Run(ctx context.Context, args ...string) error {
 		if err := ctx.Err(); err != nil {
 			return err
 		}
-		r, err := input.Open(p.Runtime, ctx, input.New(name))
+		in := input.New(name)
+		r, err := input.Open(p.Runtime, ctx, in)
 		if err != nil {
 			p.errorf("%s: %v", name, patherr.Unwrap(err))
 			return &coreutils.ExitError{Code: 1}
@@ -59,7 +60,7 @@ func (p *Prog) Run(ctx context.Context, args ...string) error {
 			p.errorf("%s: %v", name, patherr.Unwrap(closeErr))
 			return &coreutils.ExitError{Code: 1}
 		}
-		if err := p.writeStrings(data, opts); err != nil {
+		if err := p.writeStrings(data, in.Label(), opts); err != nil {
 			p.errorf("write error: %v", err)
 			return &coreutils.ExitError{Code: 1, Err: err}
 		}
@@ -67,11 +68,16 @@ func (p *Prog) Run(ctx context.Context, args ...string) error {
 	return nil
 }
 
-func (p *Prog) writeStrings(data []byte, opts options) error {
+func (p *Prog) writeStrings(data []byte, label string, opts options) error {
 	var start int
 	var count int
 	flush := func(end int) error {
 		if count >= opts.minLength {
+			if opts.printFileNames {
+				if _, err := fmt.Fprintf(p.Stdout, "%s: ", label); err != nil {
+					return err
+				}
+			}
 			if opts.offset != 0 {
 				if _, err := fmt.Fprintf(p.Stdout, "%s ", formatOffset(uint64(start), opts.offset)); err != nil {
 					return err
@@ -110,21 +116,29 @@ func (p *Prog) errorf(format string, args ...any) {
 }
 
 type options struct {
-	minLength int
-	offset    byte
+	minLength      int
+	offset         byte
+	printFileNames bool
 }
 
 func parseFlags(args []string) (options, []string, error) {
 	opts := options{minLength: 4}
-	operands, err := (getopt.Set{Valued: "nt"}).Parse(args, func(opt rune, value string) error {
+	operands, err := (getopt.Set{
+		Valued: "nt",
+		Long:   map[string]rune{"print-file-name": 'f'},
+	}).Parse(args, func(opt rune, value string) error {
 		switch opt {
 		case 'a':
+		case 'f':
+			opts.printFileNames = true
 		case 'n':
 			n, err := strconv.Atoi(value)
 			if err != nil || n < 1 {
 				return errors.New("invalid minimum string length")
 			}
 			opts.minLength = n
+		case 'o':
+			opts.offset = 'o'
 		case 't':
 			if len(value) != 1 || (value[0] != 'd' && value[0] != 'o' && value[0] != 'x') {
 				return errors.New("invalid format type")
