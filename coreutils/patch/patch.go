@@ -46,10 +46,12 @@ func (p *Prog) Run(ctx context.Context, args ...string) error {
 	opts, operands, err := parseFlags(args)
 	if err != nil {
 		p.errorf("%v", err)
+		stdopts.TryHelp(p.Runtime, "patch")
 		return &coreutils.ExitError{Code: 2}
 	}
 	if len(operands) > 1 {
 		p.errorf("extra operand '%s'", operands[1])
+		stdopts.TryHelp(p.Runtime, "patch")
 		return &coreutils.ExitError{Code: 2}
 	}
 	operand := ""
