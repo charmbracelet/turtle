@@ -40,6 +40,7 @@ func (p *Prog) Run(ctx context.Context, args ...string) error {
 	opts, err := parseFlags(args)
 	if err != nil {
 		p.errorf("%v", err)
+		stdopts.TryHelp(p.Runtime, "nproc")
 		return &coreutils.ExitError{Code: 2}
 	}
 	count := p.count(opts)
