@@ -18,6 +18,7 @@ import (
 	"charm.land/snail/coreutils/internal/getopt"
 	"charm.land/snail/coreutils/internal/input"
 	"charm.land/snail/coreutils/internal/patherr"
+	"charm.land/snail/coreutils/internal/stdopts"
 )
 
 // Prog is the comm core utility.
@@ -36,6 +37,9 @@ func New(rt *coreutils.Runtime) coreutils.Program {
 //
 // Reading is interrupted when ctx is done, and the context error is returned.
 func (p *Prog) Run(ctx context.Context, args ...string) error {
+	if done, err := stdopts.Check(p.Runtime, "comm", usage, optSet, args); done {
+		return err
+	}
 	opts, operands, err := parseFlags(args)
 	if err != nil {
 		p.errorf("%v", err)
@@ -225,6 +229,28 @@ var longOptions = map[string]rune{
 	"zero-terminated":  'z',
 }
 
+// optSet describes the options of comm.
+var optSet = getopt.Set{
+	Valued: string(optOutputDelimiter),
+	Long:   longOptions,
+}
+
+// usage describes the options of comm.
+const usage = `Usage: comm [OPTION]... FILE1 FILE2
+Compare sorted files FILE1 and FILE2 line by line.
+
+When FILE1 or FILE2 (not both) is -, read standard input.
+
+  -1                      suppress column 1 (lines unique to FILE1)
+  -2                      suppress column 2 (lines unique to FILE2)
+  -3                      suppress column 3 (lines that appear in both)
+      --output-delimiter=STR
+                          separate columns with STR
+  -z, --zero-terminated   line delimiter is NUL, not newline
+      --help     display this help and exit
+      --version  output version information and exit
+`
+
 // options holds the parsed command line options. delimiter separates the
 // columns, and an empty --output-delimiter value selects NUL.
 type options struct {
@@ -239,10 +265,7 @@ type options struct {
 // first operand or at "--".
 func parseFlags(args []string) (options, []string, error) {
 	opts := options{delimiter: "\t"}
-	operands, err := getopt.Set{
-		Valued: string(optOutputDelimiter),
-		Long:   longOptions,
-	}.Parse(args, func(opt rune, value string) error {
+	operands, err := optSet.Parse(args, func(opt rune, value string) error {
 		switch opt {
 		case '1':
 			opts.suppress1 = true
