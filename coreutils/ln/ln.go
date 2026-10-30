@@ -25,6 +25,7 @@ import (
 	"charm.land/snail/coreutils"
 	"charm.land/snail/coreutils/internal/getopt"
 	"charm.land/snail/coreutils/internal/patherr"
+	"charm.land/snail/coreutils/internal/stdopts"
 )
 
 // Prog is the ln core utility.
@@ -43,6 +44,9 @@ func New(rt *coreutils.Runtime) coreutils.Program {
 // source is linked into the current directory, and -n keeps a symbolic link
 // destination from being treated as the directory it points to.
 func (p *Prog) Run(ctx context.Context, args ...string) error {
+	if done, err := stdopts.Check(p.Runtime, "ln", usage, optSet, args); done {
+		return err
+	}
 	opts, operands, err := parseFlags(args)
 	if err != nil {
 		p.errorf("%v", err)
@@ -268,11 +272,35 @@ var longOptions = map[string]rune{
 	"verbose":             'v',
 }
 
+// optSet describes the options of ln.
+var optSet = getopt.Set{Valued: "t", Long: longOptions}
+
+// usage describes the options of ln.
+const usage = `Usage: ln [OPTION]... [-T] TARGET LINK_NAME
+  or:  ln [OPTION]... TARGET
+  or:  ln [OPTION]... TARGET... DIRECTORY
+  or:  ln [OPTION]... -t DIRECTORY TARGET...
+Link TARGET to LINK_NAME, or link TARGET(s) to DIRECTORY.
+
+  -f, --force                remove existing destination files
+  -L, --logical              link to the file a symbolic link points to
+  -n, --no-dereference       treat a destination symbolic link to a
+                             directory as if it were a normal file
+  -P, --physical             link to the symbolic link itself
+  -s, --symbolic             make symbolic links instead of hard links
+  -t, --target-directory=DIRECTORY
+                             specify the destination directory
+  -T, --no-target-directory  treat the last operand as a normal file
+  -v, --verbose              print the name of each file after linking it
+      --help     display this help and exit
+      --version  output version information and exit
+`
+
 // parseFlags parses the options and operands. Option parsing stops at the
 // first operand or at "--".
 func parseFlags(args []string) (options, []string, error) {
 	var opts options
-	operands, err := getopt.Set{Valued: "t", Long: longOptions}.Parse(args, func(opt rune, value string) error {
+	operands, err := optSet.Parse(args, func(opt rune, value string) error {
 		switch opt {
 		case 'f':
 			opts.force = true
