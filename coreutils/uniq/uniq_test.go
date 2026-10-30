@@ -334,6 +334,239 @@ func TestRunChars(t *testing.T) {
 	}
 }
 
+func TestRunIgnoreCase(t *testing.T) {
+	tests := []testCase{
+		{
+			name:  "lines differing only in case group together",
+			stdin: strings.NewReader("a\nA\nb\n"),
+			args:  []string{"-i"},
+			want:  "a\nb\n",
+		},
+		{
+			name:  "the case of the written line is the first one",
+			stdin: strings.NewReader("A\na\nA\n"),
+			args:  []string{"-i"},
+			want:  "A\n",
+		},
+		{
+			name:  "non ASCII letters are not folded",
+			stdin: strings.NewReader("á\nÁ\n"),
+			args:  []string{"-i"},
+			want:  "á\nÁ\n",
+		},
+		{
+			name:  "with counts",
+			stdin: strings.NewReader("a\nA\nb\n"),
+			args:  []string{"-i", "-c"},
+			want:  "      2 a\n      1 b\n",
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			runCase(t, test)
+		})
+	}
+}
+
+func TestRunAllRepeated(t *testing.T) {
+	tests := []testCase{
+		{
+			name:  "every line of a repeated group is written",
+			stdin: strings.NewReader("a\na\nb\nb\nb\nc\na\n"),
+			args:  []string{"-D"},
+			want:  "a\na\nb\nb\nb\n",
+		},
+		{
+			name:  "no repeated lines",
+			stdin: strings.NewReader("a\nb\n"),
+			args:  []string{"-D"},
+			want:  "",
+		},
+		{
+			name:  "none delimits nothing",
+			stdin: strings.NewReader("a\na\nb\nb\n"),
+			args:  []string{"--all-repeated=none"},
+			want:  "a\na\nb\nb\n",
+		},
+		{
+			name:  "separate delimits between groups",
+			stdin: strings.NewReader("a\na\nb\nb\n"),
+			args:  []string{"--all-repeated=separate"},
+			want:  "a\na\n\nb\nb\n",
+		},
+		{
+			name:  "separate delimits nothing before the first group",
+			stdin: strings.NewReader("x\na\na\nb\nb\n"),
+			args:  []string{"--all-repeated=separate"},
+			want:  "a\na\n\nb\nb\n",
+		},
+		{
+			name:  "prepend delimits before each group",
+			stdin: strings.NewReader("a\na\nb\nb\n"),
+			args:  []string{"--all-repeated=prepend"},
+			want:  "\na\na\n\nb\nb\n",
+		},
+		{
+			name:  "separate delimits with a NUL byte with z",
+			stdin: strings.NewReader("a\x00a\x00b\x00b\x00"),
+			args:  []string{"-z", "--all-repeated=separate"},
+			want:  "a\x00a\x00\x00b\x00b\x00",
+		},
+		{
+			name:  "a group without a final newline",
+			stdin: strings.NewReader("a\na"),
+			args:  []string{"-D"},
+			want:  "a\na",
+		},
+		{
+			name:  "with a skipped field",
+			stdin: strings.NewReader("1 a\n2 a\n3 b\n"),
+			args:  []string{"-D", "-f", "1"},
+			want:  "1 a\n2 a\n",
+		},
+		{
+			name:  "ignoring case",
+			stdin: strings.NewReader("a\nA\nb\nb\n"),
+			args:  []string{"-D", "-i"},
+			want:  "a\nA\nb\nb\n",
+		},
+		{
+			name:     "an invalid delimit method",
+			stdin:    strings.NewReader("a\na\n"),
+			args:     []string{"--all-repeated=x"},
+			wantErr:  "uniq: invalid argument 'x' for '--all-repeated'\n",
+			wantExit: 2,
+		},
+		{
+			name:     "count is meaningless with all repeated",
+			stdin:    strings.NewReader("a\na\n"),
+			args:     []string{"-c", "-D"},
+			wantErr:  "uniq: printing all duplicated lines and repeat counts is meaningless\n",
+			wantExit: 2,
+		},
+		{
+			name:     "unique is not supported with all repeated",
+			stdin:    strings.NewReader("a\na\n"),
+			args:     []string{"-u", "-D"},
+			wantErr:  "uniq: printing all duplicated and unique lines is not supported\n",
+			wantExit: 2,
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			runCase(t, test)
+		})
+	}
+}
+
+func TestRunCheckChars(t *testing.T) {
+	tests := []testCase{
+		{
+			name:  "only the first characters are compared",
+			stdin: strings.NewReader("apple\napricot\nbanana\n"),
+			args:  []string{"-w", "2"},
+			want:  "apple\nbanana\n",
+		},
+		{
+			name:  "zero characters make every line equal",
+			stdin: strings.NewReader("a\nb\n"),
+			args:  []string{"-w", "0"},
+			want:  "a\n",
+		},
+		{
+			name:  "more characters than the line has",
+			stdin: strings.NewReader("a\nab\n"),
+			args:  []string{"-w", "5"},
+			want:  "a\nab\n",
+		},
+		{
+			name:  "characters are compared after the skipped ones",
+			stdin: strings.NewReader("xxab\nxxac\nxxb\n"),
+			args:  []string{"-s", "2", "-w", "1"},
+			want:  "xxab\nxxb\n",
+		},
+		{
+			name:  "characters are compared after the skipped fields",
+			stdin: strings.NewReader("1 ax\n2 ay\n"),
+			args:  []string{"-f", "1", "-w", "1"},
+			want:  "1 ax\n",
+		},
+		{
+			name:  "characters are characters, not bytes",
+			stdin: strings.NewReader("áa\náb\n"),
+			args:  []string{"-w", "1"},
+			want:  "áa\n",
+		},
+		{
+			name:  "ignoring case",
+			stdin: strings.NewReader("aB\nAb\n"),
+			args:  []string{"-w", "2", "-i"},
+			want:  "aB\n",
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			runCase(t, test)
+		})
+	}
+}
+
+func TestRunZeroTerminated(t *testing.T) {
+	tests := []testCase{
+		{
+			name:  "items are delimited by a NUL byte",
+			stdin: strings.NewReader("a\x00a\x00b\x00"),
+			args:  []string{"-z"},
+			want:  "a\x00b\x00",
+		},
+		{
+			name:  "an item without a final NUL is kept as is",
+			stdin: strings.NewReader("a\x00a"),
+			args:  []string{"-z"},
+			want:  "a\x00",
+		},
+		{
+			name:  "newlines are part of the items",
+			stdin: strings.NewReader("a\nb\x00a\nb\x00"),
+			args:  []string{"-z"},
+			want:  "a\nb\x00",
+		},
+		{
+			name:  "counts are written before the items",
+			stdin: strings.NewReader("a\x00a\x00b\x00"),
+			args:  []string{"-z", "-c"},
+			want:  "      2 a\x00      1 b\x00",
+		},
+		{
+			name:  "only repeated items",
+			stdin: strings.NewReader("a\x00a\x00b\x00"),
+			args:  []string{"-z", "-d"},
+			want:  "a\x00",
+		},
+		{
+			name:  "a newline separates fields",
+			stdin: strings.NewReader("a\nx\x00b\nx\x00"),
+			args:  []string{"-z", "-f", "1"},
+			want:  "a\nx\x00",
+		},
+		{
+			name:  "an empty standard input",
+			stdin: strings.NewReader(""),
+			args:  []string{"-z"},
+			want:  "",
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			runCase(t, test)
+		})
+	}
+}
+
 func TestRunOperands(t *testing.T) {
 	tests := []testCase{
 		{
@@ -461,6 +694,24 @@ func TestRunOptions(t *testing.T) {
 			wantErr:  "uniq: invalid number of characters: 'x'\n",
 			wantExit: 2,
 		},
+		{
+			name:     "missing count of characters to compare argument",
+			args:     []string{"-w"},
+			wantErr:  "uniq: option requires an argument -- 'w'\n",
+			wantExit: 2,
+		},
+		{
+			name:     "a non numeric count of characters to compare",
+			args:     []string{"-w", "x"},
+			wantErr:  "uniq: invalid number of characters to compare: 'x'\n",
+			wantExit: 2,
+		},
+		{
+			name:     "a negative count of characters to compare",
+			args:     []string{"-w", "-1"},
+			wantErr:  "uniq: invalid number of characters to compare: '-1'\n",
+			wantExit: 2,
+		},
 	}
 
 	for _, test := range tests {
@@ -501,6 +752,30 @@ func TestRunLongOptions(t *testing.T) {
 			fsys: testFS(),
 			args: []string{"--skip-chars=1", "utf8.txt"},
 			want: "áx\náy\n",
+		},
+		{
+			name:  "ignore-case",
+			stdin: strings.NewReader("a\nA\n"),
+			args:  []string{"--ignore-case"},
+			want:  "a\n",
+		},
+		{
+			name:  "all-repeated",
+			stdin: strings.NewReader("a\na\nb\n"),
+			args:  []string{"--all-repeated"},
+			want:  "a\na\n",
+		},
+		{
+			name:  "check-chars with an attached value",
+			stdin: strings.NewReader("ab\nac\n"),
+			args:  []string{"--check-chars=1"},
+			want:  "ab\n",
+		},
+		{
+			name:  "zero-terminated",
+			stdin: strings.NewReader("a\x00a\x00"),
+			args:  []string{"--zero-terminated"},
+			want:  "a\x00",
 		},
 	}
 
