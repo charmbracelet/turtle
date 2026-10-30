@@ -72,6 +72,9 @@ func (p *Prog) Run(ctx context.Context, args ...string) error {
 	opts, operands, err := parseFlags(args)
 	if err != nil {
 		p.errorf("%v", err)
+		if p.Stderr != nil {
+			stdopts.TryHelp(p.Runtime, "xargs")
+		}
 		return &coreutils.ExitError{Code: 2}
 	}
 	if p.Exec == nil {
