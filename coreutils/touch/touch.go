@@ -41,10 +41,12 @@ func (p *Prog) Run(ctx context.Context, args ...string) error {
 	opts, files, err := parseFlags(args)
 	if err != nil {
 		p.errorf("%v", err)
+		stdopts.TryHelp(p.Runtime, "touch")
 		return &coreutils.ExitError{Code: 2}
 	}
 	if len(files) == 0 {
 		p.errorf("missing file operand")
+		stdopts.TryHelp(p.Runtime, "touch")
 		return &coreutils.ExitError{Code: 2}
 	}
 	if p.FS == nil {
