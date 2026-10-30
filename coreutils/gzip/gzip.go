@@ -13,6 +13,7 @@ import (
 
 	"charm.land/snail/coreutils"
 	"charm.land/snail/coreutils/internal/getopt"
+	"charm.land/snail/coreutils/internal/stdopts"
 	"charm.land/snail/coreutils/internal/zcore"
 )
 
@@ -70,6 +71,9 @@ func newProg(rt *coreutils.Runtime, name string, defaults func(*zcore.Options)) 
 // It returns a [*coreutils.ExitError] when an operand failed or was skipped,
 // and the context error when ctx is done.
 func (p *Prog) Run(ctx context.Context, args ...string) error {
+	if done, err := stdopts.Check(p.Runtime, p.base.Prog, Usage(p.base.Prog), optSet, args); done {
+		return err
+	}
 	set, err := parseFlags(append(envOptions(p.Getenv("GZIP")), args...), p.base)
 	if err != nil {
 		fmt.Fprintf(p.Stderr, "%s: %v\n", p.base.Prog, err)
@@ -77,10 +81,11 @@ func (p *Prog) Run(ctx context.Context, args ...string) error {
 	}
 	switch {
 	case set.help:
-		fmt.Fprint(p.Stdout, usage(p.base.Prog))
+		fmt.Fprint(p.Stdout, Usage(p.base.Prog))
 		return nil
 	case set.version:
-		fmt.Fprintf(p.Stdout, "%s (charm.land/snail/coreutils)\n", p.base.Prog)
+		fmt.Fprintf(p.Stdout, "%s (charm.land/snail/coreutils) %s\nhttps://charm.land/snail\n",
+			p.base.Prog, coreutils.Version)
 		return nil
 	}
 	return zcore.Run(ctx, p.Runtime, set.Options, set.operands)
@@ -117,11 +122,14 @@ var longOptions = map[string]rune{
 	"version":    'V',
 }
 
+// optSet describes the options of the utility.
+var optSet = getopt.Set{Valued: "S", Long: longOptions}
+
 // parseFlags parses args on top of the base options of the program. Option
 // parsing stops at the first operand or at "--".
 func parseFlags(args []string, base zcore.Options) (settings, error) {
 	set := settings{Options: base}
-	operands, err := getopt.Set{Valued: "S", Long: longOptions}.Parse(args, func(opt rune, value string) error {
+	operands, err := optSet.Parse(args, func(opt rune, value string) error {
 		switch opt {
 		case 'c', 'd', 'f', 'k', 'N', 'n', 'q', 'r', 't', 'v':
 			set.apply(opt)
@@ -178,9 +186,10 @@ func envOptions(value string) []string {
 	return strings.Fields(value)
 }
 
-// usage describes the options of the utility.
-func usage(prog string) string {
+// Usage describes the options of the utility, as the given program.
+func Usage(prog string) string {
 	return `Usage: ` + prog + ` [-cdfhknNqrStv] [-0..-9] [-S suffix] [file ...]
+Compress or expand files (Lempel-Ziv coding LZ77).
 
   -1..-9    compression level: -1 (fast) to -9 (best), -0 for none
   -c, --stdout

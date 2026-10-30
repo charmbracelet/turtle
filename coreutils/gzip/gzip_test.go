@@ -933,6 +933,64 @@ func TestGzipInfo(t *testing.T) {
 	})
 }
 
+func TestHelpVersion(t *testing.T) {
+	for _, test := range []struct {
+		name string
+		new  coreutils.NewFunc
+	}{
+		{"gzip", New},
+		{"gunzip", Gunzip},
+		{"zcat", Zcat},
+		{"gzcat", Gzcat},
+	} {
+		t.Run(test.name+" --help", func(t *testing.T) {
+			res, _ := run(t, test.new, testFS(), nil, nil, "--help")
+
+			if res.exit != 0 {
+				t.Fatalf("exit = %d, want 0 (%s)", res.exit, res.stderr)
+			}
+			if got := res.stdout; got != Usage(test.name) {
+				t.Errorf("stdout = %q, want %q", got, Usage(test.name))
+			}
+		})
+
+		t.Run(test.name+" --version", func(t *testing.T) {
+			res, _ := run(t, test.new, testFS(), nil, nil, "--version")
+
+			if res.exit != 0 {
+				t.Fatalf("exit = %d, want 0 (%s)", res.exit, res.stderr)
+			}
+			want := test.name + " (charm.land/snail/coreutils) " + coreutils.Version + "\nhttps://charm.land/snail\n"
+			if got := res.stdout; got != want {
+				t.Errorf("stdout = %q, want %q", got, want)
+			}
+		})
+
+		t.Run(test.name+" -V", func(t *testing.T) {
+			res, _ := run(t, test.new, testFS(), nil, nil, "-V")
+
+			if res.exit != 0 {
+				t.Fatalf("exit = %d, want 0 (%s)", res.exit, res.stderr)
+			}
+			want := test.name + " (charm.land/snail/coreutils) " + coreutils.Version + "\nhttps://charm.land/snail\n"
+			if got := res.stdout; got != want {
+				t.Errorf("stdout = %q, want %q", got, want)
+			}
+		})
+	}
+
+	t.Run("gzip -h", func(t *testing.T) {
+		res, _ := run(t, New, testFS(), nil, nil, "-h")
+
+		if res.exit != 0 {
+			t.Fatalf("exit = %d, want 0 (%s)", res.exit, res.stderr)
+		}
+		if got := res.stdout; got != Usage("gzip") {
+			t.Errorf("stdout = %q, want %q", got, Usage("gzip"))
+		}
+	})
+}
+
 func TestGzipEnv(t *testing.T) {
 	t.Run("GZIP holds options", func(t *testing.T) {
 		fsys := fsx.MemFS{"a.txt.gz": gzFile(t, "alpha\n")}
