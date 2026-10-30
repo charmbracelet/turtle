@@ -22,7 +22,8 @@ func Parse(s string, base time.Time, loc *time.Location) (time.Time, error) {
 	cur := base.In(loc)
 	toks := tokenize(s)
 	if len(toks) == 0 {
-		return time.Time{}, fmt.Errorf("invalid date format %q", s)
+		// The empty string is the beginning of today.
+		return midnight(cur), nil
 	}
 	var err error
 	timeSeen := false
@@ -192,6 +193,11 @@ func parseKeyword(tok string, cur time.Time, timeSeen bool) (time.Time, bool) {
 	return time.Time{}, false
 }
 
+// midnight truncates cur to the start of its day.
+func midnight(cur time.Time) time.Time {
+	return time.Date(cur.Year(), cur.Month(), cur.Day(), 0, 0, 0, 0, cur.Location())
+}
+
 // shiftDay moves cur by n days, zeroing the time of day unless one was
 // given.
 func shiftDay(cur time.Time, n int, timeSeen bool) time.Time {
@@ -226,6 +232,9 @@ func parseEpoch(tok string) (time.Time, bool) {
 	n, err := strconv.ParseInt(frac, 10, 64)
 	if err != nil {
 		return time.Time{}, false
+	}
+	if strings.HasPrefix(sec, "-") {
+		n = -n
 	}
 	return time.Unix(s, n), true
 }
