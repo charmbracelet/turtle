@@ -13,6 +13,7 @@ import (
 
 	"charm.land/snail/coreutils"
 	"charm.land/snail/coreutils/internal/getopt"
+	"charm.land/snail/coreutils/internal/stdopts"
 )
 
 // Prog is the yes core utility.
@@ -30,24 +31,15 @@ func New(rt *coreutils.Runtime) coreutils.Program {
 // With no operands, it writes "y". A lone --help or --version is handled
 // before any output, and a failing write makes it exit with status 1.
 func (p *Prog) Run(ctx context.Context, args ...string) error {
-	set, err := parseFlags(args)
+	if done, err := stdopts.Check(p.Runtime, "yes", usage, getopt.Set{}, args); done {
+		return err
+	}
+	operands, err := parseFlags(args)
 	if err != nil {
 		fmt.Fprintf(p.Stderr, "yes: %v\n", err)
 		return &coreutils.ExitError{Code: 1, Err: err}
 	}
-	switch {
-	case set.help:
-		if _, err := fmt.Fprint(p.Stdout, usage); err != nil {
-			return &coreutils.ExitError{Code: 1, Err: err}
-		}
-	case set.version:
-		if _, err := fmt.Fprint(p.Stdout, "yes (charm.land/snail/coreutils)\n"); err != nil {
-			return &coreutils.ExitError{Code: 1, Err: err}
-		}
-	default:
-		return p.repeat(ctx, line(set.operands))
-	}
-	return nil
+	return p.repeat(ctx, line(operands))
 }
 
 // repeat writes line to the standard output until it fails or ctx is done,
@@ -72,45 +64,16 @@ func line(operands []string) string {
 	return strings.Join(operands, " ") + "\n"
 }
 
-// The long options of yes map to runes above the range a single-byte short
-// option can reach, so --help and --version stay long-only.
-const (
-	optHelp = 0x100 + iota
-	optVersion
-)
-
-var longOptions = map[string]rune{
-	"help":    optHelp,
-	"version": optVersion,
-}
-
-// settings holds what a run of yes selects.
-type settings struct {
-	operands []string
-	help     bool
-	version  bool
-}
-
-// parseFlags parses the options and operands. Only --help and --version are
-// options, and parsing stops at the first operand or at "--".
-func parseFlags(args []string) (settings, error) {
-	var set settings
-	operands, err := getopt.Set{Long: longOptions}.Parse(args, func(opt rune, _ string) error {
-		switch opt {
-		case optHelp:
-			set.help = true
-		case optVersion:
-			set.version = true
-		default:
-			return getopt.InvalidOption(opt)
-		}
-		return nil
+// parseFlags parses the operands. Only the standard options exist, and
+// parsing stops at the first operand or at "--".
+func parseFlags(args []string) ([]string, error) {
+	operands, err := getopt.Set{}.Parse(args, func(opt rune, _ string) error {
+		return getopt.InvalidOption(opt)
 	})
 	if err != nil {
-		return settings{}, err
+		return nil, err
 	}
-	set.operands = operands
-	return set, nil
+	return operands, nil
 }
 
 // usage describes the options of yes.
