@@ -203,6 +203,30 @@ func TestRunDelimiters(t *testing.T) {
 			want: `a1\b1` + "\n" + `a2\b2` + "\n" + `a3\` + "\n",
 		},
 		{
+			name: "the backspace escape",
+			fsys: testFS(),
+			args: []string{"-d", `\b`, "a.txt", "b.txt"},
+			want: "a1\bb1\na2\bb2\na3\b\n",
+		},
+		{
+			name: "the form feed escape",
+			fsys: testFS(),
+			args: []string{"-d", `\f`, "a.txt", "b.txt"},
+			want: "a1\fb1\na2\fb2\na3\f\n",
+		},
+		{
+			name: "the carriage return escape",
+			fsys: testFS(),
+			args: []string{"-d", `\r`, "a.txt", "b.txt"},
+			want: "a1\rb1\na2\rb2\na3\r\n",
+		},
+		{
+			name: "the vertical tab escape",
+			fsys: testFS(),
+			args: []string{"-d", `\v`, "a.txt", "b.txt"},
+			want: "a1\vb1\na2\vb2\na3\v\n",
+		},
+		{
 			name: "the empty string escape",
 			fsys: testFS(),
 			args: []string{"-d", `\0`, "a.txt", "b.txt"},
@@ -290,6 +314,92 @@ func TestRunSerial(t *testing.T) {
 			fsys: testFS(),
 			args: []string{"-s", "-d", `\0`, "a.txt"},
 			want: "a1a2a3\n",
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			runCase(t, test)
+		})
+	}
+}
+
+func TestRunZeroTerminated(t *testing.T) {
+	tests := []testCase{
+		{
+			name: "a single file is copied item by item",
+			fsys: fsx.MemFS{"n.txt": {Data: []byte("n1\x00n2\x00")}},
+			args: []string{"-z", "n.txt"},
+			want: "n1\x00n2\x00",
+		},
+		{
+			name: "two files of the same length",
+			fsys: fsx.MemFS{
+				"x.txt": {Data: []byte("x1\x00x2\x00")},
+				"y.txt": {Data: []byte("y1\x00y2\x00")},
+			},
+			args: []string{"-z", "x.txt", "y.txt"},
+			want: "x1\ty1\x00x2\ty2\x00",
+		},
+		{
+			name: "an exhausted file contributes empty items",
+			fsys: fsx.MemFS{
+				"x.txt": {Data: []byte("x1\x00x2\x00")},
+				"y.txt": {Data: []byte("y1\x00")},
+			},
+			args: []string{"-z", "x.txt", "y.txt"},
+			want: "x1\ty1\x00x2\t\x00",
+		},
+		{
+			name: "a missing final NUL is added",
+			fsys: fsx.MemFS{"n.txt": {Data: []byte("n1\x00n2")}},
+			args: []string{"-z", "n.txt"},
+			want: "n1\x00n2\x00",
+		},
+		{
+			name: "newlines are kept inside items",
+			fsys: fsx.MemFS{"n.txt": {Data: []byte("n1\nn2\x00n3\x00")}},
+			args: []string{"-z", "n.txt"},
+			want: "n1\nn2\x00n3\x00",
+		},
+		{
+			name: "a custom delimiter",
+			fsys: fsx.MemFS{
+				"x.txt": {Data: []byte("x1\x00x2\x00")},
+				"y.txt": {Data: []byte("y1\x00")},
+			},
+			args: []string{"-z", "-d", ",", "x.txt", "y.txt"},
+			want: "x1,y1\x00x2,\x00",
+		},
+		{
+			name: "serial mode",
+			fsys: fsx.MemFS{"n.txt": {Data: []byte("n1\x00n2\x00n3\x00")}},
+			args: []string{"-s", "-z", "n.txt"},
+			want: "n1\tn2\tn3\x00",
+		},
+		{
+			name: "serial mode with a missing final NUL",
+			fsys: fsx.MemFS{"n.txt": {Data: []byte("n1\x00n2")}},
+			args: []string{"-s", "-z", "n.txt"},
+			want: "n1\tn2\x00",
+		},
+		{
+			name:  "the standard input",
+			stdin: strings.NewReader("s1\x00s2\x00"),
+			args:  []string{"-z", "-"},
+			want:  "s1\x00s2\x00",
+		},
+		{
+			name:  "the standard input is shared circularly by dashes",
+			stdin: strings.NewReader("1\x002\x003\x004\x00"),
+			args:  []string{"-z", "-", "-"},
+			want:  "1\t2\x003\t4\x00",
+		},
+		{
+			name: "an empty file produces no output",
+			fsys: fsx.MemFS{"n.txt": {Data: []byte("")}},
+			args: []string{"-z", "n.txt"},
+			want: "",
 		},
 	}
 
@@ -400,6 +510,20 @@ func TestRunErrors(t *testing.T) {
 			wantExit: 1,
 		},
 		{
+			name:     "a delimiter list ending with a backslash",
+			fsys:     testFS(),
+			args:     []string{"-d", `\`, "a.txt"},
+			wantErr:  "paste: delimiter list ends with an unescaped backslash: '\\'\n",
+			wantExit: 1,
+		},
+		{
+			name:     "a delimiter list ending with a backslash after a character",
+			fsys:     testFS(),
+			args:     []string{"-d", `a\`, "a.txt"},
+			wantErr:  "paste: delimiter list ends with an unescaped backslash: 'a\\'\n",
+			wantExit: 1,
+		},
+		{
 			name:     "missing operand",
 			wantErr:  "paste: missing operand\n",
 			wantExit: 2,
@@ -450,6 +574,12 @@ func TestRunLongOptions(t *testing.T) {
 			fsys: testFS(),
 			args: []string{"--serial", "a.txt"},
 			want: "a1\ta2\ta3\n",
+		},
+		{
+			name: "zero-terminated",
+			fsys: fsx.MemFS{"n.txt": {Data: []byte("n1\x00n2\x00")}},
+			args: []string{"--zero-terminated", "n.txt"},
+			want: "n1\x00n2\x00",
 		},
 	}
 
