@@ -226,25 +226,25 @@ func TestRun(t *testing.T) {
 		{
 			name:     "the -r option without an argument",
 			args:     []string{"-r"},
-			wantErr:  "date: option requires an argument -- 'r'\n",
+			wantErr:  "date: option requires an argument -- 'r'\nTry 'date --help' for more information.\n",
 			wantExit: 1,
 		},
 		{
 			name:     "an invalid option",
 			args:     []string{"-x"},
-			wantErr:  "date: invalid option -- 'x'\n",
+			wantErr:  "date: invalid option -- 'x'\nTry 'date --help' for more information.\n",
 			wantExit: 1,
 		},
 		{
 			name:     "an unrecognized long option",
 			args:     []string{"--bogus"},
-			wantErr:  "date: unrecognized option '--bogus'\n",
+			wantErr:  "date: unrecognized option '--bogus'\nTry 'date --help' for more information.\n",
 			wantExit: 1,
 		},
 		{
 			name:     "an extra operand",
 			args:     []string{"+%Y", "extra"},
-			wantErr:  "date: extra operand 'extra'\n",
+			wantErr:  "date: extra operand 'extra'\nTry 'date --help' for more information.\n",
 			wantExit: 1,
 		},
 	}
@@ -666,34 +666,34 @@ func TestRunDateOption(t *testing.T) {
 		{
 			name:     "the -d option without an argument",
 			args:     []string{"-d"},
-			wantErr:  "date: option requires an argument -- 'd'\n",
+			wantErr:  "date: option requires an argument -- 'd'\nTry 'date --help' for more information.\n",
 			wantExit: 1,
 		},
 		{
 			name:     "a settime operand with -d",
 			args:     []string{"-d", "2020-01-01", "07101230"},
-			wantErr:  "date: the argument '07101230' lacks a leading '+'; when using an option to specify date(s), any non-option argument must be a format string beginning with '+'\n",
+			wantErr:  "date: the argument '07101230' lacks a leading '+'; when using an option to specify date(s), any non-option argument must be a format string beginning with '+'\nTry 'date --help' for more information.\n",
 			wantExit: 1,
 		},
 		{
 			name:     "-d with -r",
 			args:     []string{"-d", "2020-01-01", "-r", "ref.txt"},
 			fsys:     fsx.MemFS{"ref.txt": {Data: []byte("x"), ModTime: refTime}},
-			wantErr:  "date: the options to specify dates for printing are mutually exclusive\n",
+			wantErr:  "date: the options to specify dates for printing are mutually exclusive\nTry 'date --help' for more information.\n",
 			wantExit: 1,
 		},
 		{
 			name:     "-d with -f",
 			args:     []string{"-d", "2020-01-01", "-f", "dates.txt"},
 			fsys:     fsx.MemFS{"dates.txt": {Data: []byte("2020-01-01\n")}},
-			wantErr:  "date: the options to specify dates for printing are mutually exclusive\n",
+			wantErr:  "date: the options to specify dates for printing are mutually exclusive\nTry 'date --help' for more information.\n",
 			wantExit: 1,
 		},
 		{
 			name:     "-r with -f",
 			args:     []string{"-r", "ref.txt", "-f", "dates.txt"},
 			fsys:     fsx.MemFS{"ref.txt": {Data: []byte("x"), ModTime: refTime}, "dates.txt": {Data: []byte("2020-01-01\n")}},
-			wantErr:  "date: the options to specify dates for printing are mutually exclusive\n",
+			wantErr:  "date: the options to specify dates for printing are mutually exclusive\nTry 'date --help' for more information.\n",
 			wantExit: 1,
 		},
 	}
@@ -773,7 +773,7 @@ func TestRunFileOption(t *testing.T) {
 		{
 			name:     "the -f option without an argument",
 			args:     []string{"-f"},
-			wantErr:  "date: option requires an argument -- 'f'\n",
+			wantErr:  "date: option requires an argument -- 'f'\nTry 'date --help' for more information.\n",
 			wantExit: 1,
 		},
 	}
@@ -851,13 +851,13 @@ func TestRunISO8601(t *testing.T) {
 		{
 			name:     "with a format operand",
 			args:     []string{"-I", "+%Y"},
-			wantErr:  "date: multiple output formats specified\n",
+			wantErr:  "date: multiple output formats specified\nTry 'date --help' for more information.\n",
 			wantExit: 1,
 		},
 		{
 			name:     "an invalid timespec",
 			args:     []string{"-Ibogus"},
-			wantErr:  "date: invalid argument 'bogus' for '--iso-8601'\n",
+			wantErr:  "date: invalid argument 'bogus' for '--iso-8601'\nTry 'date --help' for more information.\n",
 			wantExit: 1,
 		},
 	}
@@ -947,19 +947,19 @@ func TestRunRfc3339(t *testing.T) {
 		{
 			name:     "an invalid timespec",
 			args:     []string{"--rfc-3339=bogus"},
-			wantErr:  "date: invalid argument 'bogus' for '--rfc-3339'\n",
+			wantErr:  "date: invalid argument 'bogus' for '--rfc-3339'\nTry 'date --help' for more information.\n",
 			wantExit: 1,
 		},
 		{
 			name:     "without an argument",
 			args:     []string{"--rfc-3339"},
-			wantErr:  "date: option '--rfc-3339' requires an argument\n",
+			wantErr:  "date: option '--rfc-3339' requires an argument\nTry 'date --help' for more information.\n",
 			wantExit: 1,
 		},
 		{
 			name:     "with a format operand",
 			args:     []string{"--rfc-3339=date", "+%Y"},
-			wantErr:  "date: multiple output formats specified\n",
+			wantErr:  "date: multiple output formats specified\nTry 'date --help' for more information.\n",
 			wantExit: 1,
 		},
 	}

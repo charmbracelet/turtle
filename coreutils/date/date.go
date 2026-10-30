@@ -58,6 +58,7 @@ func (p *Prog) Run(ctx context.Context, args ...string) error {
 	opts, operands, err := parseFlags(args)
 	if err != nil {
 		p.errorf("%v", err)
+		stdopts.TryHelp(p.Runtime, "date")
 		return &coreutils.ExitError{Code: 1}
 	}
 	specified := 0
@@ -68,10 +69,12 @@ func (p *Prog) Run(ctx context.Context, args ...string) error {
 	}
 	if specified > 1 {
 		p.errorf("the options to specify dates for printing are mutually exclusive")
+		stdopts.TryHelp(p.Runtime, "date")
 		return &coreutils.ExitError{Code: 1}
 	}
 	if len(operands) > 1 {
 		p.errorf("extra operand '%s'", operands[1])
+		stdopts.TryHelp(p.Runtime, "date")
 		return &coreutils.ExitError{Code: 1}
 	}
 
@@ -88,12 +91,14 @@ func (p *Prog) Run(ctx context.Context, args ...string) error {
 		case strings.HasPrefix(operand, "+"):
 			if formatSet {
 				p.errorf("multiple output formats specified")
+				stdopts.TryHelp(p.Runtime, "date")
 				return &coreutils.ExitError{Code: 1}
 			}
 			format = operand[1:]
 			formatSet = true
 		case specified > 0:
 			p.errorf("the argument '%s' lacks a leading '+'; when using an option to specify date(s), any non-option argument must be a format string beginning with '+'", operand)
+			stdopts.TryHelp(p.Runtime, "date")
 			return &coreutils.ExitError{Code: 1}
 		default:
 			return p.setClock(operand, loc)
