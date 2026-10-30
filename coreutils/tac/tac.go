@@ -26,6 +26,7 @@ import (
 	"charm.land/snail/coreutils/internal/getopt"
 	"charm.land/snail/coreutils/internal/input"
 	"charm.land/snail/coreutils/internal/patherr"
+	"charm.land/snail/coreutils/internal/stdopts"
 )
 
 // Prog is the tac core utility.
@@ -46,6 +47,9 @@ func New(rt *coreutils.Runtime) coreutils.Program {
 // Reading and writing are interrupted when ctx is done, and the context
 // error is returned.
 func (p *Prog) Run(ctx context.Context, args ...string) error {
+	if done, err := stdopts.Check(p.Runtime, "tac", usage, optSet, args); done {
+		return err
+	}
 	opts, operands, err := parseFlags(args)
 	if err != nil {
 		p.errorf("%v", err)
@@ -122,9 +126,26 @@ var longOptions = map[string]rune{
 	"separator": 's',
 }
 
+// optSet describes the options of tac.
+var optSet = getopt.Set{Valued: "s", Long: longOptions}
+
+// usage describes the options of tac.
+const usage = `Usage: tac [OPTION]... [FILE]...
+Concatenate and write files in reverse, last record first.
+
+With no FILE, or when FILE is -, read standard input.
+
+  -b, --before             attach the separator to the record it precedes
+  -r, --regex              treat the separator as a regular expression
+  -s, --separator=STRING   use STRING as the record separator; empty means
+                             a zero byte
+      --help     display this help and exit
+      --version  output version information and exit
+`
+
 func parseFlags(args []string) (options, []string, error) {
 	var opts options
-	operands, err := getopt.Set{Valued: "s", Long: longOptions}.Parse(args, func(opt rune, value string) error {
+	operands, err := optSet.Parse(args, func(opt rune, value string) error {
 		switch opt {
 		case 'b':
 			opts.before = true
