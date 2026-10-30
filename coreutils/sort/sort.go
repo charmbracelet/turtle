@@ -50,10 +50,12 @@ func (p *Prog) Run(ctx context.Context, args ...string) error {
 	opts, operands, err := parseFlags(args)
 	if err != nil {
 		p.errorf("%v", err)
+		stdopts.TryHelp(p.Runtime, "sort")
 		return &coreutils.ExitError{Code: 2}
 	}
 	if opts.check != 0 && len(operands) > 1 {
 		p.errorf("extra operand '%s' not allowed with -c", operands[1])
+		stdopts.TryHelp(p.Runtime, "sort")
 		return &coreutils.ExitError{Code: 2}
 	}
 
