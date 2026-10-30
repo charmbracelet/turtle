@@ -48,15 +48,18 @@ func (p *Prog) Run(ctx context.Context, args ...string) error {
 	opts, operands, err := parseFlags(args)
 	if err != nil {
 		p.errorf("%v", err)
+		stdopts.TryHelp(p.Runtime, "tr")
 		return &coreutils.ExitError{Code: 1}
 	}
 	if err := checkOperands(opts, operands); err != nil {
 		p.errorf("%v", err)
+		stdopts.TryHelp(p.Runtime, "tr")
 		return &coreutils.ExitError{Code: 1}
 	}
 	t, err := newTranslator(opts, operands)
 	if err != nil {
 		p.errorf("%v", err)
+		stdopts.TryHelp(p.Runtime, "tr")
 		return &coreutils.ExitError{Code: 1}
 	}
 	if p.Stdin == nil {
