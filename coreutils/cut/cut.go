@@ -23,6 +23,7 @@ import (
 	"charm.land/snail/coreutils/internal/getopt"
 	"charm.land/snail/coreutils/internal/input"
 	"charm.land/snail/coreutils/internal/patherr"
+	"charm.land/snail/coreutils/internal/stdopts"
 )
 
 // Prog is the cut core utility.
@@ -41,6 +42,9 @@ func New(rt *coreutils.Runtime) coreutils.Program {
 //
 // Reading is interrupted when ctx is done, and the context error is returned.
 func (p *Prog) Run(ctx context.Context, args ...string) error {
+	if done, err := stdopts.Check(p.Runtime, "cut", usage, optSet, args); done {
+		return err
+	}
 	opts, operands, err := parseFlags(args)
 	if err != nil {
 		p.errorf("%v", err)
@@ -185,6 +189,32 @@ var longOptions = map[string]rune{
 // has no short form.
 const complementOpt rune = 0x100
 
+// optSet describes the options of cut.
+var optSet = getopt.Set{Valued: "bcdfO", Long: longOptions}
+
+// usage describes the options of cut.
+const usage = `Usage: cut OPTION... [FILE]...
+Print selected parts of lines from each FILE to standard output.
+
+With no FILE, or when FILE is -, read standard input.
+
+  -b, --bytes=LIST        select only these bytes
+  -c, --characters=LIST   select only these characters
+  -d, --delimiter=DELIM   use DELIM instead of TAB for field delimiter
+  -f, --fields=LIST       select only these fields;  also print any line
+                            that contains no delimiter character, unless
+                            the -s option is specified
+  -n                      with -b, do not split multi-byte characters
+      --complement        complement the set of selected bytes, characters
+                            or fields
+  -s, --only-delimited    do not print lines not containing delimiters
+  -O, --output-delimiter=STRING
+                            use STRING as the output delimiter
+  -z, --zero-terminated   line delimiter is NUL, not newline
+      --help     display this help and exit
+      --version  output version information and exit
+`
+
 // parseFlags parses the options and operands, checking that exactly one list
 // option is given and that the other options combine with it. Option parsing
 // stops at the first operand or at "--".
@@ -197,7 +227,7 @@ func parseFlags(args []string) (options, []string, error) {
 		nSet        bool
 		sSet        bool
 	)
-	operands, err := getopt.Set{Valued: "bcdfO", Long: longOptions}.Parse(args, func(opt rune, value string) error {
+	operands, err := optSet.Parse(args, func(opt rune, value string) error {
 		switch opt {
 		case 'b', 'c', 'f':
 			if listSeen != 0 && listSeen != opt {
