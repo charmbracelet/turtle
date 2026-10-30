@@ -451,55 +451,55 @@ func TestRunOptions(t *testing.T) {
 		{
 			name:     "invalid option",
 			args:     []string{"-x"},
-			wantErr:  "expand: invalid option -- 'x'\n",
+			wantErr:  "expand: invalid option -- 'x'\nTry 'expand --help' for more information.\n",
 			wantExit: 2,
 		},
 		{
 			name:     "unknown long option",
 			args:     []string{"--foo"},
-			wantErr:  "expand: unrecognized option '--foo'\n",
+			wantErr:  "expand: unrecognized option '--foo'\nTry 'expand --help' for more information.\n",
 			wantExit: 2,
 		},
 		{
 			name:     "missing tab list argument",
 			args:     []string{"-t"},
-			wantErr:  "expand: option requires an argument -- 't'\n",
+			wantErr:  "expand: option requires an argument -- 't'\nTry 'expand --help' for more information.\n",
 			wantExit: 2,
 		},
 		{
 			name:     "zero distance",
 			args:     []string{"-t", "0"},
-			wantErr:  "expand: invalid tab stop: '0'\n",
+			wantErr:  "expand: invalid tab stop: '0'\nTry 'expand --help' for more information.\n",
 			wantExit: 2,
 		},
 		{
 			name:     "a negative stop",
 			args:     []string{"-t", "-4"},
-			wantErr:  "expand: invalid tab stop: '-4'\n",
+			wantErr:  "expand: invalid tab stop: '-4'\nTry 'expand --help' for more information.\n",
 			wantExit: 2,
 		},
 		{
 			name:     "a non numeric stop",
 			args:     []string{"-t", "x"},
-			wantErr:  "expand: invalid tab stop: 'x'\n",
+			wantErr:  "expand: invalid tab stop: 'x'\nTry 'expand --help' for more information.\n",
 			wantExit: 2,
 		},
 		{
 			name:     "not ascending stops",
 			args:     []string{"-t", "8,4"},
-			wantErr:  "expand: tab sizes must be ascending\n",
+			wantErr:  "expand: tab sizes must be ascending\nTry 'expand --help' for more information.\n",
 			wantExit: 2,
 		},
 		{
 			name:     "repeated stops",
 			args:     []string{"-t", "4,4"},
-			wantErr:  "expand: tab sizes must be ascending\n",
+			wantErr:  "expand: tab sizes must be ascending\nTry 'expand --help' for more information.\n",
 			wantExit: 2,
 		},
 		{
 			name:     "an empty tab list",
 			args:     []string{"-t", ""},
-			wantErr:  "expand: empty tab list\n",
+			wantErr:  "expand: empty tab list\nTry 'expand --help' for more information.\n",
 			wantExit: 2,
 		},
 	}
@@ -540,7 +540,7 @@ func TestRunLongOptions(t *testing.T) {
 		{
 			name:     "initial with an attached value",
 			args:     []string{"--initial=1"},
-			wantErr:  "expand: option '--initial=1' doesn't allow an argument\n",
+			wantErr:  "expand: option '--initial=1' doesn't allow an argument\nTry 'expand --help' for more information.\n",
 			wantExit: 2,
 		},
 	}
