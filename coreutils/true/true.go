@@ -5,6 +5,8 @@ import (
 	"context"
 
 	"charm.land/snail/coreutils"
+	"charm.land/snail/coreutils/internal/getopt"
+	"charm.land/snail/coreutils/internal/stdopts"
 )
 
 // Prog is the true core utility.
@@ -17,8 +19,22 @@ func New(rt *coreutils.Runtime) coreutils.Program {
 	return &Prog{Runtime: rt}
 }
 
-// Run always returns a zero exit status.
-func (p *Prog) Run(_ context.Context, _ ...string) error {
+// usage describes the options of true.
+const usage = `Usage: true [ignored command line arguments]
+  or:  true OPTION
+Exit with a status code indicating success.
+
+      --help
+         display this help and exit
+      --version
+         output version information and exit
+`
+
+// Run returns a zero exit status, after handling the common options.
+func (p *Prog) Run(_ context.Context, args ...string) error {
+	if done, err := stdopts.Check(p.Runtime, "true", usage, getopt.Set{}, args); done {
+		return err
+	}
 	return nil
 }
 

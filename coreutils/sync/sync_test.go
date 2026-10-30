@@ -123,21 +123,21 @@ func TestRun(t *testing.T) {
 				name:     "an invalid option is an error",
 				files:    fsx.MemFS{},
 				args:     []string{"-x"},
-				wantErr:  "sync: invalid option -- 'x'\n",
+				wantErr:  "sync: invalid option -- 'x'\nTry 'sync --help' for more information.\n",
 				wantExit: 2,
 			},
 			{
 				name:     "an unrecognized long option is an error",
 				files:    fsx.MemFS{},
 				args:     []string{"--nope"},
-				wantErr:  "sync: unrecognized option '--nope'\n",
+				wantErr:  "sync: unrecognized option '--nope'\nTry 'sync --help' for more information.\n",
 				wantExit: 2,
 			},
 			{
 				name:     "a long option with an argument is an error",
 				files:    fsx.MemFS{},
 				args:     []string{"--data=1"},
-				wantErr:  "sync: option '--data=1' doesn't allow an argument\n",
+				wantErr:  "sync: option '--data=1' doesn't allow an argument\nTry 'sync --help' for more information.\n",
 				wantExit: 2,
 			},
 		}
@@ -179,21 +179,21 @@ func TestRun(t *testing.T) {
 				name:     "both -d and -f are an error",
 				files:    fsx.MemFS{"a.txt": {Data: []byte("a")}},
 				args:     []string{"-d", "-f", "a.txt"},
-				wantErr:  "sync: cannot specify both --data and --file-system\n",
+				wantErr:  "sync: cannot specify both --data and --file-system\nTry 'sync --help' for more information.\n",
 				wantExit: 1,
 			},
 			{
 				name:     "both --data and --file-system are an error",
 				files:    fsx.MemFS{},
 				args:     []string{"--data", "--file-system"},
-				wantErr:  "sync: cannot specify both --data and --file-system\n",
+				wantErr:  "sync: cannot specify both --data and --file-system\nTry 'sync --help' for more information.\n",
 				wantExit: 1,
 			},
 			{
 				name:     "--data without operands is an error",
 				files:    fsx.MemFS{},
 				args:     []string{"--data"},
-				wantErr:  "sync: --data needs at least one argument\n",
+				wantErr:  "sync: --data needs at least one argument\nTry 'sync --help' for more information.\n",
 				wantExit: 1,
 			},
 		}
@@ -277,4 +277,29 @@ func TestRunContext(t *testing.T) {
 	if err := New(rt).Run(ctx, "a.txt"); !errors.Is(err, context.Canceled) {
 		t.Errorf("Run() error = %v, want context.Canceled", err)
 	}
+}
+
+func TestHelpVersion(t *testing.T) {
+	t.Run("help", func(t *testing.T) {
+		stdout := new(bytes.Buffer)
+		rt := &coreutils.Runtime{Stdout: stdout, Stderr: new(bytes.Buffer)}
+		if err := New(rt).Run(t.Context(), "--help"); err != nil {
+			t.Fatalf("Run() error = %v, want nil (exit status 0)", err)
+		}
+		if got, want := stdout.String(), usage; got != want {
+			t.Errorf("Run() stdout = %q, want %q", got, want)
+		}
+	})
+
+	t.Run("version", func(t *testing.T) {
+		stdout := new(bytes.Buffer)
+		rt := &coreutils.Runtime{Stdout: stdout, Stderr: new(bytes.Buffer)}
+		if err := New(rt).Run(t.Context(), "--version"); err != nil {
+			t.Fatalf("Run() error = %v, want nil (exit status 0)", err)
+		}
+		want := "sync (charm.land/snail/coreutils) " + coreutils.Version + "\nhttps://charm.land/snail\n"
+		if got := stdout.String(); got != want {
+			t.Errorf("Run() stdout = %q, want %q", got, want)
+		}
+	})
 }

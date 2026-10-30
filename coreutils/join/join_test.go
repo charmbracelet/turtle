@@ -376,121 +376,121 @@ func TestRunErrors(t *testing.T) {
 		{
 			name:     "an unrecognized long option",
 			args:     []string{"--wrong", "f1.txt", "f2.txt"},
-			wantErr:  "join: unrecognized option '--wrong'\n",
+			wantErr:  "join: unrecognized option '--wrong'\nTry 'join --help' for more information.\n",
 			wantExit: 1,
 		},
 		{
 			name:     "an invalid option",
 			args:     []string{"-z", "f1.txt", "f2.txt"},
-			wantErr:  "join: invalid option -- 'z'\n",
+			wantErr:  "join: invalid option -- 'z'\nTry 'join --help' for more information.\n",
 			wantExit: 1,
 		},
 		{
 			name:     "no operands",
 			args:     []string{},
-			wantErr:  "join: missing operand\n",
+			wantErr:  "join: missing operand\nTry 'join --help' for more information.\n",
 			wantExit: 1,
 		},
 		{
 			name:     "a missing file2",
 			args:     []string{"f1.txt"},
-			wantErr:  "join: missing operand after \"f1.txt\"\n",
+			wantErr:  "join: missing operand after \"f1.txt\"\nTry 'join --help' for more information.\n",
 			wantExit: 1,
 		},
 		{
 			name:     "an extra operand",
 			args:     []string{"f1.txt", "f2.txt", "f2.txt"},
-			wantErr:  "join: extra operand \"f2.txt\"\n",
+			wantErr:  "join: extra operand \"f2.txt\"\nTry 'join --help' for more information.\n",
 			wantExit: 1,
 		},
 		{
 			name:     "both files are the standard input",
 			args:     []string{"-", "-"},
-			wantErr:  "join: both files are the standard input\n",
+			wantErr:  "join: both files are the standard input\nTry 'join --help' for more information.\n",
 			wantExit: 1,
 		},
 		{
 			name:     "an invalid file number",
 			args:     []string{"-a", "3", "f1.txt", "f2.txt"},
-			wantErr:  "join: invalid file number \"3\"\n",
+			wantErr:  "join: invalid file number \"3\"\nTry 'join --help' for more information.\n",
 			wantExit: 1,
 		},
 		{
 			name:     "an invalid field number",
 			args:     []string{"-1", "0", "f1.txt", "f2.txt"},
-			wantErr:  "join: invalid field number \"0\"\n",
+			wantErr:  "join: invalid field number \"0\"\nTry 'join --help' for more information.\n",
 			wantExit: 1,
 		},
 		{
 			name:     "a signed field number",
 			args:     []string{"-1", "+1", "f1.txt", "f2.txt"},
-			wantErr:  "join: invalid field number \"+1\"\n",
+			wantErr:  "join: invalid field number \"+1\"\nTry 'join --help' for more information.\n",
 			wantExit: 1,
 		},
 		{
 			name:     "an invalid file number in a list",
 			args:     []string{"-o", "3.1", "f1.txt", "f2.txt"},
-			wantErr:  "join: invalid file number in \"3.1\"\n",
+			wantErr:  "join: invalid file number in \"3.1\"\nTry 'join --help' for more information.\n",
 			wantExit: 1,
 		},
 		{
 			name:     "a signed file number in a list",
 			args:     []string{"-o", "+1.2", "f1.txt", "f2.txt"},
-			wantErr:  "join: invalid file number in \"+1.2\"\n",
+			wantErr:  "join: invalid file number in \"+1.2\"\nTry 'join --help' for more information.\n",
 			wantExit: 1,
 		},
 		{
 			name:     "a signed field number in a list",
 			args:     []string{"-o", "1.+2", "f1.txt", "f2.txt"},
-			wantErr:  "join: invalid field number in \"1.+2\"\n",
+			wantErr:  "join: invalid field number in \"1.+2\"\nTry 'join --help' for more information.\n",
 			wantExit: 1,
 		},
 		{
 			name:     "an invalid field number in a list",
 			args:     []string{"-o", "1.0", "f1.txt", "f2.txt"},
-			wantErr:  "join: invalid field number in \"1.0\"\n",
+			wantErr:  "join: invalid field number in \"1.0\"\nTry 'join --help' for more information.\n",
 			wantExit: 1,
 		},
 		{
 			name:     "an invalid field specifier",
 			args:     []string{"-o", "x", "f1.txt", "f2.txt"},
-			wantErr:  "join: invalid field specifier \"x\"\n",
+			wantErr:  "join: invalid field specifier \"x\"\nTry 'join --help' for more information.\n",
 			wantExit: 1,
 		},
 		{
 			name:     "an empty list",
 			args:     []string{"-o", ",", "f1.txt", "f2.txt"},
-			wantErr:  "join: empty field list\n",
+			wantErr:  "join: empty field list\nTry 'join --help' for more information.\n",
 			wantExit: 1,
 		},
 		{
 			name:     "an empty element in a list",
 			args:     []string{"-o", "0,,1.2", "f1.txt", "f2.txt"},
-			wantErr:  "join: empty field specifier\n",
+			wantErr:  "join: empty field specifier\nTry 'join --help' for more information.\n",
 			wantExit: 1,
 		},
 		{
 			name:     "a trailing comma in a list",
 			args:     []string{"-o", "0,", "f1.txt", "f2.txt"},
-			wantErr:  "join: empty field specifier\n",
+			wantErr:  "join: empty field specifier\nTry 'join --help' for more information.\n",
 			wantExit: 1,
 		},
 		{
 			name:     "whitespace other than blanks in a list",
 			args:     []string{"-o", "0,1.2\n", "f1.txt", "f2.txt"},
-			wantErr:  "join: invalid field number in \"1.2\\n\"\n",
+			wantErr:  "join: invalid field number in \"1.2\\n\"\nTry 'join --help' for more information.\n",
 			wantExit: 1,
 		},
 		{
 			name:     "an empty separator",
 			args:     []string{"-t", "", "f1.txt", "f2.txt"},
-			wantErr:  "join: empty separator\n",
+			wantErr:  "join: empty separator\nTry 'join --help' for more information.\n",
 			wantExit: 1,
 		},
 		{
 			name:     "a separator which is not a single character",
 			args:     []string{"-t", "::", "f1.txt", "f2.txt"},
-			wantErr:  "join: separator \"::\" is not a single character\n",
+			wantErr:  "join: separator \"::\" is not a single character\nTry 'join --help' for more information.\n",
 			wantExit: 1,
 		},
 		{
@@ -609,4 +609,29 @@ func withFiles(base fsx.MemFS, args ...string) fsx.MemFS {
 	fsys["icasekeys1.txt"] = &fsx.MemFile{Data: []byte("1 A\n2 B\n")}
 	fsys["icasekeys2.txt"] = &fsx.MemFile{Data: []byte("a x\nb y\n")}
 	return fsys
+}
+
+func TestHelpVersion(t *testing.T) {
+	t.Run("help", func(t *testing.T) {
+		stdout := new(bytes.Buffer)
+		rt := &coreutils.Runtime{Stdout: stdout, Stderr: new(bytes.Buffer)}
+		if err := New(rt).Run(t.Context(), "--help"); err != nil {
+			t.Fatalf("Run() error = %v, want nil (exit status 0)", err)
+		}
+		if got, want := stdout.String(), usage; got != want {
+			t.Errorf("Run() stdout = %q, want %q", got, want)
+		}
+	})
+
+	t.Run("version", func(t *testing.T) {
+		stdout := new(bytes.Buffer)
+		rt := &coreutils.Runtime{Stdout: stdout, Stderr: new(bytes.Buffer)}
+		if err := New(rt).Run(t.Context(), "--version"); err != nil {
+			t.Fatalf("Run() error = %v, want nil (exit status 0)", err)
+		}
+		want := "join (charm.land/snail/coreutils) " + coreutils.Version + "\nhttps://charm.land/snail\n"
+		if got := stdout.String(); got != want {
+			t.Errorf("Run() stdout = %q, want %q", got, want)
+		}
+	})
 }

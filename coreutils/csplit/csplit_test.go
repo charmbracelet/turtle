@@ -428,21 +428,21 @@ func TestRunSuffixFormat(t *testing.T) {
 			name:     "a percent literal alone is not a conversion",
 			fsys:     fsx.MemFS{"f": {Data: []byte("a\nb\n")}},
 			args:     []string{"-b", "%%d", "f", "2"},
-			wantErr:  "csplit: '%%d': % conversion missing\n",
+			wantErr:  "csplit: '%%d': % conversion missing\nTry 'csplit --help' for more information.\n",
 			wantExit: 1,
 		},
 		{
 			name:     "two conversions are rejected",
 			fsys:     fsx.MemFS{"f": {Data: []byte("a\nb\n")}},
 			args:     []string{"-b", "%d%d", "f", "2"},
-			wantErr:  "csplit: '%d%d': too many % conversions\n",
+			wantErr:  "csplit: '%d%d': too many % conversions\nTry 'csplit --help' for more information.\n",
 			wantExit: 1,
 		},
 		{
 			name:     "an invalid verb is rejected",
 			fsys:     fsx.MemFS{"f": {Data: []byte("a\nb\n")}},
 			args:     []string{"-b", "%s", "f", "2"},
-			wantErr:  "csplit: '%s': invalid conversion specifier %s\n",
+			wantErr:  "csplit: '%s': invalid conversion specifier %s\nTry 'csplit --help' for more information.\n",
 			wantExit: 1,
 		},
 	}
@@ -538,26 +538,26 @@ func TestRunErrors(t *testing.T) {
 		{
 			name:     "missing operand",
 			args:     nil,
-			wantErr:  "csplit: missing operand\n",
+			wantErr:  "csplit: missing operand\nTry 'csplit --help' for more information.\n",
 			wantExit: 1,
 		},
 		{
 			name:     "missing pattern",
 			args:     []string{"f"},
 			fsys:     fsx.MemFS{"f": {Data: []byte("a\n")}},
-			wantErr:  "csplit: missing operand after 'f'\n",
+			wantErr:  "csplit: missing operand after 'f'\nTry 'csplit --help' for more information.\n",
 			wantExit: 1,
 		},
 		{
 			name:     "unknown option",
 			args:     []string{"-y", "f", "1"},
-			wantErr:  "csplit: invalid option -- 'y'\n",
+			wantErr:  "csplit: invalid option -- 'y'\nTry 'csplit --help' for more information.\n",
 			wantExit: 1,
 		},
 		{
 			name:     "invalid digit count",
 			args:     []string{"-n", "x", "f", "1"},
-			wantErr:  "csplit: invalid number: 'x'\n",
+			wantErr:  "csplit: invalid number: 'x'\nTry 'csplit --help' for more information.\n",
 			wantExit: 1,
 		},
 		{
@@ -762,4 +762,29 @@ func names(prefix string, from, to int) []string {
 		out = append(out, fmt.Sprintf("%s%d", prefix, i))
 	}
 	return out
+}
+
+func TestHelpVersion(t *testing.T) {
+	t.Run("help", func(t *testing.T) {
+		stdout := new(bytes.Buffer)
+		rt := &coreutils.Runtime{Stdout: stdout, Stderr: new(bytes.Buffer)}
+		if err := New(rt).Run(t.Context(), "--help"); err != nil {
+			t.Fatalf("Run() error = %v, want nil (exit status 0)", err)
+		}
+		if got, want := stdout.String(), usage; got != want {
+			t.Errorf("Run() stdout = %q, want %q", got, want)
+		}
+	})
+
+	t.Run("version", func(t *testing.T) {
+		stdout := new(bytes.Buffer)
+		rt := &coreutils.Runtime{Stdout: stdout, Stderr: new(bytes.Buffer)}
+		if err := New(rt).Run(t.Context(), "--version"); err != nil {
+			t.Fatalf("Run() error = %v, want nil (exit status 0)", err)
+		}
+		want := "csplit (charm.land/snail/coreutils) " + coreutils.Version + "\nhttps://charm.land/snail\n"
+		if got := stdout.String(); got != want {
+			t.Errorf("Run() stdout = %q, want %q", got, want)
+		}
+	})
 }

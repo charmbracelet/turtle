@@ -15,6 +15,7 @@ import (
 	"charm.land/snail/coreutils/internal/getopt"
 	"charm.land/snail/coreutils/internal/input"
 	"charm.land/snail/coreutils/internal/patherr"
+	"charm.land/snail/coreutils/internal/stdopts"
 )
 
 // Prog is the strings core utility.
@@ -29,9 +30,13 @@ func New(rt *coreutils.Runtime) coreutils.Program {
 
 // Run writes printable strings found in the input files.
 func (p *Prog) Run(ctx context.Context, args ...string) error {
+	if done, err := stdopts.Check(p.Runtime, "strings", usage, optSet, args); done {
+		return err
+	}
 	opts, operands, err := parseFlags(args)
 	if err != nil {
 		p.errorf("%v", err)
+		stdopts.TryHelp(p.Runtime, "strings")
 		return &coreutils.ExitError{Code: 1}
 	}
 	if len(operands) == 0 {
@@ -121,12 +126,37 @@ type options struct {
 	printFileNames bool
 }
 
+// optSet describes the options of strings.
+var optSet = getopt.Set{
+	Valued: "nt",
+	Long:   map[string]rune{"print-file-name": 'f'},
+}
+
+// usage describes the options of strings.
+const usage = `Usage: strings [OPTION]... [FILE]...
+Print the sequences of printable characters of at least 4 bytes each found
+in the given files, or the standard input when no file is given.
+
+  -a
+         scan the whole file, not only the loaded data segments
+  -f, --print-file-name
+         print the file name before each string
+  -n MIN
+         print strings of at least MIN bytes (default 4)
+  -o
+         print the offsets in octal, like -t o
+  -t RADIX
+         print the offsets in the given radix: d (decimal), o (octal) or
+         x (hexadecimal)
+      --help
+         display this help and exit
+      --version
+         output version information and exit
+`
+
 func parseFlags(args []string) (options, []string, error) {
 	opts := options{minLength: 4}
-	operands, err := (getopt.Set{
-		Valued: "nt",
-		Long:   map[string]rune{"print-file-name": 'f'},
-	}).Parse(args, func(opt rune, value string) error {
+	operands, err := optSet.Parse(args, func(opt rune, value string) error {
 		switch opt {
 		case 'a':
 		case 'f':

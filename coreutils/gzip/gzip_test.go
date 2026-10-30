@@ -338,11 +338,11 @@ func TestGzipUsage(t *testing.T) {
 		args    []string
 		wantErr string
 	}{
-		{"an unknown option", []string{"-Z", "a.txt"}, "gzip: invalid option -- 'Z'\n"},
-		{"an unknown long option", []string{"--zest", "a.txt"}, "gzip: unrecognized option '--zest'\n"},
-		{"a long option with a value it doesn't take", []string{"--force=yes"}, "gzip: option '--force=yes' doesn't allow an argument\n"},
-		{"-S without an argument", []string{"-S"}, "gzip: option requires an argument -- 'S'\n"},
-		{"--suffix without an argument", []string{"--suffix"}, "gzip: option '--suffix' requires an argument\n"},
+		{"an unknown option", []string{"-Z", "a.txt"}, "gzip: invalid option -- 'Z'\nTry 'gzip --help' for more information.\n"},
+		{"an unknown long option", []string{"--zest", "a.txt"}, "gzip: unrecognized option '--zest'\nTry 'gzip --help' for more information.\n"},
+		{"a long option with a value it doesn't take", []string{"--force=yes"}, "gzip: option '--force=yes' doesn't allow an argument\nTry 'gzip --help' for more information.\n"},
+		{"-S without an argument", []string{"-S"}, "gzip: option requires an argument -- 'S'\nTry 'gzip --help' for more information.\n"},
+		{"--suffix without an argument", []string{"--suffix"}, "gzip: option '--suffix' requires an argument\nTry 'gzip --help' for more information.\n"},
 	}
 
 	for _, test := range tests {
@@ -930,6 +930,64 @@ func TestGzipInfo(t *testing.T) {
 			t.Errorf("exit = %d, want 0", res.exit)
 		}
 		wantData(t, fsys, map[string]string{"a.txt": "alpha\n"})
+	})
+}
+
+func TestHelpVersion(t *testing.T) {
+	for _, test := range []struct {
+		name string
+		new  coreutils.NewFunc
+	}{
+		{"gzip", New},
+		{"gunzip", Gunzip},
+		{"zcat", Zcat},
+		{"gzcat", Gzcat},
+	} {
+		t.Run(test.name+" --help", func(t *testing.T) {
+			res, _ := run(t, test.new, testFS(), nil, nil, "--help")
+
+			if res.exit != 0 {
+				t.Fatalf("exit = %d, want 0 (%s)", res.exit, res.stderr)
+			}
+			if got := res.stdout; got != Usage(test.name) {
+				t.Errorf("stdout = %q, want %q", got, Usage(test.name))
+			}
+		})
+
+		t.Run(test.name+" --version", func(t *testing.T) {
+			res, _ := run(t, test.new, testFS(), nil, nil, "--version")
+
+			if res.exit != 0 {
+				t.Fatalf("exit = %d, want 0 (%s)", res.exit, res.stderr)
+			}
+			want := test.name + " (charm.land/snail/coreutils) " + coreutils.Version + "\nhttps://charm.land/snail\n"
+			if got := res.stdout; got != want {
+				t.Errorf("stdout = %q, want %q", got, want)
+			}
+		})
+
+		t.Run(test.name+" -V", func(t *testing.T) {
+			res, _ := run(t, test.new, testFS(), nil, nil, "-V")
+
+			if res.exit != 0 {
+				t.Fatalf("exit = %d, want 0 (%s)", res.exit, res.stderr)
+			}
+			want := test.name + " (charm.land/snail/coreutils) " + coreutils.Version + "\nhttps://charm.land/snail\n"
+			if got := res.stdout; got != want {
+				t.Errorf("stdout = %q, want %q", got, want)
+			}
+		})
+	}
+
+	t.Run("gzip -h", func(t *testing.T) {
+		res, _ := run(t, New, testFS(), nil, nil, "-h")
+
+		if res.exit != 0 {
+			t.Fatalf("exit = %d, want 0 (%s)", res.exit, res.stderr)
+		}
+		if got := res.stdout; got != Usage("gzip") {
+			t.Errorf("stdout = %q, want %q", got, Usage("gzip"))
+		}
 	})
 }
 

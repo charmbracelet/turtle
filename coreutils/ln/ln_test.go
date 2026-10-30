@@ -383,7 +383,7 @@ func TestRunNoTargetDirectory(t *testing.T) {
 			name:     "more than two operands is a usage error",
 			files:    fsx.MemFS{"a.txt": {}, "b.txt": {}, "c.txt": {}},
 			args:     []string{"-T", "a.txt", "b.txt", "c.txt"},
-			wantErr:  "ln: extra operand 'c.txt'\n",
+			wantErr:  "ln: extra operand 'c.txt'\nTry 'ln --help' for more information.\n",
 			wantExit: 2,
 		},
 		{
@@ -392,7 +392,7 @@ func TestRunNoTargetDirectory(t *testing.T) {
 			args:     []string{"-t", "d", "-T", "a.txt", "b.txt"},
 			present:  []string{"d/keep.txt"},
 			absent:   []string{"b.txt", "d/a.txt"},
-			wantErr:  "ln: cannot combine --target-directory and --no-target-directory\n",
+			wantErr:  "ln: cannot combine --target-directory and --no-target-directory\nTry 'ln --help' for more information.\n",
 			wantExit: 2,
 		},
 	}
@@ -527,7 +527,7 @@ func TestRunTargetDirectory(t *testing.T) {
 			files:    fsx.MemFS{"d/keep.txt": {}},
 			args:     []string{"-t", "d"},
 			present:  []string{"d/keep.txt"},
-			wantErr:  "ln: missing file operand\n",
+			wantErr:  "ln: missing file operand\nTry 'ln --help' for more information.\n",
 			wantExit: 2,
 		},
 		{
@@ -536,7 +536,7 @@ func TestRunTargetDirectory(t *testing.T) {
 			args:     []string{"-t", "d", "-t", "d2", "a.txt"},
 			present:  []string{"d/keep.txt", "d2/keep.txt"},
 			absent:   []string{"d/a.txt", "d2/a.txt"},
-			wantErr:  "ln: multiple target directories specified\n",
+			wantErr:  "ln: multiple target directories specified\nTry 'ln --help' for more information.\n",
 			wantExit: 2,
 		},
 	}
@@ -847,14 +847,14 @@ func TestRunErrors(t *testing.T) {
 		{
 			name:     "missing file operand",
 			args:     []string{},
-			wantErr:  "ln: missing file operand\n",
+			wantErr:  "ln: missing file operand\nTry 'ln --help' for more information.\n",
 			wantExit: 2,
 		},
 		{
 			name:     "missing destination operand",
 			files:    fsx.MemFS{"a.txt": {Data: []byte("x")}},
 			args:     []string{"-T", "a.txt"},
-			wantErr:  "ln: missing destination file operand after 'a.txt'\n",
+			wantErr:  "ln: missing destination file operand after 'a.txt'\nTry 'ln --help' for more information.\n",
 			wantExit: 2,
 		},
 		{
@@ -862,7 +862,7 @@ func TestRunErrors(t *testing.T) {
 			files:    fsx.MemFS{"a.txt": {Data: []byte("x")}},
 			args:     []string{"-x", "a.txt", "b.txt"},
 			absent:   []string{"b.txt"},
-			wantErr:  "ln: invalid option -- 'x'\n",
+			wantErr:  "ln: invalid option -- 'x'\nTry 'ln --help' for more information.\n",
 			wantExit: 2,
 		},
 		{
@@ -870,7 +870,7 @@ func TestRunErrors(t *testing.T) {
 			files:    fsx.MemFS{"a.txt": {Data: []byte("x")}},
 			args:     []string{"--bogus", "a.txt", "b.txt"},
 			absent:   []string{"b.txt"},
-			wantErr:  "ln: unrecognized option '--bogus'\n",
+			wantErr:  "ln: unrecognized option '--bogus'\nTry 'ln --help' for more information.\n",
 			wantExit: 2,
 		},
 		{
@@ -920,13 +920,13 @@ func TestRunErrors(t *testing.T) {
 			args:     []string{"-t", "d", "-t", "e", "a.txt"},
 			present:  []string{"d/keep.txt", "e/keep.txt"},
 			absent:   []string{"d/a.txt", "e/a.txt"},
-			wantErr:  "ln: multiple target directories specified\n",
+			wantErr:  "ln: multiple target directories specified\nTry 'ln --help' for more information.\n",
 			wantExit: 2,
 		},
 		{
 			name:     "a valued -t needs an argument",
 			args:     []string{"-t"},
-			wantErr:  "ln: option requires an argument -- 't'\n",
+			wantErr:  "ln: option requires an argument -- 't'\nTry 'ln --help' for more information.\n",
 			wantExit: 2,
 		},
 	}
@@ -983,4 +983,29 @@ func TestRunContext(t *testing.T) {
 	if !errors.Is(err, context.Canceled) {
 		t.Errorf("Run() error = %v, want context.Canceled", err)
 	}
+}
+
+func TestHelpVersion(t *testing.T) {
+	t.Run("help", func(t *testing.T) {
+		stdout := new(bytes.Buffer)
+		rt := &coreutils.Runtime{Stdout: stdout, Stderr: new(bytes.Buffer)}
+		if err := New(rt).Run(t.Context(), "--help"); err != nil {
+			t.Fatalf("Run() error = %v, want nil (exit status 0)", err)
+		}
+		if got, want := stdout.String(), usage; got != want {
+			t.Errorf("Run() stdout = %q, want %q", got, want)
+		}
+	})
+
+	t.Run("version", func(t *testing.T) {
+		stdout := new(bytes.Buffer)
+		rt := &coreutils.Runtime{Stdout: stdout, Stderr: new(bytes.Buffer)}
+		if err := New(rt).Run(t.Context(), "--version"); err != nil {
+			t.Fatalf("Run() error = %v, want nil (exit status 0)", err)
+		}
+		want := "ln (charm.land/snail/coreutils) " + coreutils.Version + "\nhttps://charm.land/snail\n"
+		if got := stdout.String(); got != want {
+			t.Errorf("Run() stdout = %q, want %q", got, want)
+		}
+	})
 }

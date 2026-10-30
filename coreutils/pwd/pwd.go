@@ -11,6 +11,7 @@ import (
 
 	"charm.land/snail/coreutils"
 	"charm.land/snail/coreutils/internal/getopt"
+	"charm.land/snail/coreutils/internal/stdopts"
 )
 
 // Prog is the pwd core utility.
@@ -26,8 +27,13 @@ func New(rt *coreutils.Runtime) coreutils.Program {
 // Run writes the absolute pathname of the current working directory to
 // standard output.
 func (p *Prog) Run(_ context.Context, args ...string) error {
+	if done, err := stdopts.Check(p.Runtime, "pwd", usage, optSet, args); done {
+		return err
+	}
 	physical, err := parseFlags(args)
 	if err != nil {
+		p.errorf("%v", err)
+		stdopts.TryHelp(p.Runtime, "pwd")
 		return &coreutils.ExitError{Code: 2, Err: err}
 	}
 	dir, err := p.dir(physical)
@@ -46,10 +52,32 @@ var longOptions = map[string]rune{
 	"physical": 'P',
 }
 
+// optSet describes the options of pwd.
+var optSet = getopt.Set{Long: longOptions}
+
+// usage describes the options of pwd.
+const usage = `Usage: pwd [OPTION]...
+Print the full filename of the current working directory.
+
+  -L, --logical
+         use PWD from environment, even if it contains symlinks
+  -P, --physical
+         avoid all symlinks
+      --help
+         display this help and exit
+      --version
+         output version information and exit
+`
+
+// errorf writes a diagnostic message to the standard error.
+func (p *Prog) errorf(format string, args ...any) {
+	fmt.Fprintf(p.Stderr, "pwd: "+format+"\n", args...)
+}
+
 // parseFlags parses the -L and -P options. The last one to appear wins, and -L
 // is assumed when neither is given. Operands are not accepted.
 func parseFlags(args []string) (physical bool, err error) {
-	operands, err := getopt.Set{Long: longOptions}.Parse(args, func(opt rune, _ string) error {
+	operands, err := optSet.Parse(args, func(opt rune, _ string) error {
 		switch opt {
 		case 'L':
 			physical = false

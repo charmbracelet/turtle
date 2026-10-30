@@ -17,6 +17,9 @@ import (
 	"time"
 
 	"charm.land/snail/coreutils"
+
+	"charm.land/snail/coreutils/internal/getopt"
+	"charm.land/snail/coreutils/internal/stdopts"
 )
 
 // Prog is the pr core utility.
@@ -35,13 +38,18 @@ func New(rt *coreutils.Runtime) coreutils.Program {
 //
 // Reading is interrupted when ctx is done, and the context error is returned.
 func (p *Prog) Run(ctx context.Context, args ...string) error {
+	if done, err := stdopts.Check(p.Runtime, "pr", usage, getopt.Set{}, args); done {
+		return err
+	}
 	opts, operands, err := parseFlags(args)
 	if err != nil {
 		p.errorf("%v", err)
+		stdopts.TryHelp(p.Runtime, "pr")
 		return &coreutils.ExitError{Code: 1}
 	}
 	if err := opts.setup(operands); err != nil {
 		p.errorf("%v", err)
+		stdopts.TryHelp(p.Runtime, "pr")
 		return &coreutils.ExitError{Code: 1}
 	}
 
@@ -127,6 +135,56 @@ func (o *options) numberWidth() int {
 func (o *options) pitch() int {
 	return o.colWidth + sepLen
 }
+
+// usage describes the options of pr.
+const usage = `Usage: pr [OPTION]... [FILE]...
+Paginate or columnate FILE(s) for printing.
+
+By default, each page has a five-line header and a five-line trailer of blank
+lines. The standard input is read when no FILE is given, or when a FILE is -.
+
+  +PAGE
+         begin output with page PAGE
+  -COLUMN
+         produce COLUMN columns of output
+  -a
+         print columns across rather than down, with -COLUMN
+  -d
+         double space the output
+  -e[CHAR][GAP]
+         expand input tabs to spaces, or CHAR, to every GAPth column
+  -f, -F
+         use form feeds, not newlines, to separate pages
+  -h HEADER
+         use HEADER instead of the file name in the header
+  -i[CHAR][GAP]
+         replace runs of blanks in the output with tabs, or CHAR, every GAPth
+         column
+  -l LINES
+         page length of LINES lines (default 66); LINES of 10 or fewer omit the
+         header and trailer
+  -m
+         merge all files, printing one per column
+  -n[CHAR][WIDTH]
+         number lines with WIDTH digits (default 5), followed by CHAR (default
+         TAB)
+  -o OFFSET
+         offset lines by OFFSET blanks (default 0)
+  -p
+         pause at the end of each page when writing to a terminal (ignored)
+  -r
+         do not warn when a file cannot be opened
+  -s[CHAR]
+         separate columns with a single CHAR (default TAB)
+  -t
+         do not print the header and trailer
+  -w WIDTH
+         page width of WIDTH columns (default 72)
+      --help
+         display this help and exit
+      --version
+         output version information and exit
+`
 
 // parser holds the state of the command line scan.
 type parser struct {

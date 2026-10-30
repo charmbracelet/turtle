@@ -146,6 +146,32 @@ Code style guidelines:
   defaults and conflict checks in their `parseFlags` function. (This doesn't
   apply to `echo`, which the POSIX specification forbids from supporting
   options at all.)
+* The GNU common options `--help` and `--version` are shared: every utility
+  which takes options calls `stdopts.Check` from
+  `charm.land/snail/coreutils/internal/stdopts` at the top of its `Run`, with
+  its `getopt.Set` and its usage text, a `usage` string constant following
+  the GNU layout and describing only what the utility implements. The two
+  standard entries close the text, set apart from the aligned option table
+  as current GNU does:
+
+  ```
+        --help
+           display this help and exit
+        --version
+           output version information and exit
+  ```
+
+  The exceptions are `echo`, `printf` and `test`, whose specifications forbid
+  options. `false` still exits with status 1 after handling them.
+* The option table of a usage text is always in the hanging style: each
+  option alone on its line, indented 2 spaces (6 when it has no short
+  form), with its description indented 9 spaces below, wrapped greedily so
+  no line exceeds 80 columns. This keeps the table uniform with the
+  closing `--help` and `--version` pair, even when current GNU keeps a
+  two-column table for a few utilities.
+* Usage errors, like invalid options and missing or extra operands, are
+  followed by the GNU hint on the standard error, written with
+  `stdopts.TryHelp`.
 * Avoid `panic`s. We should return errors instead.
 * Make sure to implement code in smaller functions rather than having a big
   `Run` implementation.

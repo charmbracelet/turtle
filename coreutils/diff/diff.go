@@ -18,6 +18,7 @@ import (
 	"charm.land/snail/coreutils"
 	"charm.land/snail/coreutils/internal/getopt"
 	"charm.land/snail/coreutils/internal/patherr"
+	"charm.land/snail/coreutils/internal/stdopts"
 )
 
 // Prog is the diff core utility.
@@ -37,17 +38,23 @@ func New(rt *coreutils.Runtime) coreutils.Program {
 // Comparisons are interrupted when ctx is done, and the context error is
 // returned as-is.
 func (p *Prog) Run(ctx context.Context, args ...string) error {
+	if done, err := stdopts.Check(p.Runtime, "diff", usage, optSet, args); done {
+		return err
+	}
 	opts, operands, err := parseFlags(args)
 	if err != nil {
 		p.errorf("%v", err)
+		stdopts.TryHelp(p.Runtime, "diff")
 		return &coreutils.ExitError{Code: 2}
 	}
 	if len(operands) < 2 {
 		p.errorf("missing operand")
+		stdopts.TryHelp(p.Runtime, "diff")
 		return &coreutils.ExitError{Code: 2}
 	}
 	if len(operands) > 2 {
 		p.errorf("extra operand '%s'", operands[2])
+		stdopts.TryHelp(p.Runtime, "diff")
 		return &coreutils.ExitError{Code: 2}
 	}
 
@@ -171,11 +178,42 @@ const (
 	forwardEdFormat
 )
 
+// optSet describes the options of diff.
+var optSet = getopt.Set{Valued: "CU"}
+
+// usage describes the options of diff.
+const usage = `Usage: diff [OPTION]... FILE1 FILE2
+Compare FILE1 with FILE2 line by line, writing the changes which turn
+FILE1 into FILE2. An operand of '-' means the standard input, and a
+directory operand makes the files of the same name inside it compared.
+
+  -b
+         ignore changes in the amount of white space
+  -r
+         compare directories recursively
+  -c
+         output a copied context diff with 3 lines of context
+  -C NUM
+         output a copied context diff with NUM lines of context
+  -e
+         output an ed script
+  -f
+         output a forward ed script
+  -u
+         output a unified diff with 3 lines of context
+  -U NUM
+         output a unified diff with NUM lines of context
+      --help
+         display this help and exit
+      --version
+         output version information and exit
+`
+
 // parseFlags parses the command line options. Option parsing stops at the
 // first operand or at "--".
 func parseFlags(args []string) (options, []string, error) {
 	var opts options
-	operands, err := getopt.Set{Valued: "CU"}.Parse(args, func(opt rune, value string) error {
+	operands, err := optSet.Parse(args, func(opt rune, value string) error {
 		switch opt {
 		case 'b':
 			opts.blank = true

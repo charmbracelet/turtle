@@ -204,30 +204,29 @@ func TestRunOptionWriteError(t *testing.T) {
 	}
 }
 
-func TestRunHelp(t *testing.T) {
-	stdout, stderr, err := run(t, 1, nil, "--help")
-	if err != nil {
-		t.Fatalf("Run() error = %v, want nil", err)
-	}
-	if !strings.HasPrefix(stdout, "Usage: yes ") {
-		t.Errorf("Run() stdout = %q, want the usage of the utility", stdout)
-	}
-	if stderr != "" {
-		t.Errorf("Run() stderr = %q, want empty", stderr)
-	}
-}
+func TestHelpVersion(t *testing.T) {
+	t.Run("help", func(t *testing.T) {
+		stdout := new(bytes.Buffer)
+		rt := &coreutils.Runtime{Stdout: stdout, Stderr: new(bytes.Buffer)}
+		if err := New(rt).Run(t.Context(), "--help"); err != nil {
+			t.Fatalf("Run() error = %v, want nil (exit status 0)", err)
+		}
+		if got, want := stdout.String(), usage; got != want {
+			t.Errorf("Run() stdout = %q, want %q", got, want)
+		}
+	})
 
-func TestRunVersion(t *testing.T) {
-	stdout, stderr, err := run(t, 1, nil, "--version")
-	if err != nil {
-		t.Fatalf("Run() error = %v, want nil", err)
-	}
-	if want := "yes (charm.land/snail/coreutils)\n"; stdout != want {
-		t.Errorf("Run() stdout = %q, want %q", stdout, want)
-	}
-	if stderr != "" {
-		t.Errorf("Run() stderr = %q, want empty", stderr)
-	}
+	t.Run("version", func(t *testing.T) {
+		stdout := new(bytes.Buffer)
+		rt := &coreutils.Runtime{Stdout: stdout, Stderr: new(bytes.Buffer)}
+		if err := New(rt).Run(t.Context(), "--version"); err != nil {
+			t.Fatalf("Run() error = %v, want nil (exit status 0)", err)
+		}
+		want := "yes (charm.land/snail/coreutils) " + coreutils.Version + "\nhttps://charm.land/snail\n"
+		if got := stdout.String(); got != want {
+			t.Errorf("Run() stdout = %q, want %q", got, want)
+		}
+	})
 }
 
 func TestRunInvalidOptions(t *testing.T) {
@@ -259,7 +258,7 @@ func TestRunInvalidOptions(t *testing.T) {
 		{
 			name:    "a long option doesn't take an argument",
 			args:    []string{"--help=yes"},
-			wantErr: "yes: option '--help=yes' doesn't allow an argument\n",
+			wantErr: "yes: unrecognized option '--help=yes'\n",
 		},
 	}
 

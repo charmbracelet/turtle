@@ -4,6 +4,8 @@ vars:
   MODULES:
     - coreutils
     - fsx
+  PROGRAMS:
+    sh: ls coreutils/cmd
 
 tasks:
   default:
@@ -34,6 +36,21 @@ tasks:
         vars:
           MODULE: '{{.ITEM}}'
           CMD: modernize -fix ./...
+
+  bin:
+    desc: Build all coreutils binaries into bin/
+    cmds:
+      - mkdir -p bin
+      - for: { var: PROGRAMS }
+        task: build
+        vars:
+          PROG: '{{.ITEM}}'
+
+  build:
+    internal: true
+    dir: coreutils
+    cmds:
+      - go build -o ../bin/{{.PROG}} ./cmd/{{.PROG}}
 
   exec:
     internal: true

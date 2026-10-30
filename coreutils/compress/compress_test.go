@@ -314,6 +314,51 @@ func TestCompressContext(t *testing.T) {
 	}
 }
 
+func TestUsageError(t *testing.T) {
+	code, _, stderr, _ := run(t, New, testFS(), "-Z")
+
+	if code != 1 {
+		t.Errorf("exit = %d, want 1", code)
+	}
+	want := "compress: invalid option -- 'Z'\nTry 'compress --help' for more information.\n"
+	if stderr != want {
+		t.Errorf("stderr = %q, want %q", stderr, want)
+	}
+}
+
+func TestHelpVersion(t *testing.T) {
+	for _, test := range []struct {
+		name string
+		new  coreutils.NewFunc
+	}{
+		{"compress", New},
+		{"uncompress", Uncompress},
+	} {
+		t.Run(test.name+" --help", func(t *testing.T) {
+			code, stdout, stderr, _ := run(t, test.new, testFS(), "--help")
+
+			if code != 0 {
+				t.Fatalf("exit = %d, want 0 (%s)", code, stderr)
+			}
+			if got := stdout; got != Usage(test.name) {
+				t.Errorf("stdout = %q, want %q", got, Usage(test.name))
+			}
+		})
+
+		t.Run(test.name+" --version", func(t *testing.T) {
+			code, stdout, stderr, _ := run(t, test.new, testFS(), "--version")
+
+			if code != 0 {
+				t.Fatalf("exit = %d, want 0 (%s)", code, stderr)
+			}
+			want := test.name + " (charm.land/snail/coreutils) " + coreutils.Version + "\nhttps://charm.land/snail\n"
+			if got := stdout; got != want {
+				t.Errorf("stdout = %q, want %q", got, want)
+			}
+		})
+	}
+}
+
 func gzipData(t *testing.T, data string) []byte {
 	t.Helper()
 	var stdout strings.Builder

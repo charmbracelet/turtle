@@ -20,6 +20,7 @@ import (
 	"charm.land/snail/coreutils/internal/getopt"
 	"charm.land/snail/coreutils/internal/input"
 	"charm.land/snail/coreutils/internal/patherr"
+	"charm.land/snail/coreutils/internal/stdopts"
 	"charm.land/snail/coreutils/internal/tabutil"
 )
 
@@ -40,9 +41,13 @@ func New(rt *coreutils.Runtime) coreutils.Program {
 //
 // Reading is interrupted when ctx is done, and the context error is returned.
 func (p *Prog) Run(ctx context.Context, args ...string) error {
+	if done, err := stdopts.Check(p.Runtime, "expand", usage, optSet, args); done {
+		return err
+	}
 	opts, operands, err := parseFlags(args)
 	if err != nil {
 		p.errorf("%v", err)
+		stdopts.TryHelp(p.Runtime, "expand")
 		return &coreutils.ExitError{Code: 2}
 	}
 
@@ -176,11 +181,31 @@ var longOptions = map[string]rune{
 	"tabs":    't',
 }
 
+// optSet describes the options of expand.
+var optSet = getopt.Set{Valued: "t", Long: longOptions}
+
+// usage describes the options of expand.
+const usage = `Usage: expand [OPTION]... [FILE]...
+Convert tabs in each FILE to spaces, writing to standard output.
+With no FILE, or when FILE is -, read standard input.
+
+  -i, --initial
+         do not convert tabs after non blanks
+  -t, --tabs=N
+         have tabs N characters apart, not 8
+  -t, --tabs=LIST
+         use comma separated LIST of tab positions
+      --help
+         display this help and exit
+      --version
+         output version information and exit
+`
+
 // parseFlags parses the command line options. Option parsing stops at the
 // first operand or at "--".
 func parseFlags(args []string) (options, []string, error) {
 	opts := options{stops: tabutil.Default}
-	operands, err := getopt.Set{Valued: "t", Long: longOptions}.Parse(args, func(opt rune, value string) error {
+	operands, err := optSet.Parse(args, func(opt rune, value string) error {
 		switch opt {
 		case 'i':
 			opts.initial = true

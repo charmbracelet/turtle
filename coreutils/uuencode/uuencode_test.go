@@ -236,26 +236,26 @@ func TestRunErrors(t *testing.T) {
 		{
 			name:     "the name operand is required",
 			stdin:    strings.NewReader("hello"),
-			wantErr:  "uuencode: missing operand\n",
+			wantErr:  "uuencode: missing operand\nTry 'uuencode --help' for more information.\n",
 			wantExit: 2,
 		},
 		{
 			name:     "at most two operands",
 			fsys:     testFS(),
 			args:     []string{"hello.txt", "dest", "extra"},
-			wantErr:  "uuencode: extra operand 'extra'\n",
+			wantErr:  "uuencode: extra operand 'extra'\nTry 'uuencode --help' for more information.\n",
 			wantExit: 2,
 		},
 		{
 			name:     "an unknown option",
 			args:     []string{"-x", "dest"},
-			wantErr:  "uuencode: invalid option -- 'x'\n",
+			wantErr:  "uuencode: invalid option -- 'x'\nTry 'uuencode --help' for more information.\n",
 			wantExit: 2,
 		},
 		{
 			name:     "an unknown long option",
 			args:     []string{"--nope", "dest"},
-			wantErr:  "uuencode: unrecognized option '--nope'\n",
+			wantErr:  "uuencode: unrecognized option '--nope'\nTry 'uuencode --help' for more information.\n",
 			wantExit: 2,
 		},
 		{
@@ -400,5 +400,25 @@ func TestRunStdoutRoundTrip(t *testing.T) {
 	}
 	if got := decoded.String(); got != "hello" {
 		t.Errorf("uudecode wrote %q, want %q", got, "hello")
+	}
+}
+
+func TestHelpVersion(t *testing.T) {
+	tests := []struct {
+		name string
+		args []string
+		want string
+	}{
+		{"help", []string{"--help"}, usage},
+		{
+			"version",
+			[]string{"--version"},
+			"uuencode (charm.land/snail/coreutils) " + coreutils.Version + "\nhttps://charm.land/snail\n",
+		},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			runCase(t, testCase{name: test.name, args: test.args, want: test.want})
+		})
 	}
 }

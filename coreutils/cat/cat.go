@@ -21,6 +21,7 @@ import (
 	"charm.land/snail/coreutils/internal/getopt"
 	"charm.land/snail/coreutils/internal/input"
 	"charm.land/snail/coreutils/internal/patherr"
+	"charm.land/snail/coreutils/internal/stdopts"
 )
 
 // Prog is the cat core utility.
@@ -41,9 +42,13 @@ func New(rt *coreutils.Runtime) coreutils.Program {
 //
 // Reading is interrupted when ctx is done, and the context error is returned.
 func (p *Prog) Run(ctx context.Context, args ...string) error {
+	if done, err := stdopts.Check(p.Runtime, "cat", usage, optSet, args); done {
+		return err
+	}
 	opts, operands, err := parseFlags(args)
 	if err != nil {
 		p.errorf("%v", err)
+		stdopts.TryHelp(p.Runtime, "cat")
 		return &coreutils.ExitError{Code: 2}
 	}
 
@@ -164,13 +169,48 @@ var longOptions = map[string]rune{
 	"show-all":         'A',
 }
 
+// optSet describes the options of cat.
+var optSet = getopt.Set{Long: longOptions}
+
+// usage describes the options of cat.
+const usage = `Usage: cat [OPTION]... [FILE]...
+Concatenate FILE(s) to standard output.
+
+With no FILE, or when FILE is -, read standard input.
+
+  -A, --show-all
+         equivalent to -vET
+  -b, --number-nonblank
+         number nonempty output lines, overrides -n
+  -e
+         equivalent to -vE
+  -E, --show-ends
+         display $ at end of each line
+  -n, --number
+         number all output lines, starting with 1
+  -s, --squeeze-blank
+         suppress repeated adjacent blank lines
+  -t
+         equivalent to -vT
+  -T, --show-tabs
+         display TAB characters as ^I
+  -u
+         (ignored)
+  -v, --show-nonprinting
+         use ^ and M- notation, except for LFD and TAB
+      --help
+         display this help and exit
+      --version
+         output version information and exit
+`
+
 // parseFlags parses the command line options. Option parsing stops at the
 // first operand or at "--". The -u option is accepted and has no effect:
 // output is written as each byte is read, which is the behavior -u asks
 // for. The -A, -e and -t options combine their letters' effects.
 func parseFlags(args []string) (options, []string, error) {
 	var opts options
-	operands, err := getopt.Set{Long: longOptions}.Parse(args, func(opt rune, _ string) error {
+	operands, err := optSet.Parse(args, func(opt rune, _ string) error {
 		switch opt {
 		case 'n':
 			opts.number = true

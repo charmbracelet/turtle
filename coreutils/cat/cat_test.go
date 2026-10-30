@@ -617,25 +617,25 @@ func TestRunErrors(t *testing.T) {
 		{
 			name:     "invalid option",
 			args:     []string{"-x"},
-			wantErr:  "cat: invalid option -- 'x'\n",
+			wantErr:  "cat: invalid option -- 'x'\nTry 'cat --help' for more information.\n",
 			wantExit: 2,
 		},
 		{
 			name:     "invalid option in a group",
 			args:     []string{"-ux"},
-			wantErr:  "cat: invalid option -- 'x'\n",
+			wantErr:  "cat: invalid option -- 'x'\nTry 'cat --help' for more information.\n",
 			wantExit: 2,
 		},
 		{
 			name:     "unknown long option",
 			args:     []string{"--partial"},
-			wantErr:  "cat: unrecognized option '--partial'\n",
+			wantErr:  "cat: unrecognized option '--partial'\nTry 'cat --help' for more information.\n",
 			wantExit: 2,
 		},
 		{
 			name:     "invalid option before operands",
 			args:     []string{"-x", "a.txt"},
-			wantErr:  "cat: invalid option -- 'x'\n",
+			wantErr:  "cat: invalid option -- 'x'\nTry 'cat --help' for more information.\n",
 			wantExit: 2,
 		},
 		{
@@ -771,4 +771,29 @@ func runCancelled(t *testing.T, ctx context.Context, stdin io.Reader, fsys fsx.F
 	if got := stderr.String(); got != "" {
 		t.Errorf("Run() stderr = %q, want empty", got)
 	}
+}
+
+func TestHelpVersion(t *testing.T) {
+	t.Run("help", func(t *testing.T) {
+		stdout := new(bytes.Buffer)
+		rt := &coreutils.Runtime{Stdout: stdout, Stderr: new(bytes.Buffer)}
+		if err := New(rt).Run(t.Context(), "--help"); err != nil {
+			t.Fatalf("Run() error = %v, want nil (exit status 0)", err)
+		}
+		if got, want := stdout.String(), usage; got != want {
+			t.Errorf("Run() stdout = %q, want %q", got, want)
+		}
+	})
+
+	t.Run("version", func(t *testing.T) {
+		stdout := new(bytes.Buffer)
+		rt := &coreutils.Runtime{Stdout: stdout, Stderr: new(bytes.Buffer)}
+		if err := New(rt).Run(t.Context(), "--version"); err != nil {
+			t.Fatalf("Run() error = %v, want nil (exit status 0)", err)
+		}
+		want := "cat (charm.land/snail/coreutils) " + coreutils.Version + "\nhttps://charm.land/snail\n"
+		if got := stdout.String(); got != want {
+			t.Errorf("Run() stdout = %q, want %q", got, want)
+		}
+	})
 }

@@ -12,6 +12,7 @@ import (
 
 	"charm.land/snail/coreutils"
 	"charm.land/snail/coreutils/internal/getopt"
+	"charm.land/snail/coreutils/internal/stdopts"
 )
 
 // Prog is the whoami core utility.
@@ -25,14 +26,18 @@ func New(rt *coreutils.Runtime) coreutils.Program {
 }
 
 // Run writes the effective user name to the standard output. It takes
-// neither options nor operands, and exits with status 1 when the user name
-// cannot be found.
+// neither options nor operands of its own, and exits with status 1 when the
+// user name cannot be found.
 func (p *Prog) Run(ctx context.Context, args ...string) error {
+	if done, err := stdopts.Check(p.Runtime, "whoami", usage, getopt.Set{}, args); done {
+		return err
+	}
 	if err := ctx.Err(); err != nil {
 		return err
 	}
 	if err := parseArgs(args); err != nil {
 		p.errorf("%v", err)
+		stdopts.TryHelp(p.Runtime, "whoami")
 		return &coreutils.ExitError{Code: 1, Err: err}
 	}
 	name, ok := p.user()
@@ -80,6 +85,16 @@ func (p *Prog) errorf(format string, args ...any) {
 	}
 	fmt.Fprintf(p.Stderr, "whoami: "+format+"\n", args...)
 }
+
+// usage describes the options of whoami.
+const usage = `Usage: whoami [OPTION]...
+Print the user name associated with the current effective user ID.
+
+      --help
+         display this help and exit
+      --version
+         output version information and exit
+`
 
 var (
 	_ coreutils.Program = (*Prog)(nil)

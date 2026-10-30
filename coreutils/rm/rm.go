@@ -21,6 +21,7 @@ import (
 	"charm.land/snail/coreutils"
 	"charm.land/snail/coreutils/internal/getopt"
 	"charm.land/snail/coreutils/internal/patherr"
+	"charm.land/snail/coreutils/internal/stdopts"
 )
 
 // Prog is the rm core utility.
@@ -39,9 +40,13 @@ func New(rt *coreutils.Runtime) coreutils.Program {
 // operand ending in dot or dot-dot, or naming a file system root, is always
 // refused.
 func (p *Prog) Run(ctx context.Context, args ...string) error {
+	if done, err := stdopts.Check(p.Runtime, "rm", usage, optSet, args); done {
+		return err
+	}
 	opts, operands, err := parseFlags(args)
 	if err != nil {
 		p.errorf("%v", err)
+		stdopts.TryHelp(p.Runtime, "rm")
 		return &coreutils.ExitError{Code: 2}
 	}
 	if len(operands) == 0 {
@@ -49,6 +54,7 @@ func (p *Prog) Run(ctx context.Context, args ...string) error {
 			return nil
 		}
 		p.errorf("missing operand")
+		stdopts.TryHelp(p.Runtime, "rm")
 		return &coreutils.ExitError{Code: 2}
 	}
 	if p.FS == nil {
@@ -260,11 +266,34 @@ var longOptions = map[string]rune{
 	"verbose":     'v',
 }
 
+// optSet describes the options of rm.
+var optSet = getopt.Set{Long: longOptions}
+
+// usage describes the options of rm.
+const usage = `Usage: rm [OPTION]... [FILE]...
+Remove (unlink) the FILE(s).
+
+  -f, --force
+         ignore nonexistent files and arguments, never prompt
+  -i, --interactive
+         prompt before every removal
+  -r, -R, --recursive
+         remove directories and their contents recursively
+  -d, --dir
+         remove empty directories
+  -v, --verbose
+         explain what is being done
+      --help
+         display this help and exit
+      --version
+         output version information and exit
+`
+
 // parseFlags parses the options and operands. Option parsing stops at the
 // first operand or at "--", and the last of -f and -i wins.
 func parseFlags(args []string) (options, []string, error) {
 	var opts options
-	operands, err := getopt.Set{Long: longOptions}.Parse(args, func(opt rune, _ string) error {
+	operands, err := optSet.Parse(args, func(opt rune, _ string) error {
 		switch opt {
 		case 'd':
 			opts.empty = true

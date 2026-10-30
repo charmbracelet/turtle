@@ -632,27 +632,27 @@ func TestRunUsageErrors(t *testing.T) {
 		{
 			name:    "an invalid short option",
 			args:    []string{"-x"},
-			wantErr: "env: invalid option -- 'x'\n",
+			wantErr: "env: invalid option -- 'x'\nTry 'env --help' for more information.\n",
 		},
 		{
 			name:    "an unrecognized long option",
 			args:    []string{"--foo"},
-			wantErr: "env: unrecognized option '--foo'\n",
+			wantErr: "env: unrecognized option '--foo'\nTry 'env --help' for more information.\n",
 		},
 		{
 			name:    "-u without an argument",
 			args:    []string{"-u"},
-			wantErr: "env: option requires an argument -- 'u'\n",
+			wantErr: "env: option requires an argument -- 'u'\nTry 'env --help' for more information.\n",
 		},
 		{
 			name:    "-u of an empty name",
 			args:    []string{"-u", ""},
-			wantErr: "env: cannot unset \"\": invalid name\n",
+			wantErr: "env: cannot unset \"\": invalid name\nTry 'env --help' for more information.\n",
 		},
 		{
 			name:    "-u of a name holding a value",
 			args:    []string{"-u", "FOO=1"},
-			wantErr: "env: cannot unset \"FOO=1\": invalid name\n",
+			wantErr: "env: cannot unset \"FOO=1\": invalid name\nTry 'env --help' for more information.\n",
 		},
 	}
 
@@ -764,4 +764,29 @@ func TestRunPrintEnvNoStdout(t *testing.T) {
 	if want := "env: no standard output available\n"; got != want {
 		t.Errorf("Run() stderr = %q, want %q", got, want)
 	}
+}
+
+func TestHelpVersion(t *testing.T) {
+	t.Run("help", func(t *testing.T) {
+		stdout := new(bytes.Buffer)
+		rt := &coreutils.Runtime{Stdout: stdout, Stderr: new(bytes.Buffer)}
+		if err := New(rt).Run(t.Context(), "--help"); err != nil {
+			t.Fatalf("Run() error = %v, want nil (exit status 0)", err)
+		}
+		if got, want := stdout.String(), usage; got != want {
+			t.Errorf("Run() stdout = %q, want %q", got, want)
+		}
+	})
+
+	t.Run("version", func(t *testing.T) {
+		stdout := new(bytes.Buffer)
+		rt := &coreutils.Runtime{Stdout: stdout, Stderr: new(bytes.Buffer)}
+		if err := New(rt).Run(t.Context(), "--version"); err != nil {
+			t.Fatalf("Run() error = %v, want nil (exit status 0)", err)
+		}
+		want := "env (charm.land/snail/coreutils) " + coreutils.Version + "\nhttps://charm.land/snail\n"
+		if got := stdout.String(); got != want {
+			t.Errorf("Run() stdout = %q, want %q", got, want)
+		}
+	})
 }

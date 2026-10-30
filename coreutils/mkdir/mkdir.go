@@ -13,6 +13,7 @@ import (
 	"charm.land/snail/coreutils/chmod"
 	"charm.land/snail/coreutils/internal/getopt"
 	"charm.land/snail/coreutils/internal/patherr"
+	"charm.land/snail/coreutils/internal/stdopts"
 )
 
 // Prog is the mkdir core utility.
@@ -29,13 +30,18 @@ func New(rt *coreutils.Runtime) coreutils.Program {
 // parents are created too, with -m, new directories get the given mode, and
 // with -v, a message is written to standard output for each directory created.
 func (p *Prog) Run(ctx context.Context, args ...string) error {
+	if done, err := stdopts.Check(p.Runtime, "mkdir", usage, optSet, args); done {
+		return err
+	}
 	opts, dirs, err := parseFlags(args)
 	if err != nil {
 		p.errorf("%v", err)
+		stdopts.TryHelp(p.Runtime, "mkdir")
 		return &coreutils.ExitError{Code: 2}
 	}
 	if len(dirs) == 0 {
 		p.errorf("missing operand")
+		stdopts.TryHelp(p.Runtime, "mkdir")
 		return &coreutils.ExitError{Code: 2}
 	}
 	if p.FS == nil {
@@ -46,6 +52,7 @@ func (p *Prog) Run(ctx context.Context, args ...string) error {
 	if opts.modeSet {
 		if spec, err = chmod.ParseMode(opts.mode); err != nil {
 			p.errorf("%v", err)
+			stdopts.TryHelp(p.Runtime, "mkdir")
 			return &coreutils.ExitError{Code: 1}
 		}
 	}
@@ -158,9 +165,28 @@ var longOptions = map[string]rune{
 	"verbose": 'v',
 }
 
+// optSet describes the options of mkdir.
+var optSet = getopt.Set{Valued: "m", Long: longOptions}
+
+// usage describes the options of mkdir.
+const usage = `Usage: mkdir [OPTION]... DIRECTORY...
+Create the DIRECTORY(ies), if they do not already exist.
+
+  -m, --mode=MODE
+         set the file mode bits of created directories to MODE
+  -p, --parents
+         make any missing parent directories for each argument
+  -v, --verbose
+         print a message for each created directory
+      --help
+         display this help and exit
+      --version
+         output version information and exit
+`
+
 func parseFlags(args []string) (options, []string, error) {
 	var opts options
-	dirs, err := getopt.Set{Valued: "m", Long: longOptions}.Parse(args, func(opt rune, value string) error {
+	dirs, err := optSet.Parse(args, func(opt rune, value string) error {
 		switch opt {
 		case 'p':
 			opts.parents = true

@@ -12,6 +12,7 @@ import (
 
 	"charm.land/snail/coreutils"
 	"charm.land/snail/coreutils/internal/getopt"
+	"charm.land/snail/coreutils/internal/stdopts"
 )
 
 // Prog is the printenv core utility.
@@ -29,9 +30,13 @@ func New(rt *coreutils.Runtime) coreutils.Program {
 // and only its value is written; a missing variable makes the exit status 1,
 // but the later operands are still processed. Write errors exit with 2.
 func (p *Prog) Run(ctx context.Context, args ...string) error {
+	if done, err := stdopts.Check(p.Runtime, "printenv", usage, optSet, args); done {
+		return err
+	}
 	opts, names, err := parseArgs(args)
 	if err != nil {
 		p.errorf("%v", err)
+		stdopts.TryHelp(p.Runtime, "printenv")
 		return &coreutils.ExitError{Code: 1, Err: err}
 	}
 	sep := "\n"
@@ -103,7 +108,7 @@ type options struct {
 // first operand or at "--".
 func parseArgs(args []string) (options, []string, error) {
 	var opts options
-	operands, err := getopt.Set{Long: longOptions}.Parse(args, func(opt rune, _ string) error {
+	operands, err := optSet.Parse(args, func(opt rune, _ string) error {
 		switch opt {
 		case '0':
 			opts.zero = true
@@ -120,6 +125,21 @@ func parseArgs(args []string) (options, []string, error) {
 var longOptions = map[string]rune{
 	"null": '0',
 }
+
+// optSet describes the options of printenv.
+var optSet = getopt.Set{Long: longOptions}
+
+// usage describes the options of printenv.
+const usage = `Usage: printenv [OPTION]... [VARIABLE]...
+Print the values of the specified environment VARIABLE(s).
+
+  -0, --null
+         end each output line with NUL, not newline
+      --help
+         display this help and exit
+      --version
+         output version information and exit
+`
 
 var (
 	_ coreutils.Program = (*Prog)(nil)

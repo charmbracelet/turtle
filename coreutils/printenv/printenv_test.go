@@ -429,3 +429,46 @@ func (w *cancelWriter) Write(b []byte) (int, error) {
 func (w *cancelWriter) String() string {
 	return w.buf.String()
 }
+
+func TestRunUsageError(t *testing.T) {
+	stdout, stderr, err := runPrintenv(t, nil, "-x")
+	if code := exitCode(t, err); code != 1 {
+		t.Fatalf("Run() exit code = %d, want 1 (error = %v)", code, err)
+	}
+	if got := stdout; got != "" {
+		t.Errorf("Run() stdout = %q, want empty", got)
+	}
+	want := "printenv: invalid option -- 'x'\nTry 'printenv --help' for more information.\n"
+	if got := stderr; got != want {
+		t.Errorf("Run() stderr = %q, want %q", got, want)
+	}
+}
+
+func TestHelpVersion(t *testing.T) {
+	t.Run("help", func(t *testing.T) {
+		stdout, stderr, err := runPrintenv(t, nil, "--help")
+		if err != nil {
+			t.Fatalf("Run() error = %v, want nil (exit status 0)", err)
+		}
+		if got, want := stdout, usage; got != want {
+			t.Errorf("Run() stdout = %q, want %q", got, want)
+		}
+		if got := stderr; got != "" {
+			t.Errorf("Run() stderr = %q, want empty", got)
+		}
+	})
+
+	t.Run("version", func(t *testing.T) {
+		stdout, stderr, err := runPrintenv(t, nil, "--version")
+		if err != nil {
+			t.Fatalf("Run() error = %v, want nil (exit status 0)", err)
+		}
+		want := "printenv (charm.land/snail/coreutils) " + coreutils.Version + "\nhttps://charm.land/snail\n"
+		if got := stdout; got != want {
+			t.Errorf("Run() stdout = %q, want %q", got, want)
+		}
+		if got := stderr; got != "" {
+			t.Errorf("Run() stderr = %q, want empty", got)
+		}
+	})
+}

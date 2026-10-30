@@ -558,7 +558,7 @@ func TestRunErrors(t *testing.T) {
 			stdin:    strings.NewReader(patch),
 			fsys:     fsx.MemFS{"f": {Data: []byte("1\n2\n3\n")}},
 			args:     []string{"f", "g"},
-			wantErr:  "patch: extra operand 'g'\n",
+			wantErr:  "patch: extra operand 'g'\nTry 'patch --help' for more information.\n",
 			wantExit: 2,
 		},
 		{
@@ -566,7 +566,7 @@ func TestRunErrors(t *testing.T) {
 			stdin:    strings.NewReader(patch),
 			fsys:     fsx.MemFS{"f": {Data: []byte("1\n2\n3\n")}},
 			args:     []string{"-x", "f"},
-			wantErr:  "patch: invalid option -- 'x'\n",
+			wantErr:  "patch: invalid option -- 'x'\nTry 'patch --help' for more information.\n",
 			wantExit: 2,
 		},
 		{
@@ -574,7 +574,7 @@ func TestRunErrors(t *testing.T) {
 			stdin:    strings.NewReader(patch),
 			fsys:     fsx.MemFS{"f": {Data: []byte("1\n2\n3\n")}},
 			args:     []string{"-c", "-u", "f"},
-			wantErr:  "patch: options -c and -u are incompatible\n",
+			wantErr:  "patch: options -c and -u are incompatible\nTry 'patch --help' for more information.\n",
 			wantExit: 2,
 		},
 		{
@@ -582,7 +582,7 @@ func TestRunErrors(t *testing.T) {
 			stdin:    strings.NewReader(patch),
 			fsys:     fsx.MemFS{"f": {Data: []byte("1\n2\n3\n")}},
 			args:     []string{"-p", "x", "f"},
-			wantErr:  "patch: invalid -p argument 'x'\n",
+			wantErr:  "patch: invalid -p argument 'x'\nTry 'patch --help' for more information.\n",
 			wantExit: 2,
 		},
 		{
@@ -649,5 +649,25 @@ func runCancelled(t *testing.T, ctx context.Context, stdin io.Reader) {
 	}
 	if got := stderr.String(); got != "" {
 		t.Errorf("Run() stderr = %q, want empty", got)
+	}
+}
+
+func TestHelpVersion(t *testing.T) {
+	tests := []struct {
+		name string
+		args []string
+		want string
+	}{
+		{"help", []string{"--help"}, usage},
+		{
+			"version",
+			[]string{"--version"},
+			"patch (charm.land/snail/coreutils) " + coreutils.Version + "\nhttps://charm.land/snail\n",
+		},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			runCase(t, testCase{name: test.name, args: test.args, want: test.want})
+		})
 	}
 }

@@ -17,6 +17,7 @@ import (
 	"charm.land/snail/coreutils/internal/getopt"
 	"charm.land/snail/coreutils/internal/input"
 	"charm.land/snail/coreutils/internal/patherr"
+	"charm.land/snail/coreutils/internal/stdopts"
 )
 
 // ErrInvalidInput reports input that can't be decoded.
@@ -83,10 +84,12 @@ func (c *Codec) Run(ctx context.Context, rt *coreutils.Runtime, args []string) e
 	opts, operands, err := parseFlags(args)
 	if err != nil {
 		c.errorf(rt, "%v", err)
+		stdopts.TryHelp(rt, c.Name)
 		return &coreutils.ExitError{Code: 2}
 	}
 	if len(operands) > 1 {
 		c.errorf(rt, "extra operand '%s'", operands[1])
+		stdopts.TryHelp(rt, c.Name)
 		return &coreutils.ExitError{Code: 2}
 	}
 

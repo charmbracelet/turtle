@@ -354,37 +354,37 @@ func TestRun(t *testing.T) {
 			{
 				name:     "no operands",
 				args:     []string{},
-				wantErr:  "dirname: missing operand\n",
+				wantErr:  "dirname: missing operand\nTry 'dirname --help' for more information.\n",
 				wantExit: 2,
 			},
 			{
 				name:     "a lone double dash",
 				args:     []string{"--"},
-				wantErr:  "dirname: missing operand\n",
+				wantErr:  "dirname: missing operand\nTry 'dirname --help' for more information.\n",
 				wantExit: 2,
 			},
 			{
 				name:     "only an option",
 				args:     []string{"-z"},
-				wantErr:  "dirname: missing operand\n",
+				wantErr:  "dirname: missing operand\nTry 'dirname --help' for more information.\n",
 				wantExit: 2,
 			},
 			{
 				name:     "an invalid option",
 				args:     []string{"-x", "dir/str"},
-				wantErr:  "dirname: invalid option -- 'x'\n",
+				wantErr:  "dirname: invalid option -- 'x'\nTry 'dirname --help' for more information.\n",
 				wantExit: 2,
 			},
 			{
 				name:     "an unrecognized long option",
 				args:     []string{"--bogus", "dir/str"},
-				wantErr:  "dirname: unrecognized option '--bogus'\n",
+				wantErr:  "dirname: unrecognized option '--bogus'\nTry 'dirname --help' for more information.\n",
 				wantExit: 2,
 			},
 			{
 				name:     "a long option taking an argument",
 				args:     []string{"--zero=", "dir/str"},
-				wantErr:  "dirname: option '--zero=' doesn't allow an argument\n",
+				wantErr:  "dirname: option '--zero=' doesn't allow an argument\nTry 'dirname --help' for more information.\n",
 				wantExit: 2,
 			},
 		}
@@ -429,4 +429,22 @@ func TestRunContext(t *testing.T) {
 	if !errors.Is(err, context.Canceled) {
 		t.Errorf("Run() error = %v, want context.Canceled", err)
 	}
+}
+
+func TestHelpVersion(t *testing.T) {
+	t.Run("help", func(t *testing.T) {
+		runCase(t, testCase{
+			name: "help",
+			args: []string{"--help"},
+			want: usage,
+		})
+	})
+
+	t.Run("version", func(t *testing.T) {
+		runCase(t, testCase{
+			name: "version",
+			args: []string{"--version"},
+			want: "dirname (charm.land/snail/coreutils) " + coreutils.Version + "\nhttps://charm.land/snail\n",
+		})
+	})
 }

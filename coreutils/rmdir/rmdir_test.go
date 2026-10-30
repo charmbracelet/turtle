@@ -343,14 +343,14 @@ func TestRunErrors(t *testing.T) {
 		{
 			name:     "missing operand",
 			args:     []string{},
-			wantErr:  "rmdir: missing operand\n",
+			wantErr:  "rmdir: missing operand\nTry 'rmdir --help' for more information.\n",
 			wantExit: 2,
 		},
 		{
 			name:     "invalid option",
 			files:    fsx.MemFS{},
 			args:     []string{"-x"},
-			wantErr:  "rmdir: invalid option -- 'x'\n",
+			wantErr:  "rmdir: invalid option -- 'x'\nTry 'rmdir --help' for more information.\n",
 			wantExit: 2,
 		},
 		{
@@ -358,7 +358,7 @@ func TestRunErrors(t *testing.T) {
 			files:    fsx.MemFS{"d": {Mode: fs.ModeDir}},
 			args:     []string{"--bogus", "d"},
 			present:  []string{"d"},
-			wantErr:  "rmdir: unrecognized option '--bogus'\n",
+			wantErr:  "rmdir: unrecognized option '--bogus'\nTry 'rmdir --help' for more information.\n",
 			wantExit: 2,
 		},
 	}
@@ -379,4 +379,29 @@ func TestRunContext(t *testing.T) {
 	if !errors.Is(err, context.Canceled) {
 		t.Errorf("Run() error = %v, want context.Canceled", err)
 	}
+}
+
+func TestHelpVersion(t *testing.T) {
+	t.Run("help", func(t *testing.T) {
+		stdout := new(bytes.Buffer)
+		rt := &coreutils.Runtime{Stdout: stdout, Stderr: new(bytes.Buffer)}
+		if err := New(rt).Run(t.Context(), "--help"); err != nil {
+			t.Fatalf("Run() error = %v, want nil (exit status 0)", err)
+		}
+		if got, want := stdout.String(), usage; got != want {
+			t.Errorf("Run() stdout = %q, want %q", got, want)
+		}
+	})
+
+	t.Run("version", func(t *testing.T) {
+		stdout := new(bytes.Buffer)
+		rt := &coreutils.Runtime{Stdout: stdout, Stderr: new(bytes.Buffer)}
+		if err := New(rt).Run(t.Context(), "--version"); err != nil {
+			t.Fatalf("Run() error = %v, want nil (exit status 0)", err)
+		}
+		want := "rmdir (charm.land/snail/coreutils) " + coreutils.Version + "\nhttps://charm.land/snail\n"
+		if got := stdout.String(); got != want {
+			t.Errorf("Run() stdout = %q, want %q", got, want)
+		}
+	})
 }

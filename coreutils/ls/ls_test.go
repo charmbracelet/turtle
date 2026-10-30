@@ -1041,9 +1041,36 @@ func TestRunSymbolicLinks(t *testing.T) {
 			name:     "-P is not a POSIX option",
 			files:    files,
 			args:     []string{"-L", "-P"},
-			wantErr:  "ls: invalid option -- 'P'\n",
+			wantErr:  "ls: invalid option -- 'P'\nTry 'ls --help' for more information.\n",
 			wantExit: 2,
 		},
+	})
+}
+
+func TestHelpVersion(t *testing.T) {
+	t.Run("help", func(t *testing.T) {
+		stdout := new(bytes.Buffer)
+		stderr := new(bytes.Buffer)
+		rt := &coreutils.Runtime{Stdout: stdout, Stderr: stderr}
+		if err := New(rt).Run(t.Context(), "--help"); err != nil {
+			t.Fatalf("Run() error = %v, want nil (exit status 0)", err)
+		}
+		if got, want := stdout.String(), usage; got != want {
+			t.Errorf("Run() stdout = %q, want %q", got, want)
+		}
+	})
+
+	t.Run("version", func(t *testing.T) {
+		stdout := new(bytes.Buffer)
+		stderr := new(bytes.Buffer)
+		rt := &coreutils.Runtime{Stdout: stdout, Stderr: stderr}
+		if err := New(rt).Run(t.Context(), "--version"); err != nil {
+			t.Fatalf("Run() error = %v, want nil (exit status 0)", err)
+		}
+		want := "ls (charm.land/snail/coreutils) " + coreutils.Version + "\nhttps://charm.land/snail\n"
+		if got := stdout.String(); got != want {
+			t.Errorf("Run() stdout = %q, want %q", got, want)
+		}
 	})
 }
 
@@ -1182,14 +1209,14 @@ func TestRunOptions(t *testing.T) {
 			name:     "an invalid option is reported",
 			files:    fsx.MemFS{"a.txt": {}},
 			args:     []string{"-Z"},
-			wantErr:  "ls: invalid option -- 'Z'\n",
+			wantErr:  "ls: invalid option -- 'Z'\nTry 'ls --help' for more information.\n",
 			wantExit: 2,
 		},
 		{
 			name:     "an unrecognized long option is reported",
 			files:    fsx.MemFS{"a.txt": {}},
 			args:     []string{"--bogus"},
-			wantErr:  "ls: unrecognized option '--bogus'\n",
+			wantErr:  "ls: unrecognized option '--bogus'\nTry 'ls --help' for more information.\n",
 			wantExit: 2,
 		},
 		{
@@ -1220,7 +1247,7 @@ func TestRunOptions(t *testing.T) {
 			name:     "an invalid option of a bundle is reported",
 			files:    fsx.MemFS{},
 			args:     []string{"-lZ"},
-			wantErr:  "ls: invalid option -- 'Z'\n",
+			wantErr:  "ls: invalid option -- 'Z'\nTry 'ls --help' for more information.\n",
 			wantExit: 2,
 		},
 		{
@@ -1464,42 +1491,42 @@ func TestRunLongOptions(t *testing.T) {
 			name:     "an unknown format word is an error",
 			files:    fsx.MemFS{},
 			args:     []string{"--format=bogus"},
-			wantErr:  "ls: invalid argument 'bogus' for '--format'\n",
+			wantErr:  "ls: invalid argument 'bogus' for '--format'\nTry 'ls --help' for more information.\n",
 			wantExit: 2,
 		},
 		{
 			name:     "an unknown sort word is an error",
 			files:    fsx.MemFS{},
 			args:     []string{"--sort=bogus"},
-			wantErr:  "ls: invalid argument 'bogus' for '--sort'\n",
+			wantErr:  "ls: invalid argument 'bogus' for '--sort'\nTry 'ls --help' for more information.\n",
 			wantExit: 2,
 		},
 		{
 			name:     "an unknown time word is an error",
 			files:    fsx.MemFS{},
 			args:     []string{"--time=bogus"},
-			wantErr:  "ls: invalid argument 'bogus' for '--time'\n",
+			wantErr:  "ls: invalid argument 'bogus' for '--time'\nTry 'ls --help' for more information.\n",
 			wantExit: 2,
 		},
 		{
 			name:     "an unknown indicator-style word is an error",
 			files:    fsx.MemFS{},
 			args:     []string{"--indicator-style=bogus"},
-			wantErr:  "ls: invalid argument 'bogus' for '--indicator-style'\n",
+			wantErr:  "ls: invalid argument 'bogus' for '--indicator-style'\nTry 'ls --help' for more information.\n",
 			wantExit: 2,
 		},
 		{
 			name:     "a valued long option requires an argument",
 			files:    fsx.MemFS{},
 			args:     []string{"--format"},
-			wantErr:  "ls: option '--format' requires an argument\n",
+			wantErr:  "ls: option '--format' requires an argument\nTry 'ls --help' for more information.\n",
 			wantExit: 2,
 		},
 		{
 			name:     "a long option with a value it doesn't take is an error",
 			files:    fsx.MemFS{},
 			args:     []string{"--all=yes"},
-			wantErr:  "ls: option '--all=yes' doesn't allow an argument\n",
+			wantErr:  "ls: option '--all=yes' doesn't allow an argument\nTry 'ls --help' for more information.\n",
 			wantExit: 2,
 		},
 	})

@@ -30,6 +30,7 @@ import (
 	"charm.land/snail/coreutils"
 	"charm.land/snail/coreutils/internal/getopt"
 	"charm.land/snail/coreutils/internal/patherr"
+	"charm.land/snail/coreutils/internal/stdopts"
 )
 
 // Prog is the tar core utility.
@@ -79,10 +80,14 @@ type options struct {
 // It returns a [*coreutils.ExitError] holding 2 for usage errors and 1 when
 // an operation fails, and the context error when ctx is done.
 func (p *Prog) Run(ctx context.Context, args ...string) error {
+	if done, err := stdopts.Check(p.Runtime, "tar", usage, optSet, args); done {
+		return err
+	}
 	a := &archiver{rt: p.Runtime}
 	opts, operands, err := parseFlags(args)
 	if err != nil {
 		a.errorf("%v", err)
+		stdopts.TryHelp(p.Runtime, "tar")
 		return &coreutils.ExitError{Code: 2, Err: err}
 	}
 	a.opts = opts
@@ -126,11 +131,52 @@ var longOptions = map[string]rune{
 	"verbose":              'v',
 }
 
+// optSet describes the options of tar.
+var optSet = getopt.Set{Valued: "bf", Long: longOptions}
+
+// usage describes the options of tar.
+const usage = `Usage: tar [OPTION]... [FILE]...
+Create, list, extract, append to and update archives.
+
+  -b, --blocking-factor=NUM
+         set the record size to NUM x 512 bytes
+  -c, --create
+         create a new archive
+  -e, --ignore-errors
+         ignore unreadable files while creating
+  -f, --file=ARCHIVE
+         use ARCHIVE, '-' for the standard input or output
+  -h, --dereference
+         archive the files the links point to
+  -m, --touch
+         don't restore the modification times
+  -o, --no-same-owner
+         (accepted; ownership is never restored)
+  -p, --preserve-permissions
+         restore the mode bits the archive holds
+  -r, --append
+         append the files to the archive
+  -t, --list
+         list the entries of the archive
+  -u, --update
+         append files newer than the archive copy
+  -v, --verbose
+         list files as they are processed
+  -w, --interactive, --confirmation
+         ask for confirmation before acting
+  -x, --extract, --get
+         restore the entries of the archive
+      --help
+         display this help and exit
+      --version
+         output version information and exit
+`
+
 // parseFlags parses the options and operands of a run, expanding a leading
 // old-style key, like "cvf", into the dashed options it stands for.
 func parseFlags(args []string) (options, []string, error) {
 	opts := options{blocking: defaultBlocking}
-	operands, err := getopt.Set{Valued: "bf", Long: longOptions}.Parse(expandOldStyle(args), func(opt rune, value string) error {
+	operands, err := optSet.Parse(expandOldStyle(args), func(opt rune, value string) error {
 		switch opt {
 		case 'c', 'r', 't', 'u', 'x':
 			if opts.mode != 0 {

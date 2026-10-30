@@ -20,6 +20,7 @@ import (
 	"charm.land/snail/coreutils/internal/diff"
 	"charm.land/snail/coreutils/internal/getopt"
 	"charm.land/snail/coreutils/internal/patherr"
+	"charm.land/snail/coreutils/internal/stdopts"
 )
 
 // Prog is the patch core utility.
@@ -39,13 +40,18 @@ func New(rt *coreutils.Runtime) coreutils.Program {
 // Reading is interrupted when ctx is done, and the context error is
 // returned as-is.
 func (p *Prog) Run(ctx context.Context, args ...string) error {
+	if done, err := stdopts.Check(p.Runtime, "patch", usage, optSet, args); done {
+		return err
+	}
 	opts, operands, err := parseFlags(args)
 	if err != nil {
 		p.errorf("%v", err)
+		stdopts.TryHelp(p.Runtime, "patch")
 		return &coreutils.ExitError{Code: 2}
 	}
 	if len(operands) > 1 {
 		p.errorf("extra operand '%s'", operands[1])
+		stdopts.TryHelp(p.Runtime, "patch")
 		return &coreutils.ExitError{Code: 2}
 	}
 	operand := ""
@@ -205,11 +211,47 @@ type options struct {
 	unified bool   // -u
 }
 
+// optSet describes the options of patch.
+var optSet = getopt.Set{Valued: "diopr"}
+
+// usage describes the options of patch.
+const usage = `Usage: patch [OPTION]... [ORIGFILE]
+Apply a diff to a file, or to the files the patch names. The patch is read
+from the standard input unless -i names it.
+
+  -b
+         back up the files before changing them
+  -c
+         read a context format patch
+  -d DIR
+         change to directory DIR before doing anything
+  -i FILE
+         read the patch from FILE
+  -l
+         ignore white space while matching lines
+  -N
+         ignore patches which look like they were applied already
+  -o FILE
+         write the patched file to FILE
+  -p NUM
+         strip NUM leading path components of the file names
+  -r FILE
+         write the hunks which failed to FILE
+  -R
+         apply the patch in reverse
+  -u
+         read a unified format patch
+      --help
+         display this help and exit
+      --version
+         output version information and exit
+`
+
 // parseFlags parses the command line options. Option parsing stops at the
 // first operand or at "--".
 func parseFlags(args []string) (options, []string, error) {
 	opts := options{strip: -1}
-	operands, err := getopt.Set{Valued: "diopr"}.Parse(args, func(opt rune, value string) error {
+	operands, err := optSet.Parse(args, func(opt rune, value string) error {
 		switch opt {
 		case 'b':
 			opts.backup = true

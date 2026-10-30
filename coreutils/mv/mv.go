@@ -29,6 +29,7 @@ import (
 	"charm.land/snail/coreutils/internal/ctxio"
 	"charm.land/snail/coreutils/internal/getopt"
 	"charm.land/snail/coreutils/internal/patherr"
+	"charm.land/snail/coreutils/internal/stdopts"
 	"charm.land/snail/fsx"
 )
 
@@ -47,14 +48,19 @@ func New(rt *coreutils.Runtime) coreutils.Program {
 // The -t option names the destination directory instead, and -T makes the
 // last operand a plain destination name.
 func (p *Prog) Run(ctx context.Context, args ...string) error {
+	if done, err := stdopts.Check(p.Runtime, "mv", usage, optSet, args); done {
+		return err
+	}
 	opts, operands, err := parseFlags(args)
 	if err != nil {
 		p.errorf("%v", err)
+		stdopts.TryHelp(p.Runtime, "mv")
 		return &coreutils.ExitError{Code: 2}
 	}
 	sources, target, err := splitOperands(operands, opts)
 	if err != nil {
 		p.errorf("%v", err)
+		stdopts.TryHelp(p.Runtime, "mv")
 		return &coreutils.ExitError{Code: 2}
 	}
 	if p.FS == nil {
@@ -416,6 +422,36 @@ var longOptions = map[string]rune{
 	"verbose":             'v',
 }
 
+// optSet describes the options of mv.
+var optSet = getopt.Set{Long: longOptions, Valued: "t"}
+
+// usage describes the options of mv.
+const usage = `Usage: mv [OPTION]... [-T] SOURCE DEST
+  or:  mv [OPTION]... SOURCE... DIRECTORY
+  or:  mv [OPTION]... -t DIRECTORY SOURCE...
+Rename SOURCE to DEST, or move SOURCE(s) to DIRECTORY.
+
+  -f, --force
+         do not prompt before overwriting
+  -i, --interactive
+         prompt before overwrite
+  -n, --no-clobber
+         do not overwrite an existing file
+  -u, --update
+         move only when the SOURCE file is newer than the destination file or
+         when the destination file is missing
+  -v, --verbose
+         explain what is being done
+  -T, --no-target-directory
+         treat DEST as a normal file
+  -t, --target-directory=DIRECTORY
+         move all SOURCE arguments into DIRECTORY
+      --help
+         display this help and exit
+      --version
+         output version information and exit
+`
+
 // splitOperands splits the operands into the sources and the target,
 // following the -t and -T options.
 func splitOperands(operands []string, opts options) (sources []string, target string, err error) {
@@ -445,7 +481,7 @@ func splitOperands(operands []string, opts options) (sources []string, target st
 // combined with -T.
 func parseFlags(args []string) (options, []string, error) {
 	var opts options
-	operands, err := getopt.Set{Long: longOptions, Valued: "t"}.Parse(args, func(opt rune, value string) error {
+	operands, err := optSet.Parse(args, func(opt rune, value string) error {
 		switch opt {
 		case 'f':
 			opts.clobber = clobberOverwrite

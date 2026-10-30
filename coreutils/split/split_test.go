@@ -324,55 +324,55 @@ func TestRunInvalidUsage(t *testing.T) {
 		{
 			name:     "unknown option",
 			args:     []string{"-q"},
-			wantErr:  "split: invalid option -- 'q'\n",
+			wantErr:  "split: invalid option -- 'q'\nTry 'split --help' for more information.\n",
 			wantExit: 2,
 		},
 		{
 			name:     "byte and line modes conflict",
 			args:     []string{"-b", "1", "-l", "1"},
-			wantErr:  "split: cannot split in more than one way\n",
+			wantErr:  "split: cannot split in more than one way\nTry 'split --help' for more information.\n",
 			wantExit: 2,
 		},
 		{
 			name:     "zero lines is invalid",
 			args:     []string{"-l", "0"},
-			wantErr:  "split: invalid number of lines: '0'\n",
+			wantErr:  "split: invalid number of lines: '0'\nTry 'split --help' for more information.\n",
 			wantExit: 2,
 		},
 		{
 			name:     "a non numeric line count is invalid",
 			args:     []string{"-l", "1x"},
-			wantErr:  "split: invalid number of lines: '1x'\n",
+			wantErr:  "split: invalid number of lines: '1x'\nTry 'split --help' for more information.\n",
 			wantExit: 2,
 		},
 		{
 			name:     "zero bytes is invalid",
 			args:     []string{"-b", "0"},
-			wantErr:  "split: invalid number of bytes: '0'\n",
+			wantErr:  "split: invalid number of bytes: '0'\nTry 'split --help' for more information.\n",
 			wantExit: 2,
 		},
 		{
 			name:     "an unknown multiplier is invalid",
 			args:     []string{"-b", "1j"},
-			wantErr:  "split: invalid number of bytes: '1j'\n",
+			wantErr:  "split: invalid number of bytes: '1j'\nTry 'split --help' for more information.\n",
 			wantExit: 2,
 		},
 		{
 			name:     "a non numeric suffix length is invalid",
 			args:     []string{"-a", "x"},
-			wantErr:  "split: invalid suffix length: 'x'\n",
+			wantErr:  "split: invalid suffix length: 'x'\nTry 'split --help' for more information.\n",
 			wantExit: 2,
 		},
 		{
 			name:     "a negative suffix length is invalid",
 			args:     []string{"-a", "-1"},
-			wantErr:  "split: invalid suffix length: '-1'\n",
+			wantErr:  "split: invalid suffix length: '-1'\nTry 'split --help' for more information.\n",
 			wantExit: 2,
 		},
 		{
 			name:     "extra operand",
 			args:     []string{"a", "b", "c"},
-			wantErr:  "split: extra operand 'c'\n",
+			wantErr:  "split: extra operand 'c'\nTry 'split --help' for more information.\n",
 			wantExit: 2,
 		},
 		{
@@ -497,13 +497,13 @@ func TestRunNumericSuffixes(t *testing.T) {
 		{
 			name:     "numeric and hexadecimal conflict",
 			args:     []string{"-d", "-x", "-l", "1"},
-			wantErr:  "split: cannot combine -d and -x\n",
+			wantErr:  "split: cannot combine -d and -x\nTry 'split --help' for more information.\n",
 			wantExit: 2,
 		},
 		{
 			name:     "an additional suffix with a slash is invalid",
 			args:     []string{"--additional-suffix=a/b", "-l", "1"},
-			wantErr:  "split: additional suffix contains slash: 'a/b'\n",
+			wantErr:  "split: additional suffix contains slash: 'a/b'\nTry 'split --help' for more information.\n",
 			wantExit: 2,
 		},
 	}
@@ -652,13 +652,13 @@ func TestRunNumber(t *testing.T) {
 		{
 			name:     "an invalid chunk count",
 			args:     []string{"-n", "x"},
-			wantErr:  "split: invalid number of chunks: 'x'\n",
+			wantErr:  "split: invalid number of chunks: 'x'\nTry 'split --help' for more information.\n",
 			wantExit: 2,
 		},
 		{
 			name:     "a chunk past the count",
 			args:     []string{"-n", "3/2"},
-			wantErr:  "split: invalid chunk number: '3/2'\n",
+			wantErr:  "split: invalid chunk number: '3/2'\nTry 'split --help' for more information.\n",
 			wantExit: 2,
 		},
 	}
@@ -667,4 +667,29 @@ func TestRunNumber(t *testing.T) {
 			runCase(t, test)
 		})
 	}
+}
+
+func TestHelpVersion(t *testing.T) {
+	t.Run("help", func(t *testing.T) {
+		stdout := new(bytes.Buffer)
+		rt := &coreutils.Runtime{Stdout: stdout, Stderr: new(bytes.Buffer)}
+		if err := New(rt).Run(t.Context(), "--help"); err != nil {
+			t.Fatalf("Run() error = %v, want nil (exit status 0)", err)
+		}
+		if got, want := stdout.String(), usage; got != want {
+			t.Errorf("Run() stdout = %q, want %q", got, want)
+		}
+	})
+
+	t.Run("version", func(t *testing.T) {
+		stdout := new(bytes.Buffer)
+		rt := &coreutils.Runtime{Stdout: stdout, Stderr: new(bytes.Buffer)}
+		if err := New(rt).Run(t.Context(), "--version"); err != nil {
+			t.Fatalf("Run() error = %v, want nil (exit status 0)", err)
+		}
+		want := "split (charm.land/snail/coreutils) " + coreutils.Version + "\nhttps://charm.land/snail\n"
+		if got := stdout.String(); got != want {
+			t.Errorf("Run() stdout = %q, want %q", got, want)
+		}
+	})
 }

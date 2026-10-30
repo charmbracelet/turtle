@@ -11,6 +11,7 @@ import (
 
 	"charm.land/snail/coreutils"
 	"charm.land/snail/coreutils/internal/getopt"
+	"charm.land/snail/coreutils/internal/stdopts"
 )
 
 // Prog is the sleep core utility.
@@ -26,9 +27,13 @@ func New(rt *coreutils.Runtime) coreutils.Program {
 // Run suspends execution for the sum of the durations given in the operands,
 // returning the context error as-is when the context is done first.
 func (p *Prog) Run(ctx context.Context, args ...string) error {
+	if done, err := stdopts.Check(p.Runtime, "sleep", usage, getopt.Set{}, args); done {
+		return err
+	}
 	d, err := parseArgs(args)
 	if err != nil {
 		p.errorf("%v", err)
+		stdopts.TryHelp(p.Runtime, "sleep")
 		return &coreutils.ExitError{Code: 2}
 	}
 	if err := ctx.Err(); err != nil {
@@ -101,6 +106,19 @@ func parseOperand(operand string) (time.Duration, error) {
 func (p *Prog) errorf(format string, args ...any) {
 	fmt.Fprintf(p.Stderr, "sleep: "+format+"\n", args...)
 }
+
+// usage describes the options of sleep.
+const usage = `Usage: sleep NUMBER[smhd]...
+Pause for NUMBER seconds.  SUFFIX may be 's' for seconds (the default),
+'m' for minutes, 'h' for hours or 'd' for days.  NUMBER need not be an
+integer.  Given two or more arguments, pause for the amount of time
+specified by the sum of their values.
+
+      --help
+         display this help and exit
+      --version
+         output version information and exit
+`
 
 var (
 	_ coreutils.Program = (*Prog)(nil)

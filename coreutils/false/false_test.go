@@ -26,7 +26,7 @@ func TestRun(t *testing.T) {
 		{name: "no arguments"},
 		{name: "discards a lone double dash", args: []string{"--"}},
 		{name: "ignores operands", args: []string{"foo", "bar"}},
-		{name: "ignores option-like operands", args: []string{"--help", "--version"}},
+		{name: "ignores option-like operands", args: []string{"-x", "-y"}},
 	}
 
 	for _, test := range tests {
@@ -56,6 +56,49 @@ func TestRun(t *testing.T) {
 			}
 			if got := stdout.String(); got != "" {
 				t.Errorf("Run() stdout = %q, want empty", got)
+			}
+			if got := stderr.String(); got != "" {
+				t.Errorf("Run() stderr = %q, want empty", got)
+			}
+		})
+	}
+}
+
+func TestHelpVersion(t *testing.T) {
+	// As the GNU manual puts it, false always exits unsuccessfully, even
+	// when invoked with --help or --version.
+	tests := []struct {
+		name string
+		arg  string
+		want string
+	}{
+		{
+			name: "help",
+			arg:  "--help",
+			want: usage,
+		},
+		{
+			name: "version",
+			arg:  "--version",
+			want: "false (charm.land/snail/coreutils) " + coreutils.Version + "\nhttps://charm.land/snail\n",
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			stdout := new(bytes.Buffer)
+			stderr := new(bytes.Buffer)
+			rt := &coreutils.Runtime{Stdout: stdout, Stderr: stderr}
+			err := New(rt).Run(t.Context(), test.arg)
+			exitErr, ok := errors.AsType[*coreutils.ExitError](err)
+			if !ok {
+				t.Fatalf("Run() error = %v, want an *coreutils.ExitError", err)
+			}
+			if exitErr.Code != 1 {
+				t.Errorf("Run() exit code = %d, want 1", exitErr.Code)
+			}
+			if got := stdout.String(); got != test.want {
+				t.Errorf("Run() stdout = %q, want %q", got, test.want)
 			}
 			if got := stderr.String(); got != "" {
 				t.Errorf("Run() stderr = %q, want empty", got)

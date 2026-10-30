@@ -4,6 +4,7 @@ package coreutils
 
 import (
 	"context"
+	_ "embed"
 	"errors"
 	"fmt"
 	"io"
@@ -19,6 +20,12 @@ import (
 	"charm.land/snail/coreutils/internal/term"
 	"charm.land/snail/fsx"
 )
+
+//go:embed version.txt
+var versionText string
+
+// Version is the version of the core utilities, as kept in version.txt.
+var Version = strings.TrimSpace(versionText)
 
 // NewFunc is a function signature that every core utility package should follow
 // for their `package.New` funcs.

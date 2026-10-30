@@ -16,6 +16,7 @@ import (
 	"charm.land/snail/coreutils"
 	"charm.land/snail/coreutils/internal/getopt"
 	"charm.land/snail/coreutils/internal/patherr"
+	"charm.land/snail/coreutils/internal/stdopts"
 	"charm.land/snail/fsx"
 )
 
@@ -37,21 +38,28 @@ func New(rt *coreutils.Runtime) coreutils.Program {
 // Run is interrupted when ctx is done between files, and the context error
 // is returned.
 func (p *Prog) Run(ctx context.Context, args ...string) error {
+	if done, err := stdopts.Check(p.Runtime, "truncate", usage, optSet, args); done {
+		return err
+	}
 	opts, files, err := parseFlags(args)
 	if err != nil {
 		p.errorf("%v", err)
+		stdopts.TryHelp(p.Runtime, "truncate")
 		return &coreutils.ExitError{Code: 2}
 	}
 	if len(files) == 0 {
 		p.errorf("missing file operand")
+		stdopts.TryHelp(p.Runtime, "truncate")
 		return &coreutils.ExitError{Code: 2}
 	}
 	if !opts.sizeGiven && !opts.referenceGiven {
 		p.errorf("you must specify either --size or --reference")
+		stdopts.TryHelp(p.Runtime, "truncate")
 		return &coreutils.ExitError{Code: 2}
 	}
 	if opts.referenceGiven && opts.sizeGiven && opts.size.adjust == adjustSet {
 		p.errorf("you must specify a relative --size with --reference")
+		stdopts.TryHelp(p.Runtime, "truncate")
 		return &coreutils.ExitError{Code: 2}
 	}
 	if p.FS == nil {
@@ -261,11 +269,36 @@ var longOptions = map[string]rune{
 	"size":      's',
 }
 
+// optSet describes the options of truncate.
+var optSet = getopt.Set{Valued: "rs", Long: longOptions}
+
+// usage describes the options of truncate.
+const usage = `Usage: truncate OPTION... FILE...
+Shrink or extend the size of each FILE to the specified size
+
+Any FILE that does not exist is created. If a FILE is larger than the
+specified size, the extra data is lost; if it is shorter, it is extended
+and the extended part reads as zero bytes.
+
+  -c, --no-create
+         do not create any files
+  -r, --reference=FILE
+         use FILE as a reference size
+  -s, --size=SIZE
+         set or adjust the file size by SIZE; SIZE may be relative to the size
+         of each file, with a leading '+', '-', '<', '>', '/' or '%', and may
+         hold a multiplier suffix
+      --help
+         display this help and exit
+      --version
+         output version information and exit
+`
+
 // parseFlags parses the command line options. Option parsing stops at the
 // first operand or at "--". The last -s or -r option given is the one used.
 func parseFlags(args []string) (options, []string, error) {
 	var opts options
-	files, err := getopt.Set{Valued: "rs", Long: longOptions}.Parse(args, func(opt rune, value string) error {
+	files, err := optSet.Parse(args, func(opt rune, value string) error {
 		switch opt {
 		case 'c':
 			opts.noCreate = true

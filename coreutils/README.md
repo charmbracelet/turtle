@@ -50,6 +50,12 @@ The status icons link to the respective POSIX and GNU documentation, from
 the copies committed at `spec/markdown`. Tools whose manuals aren't part of
 these copies (like `sed` or `tar`) link to their online documentation instead.
 
+Every utility honors the GNU common options `--help` and `--version`, and
+its usage errors are followed by the `Try 'prog --help' for more information.`
+hint. The exceptions are `echo`, `printf` and `test`, whose specifications
+forbid options, and `false`, which always exits with status 1, even when
+invoked with them.
+
 | Category | Program | Description | POSIX | GNU |
 | --- | --- | --- | --- | --- |
 | Foundational | `true` | Return a zero exit status | [✅](spec/markdown/posix/true.md) | [✅](spec/markdown/gnu/true-invocation.md) |

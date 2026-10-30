@@ -36,29 +36,26 @@ func environ(values map[string]string) []string {
 	return entries
 }
 
-func runPwd(t *testing.T, workDir string, env map[string]string, args ...string) (string, error) {
+func runPwd(t *testing.T, workDir string, env map[string]string, args ...string) (stdout, stderr string, err error) {
 	t.Helper()
 
 	stdin := &spyReader{}
-	stdout := new(bytes.Buffer)
-	stderr := new(bytes.Buffer)
+	stdoutBuf := new(bytes.Buffer)
+	stderrBuf := new(bytes.Buffer)
 
 	rt := &coreutils.Runtime{
 		Stdin:      stdin,
-		Stdout:     stdout,
-		Stderr:     stderr,
+		Stdout:     stdoutBuf,
+		Stderr:     stderrBuf,
 		WorkingDir: workDir,
 		Environ:    func() []string { return environ(env) },
 	}
-	err := New(rt).Run(t.Context(), args...)
+	err = New(rt).Run(t.Context(), args...)
 
 	if stdin.read {
 		t.Error("Run() used stdin, want it untouched")
 	}
-	if got := stderr.String(); got != "" {
-		t.Errorf("Run() stderr = %q, want empty", got)
-	}
-	return stdout.String(), err
+	return stdoutBuf.String(), stderrBuf.String(), err
 }
 
 func exitCode(t *testing.T, err error) int {
@@ -206,7 +203,7 @@ func TestRun(t *testing.T) {
 
 		for _, test := range tests {
 			t.Run(test.name, func(t *testing.T) {
-				got, err := runPwd(t, test.workDir, test.env, test.args...)
+				got, _, err := runPwd(t, test.workDir, test.env, test.args...)
 				if err != nil {
 					t.Fatalf("Run() error = %v, want nil (exit status 0)", err)
 				}
@@ -224,51 +221,55 @@ func TestRun(t *testing.T) {
 			workDir string
 			args    []string
 			want    int
+			wantErr string
 		}{
 			{
-				name: "an operand is rejected",
-				args: []string{"foo"},
-				want: 2,
+				name:    "an operand is rejected",
+				args:    []string{"foo"},
+				want:    2,
+				wantErr: "pwd: unexpected operand: \"foo\"\nTry 'pwd --help' for more information.\n",
 			},
 			{
-				name: "an operand after a double dash is rejected",
-				args: []string{"--", "foo"},
-				want: 2,
+				name:    "an operand after a double dash is rejected",
+				args:    []string{"--", "foo"},
+				want:    2,
+				wantErr: "pwd: unexpected operand: \"foo\"\nTry 'pwd --help' for more information.\n",
 			},
 			{
-				name: "an unknown option is rejected",
-				args: []string{"-X"},
-				want: 2,
+				name:    "an unknown option is rejected",
+				args:    []string{"-X"},
+				want:    2,
+				wantErr: "pwd: invalid option -- 'X'\nTry 'pwd --help' for more information.\n",
 			},
 			{
-				name: "an unknown option in a group is rejected",
-				args: []string{"-LPX"},
-				want: 2,
+				name:    "an unknown option in a group is rejected",
+				args:    []string{"-LPX"},
+				want:    2,
+				wantErr: "pwd: invalid option -- 'X'\nTry 'pwd --help' for more information.\n",
 			},
 			{
-				name: "a long option is rejected",
-				args: []string{"--help"},
-				want: 2,
+				name:    "an unrecognized long option is rejected",
+				args:    []string{"--bogus"},
+				want:    2,
+				wantErr: "pwd: unrecognized option '--bogus'\nTry 'pwd --help' for more information.\n",
 			},
 			{
-				name: "an unrecognized long option is rejected",
-				args: []string{"--bogus"},
-				want: 2,
+				name:    "a long option with a value it doesn't take is rejected",
+				args:    []string{"--logical=yes"},
+				want:    2,
+				wantErr: "pwd: option '--logical=yes' doesn't allow an argument\nTry 'pwd --help' for more information.\n",
 			},
 			{
-				name: "a long option with a value it doesn't take is rejected",
-				args: []string{"--logical=yes"},
-				want: 2,
+				name:    "a lone dash is rejected",
+				args:    []string{"-"},
+				want:    2,
+				wantErr: "pwd: unexpected operand: \"-\"\nTry 'pwd --help' for more information.\n",
 			},
 			{
-				name: "a lone dash is rejected",
-				args: []string{"-"},
-				want: 2,
-			},
-			{
-				name: "an empty argument is rejected",
-				args: []string{""},
-				want: 2,
+				name:    "an empty argument is rejected",
+				args:    []string{""},
+				want:    2,
+				wantErr: "pwd: unexpected operand: \"\"\nTry 'pwd --help' for more information.\n",
 			},
 			{
 				name: "an empty working directory is an error",
@@ -283,12 +284,15 @@ func TestRun(t *testing.T) {
 
 		for _, test := range tests {
 			t.Run(test.name, func(t *testing.T) {
-				got, err := runPwd(t, test.workDir, nil, test.args...)
+				got, stderr, err := runPwd(t, test.workDir, nil, test.args...)
 				if code := exitCode(t, err); code != test.want {
 					t.Fatalf("Run() exit code = %d, want %d (error = %v)", code, test.want, err)
 				}
 				if got != "" {
 					t.Errorf("Run() stdout = %q, want empty", got)
+				}
+				if stderr != test.wantErr {
+					t.Errorf("Run() stderr = %q, want %q", stderr, test.wantErr)
 				}
 			})
 		}
@@ -331,4 +335,27 @@ func TestRunWriteError(t *testing.T) {
 	if !errors.Is(err, writeErr) {
 		t.Errorf("errors.Is(Run(), writeErr) = false, want true (error = %v)", err)
 	}
+}
+
+func TestHelpVersion(t *testing.T) {
+	t.Run("help", func(t *testing.T) {
+		stdout, _, err := runPwd(t, "", nil, "--help")
+		if err != nil {
+			t.Fatalf("Run() error = %v, want nil (exit status 0)", err)
+		}
+		if got, want := stdout, usage; got != want {
+			t.Errorf("Run() stdout = %q, want %q", got, want)
+		}
+	})
+
+	t.Run("version", func(t *testing.T) {
+		stdout, _, err := runPwd(t, "", nil, "--version")
+		if err != nil {
+			t.Fatalf("Run() error = %v, want nil (exit status 0)", err)
+		}
+		want := "pwd (charm.land/snail/coreutils) " + coreutils.Version + "\nhttps://charm.land/snail\n"
+		if got := stdout; got != want {
+			t.Errorf("Run() stdout = %q, want %q", got, want)
+		}
+	})
 }

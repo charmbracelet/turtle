@@ -19,6 +19,7 @@ import (
 	"charm.land/snail/coreutils/internal/getopt"
 	"charm.land/snail/coreutils/internal/input"
 	"charm.land/snail/coreutils/internal/patherr"
+	"charm.land/snail/coreutils/internal/stdopts"
 	"charm.land/snail/coreutils/internal/uux"
 )
 
@@ -40,17 +41,23 @@ func New(rt *coreutils.Runtime) coreutils.Program {
 // Reading is interrupted when ctx is done, and the context error is
 // returned.
 func (p *Prog) Run(ctx context.Context, args ...string) error {
+	if done, err := stdopts.Check(p.Runtime, "uuencode", usage, optSet, args); done {
+		return err
+	}
 	base64, operands, err := parseFlags(args)
 	if err != nil {
 		p.errorf("%v", err)
+		stdopts.TryHelp(p.Runtime, "uuencode")
 		return &coreutils.ExitError{Code: 2}
 	}
 	switch {
 	case len(operands) == 0:
 		p.errorf("missing operand")
+		stdopts.TryHelp(p.Runtime, "uuencode")
 		return &coreutils.ExitError{Code: 2}
 	case len(operands) > 2:
 		p.errorf("extra operand '%s'", operands[2])
+		stdopts.TryHelp(p.Runtime, "uuencode")
 		return &coreutils.ExitError{Code: 2}
 	}
 
@@ -146,10 +153,26 @@ var longOptions = map[string]rune{
 	"base64": 'm',
 }
 
+// optSet describes the options of uuencode.
+var optSet = getopt.Set{Long: longOptions}
+
+// usage describes the options of uuencode.
+const usage = `Usage: uuencode [-m] [file] decode_pathname
+Write an encoded version of FILE, or of the standard input, to the standard
+output, announcing decode_pathname as the name of the recreated file.
+
+  -m, --base64
+         encode with the MIME base64 algorithm, instead of the historical one
+      --help
+         display this help and exit
+      --version
+         output version information and exit
+`
+
 // parseFlags parses the options and operands. Option parsing stops at the
 // first operand or at "--".
 func parseFlags(args []string) (base64 bool, operands []string, err error) {
-	operands, err = getopt.Set{Long: longOptions}.Parse(args, func(opt rune, _ string) error {
+	operands, err = optSet.Parse(args, func(opt rune, _ string) error {
 		if opt != 'm' {
 			return getopt.InvalidOption(opt)
 		}

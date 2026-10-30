@@ -25,6 +25,7 @@ import (
 	"charm.land/snail/coreutils/internal/getopt"
 	"charm.land/snail/coreutils/internal/input"
 	"charm.land/snail/coreutils/internal/patherr"
+	"charm.land/snail/coreutils/internal/stdopts"
 	"charm.land/snail/fsx"
 )
 
@@ -44,17 +45,23 @@ func New(rt *coreutils.Runtime) coreutils.Program {
 //
 // Reading is interrupted when ctx is done, and the context error is returned.
 func (p *Prog) Run(ctx context.Context, args ...string) error {
+	if done, err := stdopts.Check(p.Runtime, "csplit", usage, optSet, args); done {
+		return err
+	}
 	opts, operands, err := parseFlags(args)
 	if err != nil {
 		p.errorf("%v", err)
+		stdopts.TryHelp(p.Runtime, "csplit")
 		return &coreutils.ExitError{Code: 1}
 	}
 	if len(operands) == 0 {
 		p.errorf("missing operand")
+		stdopts.TryHelp(p.Runtime, "csplit")
 		return &coreutils.ExitError{Code: 1}
 	}
 	if len(operands) == 1 {
 		p.errorf("missing operand after '%s'", operands[0])
+		stdopts.TryHelp(p.Runtime, "csplit")
 		return &coreutils.ExitError{Code: 1}
 	}
 	if p.FS == nil {
@@ -464,11 +471,39 @@ var longOptions = map[string]rune{
 // --suppress-matched stays long-only.
 const optSuppress rune = 0x100
 
+// optSet describes the options of csplit.
+var optSet = getopt.Set{Valued: "fnb", Long: longOptions}
+
+// usage describes the options of csplit.
+const usage = `Usage: csplit [OPTION]... FILE_PATTERN...
+Output pieces of FILE separated by PATTERN(s) to files 'xx00', 'xx01', ...,
+and output byte counts of each piece to standard output.
+
+  -b, --suffix-format=FORMAT
+         use sprintf FORMAT instead of %02d
+  -f, --prefix=PREFIX
+         use PREFIX instead of 'xx'
+  -n, --digits=DIGITS
+         use specified number of digits instead of 2
+  -k, --keep-files
+         do not remove output files on errors
+  -s, --quiet, --silent
+         do not print counts of output file sizes
+  -z, --elide-empty-files
+         suppress zero-length output files
+      --suppress-matched
+         do not output lines matching the pattern
+      --help
+         display this help and exit
+      --version
+         output version information and exit
+`
+
 // parseFlags parses the command line options. Option parsing stops at the
 // first operand or at "--".
 func parseFlags(args []string) (options, []string, error) {
 	opts := options{prefix: "xx", digits: 2}
-	operands, err := getopt.Set{Valued: "fnb", Long: longOptions}.Parse(args, func(opt rune, value string) error {
+	operands, err := optSet.Parse(args, func(opt rune, value string) error {
 		switch opt {
 		case 'k':
 			opts.keep = true

@@ -237,42 +237,42 @@ func TestRun(t *testing.T) {
 				name:     "an invalid ignore value is a usage error",
 				args:     []string{"--ignore=x"},
 				numCPU:   8,
-				wantErr:  "nproc: invalid --ignore argument 'x'\n",
+				wantErr:  "nproc: invalid --ignore argument 'x'\nTry 'nproc --help' for more information.\n",
 				wantExit: 2,
 			},
 			{
 				name:     "a negative ignore value is a usage error",
 				args:     []string{"--ignore=-1"},
 				numCPU:   8,
-				wantErr:  "nproc: invalid --ignore argument '-1'\n",
+				wantErr:  "nproc: invalid --ignore argument '-1'\nTry 'nproc --help' for more information.\n",
 				wantExit: 2,
 			},
 			{
 				name:     "--ignore without a value is a usage error",
 				args:     []string{"--ignore"},
 				numCPU:   8,
-				wantErr:  "nproc: option '--ignore' requires an argument\n",
+				wantErr:  "nproc: option '--ignore' requires an argument\nTry 'nproc --help' for more information.\n",
 				wantExit: 2,
 			},
 			{
 				name:     "an unknown option is a usage error",
 				args:     []string{"--verbose"},
 				numCPU:   8,
-				wantErr:  "nproc: unrecognized option '--verbose'\n",
+				wantErr:  "nproc: unrecognized option '--verbose'\nTry 'nproc --help' for more information.\n",
 				wantExit: 2,
 			},
 			{
 				name:     "an operand is a usage error",
 				args:     []string{"4"},
 				numCPU:   8,
-				wantErr:  "nproc: extra operand '4'\n",
+				wantErr:  "nproc: extra operand '4'\nTry 'nproc --help' for more information.\n",
 				wantExit: 2,
 			},
 			{
 				name:     "an option-like operand is a usage error",
 				args:     []string{"--", "--all"},
 				numCPU:   8,
-				wantErr:  "nproc: extra operand '--all'\n",
+				wantErr:  "nproc: extra operand '--all'\nTry 'nproc --help' for more information.\n",
 				wantExit: 2,
 			},
 		}
@@ -332,6 +332,31 @@ func TestRun(t *testing.T) {
 		}
 		if p.numCPU != nil {
 			t.Error("New() set numCPU, want nil to fall back to runtime.NumCPU")
+		}
+	})
+}
+
+func TestHelpVersion(t *testing.T) {
+	t.Run("help", func(t *testing.T) {
+		stdout := new(bytes.Buffer)
+		rt := &coreutils.Runtime{Stdout: stdout, Stderr: new(bytes.Buffer)}
+		if err := New(rt).Run(t.Context(), "--help"); err != nil {
+			t.Fatalf("Run() error = %v, want nil (exit status 0)", err)
+		}
+		if got, want := stdout.String(), usage; got != want {
+			t.Errorf("Run() stdout = %q, want %q", got, want)
+		}
+	})
+
+	t.Run("version", func(t *testing.T) {
+		stdout := new(bytes.Buffer)
+		rt := &coreutils.Runtime{Stdout: stdout, Stderr: new(bytes.Buffer)}
+		if err := New(rt).Run(t.Context(), "--version"); err != nil {
+			t.Fatalf("Run() error = %v, want nil (exit status 0)", err)
+		}
+		want := "nproc (charm.land/snail/coreutils) " + coreutils.Version + "\nhttps://charm.land/snail\n"
+		if got := stdout.String(); got != want {
+			t.Errorf("Run() stdout = %q, want %q", got, want)
 		}
 	})
 }

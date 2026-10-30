@@ -445,7 +445,7 @@ func TestRunLongOptions(t *testing.T) {
 			name:     "lines requires an argument",
 			fsys:     testFS(),
 			args:     []string{"--lines"},
-			wantErr:  "head: option '--lines' requires an argument\n",
+			wantErr:  "head: option '--lines' requires an argument\nTry 'head --help' for more information.\n",
 			wantExit: 2,
 		},
 	}
@@ -506,63 +506,63 @@ func TestRunInvalidUsage(t *testing.T) {
 			name:     "invalid option",
 			args:     []string{"-x", "a.txt"},
 			fsys:     testFS(),
-			wantErr:  "head: invalid option -- 'x'\n",
+			wantErr:  "head: invalid option -- 'x'\nTry 'head --help' for more information.\n",
 			wantExit: 2,
 		},
 		{
 			name:     "unrecognized long option",
 			args:     []string{"--number", "a.txt"},
 			fsys:     testFS(),
-			wantErr:  "head: unrecognized option '--number'\n",
+			wantErr:  "head: unrecognized option '--number'\nTry 'head --help' for more information.\n",
 			wantExit: 2,
 		},
 		{
 			name:     "invalid number",
 			args:     []string{"-n", "x", "a.txt"},
 			fsys:     testFS(),
-			wantErr:  "head: invalid number of lines: 'x'\n",
+			wantErr:  "head: invalid number of lines: 'x'\nTry 'head --help' for more information.\n",
 			wantExit: 2,
 		},
 		{
 			name:     "missing option argument",
 			args:     []string{"-n"},
 			fsys:     testFS(),
-			wantErr:  "head: option requires an argument -- 'n'\n",
+			wantErr:  "head: option requires an argument -- 'n'\nTry 'head --help' for more information.\n",
 			wantExit: 2,
 		},
 		{
 			name:     "non-decimal number",
 			args:     []string{"-c", "1.5", "a.txt"},
 			fsys:     testFS(),
-			wantErr:  "head: invalid number of bytes: '1.5'\n",
+			wantErr:  "head: invalid number of bytes: '1.5'\nTry 'head --help' for more information.\n",
 			wantExit: 2,
 		},
 		{
 			name:     "empty number",
 			args:     []string{"-n", "", "a.txt"},
 			fsys:     testFS(),
-			wantErr:  "head: invalid number of lines: ''\n",
+			wantErr:  "head: invalid number of lines: ''\nTry 'head --help' for more information.\n",
 			wantExit: 2,
 		},
 		{
 			name:     "invalid suffix",
 			args:     []string{"-c", "1J", "a.txt"},
 			fsys:     testFS(),
-			wantErr:  "head: invalid number of bytes: '1J'\n",
+			wantErr:  "head: invalid number of bytes: '1J'\nTry 'head --help' for more information.\n",
 			wantExit: 2,
 		},
 		{
 			name:     "suffix too large",
 			args:     []string{"-c", "1Z", "a.txt"},
 			fsys:     testFS(),
-			wantErr:  "head: invalid number of bytes: '1Z'\n",
+			wantErr:  "head: invalid number of bytes: '1Z'\nTry 'head --help' for more information.\n",
 			wantExit: 2,
 		},
 		{
 			name:     "obsolete number after another option",
 			args:     []string{"-n", "2", "-5", "a.txt"},
 			fsys:     testFS(),
-			wantErr:  "head: invalid trailing option -- 5\n",
+			wantErr:  "head: invalid trailing option -- 5\nTry 'head --help' for more information.\n",
 			wantExit: 2,
 		},
 	}
@@ -812,14 +812,14 @@ func TestRunObsoleteSyntax(t *testing.T) {
 			name:     "an invalid trailing option",
 			fsys:     testFS(),
 			args:     []string{"-5x", "a.txt"},
-			wantErr:  "head: invalid trailing option -- x\n",
+			wantErr:  "head: invalid trailing option -- x\nTry 'head --help' for more information.\n",
 			wantExit: 2,
 		},
 		{
 			name:     "an invalid trailing option after digits and flags",
 			fsys:     testFS(),
 			args:     []string{"-5qzK", "a.txt"},
-			wantErr:  "head: invalid trailing option -- K\n",
+			wantErr:  "head: invalid trailing option -- K\nTry 'head --help' for more information.\n",
 			wantExit: 2,
 		},
 		{
@@ -1016,4 +1016,29 @@ func TestRunDoesNotReadUnusedStandardInput(t *testing.T) {
 	if stdin.read {
 		t.Error("the standard input was read")
 	}
+}
+
+func TestHelpVersion(t *testing.T) {
+	t.Run("help", func(t *testing.T) {
+		stdout := new(bytes.Buffer)
+		rt := &coreutils.Runtime{Stdout: stdout, Stderr: new(bytes.Buffer)}
+		if err := New(rt).Run(t.Context(), "--help"); err != nil {
+			t.Fatalf("Run() error = %v, want nil (exit status 0)", err)
+		}
+		if got, want := stdout.String(), usage; got != want {
+			t.Errorf("Run() stdout = %q, want %q", got, want)
+		}
+	})
+
+	t.Run("version", func(t *testing.T) {
+		stdout := new(bytes.Buffer)
+		rt := &coreutils.Runtime{Stdout: stdout, Stderr: new(bytes.Buffer)}
+		if err := New(rt).Run(t.Context(), "--version"); err != nil {
+			t.Fatalf("Run() error = %v, want nil (exit status 0)", err)
+		}
+		want := "head (charm.land/snail/coreutils) " + coreutils.Version + "\nhttps://charm.land/snail\n"
+		if got := stdout.String(); got != want {
+			t.Errorf("Run() stdout = %q, want %q", got, want)
+		}
+	})
 }

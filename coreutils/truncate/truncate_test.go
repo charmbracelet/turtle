@@ -285,7 +285,7 @@ func TestRun(t *testing.T) {
 			fsys:     file("f", "abc"),
 			args:     []string{"-s", "/0", "f"},
 			want:     map[string]string{"f": "abc"},
-			wantErr:  "truncate: division by zero\n",
+			wantErr:  "truncate: division by zero\nTry 'truncate --help' for more information.\n",
 			wantExit: 2,
 		},
 		{
@@ -293,7 +293,7 @@ func TestRun(t *testing.T) {
 			fsys:     file("f", "abc"),
 			args:     []string{"-s", "%0", "f"},
 			want:     map[string]string{"f": "abc"},
-			wantErr:  "truncate: division by zero\n",
+			wantErr:  "truncate: division by zero\nTry 'truncate --help' for more information.\n",
 			wantExit: 2,
 		},
 
@@ -352,7 +352,7 @@ func TestRun(t *testing.T) {
 			fsys:     file("f", "abc"),
 			args:     []string{"-s", "1X", "f"},
 			want:     map[string]string{"f": "abc"},
-			wantErr:  "truncate: invalid number: '1X'\n",
+			wantErr:  "truncate: invalid number: '1X'\nTry 'truncate --help' for more information.\n",
 			wantExit: 2,
 		},
 
@@ -423,7 +423,7 @@ func TestRun(t *testing.T) {
 			fsys:     file("f", "abc"),
 			args:     []string{"-r", "f", "-s", "10", "f"},
 			want:     map[string]string{"f": "abc"},
-			wantErr:  "truncate: you must specify a relative --size with --reference\n",
+			wantErr:  "truncate: you must specify a relative --size with --reference\nTry 'truncate --help' for more information.\n",
 			wantExit: 2,
 		},
 
@@ -461,21 +461,21 @@ func TestRun(t *testing.T) {
 			fsys:     file("f", "abc"),
 			args:     []string{"f"},
 			want:     map[string]string{"f": "abc"},
-			wantErr:  "truncate: you must specify either --size or --reference\n",
+			wantErr:  "truncate: you must specify either --size or --reference\nTry 'truncate --help' for more information.\n",
 			wantExit: 2,
 		},
 		{
 			name:     "no file operand fails",
 			args:     []string{"-s", "5"},
 			want:     map[string]string{},
-			wantErr:  "truncate: missing file operand\n",
+			wantErr:  "truncate: missing file operand\nTry 'truncate --help' for more information.\n",
 			wantExit: 2,
 		},
 		{
 			name:     "no options at all fails",
 			args:     nil,
 			want:     map[string]string{},
-			wantErr:  "truncate: missing file operand\n",
+			wantErr:  "truncate: missing file operand\nTry 'truncate --help' for more information.\n",
 			wantExit: 2,
 		},
 		{
@@ -483,7 +483,7 @@ func TestRun(t *testing.T) {
 			fsys:     file("f", "abc"),
 			args:     []string{"-s", "abc", "f"},
 			want:     map[string]string{"f": "abc"},
-			wantErr:  "truncate: invalid number: 'abc'\n",
+			wantErr:  "truncate: invalid number: 'abc'\nTry 'truncate --help' for more information.\n",
 			wantExit: 2,
 		},
 		{
@@ -491,7 +491,7 @@ func TestRun(t *testing.T) {
 			fsys:     file("f", "abc"),
 			args:     []string{"-s", "", "f"},
 			want:     map[string]string{"f": "abc"},
-			wantErr:  "truncate: invalid number: ''\n",
+			wantErr:  "truncate: invalid number: ''\nTry 'truncate --help' for more information.\n",
 			wantExit: 2,
 		},
 		{
@@ -499,7 +499,7 @@ func TestRun(t *testing.T) {
 			fsys:     file("f", "abc"),
 			args:     []string{"-s", "3x", "f"},
 			want:     map[string]string{"f": "abc"},
-			wantErr:  "truncate: invalid number: '3x'\n",
+			wantErr:  "truncate: invalid number: '3x'\nTry 'truncate --help' for more information.\n",
 			wantExit: 2,
 		},
 		{
@@ -507,7 +507,7 @@ func TestRun(t *testing.T) {
 			fsys:     file("f", "abc"),
 			args:     []string{"-s", "/+3", "f"},
 			want:     map[string]string{"f": "abc"},
-			wantErr:  "truncate: multiple relative modifiers specified\n",
+			wantErr:  "truncate: multiple relative modifiers specified\nTry 'truncate --help' for more information.\n",
 			wantExit: 2,
 		},
 		{
@@ -515,7 +515,7 @@ func TestRun(t *testing.T) {
 			fsys:     file("f", "abc"),
 			args:     []string{"-x", "-s", "3", "f"},
 			want:     map[string]string{"f": "abc"},
-			wantErr:  "truncate: invalid option -- 'x'\n",
+			wantErr:  "truncate: invalid option -- 'x'\nTry 'truncate --help' for more information.\n",
 			wantExit: 2,
 		},
 		{
@@ -523,7 +523,7 @@ func TestRun(t *testing.T) {
 			fsys:     file("f", "abc"),
 			args:     []string{"-s"},
 			want:     map[string]string{"f": "abc"},
-			wantErr:  "truncate: option requires an argument -- 's'\n",
+			wantErr:  "truncate: option requires an argument -- 's'\nTry 'truncate --help' for more information.\n",
 			wantExit: 2,
 		},
 		{
@@ -531,7 +531,7 @@ func TestRun(t *testing.T) {
 			fsys:     file("f", "abc"),
 			args:     []string{"-s", "999999999999999999999999999999", "f"},
 			want:     map[string]string{"f": "abc"},
-			wantErr:  "truncate: invalid number: '999999999999999999999999999999'\n",
+			wantErr:  "truncate: invalid number: '999999999999999999999999999999'\nTry 'truncate --help' for more information.\n",
 			wantExit: 2,
 		},
 
@@ -805,4 +805,29 @@ func TestParseSizeError(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestHelpVersion(t *testing.T) {
+	t.Run("help", func(t *testing.T) {
+		stdout := new(bytes.Buffer)
+		rt := &coreutils.Runtime{Stdout: stdout, Stderr: new(bytes.Buffer)}
+		if err := New(rt).Run(t.Context(), "--help"); err != nil {
+			t.Fatalf("Run() error = %v, want nil (exit status 0)", err)
+		}
+		if got, want := stdout.String(), usage; got != want {
+			t.Errorf("Run() stdout = %q, want %q", got, want)
+		}
+	})
+
+	t.Run("version", func(t *testing.T) {
+		stdout := new(bytes.Buffer)
+		rt := &coreutils.Runtime{Stdout: stdout, Stderr: new(bytes.Buffer)}
+		if err := New(rt).Run(t.Context(), "--version"); err != nil {
+			t.Fatalf("Run() error = %v, want nil (exit status 0)", err)
+		}
+		want := "truncate (charm.land/snail/coreutils) " + coreutils.Version + "\nhttps://charm.land/snail\n"
+		if got := stdout.String(); got != want {
+			t.Errorf("Run() stdout = %q, want %q", got, want)
+		}
+	})
 }

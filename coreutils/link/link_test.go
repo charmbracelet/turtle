@@ -221,7 +221,7 @@ func TestRun(t *testing.T) {
 				name:     "no operand is an error",
 				files:    fsx.MemFS{},
 				args:     nil,
-				wantErr:  "link: missing file operand\n",
+				wantErr:  "link: missing file operand\nTry 'link --help' for more information.\n",
 				wantExit: 2,
 			},
 			{
@@ -229,7 +229,7 @@ func TestRun(t *testing.T) {
 				files:    fsx.MemFS{"a.txt": {Data: []byte("hello")}},
 				args:     []string{"a.txt"},
 				present:  []string{"a.txt"},
-				wantErr:  "link: missing destination file operand after 'a.txt'\n",
+				wantErr:  "link: missing destination file operand after 'a.txt'\nTry 'link --help' for more information.\n",
 				wantExit: 2,
 			},
 			{
@@ -238,7 +238,7 @@ func TestRun(t *testing.T) {
 				args:     []string{"a.txt", "b.txt", "c.txt"},
 				present:  []string{"a.txt", "b.txt"},
 				absent:   []string{"c.txt"},
-				wantErr:  "link: extra operand 'c.txt'\n",
+				wantErr:  "link: extra operand 'c.txt'\nTry 'link --help' for more information.\n",
 				wantExit: 2,
 			},
 		}
@@ -282,4 +282,37 @@ func TestLinkSharesData(t *testing.T) {
 	if string(got) != "world" {
 		t.Errorf("ReadFile(%q) = %q, want %q", "a.txt", got, "world")
 	}
+}
+
+func TestHelpVersion(t *testing.T) {
+	t.Run("help", func(t *testing.T) {
+		stdout := new(bytes.Buffer)
+		rt := &coreutils.Runtime{
+			Stdin:  strings.NewReader(""),
+			Stdout: stdout,
+			Stderr: new(bytes.Buffer),
+		}
+		if err := New(rt).Run(t.Context(), "--help"); err != nil {
+			t.Fatalf("Run() error = %v, want nil (exit status 0)", err)
+		}
+		if got, want := stdout.String(), usage; got != want {
+			t.Errorf("Run() stdout = %q, want %q", got, want)
+		}
+	})
+
+	t.Run("version", func(t *testing.T) {
+		stdout := new(bytes.Buffer)
+		rt := &coreutils.Runtime{
+			Stdin:  strings.NewReader(""),
+			Stdout: stdout,
+			Stderr: new(bytes.Buffer),
+		}
+		if err := New(rt).Run(t.Context(), "--version"); err != nil {
+			t.Fatalf("Run() error = %v, want nil (exit status 0)", err)
+		}
+		want := "link (charm.land/snail/coreutils) " + coreutils.Version + "\nhttps://charm.land/snail\n"
+		if got := stdout.String(); got != want {
+			t.Errorf("Run() stdout = %q, want %q", got, want)
+		}
+	})
 }

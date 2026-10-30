@@ -513,43 +513,43 @@ func TestRunErrors(t *testing.T) {
 			name:     "a delimiter list ending with a backslash",
 			fsys:     testFS(),
 			args:     []string{"-d", `\`, "a.txt"},
-			wantErr:  "paste: delimiter list ends with an unescaped backslash: '\\'\n",
+			wantErr:  "paste: delimiter list ends with an unescaped backslash: '\\'\nTry 'paste --help' for more information.\n",
 			wantExit: 1,
 		},
 		{
 			name:     "a delimiter list ending with a backslash after a character",
 			fsys:     testFS(),
 			args:     []string{"-d", `a\`, "a.txt"},
-			wantErr:  "paste: delimiter list ends with an unescaped backslash: 'a\\'\n",
+			wantErr:  "paste: delimiter list ends with an unescaped backslash: 'a\\'\nTry 'paste --help' for more information.\n",
 			wantExit: 1,
 		},
 		{
 			name:     "missing operand",
-			wantErr:  "paste: missing operand\n",
+			wantErr:  "paste: missing operand\nTry 'paste --help' for more information.\n",
 			wantExit: 2,
 		},
 		{
 			name:     "invalid option",
 			args:     []string{"-x"},
-			wantErr:  "paste: invalid option -- 'x'\n",
+			wantErr:  "paste: invalid option -- 'x'\nTry 'paste --help' for more information.\n",
 			wantExit: 2,
 		},
 		{
 			name:     "invalid option in a group",
 			args:     []string{"-sx"},
-			wantErr:  "paste: invalid option -- 'x'\n",
+			wantErr:  "paste: invalid option -- 'x'\nTry 'paste --help' for more information.\n",
 			wantExit: 2,
 		},
 		{
 			name:     "unknown long option",
 			args:     []string{"--delimiter"},
-			wantErr:  "paste: unrecognized option '--delimiter'\n",
+			wantErr:  "paste: unrecognized option '--delimiter'\nTry 'paste --help' for more information.\n",
 			wantExit: 2,
 		},
 		{
 			name:     "missing option argument",
 			args:     []string{"-d"},
-			wantErr:  "paste: option requires an argument -- 'd'\n",
+			wantErr:  "paste: option requires an argument -- 'd'\nTry 'paste --help' for more information.\n",
 			wantExit: 2,
 		},
 	}
@@ -632,4 +632,29 @@ func runCancelled(t *testing.T, ctx context.Context, stdin io.Reader, fsys fsx.F
 	if got := stderr.String(); got != "" {
 		t.Errorf("Run() stderr = %q, want empty", got)
 	}
+}
+
+func TestHelpVersion(t *testing.T) {
+	t.Run("help", func(t *testing.T) {
+		stdout := new(bytes.Buffer)
+		rt := &coreutils.Runtime{Stdout: stdout, Stderr: new(bytes.Buffer)}
+		if err := New(rt).Run(t.Context(), "--help"); err != nil {
+			t.Fatalf("Run() error = %v, want nil (exit status 0)", err)
+		}
+		if got, want := stdout.String(), usage; got != want {
+			t.Errorf("Run() stdout = %q, want %q", got, want)
+		}
+	})
+
+	t.Run("version", func(t *testing.T) {
+		stdout := new(bytes.Buffer)
+		rt := &coreutils.Runtime{Stdout: stdout, Stderr: new(bytes.Buffer)}
+		if err := New(rt).Run(t.Context(), "--version"); err != nil {
+			t.Fatalf("Run() error = %v, want nil (exit status 0)", err)
+		}
+		want := "paste (charm.land/snail/coreutils) " + coreutils.Version + "\nhttps://charm.land/snail\n"
+		if got := stdout.String(); got != want {
+			t.Errorf("Run() stdout = %q, want %q", got, want)
+		}
+	})
 }

@@ -252,14 +252,14 @@ func TestRunMode(t *testing.T) {
 			files:    fsx.MemFS{},
 			args:     []string{"-m", "garbage", "d"},
 			absent:   []string{"d"},
-			wantErr:  `mkdir: invalid mode: "garbage"` + "\n",
+			wantErr:  `mkdir: invalid mode: "garbage"` + "\nTry 'mkdir --help' for more information.\n",
 			wantExit: 1,
 		},
 		{
 			name:     "the option requires an argument",
 			files:    fsx.MemFS{},
 			args:     []string{"-m"},
-			wantErr:  "mkdir: option requires an argument -- 'm'\n",
+			wantErr:  "mkdir: option requires an argument -- 'm'\nTry 'mkdir --help' for more information.\n",
 			wantExit: 2,
 		},
 	}
@@ -384,7 +384,7 @@ func TestRunLongOptions(t *testing.T) {
 			name:     "mode requires an argument",
 			files:    fsx.MemFS{},
 			args:     []string{"--mode"},
-			wantErr:  "mkdir: option '--mode' requires an argument\n",
+			wantErr:  "mkdir: option '--mode' requires an argument\nTry 'mkdir --help' for more information.\n",
 			wantExit: 2,
 		},
 	}
@@ -401,14 +401,14 @@ func TestRunErrors(t *testing.T) {
 		{
 			name:     "missing operand",
 			args:     []string{},
-			wantErr:  "mkdir: missing operand\n",
+			wantErr:  "mkdir: missing operand\nTry 'mkdir --help' for more information.\n",
 			wantExit: 2,
 		},
 		{
 			name:     "invalid option",
 			files:    fsx.MemFS{},
 			args:     []string{"-x"},
-			wantErr:  "mkdir: invalid option -- 'x'\n",
+			wantErr:  "mkdir: invalid option -- 'x'\nTry 'mkdir --help' for more information.\n",
 			wantExit: 2,
 		},
 		{
@@ -416,7 +416,7 @@ func TestRunErrors(t *testing.T) {
 			files:    fsx.MemFS{},
 			args:     []string{"--bogus", "d"},
 			absent:   []string{"d"},
-			wantErr:  "mkdir: unrecognized option '--bogus'\n",
+			wantErr:  "mkdir: unrecognized option '--bogus'\nTry 'mkdir --help' for more information.\n",
 			wantExit: 2,
 		},
 	}
@@ -506,4 +506,29 @@ func TestRunContext(t *testing.T) {
 	if !errors.Is(err, context.Canceled) {
 		t.Errorf("Run() error = %v, want context.Canceled", err)
 	}
+}
+
+func TestHelpVersion(t *testing.T) {
+	t.Run("help", func(t *testing.T) {
+		stdout := new(bytes.Buffer)
+		rt := &coreutils.Runtime{Stdout: stdout, Stderr: new(bytes.Buffer)}
+		if err := New(rt).Run(t.Context(), "--help"); err != nil {
+			t.Fatalf("Run() error = %v, want nil (exit status 0)", err)
+		}
+		if got, want := stdout.String(), usage; got != want {
+			t.Errorf("Run() stdout = %q, want %q", got, want)
+		}
+	})
+
+	t.Run("version", func(t *testing.T) {
+		stdout := new(bytes.Buffer)
+		rt := &coreutils.Runtime{Stdout: stdout, Stderr: new(bytes.Buffer)}
+		if err := New(rt).Run(t.Context(), "--version"); err != nil {
+			t.Fatalf("Run() error = %v, want nil (exit status 0)", err)
+		}
+		want := "mkdir (charm.land/snail/coreutils) " + coreutils.Version + "\nhttps://charm.land/snail\n"
+		if got := stdout.String(); got != want {
+			t.Errorf("Run() stdout = %q, want %q", got, want)
+		}
+	})
 }

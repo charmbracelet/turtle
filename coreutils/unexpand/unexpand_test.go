@@ -497,49 +497,49 @@ func TestRunOptions(t *testing.T) {
 		{
 			name:     "invalid option",
 			args:     []string{"-x"},
-			wantErr:  "unexpand: invalid option -- 'x'\n",
+			wantErr:  "unexpand: invalid option -- 'x'\nTry 'unexpand --help' for more information.\n",
 			wantExit: 2,
 		},
 		{
 			name:     "unknown long option",
 			args:     []string{"--foo"},
-			wantErr:  "unexpand: unrecognized option '--foo'\n",
+			wantErr:  "unexpand: unrecognized option '--foo'\nTry 'unexpand --help' for more information.\n",
 			wantExit: 2,
 		},
 		{
 			name:     "missing tab list argument",
 			args:     []string{"-t"},
-			wantErr:  "unexpand: option requires an argument -- 't'\n",
+			wantErr:  "unexpand: option requires an argument -- 't'\nTry 'unexpand --help' for more information.\n",
 			wantExit: 2,
 		},
 		{
 			name:     "zero distance",
 			args:     []string{"-t", "0"},
-			wantErr:  "unexpand: invalid tab stop: '0'\n",
+			wantErr:  "unexpand: invalid tab stop: '0'\nTry 'unexpand --help' for more information.\n",
 			wantExit: 2,
 		},
 		{
 			name:     "a non numeric stop",
 			args:     []string{"-t", "x"},
-			wantErr:  "unexpand: invalid tab stop: 'x'\n",
+			wantErr:  "unexpand: invalid tab stop: 'x'\nTry 'unexpand --help' for more information.\n",
 			wantExit: 2,
 		},
 		{
 			name:     "not ascending stops",
 			args:     []string{"-t", "8,4"},
-			wantErr:  "unexpand: tab sizes must be ascending\n",
+			wantErr:  "unexpand: tab sizes must be ascending\nTry 'unexpand --help' for more information.\n",
 			wantExit: 2,
 		},
 		{
 			name:     "first-only with a value",
 			args:     []string{"--first-only=1"},
-			wantErr:  "unexpand: option '--first-only=1' doesn't allow an argument\n",
+			wantErr:  "unexpand: option '--first-only=1' doesn't allow an argument\nTry 'unexpand --help' for more information.\n",
 			wantExit: 2,
 		},
 		{
 			name:     "an empty tab list",
 			args:     []string{"-t", ""},
-			wantErr:  "unexpand: empty tab list\n",
+			wantErr:  "unexpand: empty tab list\nTry 'unexpand --help' for more information.\n",
 			wantExit: 2,
 		},
 	}
@@ -688,4 +688,29 @@ func runCancelled(t *testing.T, ctx context.Context, stdin io.Reader) {
 	if got := stderr.String(); got != "" {
 		t.Errorf("Run() stderr = %q, want empty", got)
 	}
+}
+
+func TestHelpVersion(t *testing.T) {
+	t.Run("help", func(t *testing.T) {
+		stdout := new(bytes.Buffer)
+		rt := &coreutils.Runtime{Stdout: stdout, Stderr: new(bytes.Buffer)}
+		if err := New(rt).Run(t.Context(), "--help"); err != nil {
+			t.Fatalf("Run() error = %v, want nil (exit status 0)", err)
+		}
+		if got, want := stdout.String(), usage; got != want {
+			t.Errorf("Run() stdout = %q, want %q", got, want)
+		}
+	})
+
+	t.Run("version", func(t *testing.T) {
+		stdout := new(bytes.Buffer)
+		rt := &coreutils.Runtime{Stdout: stdout, Stderr: new(bytes.Buffer)}
+		if err := New(rt).Run(t.Context(), "--version"); err != nil {
+			t.Fatalf("Run() error = %v, want nil (exit status 0)", err)
+		}
+		want := "unexpand (charm.land/snail/coreutils) " + coreutils.Version + "\nhttps://charm.land/snail\n"
+		if got := stdout.String(); got != want {
+			t.Errorf("Run() stdout = %q, want %q", got, want)
+		}
+	})
 }

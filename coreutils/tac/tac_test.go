@@ -602,13 +602,13 @@ func TestRunRegex(t *testing.T) {
 		{
 			name:     "an invalid pattern",
 			args:     []string{"-r", "-s", "["},
-			wantErr:  "tac: invalid separator: error parsing regexp: missing closing ]: `[`\n",
+			wantErr:  "tac: invalid separator: error parsing regexp: missing closing ]: `[`\nTry 'tac --help' for more information.\n",
 			wantExit: 2,
 		},
 		{
 			name:     "an empty separator is invalid with -r",
 			args:     []string{"-r", "-s", ""},
-			wantErr:  "tac: separator cannot be empty with -r\n",
+			wantErr:  "tac: separator cannot be empty with -r\nTry 'tac --help' for more information.\n",
 			wantExit: 2,
 		},
 	}
@@ -665,31 +665,31 @@ func TestRunErrors(t *testing.T) {
 		{
 			name:     "invalid option",
 			args:     []string{"-z"},
-			wantErr:  "tac: invalid option -- 'z'\n",
+			wantErr:  "tac: invalid option -- 'z'\nTry 'tac --help' for more information.\n",
 			wantExit: 2,
 		},
 		{
 			name:     "unrecognized long option",
 			args:     []string{"--bogus"},
-			wantErr:  "tac: unrecognized option '--bogus'\n",
+			wantErr:  "tac: unrecognized option '--bogus'\nTry 'tac --help' for more information.\n",
 			wantExit: 2,
 		},
 		{
 			name:     "long option that doesn't allow an argument",
 			args:     []string{"--before=x"},
-			wantErr:  "tac: option '--before=x' doesn't allow an argument\n",
+			wantErr:  "tac: option '--before=x' doesn't allow an argument\nTry 'tac --help' for more information.\n",
 			wantExit: 2,
 		},
 		{
 			name:     "missing separator argument",
 			args:     []string{"-s"},
-			wantErr:  "tac: option requires an argument -- 's'\n",
+			wantErr:  "tac: option requires an argument -- 's'\nTry 'tac --help' for more information.\n",
 			wantExit: 2,
 		},
 		{
 			name:     "missing long separator argument",
 			args:     []string{"--separator"},
-			wantErr:  "tac: option '--separator' requires an argument\n",
+			wantErr:  "tac: option '--separator' requires an argument\nTry 'tac --help' for more information.\n",
 			wantExit: 2,
 		},
 		{
@@ -782,4 +782,29 @@ func TestRunContextCanceledBeforeFile(t *testing.T) {
 	if got := stdout.String(); got != "" {
 		t.Errorf("Run() stdout = %q, want %q", got, "")
 	}
+}
+
+func TestHelpVersion(t *testing.T) {
+	t.Run("help", func(t *testing.T) {
+		stdout := new(bytes.Buffer)
+		rt := &coreutils.Runtime{Stdout: stdout, Stderr: new(bytes.Buffer)}
+		if err := New(rt).Run(t.Context(), "--help"); err != nil {
+			t.Fatalf("Run() error = %v, want nil (exit status 0)", err)
+		}
+		if got, want := stdout.String(), usage; got != want {
+			t.Errorf("Run() stdout = %q, want %q", got, want)
+		}
+	})
+
+	t.Run("version", func(t *testing.T) {
+		stdout := new(bytes.Buffer)
+		rt := &coreutils.Runtime{Stdout: stdout, Stderr: new(bytes.Buffer)}
+		if err := New(rt).Run(t.Context(), "--version"); err != nil {
+			t.Fatalf("Run() error = %v, want nil (exit status 0)", err)
+		}
+		want := "tac (charm.land/snail/coreutils) " + coreutils.Version + "\nhttps://charm.land/snail\n"
+		if got := stdout.String(); got != want {
+			t.Errorf("Run() stdout = %q, want %q", got, want)
+		}
+	})
 }

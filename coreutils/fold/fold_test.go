@@ -404,43 +404,43 @@ func TestRunOptions(t *testing.T) {
 		{
 			name:     "invalid option",
 			args:     []string{"-x"},
-			wantErr:  "fold: invalid option -- 'x'\n",
+			wantErr:  "fold: invalid option -- 'x'\nTry 'fold --help' for more information.\n",
 			wantExit: 2,
 		},
 		{
 			name:     "unknown long option",
 			args:     []string{"--foo"},
-			wantErr:  "fold: unrecognized option '--foo'\n",
+			wantErr:  "fold: unrecognized option '--foo'\nTry 'fold --help' for more information.\n",
 			wantExit: 2,
 		},
 		{
 			name:     "missing width argument",
 			args:     []string{"-w"},
-			wantErr:  "fold: option requires an argument -- 'w'\n",
+			wantErr:  "fold: option requires an argument -- 'w'\nTry 'fold --help' for more information.\n",
 			wantExit: 2,
 		},
 		{
 			name:     "a zero width",
 			args:     []string{"-w", "0"},
-			wantErr:  "fold: invalid width: '0'\n",
+			wantErr:  "fold: invalid width: '0'\nTry 'fold --help' for more information.\n",
 			wantExit: 2,
 		},
 		{
 			name:     "a negative width",
 			args:     []string{"-w", "-1"},
-			wantErr:  "fold: invalid width: '-1'\n",
+			wantErr:  "fold: invalid width: '-1'\nTry 'fold --help' for more information.\n",
 			wantExit: 2,
 		},
 		{
 			name:     "a non numeric width",
 			args:     []string{"-w", "x"},
-			wantErr:  "fold: invalid width: 'x'\n",
+			wantErr:  "fold: invalid width: 'x'\nTry 'fold --help' for more information.\n",
 			wantExit: 2,
 		},
 		{
 			name:     "a decimal width",
 			args:     []string{"-w", "4.5"},
-			wantErr:  "fold: invalid width: '4.5'\n",
+			wantErr:  "fold: invalid width: '4.5'\nTry 'fold --help' for more information.\n",
 			wantExit: 2,
 		},
 	}
@@ -595,4 +595,29 @@ func runCancelled(t *testing.T, ctx context.Context, stdin io.Reader) {
 	if got := stderr.String(); got != "" {
 		t.Errorf("Run() stderr = %q, want empty", got)
 	}
+}
+
+func TestHelpVersion(t *testing.T) {
+	t.Run("help", func(t *testing.T) {
+		stdout := new(bytes.Buffer)
+		rt := &coreutils.Runtime{Stdout: stdout, Stderr: new(bytes.Buffer)}
+		if err := New(rt).Run(t.Context(), "--help"); err != nil {
+			t.Fatalf("Run() error = %v, want nil (exit status 0)", err)
+		}
+		if got, want := stdout.String(), usage; got != want {
+			t.Errorf("Run() stdout = %q, want %q", got, want)
+		}
+	})
+
+	t.Run("version", func(t *testing.T) {
+		stdout := new(bytes.Buffer)
+		rt := &coreutils.Runtime{Stdout: stdout, Stderr: new(bytes.Buffer)}
+		if err := New(rt).Run(t.Context(), "--version"); err != nil {
+			t.Fatalf("Run() error = %v, want nil (exit status 0)", err)
+		}
+		want := "fold (charm.land/snail/coreutils) " + coreutils.Version + "\nhttps://charm.land/snail\n"
+		if got := stdout.String(); got != want {
+			t.Errorf("Run() stdout = %q, want %q", got, want)
+		}
+	})
 }

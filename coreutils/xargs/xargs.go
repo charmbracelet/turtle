@@ -29,6 +29,7 @@ import (
 	"charm.land/snail/coreutils/internal/ctxio"
 	"charm.land/snail/coreutils/internal/getopt"
 	"charm.land/snail/coreutils/internal/patherr"
+	"charm.land/snail/coreutils/internal/stdopts"
 )
 
 // maxLen is the largest command line length supported. It's the default
@@ -65,9 +66,15 @@ func New(rt *coreutils.Runtime) coreutils.Program {
 //
 // Invocations stop when ctx is done, and the context error is returned.
 func (p *Prog) Run(ctx context.Context, args ...string) error {
+	if done, err := stdopts.Check(p.Runtime, "xargs", usage, optSet, args); done {
+		return err
+	}
 	opts, operands, err := parseFlags(args)
 	if err != nil {
 		p.errorf("%v", err)
+		if p.Stderr != nil {
+			stdopts.TryHelp(p.Runtime, "xargs")
+		}
 		return &coreutils.ExitError{Code: 2}
 	}
 	if p.Exec == nil {
@@ -333,17 +340,55 @@ var longOptions = map[string]rune{
 	"exit":            'x',
 }
 
+// optSet describes the options of xargs.
+var optSet = getopt.Set{
+	Valued:   "aEdILns",
+	Optional: string(optEof) + string(optReplace) + string(optMaxLines),
+	Long:     longOptions,
+}
+
+// usage describes the options of xargs.
+const usage = `Usage: xargs [OPTION]... [COMMAND [INITIAL-ARG]...]
+Run COMMAND with arguments read from the input; the utility defaults to echo.
+
+  -0, --null
+         items are separated by a null character, not whitespace
+  -a, --arg-file=FILE
+         read the items from FILE instead of the standard input
+  -d, --delimiter=CHARACTER
+         items are separated by CHARACTER, not whitespace
+  -E, --eof[=EOF-STR]
+         set the logical end-of-file string; an empty string disables it
+  -I, --replace=R
+         replace R in the initial arguments with each input item; R defaults to
+         {}
+  -L, --max-lines=MAX-LINES
+         use at most MAX-LINES non-blank input lines per command line
+  -n, --max-args=MAX-ARGS
+         use at most MAX-ARGS arguments per command line
+  -p, --interactive
+         prompt before running each command line
+  -r, --no-run-if-empty
+         do not run the utility when the input holds no items
+  -s, --max-chars=MAX-CHARS
+         limit each command line to MAX-CHARS characters
+  -t, --verbose
+         print each command line before running it
+  -x, --exit
+         exit when a command line exceeds the size limit
+      --help
+         display this help and exit
+      --version
+         output version information and exit
+`
+
 // parseFlags parses the options and operands. The -I, -L and -n options are
 // mutually exclusive, and the last one given wins. Option parsing stops at
 // the first operand, the utility to invoke, or at "--".
 func parseFlags(args []string) (options, []string, error) {
 	var sizeSet bool
 	opts := options{size: maxLen}
-	operands, err := getopt.Set{
-		Valued:   "aEdILns",
-		Optional: string(optEof) + string(optReplace) + string(optMaxLines),
-		Long:     longOptions,
-	}.Parse(args, func(opt rune, value string) error {
+	operands, err := optSet.Parse(args, func(opt rune, value string) error {
 		switch opt {
 		case 'E', optEof:
 			opts.eof = value

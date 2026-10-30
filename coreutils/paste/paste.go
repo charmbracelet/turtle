@@ -20,6 +20,7 @@ import (
 	"charm.land/snail/coreutils/internal/ctxio"
 	"charm.land/snail/coreutils/internal/getopt"
 	"charm.land/snail/coreutils/internal/patherr"
+	"charm.land/snail/coreutils/internal/stdopts"
 )
 
 // Prog is the paste core utility.
@@ -39,9 +40,13 @@ func New(rt *coreutils.Runtime) coreutils.Program {
 //
 // Reading is interrupted when ctx is done, and the context error is returned.
 func (p *Prog) Run(ctx context.Context, args ...string) error {
+	if done, err := stdopts.Check(p.Runtime, "paste", usage, optSet, args); done {
+		return err
+	}
 	opts, operands, err := parseFlags(args)
 	if err != nil {
 		p.errorf("%v", err)
+		stdopts.TryHelp(p.Runtime, "paste")
 		if errors.Is(err, errTrailingBackslash) {
 			return &coreutils.ExitError{Code: 1}
 		}
@@ -49,6 +54,7 @@ func (p *Prog) Run(ctx context.Context, args ...string) error {
 	}
 	if len(operands) == 0 {
 		p.errorf("missing operand")
+		stdopts.TryHelp(p.Runtime, "paste")
 		return &coreutils.ExitError{Code: 2}
 	}
 
@@ -234,11 +240,33 @@ var longOptions = map[string]rune{
 	"zero-terminated": 'z',
 }
 
+// optSet describes the options of paste.
+var optSet = getopt.Set{Valued: "d", Long: longOptions}
+
+// usage describes the options of paste.
+const usage = `Usage: paste [OPTION]... [FILE]...
+Write lines consisting of the sequentially corresponding lines from
+each file, separated by TABs, to standard output.
+
+With no FILE, or when FILE is -, read standard input.
+
+  -d, --delimiters=LIST
+         reuse characters from LIST instead of TABs
+  -s, --serial
+         paste one file at a time instead of in parallel
+  -z, --zero-terminated
+         line delimiter is NUL, not newline
+      --help
+         display this help and exit
+      --version
+         output version information and exit
+`
+
 // parseFlags parses the options and operands. Option parsing stops at the
 // first operand or at "--".
 func parseFlags(args []string) (options, []string, error) {
 	opts := options{delims: []string{"\t"}}
-	operands, err := getopt.Set{Valued: "d", Long: longOptions}.Parse(args, func(opt rune, value string) error {
+	operands, err := optSet.Parse(args, func(opt rune, value string) error {
 		switch opt {
 		case 'd':
 			var err error

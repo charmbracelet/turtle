@@ -5,6 +5,7 @@ import (
 	"errors"
 	"io"
 	"runtime"
+	"strings"
 	"testing"
 
 	"charm.land/snail/coreutils"
@@ -30,6 +31,18 @@ func (w errorWriter) Write([]byte) (int, error) {
 func runBasename(t *testing.T, args ...string) (string, error) {
 	t.Helper()
 
+	stdout, stderr, err := runBasenameStderr(t, args...)
+	if stderr != "" {
+		t.Errorf("Run() stderr = %q, want empty", stderr)
+	}
+	return stdout, err
+}
+
+// runBasenameStderr runs basename like runBasename, also returning whatever
+// it wrote to the standard error.
+func runBasenameStderr(t *testing.T, args ...string) (string, string, error) {
+	t.Helper()
+
 	stdin := &spyReader{}
 	stdout := new(bytes.Buffer)
 	stderr := new(bytes.Buffer)
@@ -44,10 +57,7 @@ func runBasename(t *testing.T, args ...string) (string, error) {
 	if stdin.read {
 		t.Error("Run() used stdin, want it untouched")
 	}
-	if got := stderr.String(); got != "" {
-		t.Errorf("Run() stderr = %q, want empty", got)
-	}
-	return stdout.String(), err
+	return stdout.String(), stderr.String(), err
 }
 
 func exitCode(t *testing.T, err error) int {
@@ -606,15 +616,29 @@ func TestRun(t *testing.T) {
 
 		for _, test := range tests {
 			t.Run(test.name, func(t *testing.T) {
-				got, err := runBasename(t, test.args...)
+				got, stderr, err := runBasenameStderr(t, test.args...)
 				if code := exitCode(t, err); code != test.want {
 					t.Fatalf("Run() exit code = %d, want %d (error = %v)", code, test.want, err)
 				}
 				if got != "" {
 					t.Errorf("Run() stdout = %q, want empty", got)
 				}
+				if want := "Try 'basename --help' for more information.\n"; !strings.HasSuffix(stderr, want) {
+					t.Errorf("Run() stderr = %q, want it to end with %q", stderr, want)
+				}
 			})
 		}
+
+		t.Run("the usage error hint", func(t *testing.T) {
+			_, got, err := runBasenameStderr(t)
+			if code := exitCode(t, err); code != 2 {
+				t.Fatalf("Run() exit code = %d, want 2 (error = %v)", code, err)
+			}
+			want := "basename: missing operand\nTry 'basename --help' for more information.\n"
+			if got != want {
+				t.Errorf("Run() stderr = %q, want %q", got, want)
+			}
+		})
 	})
 }
 
@@ -634,4 +658,27 @@ func TestRunWriteError(t *testing.T) {
 	if !errors.Is(err, writeErr) {
 		t.Errorf("errors.Is(Run(), writeErr) = false, want true (error = %v)", err)
 	}
+}
+
+func TestHelpVersion(t *testing.T) {
+	t.Run("help", func(t *testing.T) {
+		stdout, err := runBasename(t, "--help")
+		if err != nil {
+			t.Fatalf("Run() error = %v, want nil (exit status 0)", err)
+		}
+		if got, want := stdout, usage; got != want {
+			t.Errorf("Run() stdout = %q, want %q", got, want)
+		}
+	})
+
+	t.Run("version", func(t *testing.T) {
+		stdout, err := runBasename(t, "--version")
+		if err != nil {
+			t.Fatalf("Run() error = %v, want nil (exit status 0)", err)
+		}
+		want := "basename (charm.land/snail/coreutils) " + coreutils.Version + "\nhttps://charm.land/snail\n"
+		if got := stdout; got != want {
+			t.Errorf("Run() stdout = %q, want %q", got, want)
+		}
+	})
 }

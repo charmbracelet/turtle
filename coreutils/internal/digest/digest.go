@@ -20,6 +20,7 @@ import (
 	"charm.land/snail/coreutils/internal/getopt"
 	"charm.land/snail/coreutils/internal/input"
 	"charm.land/snail/coreutils/internal/patherr"
+	"charm.land/snail/coreutils/internal/stdopts"
 )
 
 // Algorithm is a checksum algorithm, as implemented by a {prog}sum utility.
@@ -46,13 +47,18 @@ const chunkSize = 32 * 1024
 // It returns a [*coreutils.ExitError] when an operand failed, and the context
 // error when ctx is done.
 func (a Algorithm) Run(ctx context.Context, rt *coreutils.Runtime, args []string) error {
+	if done, err := stdopts.Check(rt, a.Name, Usage(a.Name), optSet, args); done {
+		return err
+	}
 	opts, operands, err := parseFlags(args)
 	if err != nil {
 		a.errorf(rt, "%v", err)
+		stdopts.TryHelp(rt, a.Name)
 		return &coreutils.ExitError{Code: 2}
 	}
 	if err := opts.validate(); err != nil {
 		a.errorf(rt, "%v", err)
+		stdopts.TryHelp(rt, a.Name)
 		return &coreutils.ExitError{Code: 2}
 	}
 	if len(operands) == 0 {
@@ -222,8 +228,44 @@ const (
 	optStatus
 	optStrict
 	optTag
-	optVersion
 )
+
+// optSet describes the options of the {prog}sum utilities.
+var optSet = getopt.Set{Long: longOptions}
+
+// Usage returns the usage text of the {prog}sum utility named prog.
+func Usage(prog string) string {
+	return `Usage: ` + prog + ` [OPTION]... [FILE]...
+Print or check checksums.
+
+With no FILE, or when FILE is -, read standard input.
+
+  -b, --binary
+         read in binary mode
+  -c, --check
+         read checksums from the FILES and check them
+      --ignore-missing
+         don't fail or report status for missing files
+      --quiet
+         don't print OK for each successfully verified file
+      --status
+         don't output anything, status code shows success
+      --strict
+         exit non-zero for improperly formatted checksum lines
+      --tag
+         create a BSD-style checksum
+  -t, --text
+         read in text mode (default)
+  -w, --warn
+         warn about improperly formatted checksum lines
+  -z, --zero
+         end each output line with NUL, not newline
+      --help
+         display this help and exit
+      --version
+         output version information and exit
+`
+}
 
 // validate reports the options which GNU refuses to take together.
 func (o options) validate() error {
@@ -254,7 +296,7 @@ func (o options) validate() error {
 // first operand or at "--".
 func parseFlags(args []string) (options, []string, error) {
 	var opts options
-	operands, err := getopt.Set{Long: longOptions}.Parse(args, func(opt rune, value string) error {
+	operands, err := optSet.Parse(args, func(opt rune, value string) error {
 		switch opt {
 		case 'b':
 			opts.binary, opts.modeSet = true, true

@@ -37,6 +37,7 @@ import (
 	"charm.land/snail/coreutils/internal/getopt"
 	"charm.land/snail/coreutils/internal/input"
 	"charm.land/snail/coreutils/internal/patherr"
+	"charm.land/snail/coreutils/internal/stdopts"
 )
 
 // Prog is the wc core utility.
@@ -56,9 +57,13 @@ func New(rt *coreutils.Runtime) coreutils.Program {
 //
 // Reading is interrupted when ctx is done, and the context error is returned.
 func (p *Prog) Run(ctx context.Context, args ...string) error {
+	if done, err := stdopts.Check(p.Runtime, "wc", usage, optSet, args); done {
+		return err
+	}
 	opts, operands, err := parseFlags(args)
 	if err != nil {
 		p.errorf("%v", err)
+		stdopts.TryHelp(p.Runtime, "wc")
 		return &coreutils.ExitError{Code: 2}
 	}
 	if !opts.any() {
@@ -204,12 +209,40 @@ var longOptions = map[string]rune{
 	"words":           'w',
 }
 
+// optSet describes the options of wc.
+var optSet = getopt.Set{Valued: string(optTotal), Long: longOptions}
+
+// usage describes the options of wc.
+const usage = `Usage: wc [OPTION]... [FILE]...
+Print newline, word, and byte counts for each FILE, and a total line if
+more than one FILE is specified. A word is a non-zero-length sequence of
+characters delimited by white space.
+
+  -c, --bytes
+         print byte counts
+  -m, --chars
+         print character counts
+  -l, --lines
+         print newline counts
+  -w, --words
+         print word counts
+  -L, --max-line-length
+         print the maximum display width
+      --total=WHEN
+         print a line with totals; WHEN can be: auto, always, only, or never
+         (default: auto)
+      --help
+         display this help and exit
+      --version
+         output version information and exit
+`
+
 // parseFlags parses the options and operands. Option parsing stops at the
 // first operand or at "--". Following the GNU manual, options don't undo
 // each other, so -c and -m together select both counts.
 func parseFlags(args []string) (options, []string, error) {
 	opts := options{total: totalAuto}
-	operands, err := getopt.Set{Valued: string(optTotal), Long: longOptions}.Parse(args, func(opt rune, value string) error {
+	operands, err := optSet.Parse(args, func(opt rune, value string) error {
 		switch opt {
 		case 'c':
 			opts.bytes = true

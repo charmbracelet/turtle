@@ -126,11 +126,6 @@ func TestRun(t *testing.T) {
 			args: []string{"--tag", "hello.txt"},
 			want: "SHA1 (hello.txt) = " + helloSHA1 + "\n",
 		},
-		{
-			name: "the version",
-			args: []string{"-v"},
-			want: "shasum (charm.land/snail/coreutils)\n",
-		},
 	}
 
 	for _, test := range tests {
@@ -188,52 +183,64 @@ func TestRunAlgorithms(t *testing.T) {
 func TestRunInvalid(t *testing.T) {
 	tests := []testCase{
 		{
+			name:     "the short help option",
+			args:     []string{"-h"},
+			wantErr:  "shasum: invalid option -- 'h'\nTry 'shasum --help' for more information.\n",
+			wantExit: 1,
+		},
+		{
+			name:     "the short version option",
+			args:     []string{"-v"},
+			wantErr:  "shasum: invalid option -- 'v'\nTry 'shasum --help' for more information.\n",
+			wantExit: 1,
+		},
+		{
 			name:     "an unrecognized algorithm",
 			fsys:     testFS(),
 			args:     []string{"-a", "3", "hello.txt"},
-			wantErr:  "shasum: unrecognized algorithm '3'\n",
+			wantErr:  "shasum: unrecognized algorithm '3'\nTry 'shasum --help' for more information.\n",
 			wantExit: 1,
 		},
 		{
 			name:     "an option the GNU utilities take",
 			fsys:     testFS(),
 			args:     []string{"--zero", "hello.txt"},
-			wantErr:  "shasum: unrecognized option '--zero'\n",
+			wantErr:  "shasum: unrecognized option '--zero'\nTry 'shasum --help' for more information.\n",
 			wantExit: 1,
 		},
 		{
 			name:     "an option of the Perl script which isn't supported",
 			fsys:     testFS(),
 			args:     []string{"-0", "hello.txt"},
-			wantErr:  "shasum: invalid option -- '0'\n",
+			wantErr:  "shasum: invalid option -- '0'\nTry 'shasum --help' for more information.\n",
 			wantExit: 1,
 		},
 		{
 			name:     "an algorithm without its value",
 			fsys:     testFS(),
 			args:     []string{"-a"},
-			wantErr:  "shasum: option requires an argument -- 'a'\n",
+			wantErr:  "shasum: option requires an argument -- 'a'\nTry 'shasum --help' for more information.\n",
 			wantExit: 1,
 		},
 		{
 			name:     "both file modes",
 			fsys:     testFS(),
 			args:     []string{"-bt", "hello.txt"},
-			wantErr:  "shasum: Ambiguous file mode\n",
+			wantErr:  "shasum: Ambiguous file mode\nTry 'shasum --help' for more information.\n",
 			wantExit: 1,
 		},
 		{
 			name:     "warn without verifying",
 			fsys:     testFS(),
 			args:     []string{"-w", "hello.txt"},
-			wantErr:  "shasum: --warn option used only when verifying checksums\n",
+			wantErr:  "shasum: --warn option used only when verifying checksums\nTry 'shasum --help' for more information.\n",
 			wantExit: 1,
 		},
 		{
 			name:     "the tag option with the text mode",
 			fsys:     testFS(),
 			args:     []string{"--tag", "-t", "hello.txt"},
-			wantErr:  "shasum: --tag does not support --text mode\n",
+			wantErr:  "shasum: --tag does not support --text mode\nTry 'shasum --help' for more information.\n",
 			wantExit: 1,
 		},
 		{
@@ -252,18 +259,63 @@ func TestRunInvalid(t *testing.T) {
 	}
 }
 
-func TestRunHelp(t *testing.T) {
-	stdout, stderr := new(bytes.Buffer), new(bytes.Buffer)
-	rt := &coreutils.Runtime{Stdout: stdout, Stderr: stderr}
-	if err := New(rt).Run(t.Context(), "-h"); err != nil {
-		t.Fatalf("Run() error = %v, want nil", err)
-	}
-	if got := stderr.String(); got != "" {
-		t.Errorf("Run() stderr = %q, want empty", got)
-	}
-	if got := stdout.String(); !strings.HasPrefix(got, "Usage: shasum ") {
-		t.Errorf("Run() stdout = %q, want the usage of the utility", got)
-	}
+func TestHelpVersion(t *testing.T) {
+	t.Run("help", func(t *testing.T) {
+		stdout, stderr := new(bytes.Buffer), new(bytes.Buffer)
+		rt := &coreutils.Runtime{Stdout: stdout, Stderr: stderr}
+		if err := New(rt).Run(t.Context(), "--help"); err != nil {
+			t.Fatalf("Run() error = %v, want nil (exit status 0)", err)
+		}
+		if got := stderr.String(); got != "" {
+			t.Errorf("Run() stderr = %q, want empty", got)
+		}
+		want := `Usage: shasum [-bcqstw] [-a algorithm] [file ...]
+
+  -a, --algorithm=algorithm
+         1 (default), 224, 256, 384, 512, 512224, 512256
+  -b, --binary
+         read in binary mode
+  -c, --check
+         read SHA sums from the files and check them
+      --ignore-missing
+         don't fail or report status for missing files
+  -q, --quiet
+         don't print OK for each successfully verified file
+  -s, --status
+         don't output anything, status code shows success
+      --strict
+         exit non-zero for improperly formatted checksum lines
+      --tag
+         create a BSD-style checksum
+  -t, --text
+         read in text mode (default)
+  -w, --warn
+         warn about improperly formatted checksum lines
+      --help
+         display this help and exit
+      --version
+         output version information and exit
+`
+		if got := stdout.String(); got != want {
+			t.Errorf("Run() stdout = %q, want %q", got, want)
+		}
+	})
+
+	t.Run("version", func(t *testing.T) {
+		stdout, stderr := new(bytes.Buffer), new(bytes.Buffer)
+		rt := &coreutils.Runtime{Stdout: stdout, Stderr: stderr}
+		if err := New(rt).Run(t.Context(), "--version"); err != nil {
+			t.Fatalf("Run() error = %v, want nil (exit status 0)", err)
+		}
+		if got := stderr.String(); got != "" {
+			t.Errorf("Run() stderr = %q, want empty", got)
+		}
+		want := "shasum (charm.land/snail/coreutils) " + coreutils.Version +
+			"\nhttps://charm.land/snail\n"
+		if got := stdout.String(); got != want {
+			t.Errorf("Run() stdout = %q, want %q", got, want)
+		}
+	})
 }
 
 func TestRunCheck(t *testing.T) {

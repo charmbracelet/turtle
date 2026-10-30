@@ -26,6 +26,7 @@ import (
 	"charm.land/snail/coreutils/internal/input"
 	"charm.land/snail/coreutils/internal/patherr"
 	"charm.land/snail/coreutils/internal/sizeparse"
+	"charm.land/snail/coreutils/internal/stdopts"
 	"charm.land/snail/fsx"
 )
 
@@ -45,13 +46,18 @@ func New(rt *coreutils.Runtime) coreutils.Program {
 //
 // Reading is interrupted when ctx is done, and the context error is returned.
 func (p *Prog) Run(ctx context.Context, args ...string) error {
+	if done, err := stdopts.Check(p.Runtime, "split", usage, optSet, args); done {
+		return err
+	}
 	opts, operands, err := parseFlags(args)
 	if err != nil {
 		p.errorf("%v", err)
+		stdopts.TryHelp(p.Runtime, "split")
 		return &coreutils.ExitError{Code: 2}
 	}
 	if len(operands) > 2 {
 		p.errorf("extra operand '%s'", operands[2])
+		stdopts.TryHelp(p.Runtime, "split")
 		return &coreutils.ExitError{Code: 2}
 	}
 	name := "-"
@@ -608,13 +614,50 @@ var longOptions = map[string]rune{
 // --additional-suffix stays long-only.
 const optAddSuffix rune = 0x100
 
+// optSet describes the options of split.
+var optSet = getopt.Set{
+	Valued:   "ablnC" + string(optAddSuffix),
+	Optional: "dx",
+	Long:     longOptions,
+}
+
+// usage describes the options of split.
+const usage = `Usage: split [OPTION]... [FILE [PREFIX]]
+Output pieces of FILE to PREFIXaa, PREFIXab, ...;
+default FILE is stdin and default PREFIX is 'x'.
+
+  -a, --suffix-length=N
+         generate suffixes of length N (default 2)
+  -b, --bytes=SIZE
+         put SIZE bytes per output file
+  -C, --line-bytes=SIZE
+         put at most SIZE bytes of lines per output file
+  -d, --numeric-suffixes[=FROM]
+         use numeric suffixes instead of alphabetic; FROM changes the start
+         value (default 0)
+  -e, --elide-empty-files
+         do not generate empty output files
+  -l, --lines=NUMBER
+         put NUMBER lines per output file
+  -n, --number=CHUNKS
+         generate CHUNKS output files
+  -x, --hex-suffixes[=FROM]
+         like -d, but use hexadecimal suffixes
+      --additional-suffix=SUFFIX
+         append SUFFIX to file names
+      --help
+         display this help and exit
+      --version
+         output version information and exit
+`
+
 // parseFlags parses the command line options. Option parsing stops at the
 // first operand or at "--". The -d and -x options take an optional attached
 // starting number.
 func parseFlags(args []string) (options, []string, error) {
 	opts := options{lines: 1000, bytes: -1, lineBytes: -1, suffixLen: 2}
 	var mode byte
-	operands, err := (getopt.Set{Valued: "ablnC" + string(optAddSuffix), Optional: "dx", Long: longOptions}).Parse(expandSuffixOpts(args), func(opt rune, value string) error {
+	operands, err := optSet.Parse(expandSuffixOpts(args), func(opt rune, value string) error {
 		switch opt {
 		case 'a':
 			n, err := strconv.ParseInt(value, 10, 0)

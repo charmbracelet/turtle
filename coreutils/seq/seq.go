@@ -17,6 +17,7 @@ import (
 
 	"charm.land/snail/coreutils"
 	"charm.land/snail/coreutils/internal/getopt"
+	"charm.land/snail/coreutils/internal/stdopts"
 )
 
 // Prog is the seq core utility.
@@ -33,18 +34,14 @@ func New(rt *coreutils.Runtime) coreutils.Program {
 // followed by the separator, and always terminates the output with a newline.
 // An empty sequence writes nothing at all.
 func (p *Prog) Run(ctx context.Context, args ...string) error {
+	if done, err := stdopts.Check(p.Runtime, "seq", usage, optSet, args); done {
+		return err
+	}
 	set, err := parseFlags(args)
 	if err != nil {
 		return p.usageErrorf("%v", err)
 	}
-	switch {
-	case set.help:
-		return p.write(usage)
-	case set.version:
-		return p.write("seq (charm.land/snail/coreutils)\n")
-	default:
-		return p.run(ctx, set)
-	}
+	return p.run(ctx, set)
 }
 
 // run scans the operands and writes the sequence they describe.
@@ -361,32 +358,24 @@ func (p *Prog) errorf(f string, args ...any) {
 // a hint to the help, and returns the exit status it asks for.
 func (p *Prog) usageErrorf(f string, args ...any) *coreutils.ExitError {
 	p.errorf(f, args...)
-	fmt.Fprint(p.Stderr, "Try 'seq --help' for more information.\n")
+	stdopts.TryHelp(p.Runtime, "seq")
 	return &coreutils.ExitError{Code: 1}
 }
-
-// The long options of seq map to runes above the range a single-byte short
-// option can reach, so --help and --version stay long-only.
-const (
-	optHelp = 0x100 + iota
-	optVersion
-)
 
 var longOptions = map[string]rune{
 	"format":      'f',
 	"separator":   's',
 	"equal-width": 'w',
-	"help":        optHelp,
-	"version":     optVersion,
 }
+
+// optSet describes the options of seq.
+var optSet = getopt.Set{Valued: "fs", Long: longOptions}
 
 // settings holds what a run of seq selects.
 type settings struct {
 	format      string
 	separator   string
 	equalWidth  bool
-	help        bool
-	version     bool
 	operands    []string
 	formatGiven bool
 }
@@ -399,7 +388,7 @@ type settings struct {
 func parseFlags(args []string) (settings, error) {
 	set := settings{separator: "\n"}
 	opts, rest := splitOperands(args)
-	operands, err := getopt.Set{Valued: "fs", Long: longOptions}.Parse(opts, func(opt rune, value string) error {
+	operands, err := optSet.Parse(opts, func(opt rune, value string) error {
 		switch opt {
 		case 'f':
 			set.format, set.formatGiven = value, true
@@ -407,10 +396,6 @@ func parseFlags(args []string) (settings, error) {
 			set.separator = value
 		case 'w':
 			set.equalWidth = true
-		case optHelp:
-			set.help = true
-		case optVersion:
-			set.version = true
 		default:
 			return getopt.InvalidOption(opt)
 		}
@@ -558,11 +543,16 @@ const usage = `Usage: seq [OPTION]... LAST
   or:  seq [OPTION]... FIRST INCREMENT LAST
 Print numbers from FIRST to LAST, in steps of INCREMENT.
 
-  -f, --format=FORMAT      use printf style floating-point FORMAT
-  -s, --separator=STRING   use STRING to separate numbers (default: \n)
-  -w, --equal-width        equalize width by padding with leading zeros
-      --help     display this help and exit
-      --version  output version information and exit
+  -f, --format=FORMAT
+         use printf style floating-point FORMAT
+  -s, --separator=STRING
+         use STRING to separate numbers (default: \n)
+  -w, --equal-width
+         equalize width by padding with leading zeros
+      --help
+         display this help and exit
+      --version
+         output version information and exit
 `
 
 var (

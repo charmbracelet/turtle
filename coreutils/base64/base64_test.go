@@ -497,81 +497,81 @@ func TestRunOptions(t *testing.T) {
 		{
 			name:     "an unknown short option",
 			args:     []string{"-q"},
-			wantErr:  "base64: invalid option -- 'q'\n",
+			wantErr:  "base64: invalid option -- 'q'\nTry 'base64 --help' for more information.\n",
 			wantExit: 2,
 		},
 		{
 			name:     "an unknown option inside a group",
 			args:     []string{"-dq"},
-			wantErr:  "base64: invalid option -- 'q'\n",
+			wantErr:  "base64: invalid option -- 'q'\nTry 'base64 --help' for more information.\n",
 			wantExit: 2,
 		},
 		{
 			name:     "an unknown long option",
 			args:     []string{"--foo"},
-			wantErr:  "base64: unrecognized option '--foo'\n",
+			wantErr:  "base64: unrecognized option '--foo'\nTry 'base64 --help' for more information.\n",
 			wantExit: 2,
 		},
 		{
 			name:     "w requires an argument",
 			args:     []string{"-w"},
-			wantErr:  "base64: option requires an argument -- 'w'\n",
+			wantErr:  "base64: option requires an argument -- 'w'\nTry 'base64 --help' for more information.\n",
 			wantExit: 2,
 		},
 		{
 			name:     "wrap requires an argument",
 			args:     []string{"--wrap"},
-			wantErr:  "base64: option '--wrap' requires an argument\n",
+			wantErr:  "base64: option '--wrap' requires an argument\nTry 'base64 --help' for more information.\n",
 			wantExit: 2,
 		},
 		{
 			name:     "an invalid wrap size",
 			args:     []string{"-w", "x"},
-			wantErr:  "base64: invalid wrap size: 'x'\n",
+			wantErr:  "base64: invalid wrap size: 'x'\nTry 'base64 --help' for more information.\n",
 			wantExit: 2,
 		},
 		{
 			name:     "a negative wrap size",
 			args:     []string{"-w", "-1"},
-			wantErr:  "base64: invalid wrap size: '-1'\n",
+			wantErr:  "base64: invalid wrap size: '-1'\nTry 'base64 --help' for more information.\n",
 			wantExit: 2,
 		},
 		{
 			name:     "a negative wrap size overflowing an int",
 			args:     []string{"-w", "-99999999999999999999999"},
-			wantErr:  "base64: invalid wrap size: '-99999999999999999999999'\n",
+			wantErr:  "base64: invalid wrap size: '-99999999999999999999999'\nTry 'base64 --help' for more information.\n",
 			wantExit: 2,
 		},
 		{
 			name:     "an empty wrap size",
 			args:     []string{"-w", ""},
-			wantErr:  "base64: invalid wrap size: ''\n",
+			wantErr:  "base64: invalid wrap size: ''\nTry 'base64 --help' for more information.\n",
 			wantExit: 2,
 		},
 		{
 			name:     "an invalid wrap size attached to the option",
 			args:     []string{"-wx"},
-			wantErr:  "base64: invalid wrap size: 'x'\n",
+			wantErr:  "base64: invalid wrap size: 'x'\nTry 'base64 --help' for more information.\n",
 			wantExit: 2,
 		},
 		{
 			name:     "an invalid wrap size for the long option",
 			args:     []string{"--wrap=x"},
-			wantErr:  "base64: invalid wrap size: 'x'\n",
+			wantErr:  "base64: invalid wrap size: 'x'\nTry 'base64 --help' for more information.\n",
 			wantExit: 2,
 		},
 		{
 			name:     "an extra operand",
 			fsys:     testFS(),
 			args:     []string{"hello.txt", "empty.txt"},
-			wantErr:  "base64: extra operand 'empty.txt'\n",
+			wantErr:  "base64: extra operand 'empty.txt'\nTry 'base64 --help' for more information.\n",
 			wantExit: 2,
 		},
 		{
 			name:     "an operand after the file is an extra operand",
 			fsys:     testFS(),
 			args:     []string{"hello.txt", "-d"},
-			wantErr:  "base64: extra operand '-d'\n",
+			wantErr:  "base64: extra operand '-d'\nTry 'base64 --help' for more information.\n",
 			wantExit: 2,
 		},
 		{
@@ -766,3 +766,35 @@ var (
 	_ coreutils.Program = (*Prog)(nil)
 	_ coreutils.NewFunc = New
 )
+
+func TestHelpVersion(t *testing.T) {
+	t.Run("help", func(t *testing.T) {
+		stdout, stderr := new(bytes.Buffer), new(bytes.Buffer)
+		rt := &coreutils.Runtime{Stdout: stdout, Stderr: stderr}
+		if err := New(rt).Run(t.Context(), "--help"); err != nil {
+			t.Fatalf("Run() error = %v, want nil (exit status 0)", err)
+		}
+		if got := stderr.String(); got != "" {
+			t.Errorf("Run() stderr = %q, want empty", got)
+		}
+		if got, want := stdout.String(), usage; got != want {
+			t.Errorf("Run() stdout = %q, want %q", got, want)
+		}
+	})
+
+	t.Run("version", func(t *testing.T) {
+		stdout, stderr := new(bytes.Buffer), new(bytes.Buffer)
+		rt := &coreutils.Runtime{Stdout: stdout, Stderr: stderr}
+		if err := New(rt).Run(t.Context(), "--version"); err != nil {
+			t.Fatalf("Run() error = %v, want nil (exit status 0)", err)
+		}
+		if got := stderr.String(); got != "" {
+			t.Errorf("Run() stderr = %q, want empty", got)
+		}
+		want := "base64 (charm.land/snail/coreutils) " + coreutils.Version +
+			"\nhttps://charm.land/snail\n"
+		if got := stdout.String(); got != want {
+			t.Errorf("Run() stdout = %q, want %q", got, want)
+		}
+	})
+}

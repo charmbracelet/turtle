@@ -66,13 +66,13 @@ func TestRun(t *testing.T) {
 		{
 			name:     "invalid type is rejected",
 			args:     []string{"-t", "q"},
-			wantErr:  "od: invalid type string\n",
+			wantErr:  "od: invalid type string\nTry 'od --help' for more information.\n",
 			wantCode: 1,
 		},
 		{
 			name:     "unknown option is rejected",
 			args:     []string{"-q"},
-			wantErr:  "od: invalid option -- 'q'\n",
+			wantErr:  "od: invalid option -- 'q'\nTry 'od --help' for more information.\n",
 			wantCode: 1,
 		},
 	}
@@ -108,4 +108,29 @@ func TestRunCancellation(t *testing.T) {
 	if err := prog.Run(ctx); !errors.Is(err, context.Canceled) {
 		t.Fatalf("Run() error = %v, want context.Canceled", err)
 	}
+}
+
+func TestHelpVersion(t *testing.T) {
+	t.Run("help", func(t *testing.T) {
+		stdout := new(bytes.Buffer)
+		rt := &coreutils.Runtime{Stdout: stdout, Stderr: new(bytes.Buffer)}
+		if err := New(rt).Run(t.Context(), "--help"); err != nil {
+			t.Fatalf("Run() error = %v, want nil (exit status 0)", err)
+		}
+		if got, want := stdout.String(), usage; got != want {
+			t.Errorf("Run() stdout = %q, want %q", got, want)
+		}
+	})
+
+	t.Run("version", func(t *testing.T) {
+		stdout := new(bytes.Buffer)
+		rt := &coreutils.Runtime{Stdout: stdout, Stderr: new(bytes.Buffer)}
+		if err := New(rt).Run(t.Context(), "--version"); err != nil {
+			t.Fatalf("Run() error = %v, want nil (exit status 0)", err)
+		}
+		want := "od (charm.land/snail/coreutils) " + coreutils.Version + "\nhttps://charm.land/snail\n"
+		if got := stdout.String(); got != want {
+			t.Errorf("Run() stdout = %q, want %q", got, want)
+		}
+	})
 }

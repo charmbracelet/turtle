@@ -363,56 +363,56 @@ func TestRunOptionErrors(t *testing.T) {
 			name:     "an unknown algorithm",
 			fsys:     files,
 			args:     []string{"-a", "bogus", "abc.txt"},
-			wantErr:  "cksum: unrecognized algorithm 'bogus'\n",
+			wantErr:  "cksum: unrecognized algorithm 'bogus'\nTry 'cksum --help' for more information.\n",
 			wantExit: 1,
 		},
 		{
 			name:     "a length without an algorithm",
 			fsys:     files,
 			args:     []string{"-l", "256", "abc.txt"},
-			wantErr:  "cksum: the --length option is only supported with the sha2, sha3 and blake2b algorithms\n",
+			wantErr:  "cksum: the --length option is only supported with the sha2, sha3 and blake2b algorithms\nTry 'cksum --help' for more information.\n",
 			wantExit: 1,
 		},
 		{
 			name:     "a length with a fixed digest",
 			fsys:     files,
 			args:     []string{"-a", "md5", "-l", "256", "abc.txt"},
-			wantErr:  "cksum: the --length option is only supported with the sha2, sha3 and blake2b algorithms\n",
+			wantErr:  "cksum: the --length option is only supported with the sha2, sha3 and blake2b algorithms\nTry 'cksum --help' for more information.\n",
 			wantExit: 1,
 		},
 		{
 			name:     "a length which sha2 requires",
 			fsys:     files,
 			args:     []string{"-a", "sha2", "abc.txt"},
-			wantErr:  "cksum: the --length option is required with the sha2 algorithm\n",
+			wantErr:  "cksum: the --length option is required with the sha2 algorithm\nTry 'cksum --help' for more information.\n",
 			wantExit: 1,
 		},
 		{
 			name:     "a length which sha3 requires",
 			fsys:     files,
 			args:     []string{"-a", "sha3", "abc.txt"},
-			wantErr:  "cksum: the --length option is required with the sha3 algorithm\n",
+			wantErr:  "cksum: the --length option is required with the sha3 algorithm\nTry 'cksum --help' for more information.\n",
 			wantExit: 1,
 		},
 		{
 			name:     "a length the algorithm has no digest of",
 			fsys:     files,
 			args:     []string{"-a", "sha2", "-l", "300", "abc.txt"},
-			wantErr:  "cksum: the --length option of the sha2 algorithm must be 224, 256, 384 or 512\n",
+			wantErr:  "cksum: the --length option of the sha2 algorithm must be 224, 256, 384 or 512\nTry 'cksum --help' for more information.\n",
 			wantExit: 1,
 		},
 		{
 			name:     "base64 of a legacy algorithm",
 			fsys:     files,
 			args:     []string{"--base64", "abc.txt"},
-			wantErr:  "cksum: the --base64 option is not supported with the crc algorithm\n",
+			wantErr:  "cksum: the --base64 option is not supported with the crc algorithm\nTry 'cksum --help' for more information.\n",
 			wantExit: 1,
 		},
 		{
 			name:     "tag and untagged together",
 			fsys:     files,
 			args:     []string{"-a", "md5", "--tag", "--untagged", "abc.txt"},
-			wantErr:  "cksum: the --tag and --untagged options are mutually exclusive\n",
+			wantErr:  "cksum: the --tag and --untagged options are mutually exclusive\nTry 'cksum --help' for more information.\n",
 			wantExit: 1,
 		},
 	}
@@ -430,7 +430,7 @@ func TestRunErrors(t *testing.T) {
 			name:     "an invalid option",
 			fsys:     files,
 			args:     []string{"-x", "abc.txt"},
-			wantErr:  "cksum: invalid option -- 'x'\n",
+			wantErr:  "cksum: invalid option -- 'x'\nTry 'cksum --help' for more information.\n",
 			wantExit: 1,
 		},
 		{
@@ -584,4 +584,29 @@ func TestCrc(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestHelpVersion(t *testing.T) {
+	t.Run("help", func(t *testing.T) {
+		stdout := new(bytes.Buffer)
+		rt := &coreutils.Runtime{Stdout: stdout, Stderr: new(bytes.Buffer)}
+		if err := New(rt).Run(t.Context(), "--help"); err != nil {
+			t.Fatalf("Run() error = %v, want nil (exit status 0)", err)
+		}
+		if got, want := stdout.String(), usage; got != want {
+			t.Errorf("Run() stdout = %q, want %q", got, want)
+		}
+	})
+
+	t.Run("version", func(t *testing.T) {
+		stdout := new(bytes.Buffer)
+		rt := &coreutils.Runtime{Stdout: stdout, Stderr: new(bytes.Buffer)}
+		if err := New(rt).Run(t.Context(), "--version"); err != nil {
+			t.Fatalf("Run() error = %v, want nil (exit status 0)", err)
+		}
+		want := "cksum (charm.land/snail/coreutils) " + coreutils.Version + "\nhttps://charm.land/snail\n"
+		if got := stdout.String(); got != want {
+			t.Errorf("Run() stdout = %q, want %q", got, want)
+		}
+	})
 }

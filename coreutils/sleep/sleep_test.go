@@ -196,57 +196,57 @@ func TestRun(t *testing.T) {
 		}{
 			{
 				name:    "missing operand",
-				wantErr: "sleep: missing operand\n",
+				wantErr: "sleep: missing operand\nTry 'sleep --help' for more information.\n",
 			},
 			{
 				name:    "invalid option",
 				args:    []string{"-x"},
-				wantErr: "sleep: invalid option -- 'x'\n",
+				wantErr: "sleep: invalid option -- 'x'\nTry 'sleep --help' for more information.\n",
 			},
 			{
 				name:    "negative operand",
 				args:    []string{"-5"},
-				wantErr: "sleep: invalid option -- '5'\n",
+				wantErr: "sleep: invalid option -- '5'\nTry 'sleep --help' for more information.\n",
 			},
 			{
 				name:    "malformed fractional operand",
 				args:    []string{"1.2.3"},
-				wantErr: "sleep: invalid number: '1.2.3'\n",
+				wantErr: "sleep: invalid number: '1.2.3'\nTry 'sleep --help' for more information.\n",
 			},
 			{
 				name:    "non-numeric operand",
 				args:    []string{"abc"},
-				wantErr: "sleep: invalid number: 'abc'\n",
+				wantErr: "sleep: invalid number: 'abc'\nTry 'sleep --help' for more information.\n",
 			},
 			{
 				name:    "empty operand",
 				args:    []string{""},
-				wantErr: "sleep: invalid number: ''\n",
+				wantErr: "sleep: invalid number: ''\nTry 'sleep --help' for more information.\n",
 			},
 			{
 				name:    "suffix without a number",
 				args:    []string{"m"},
-				wantErr: "sleep: invalid number: 'm'\n",
+				wantErr: "sleep: invalid number: 'm'\nTry 'sleep --help' for more information.\n",
 			},
 			{
 				name:    "trailing garbage",
 				args:    []string{"1x"},
-				wantErr: "sleep: invalid number: '1x'\n",
+				wantErr: "sleep: invalid number: '1x'\nTry 'sleep --help' for more information.\n",
 			},
 			{
 				name:    "value too large",
 				args:    []string{"9223372036854775808"},
-				wantErr: "sleep: invalid number: '9223372036854775808'\n",
+				wantErr: "sleep: invalid number: '9223372036854775808'\nTry 'sleep --help' for more information.\n",
 			},
 			{
 				name:    "value too large for the unit",
 				args:    []string{"1073741824d"},
-				wantErr: "sleep: invalid number: '1073741824d'\n",
+				wantErr: "sleep: invalid number: '1073741824d'\nTry 'sleep --help' for more information.\n",
 			},
 			{
 				name:    "the sum of the operands overflows",
 				args:    []string{"9223372036s", "9223372036s"},
-				wantErr: "sleep: invalid number: '9223372036s'\n",
+				wantErr: "sleep: invalid number: '9223372036s'\nTry 'sleep --help' for more information.\n",
 			},
 		}
 
@@ -269,6 +269,41 @@ func TestRun(t *testing.T) {
 					t.Errorf("slept for %v, want no sleep at all", sleeper.durations)
 				}
 			})
+		}
+	})
+}
+
+func TestHelpVersion(t *testing.T) {
+	t.Run("help", func(t *testing.T) {
+		stdout := new(bytes.Buffer)
+		rt := &coreutils.Runtime{
+			Stdin:  bytes.NewReader(nil),
+			Stdout: stdout,
+			Stderr: new(bytes.Buffer),
+			Sleep:  (&fakeSleeper{}).sleep,
+		}
+		if err := New(rt).Run(t.Context(), "--help"); err != nil {
+			t.Fatalf("Run() error = %v, want nil (exit status 0)", err)
+		}
+		if got, want := stdout.String(), usage; got != want {
+			t.Errorf("Run() stdout = %q, want %q", got, want)
+		}
+	})
+
+	t.Run("version", func(t *testing.T) {
+		stdout := new(bytes.Buffer)
+		rt := &coreutils.Runtime{
+			Stdin:  bytes.NewReader(nil),
+			Stdout: stdout,
+			Stderr: new(bytes.Buffer),
+			Sleep:  (&fakeSleeper{}).sleep,
+		}
+		if err := New(rt).Run(t.Context(), "--version"); err != nil {
+			t.Fatalf("Run() error = %v, want nil (exit status 0)", err)
+		}
+		want := "sleep (charm.land/snail/coreutils) " + coreutils.Version + "\nhttps://charm.land/snail\n"
+		if got := stdout.String(); got != want {
+			t.Errorf("Run() stdout = %q, want %q", got, want)
 		}
 	})
 }

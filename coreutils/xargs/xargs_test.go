@@ -1049,7 +1049,7 @@ func TestLongOptions(t *testing.T) {
 			stdin:    strings.NewReader(""),
 			args:     []string{"--max-procs=2"},
 			exec:     newExec(),
-			wantErr:  "xargs: unrecognized option '--max-procs=2'\n",
+			wantErr:  "xargs: unrecognized option '--max-procs=2'\nTry 'xargs --help' for more information.\n",
 			wantExit: 2,
 		},
 	}
@@ -1142,7 +1142,7 @@ func TestInvalidUsage(t *testing.T) {
 			stdin:    strings.NewReader(""),
 			args:     []string{"-z"},
 			exec:     newExec(),
-			wantErr:  "xargs: invalid option -- 'z'\n",
+			wantErr:  "xargs: invalid option -- 'z'\nTry 'xargs --help' for more information.\n",
 			wantExit: 2,
 		},
 		{
@@ -1150,7 +1150,7 @@ func TestInvalidUsage(t *testing.T) {
 			stdin:    strings.NewReader(""),
 			args:     []string{"-n"},
 			exec:     newExec(),
-			wantErr:  "xargs: option requires an argument -- 'n'\n",
+			wantErr:  "xargs: option requires an argument -- 'n'\nTry 'xargs --help' for more information.\n",
 			wantExit: 2,
 		},
 		{
@@ -1158,7 +1158,7 @@ func TestInvalidUsage(t *testing.T) {
 			stdin:    strings.NewReader(""),
 			args:     []string{"-n", "0"},
 			exec:     newExec(),
-			wantErr:  "xargs: value for -n option should be a positive integer\n",
+			wantErr:  "xargs: value for -n option should be a positive integer\nTry 'xargs --help' for more information.\n",
 			wantExit: 2,
 		},
 		{
@@ -1166,7 +1166,7 @@ func TestInvalidUsage(t *testing.T) {
 			stdin:    strings.NewReader(""),
 			args:     []string{"-L", "x"},
 			exec:     newExec(),
-			wantErr:  "xargs: value for -L option should be a positive integer\n",
+			wantErr:  "xargs: value for -L option should be a positive integer\nTry 'xargs --help' for more information.\n",
 			wantExit: 2,
 		},
 		{
@@ -1174,7 +1174,7 @@ func TestInvalidUsage(t *testing.T) {
 			stdin:    strings.NewReader(""),
 			args:     []string{"-n", "+1"},
 			exec:     newExec(),
-			wantErr:  "xargs: value for -n option should be a positive integer\n",
+			wantErr:  "xargs: value for -n option should be a positive integer\nTry 'xargs --help' for more information.\n",
 			wantExit: 2,
 		},
 		{
@@ -1182,7 +1182,7 @@ func TestInvalidUsage(t *testing.T) {
 			stdin:    strings.NewReader(""),
 			args:     []string{"-L", "+1"},
 			exec:     newExec(),
-			wantErr:  "xargs: value for -L option should be a positive integer\n",
+			wantErr:  "xargs: value for -L option should be a positive integer\nTry 'xargs --help' for more information.\n",
 			wantExit: 2,
 		},
 		{
@@ -1190,7 +1190,7 @@ func TestInvalidUsage(t *testing.T) {
 			stdin:    strings.NewReader(""),
 			args:     []string{"-s", "+1"},
 			exec:     newExec(),
-			wantErr:  "xargs: value for -s option should be a positive integer\n",
+			wantErr:  "xargs: value for -s option should be a positive integer\nTry 'xargs --help' for more information.\n",
 			wantExit: 2,
 		},
 		{
@@ -1198,7 +1198,7 @@ func TestInvalidUsage(t *testing.T) {
 			stdin:    strings.NewReader(""),
 			args:     []string{"-s", "0"},
 			exec:     newExec(),
-			wantErr:  "xargs: value for -s option should be a positive integer\n",
+			wantErr:  "xargs: value for -s option should be a positive integer\nTry 'xargs --help' for more information.\n",
 			wantExit: 2,
 		},
 		{
@@ -1206,7 +1206,7 @@ func TestInvalidUsage(t *testing.T) {
 			stdin:    strings.NewReader(""),
 			args:     []string{"-I", ""},
 			exec:     newExec(),
-			wantErr:  "xargs: value for -I option should not be empty\n",
+			wantErr:  "xargs: value for -I option should not be empty\nTry 'xargs --help' for more information.\n",
 			wantExit: 2,
 		},
 		{
@@ -1214,7 +1214,7 @@ func TestInvalidUsage(t *testing.T) {
 			stdin:    strings.NewReader(""),
 			args:     []string{"-d", ""},
 			exec:     newExec(),
-			wantErr:  "xargs: value for -d option should be a single character or an escape sequence\n",
+			wantErr:  "xargs: value for -d option should be a single character or an escape sequence\nTry 'xargs --help' for more information.\n",
 			wantExit: 2,
 		},
 		{
@@ -1222,7 +1222,7 @@ func TestInvalidUsage(t *testing.T) {
 			stdin:    strings.NewReader(""),
 			args:     []string{"-d", "xy"},
 			exec:     newExec(),
-			wantErr:  "xargs: value for -d option should be a single character or an escape sequence\n",
+			wantErr:  "xargs: value for -d option should be a single character or an escape sequence\nTry 'xargs --help' for more information.\n",
 			wantExit: 2,
 		},
 		{
@@ -1230,7 +1230,7 @@ func TestInvalidUsage(t *testing.T) {
 			stdin:    strings.NewReader(""),
 			args:     []string{"-d", `\z`},
 			exec:     newExec(),
-			wantErr:  "xargs: value for -d option should be a single character or an escape sequence\n",
+			wantErr:  "xargs: value for -d option should be a single character or an escape sequence\nTry 'xargs --help' for more information.\n",
 			wantExit: 2,
 		},
 		{
@@ -1238,7 +1238,7 @@ func TestInvalidUsage(t *testing.T) {
 			stdin:    strings.NewReader(""),
 			args:     []string{"-d", `\x100`},
 			exec:     newExec(),
-			wantErr:  "xargs: value for -d option should be a single character or an escape sequence\n",
+			wantErr:  "xargs: value for -d option should be a single character or an escape sequence\nTry 'xargs --help' for more information.\n",
 			wantExit: 2,
 		},
 		{
@@ -1246,7 +1246,7 @@ func TestInvalidUsage(t *testing.T) {
 			stdin:    strings.NewReader(""),
 			args:     []string{"--max-args"},
 			exec:     newExec(),
-			wantErr:  "xargs: option '--max-args' requires an argument\n",
+			wantErr:  "xargs: option '--max-args' requires an argument\nTry 'xargs --help' for more information.\n",
 			wantExit: 2,
 		},
 		{
@@ -1254,7 +1254,7 @@ func TestInvalidUsage(t *testing.T) {
 			stdin:    strings.NewReader(""),
 			args:     []string{"--bogus"},
 			exec:     newExec(),
-			wantErr:  "xargs: unrecognized option '--bogus'\n",
+			wantErr:  "xargs: unrecognized option '--bogus'\nTry 'xargs --help' for more information.\n",
 			wantExit: 2,
 		},
 		{
@@ -1262,7 +1262,7 @@ func TestInvalidUsage(t *testing.T) {
 			stdin:    strings.NewReader(""),
 			args:     []string{"--verbose=x"},
 			exec:     newExec(),
-			wantErr:  "xargs: option '--verbose=x' doesn't allow an argument\n",
+			wantErr:  "xargs: option '--verbose=x' doesn't allow an argument\nTry 'xargs --help' for more information.\n",
 			wantExit: 2,
 		},
 	}
@@ -1463,4 +1463,29 @@ func (c *cancelAfter) Err() error {
 		c.cancel()
 	}
 	return c.Context.Err()
+}
+
+func TestHelpVersion(t *testing.T) {
+	t.Run("help", func(t *testing.T) {
+		stdout := new(bytes.Buffer)
+		rt := &coreutils.Runtime{Stdout: stdout, Stderr: new(bytes.Buffer)}
+		if err := New(rt).Run(t.Context(), "--help"); err != nil {
+			t.Fatalf("Run() error = %v, want nil (exit status 0)", err)
+		}
+		if got, want := stdout.String(), usage; got != want {
+			t.Errorf("Run() stdout = %q, want %q", got, want)
+		}
+	})
+
+	t.Run("version", func(t *testing.T) {
+		stdout := new(bytes.Buffer)
+		rt := &coreutils.Runtime{Stdout: stdout, Stderr: new(bytes.Buffer)}
+		if err := New(rt).Run(t.Context(), "--version"); err != nil {
+			t.Fatalf("Run() error = %v, want nil (exit status 0)", err)
+		}
+		want := "xargs (charm.land/snail/coreutils) " + coreutils.Version + "\nhttps://charm.land/snail\n"
+		if got := stdout.String(); got != want {
+			t.Errorf("Run() stdout = %q, want %q", got, want)
+		}
+	})
 }

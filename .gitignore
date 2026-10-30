@@ -24,3 +24,6 @@ go.work.sum
 
 # Temp directory
 /tmp
+
+# Built coreutils binaries
+/bin/

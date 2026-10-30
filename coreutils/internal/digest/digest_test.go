@@ -437,28 +437,28 @@ func TestRunErrors(t *testing.T) {
 			name:     "an option which isn't taken",
 			fsys:     testFS(),
 			args:     []string{"-q", "hello.txt"},
-			wantErr:  "sha256sum: invalid option -- 'q'\n",
+			wantErr:  "sha256sum: invalid option -- 'q'\nTry 'sha256sum --help' for more information.\n",
 			wantExit: 2,
 		},
 		{
 			name:     "a long option which has no short equivalent",
 			fsys:     testFS(),
 			args:     []string{"-T", "hello.txt"},
-			wantErr:  "sha256sum: invalid option -- 'T'\n",
+			wantErr:  "sha256sum: invalid option -- 'T'\nTry 'sha256sum --help' for more information.\n",
 			wantExit: 2,
 		},
 		{
 			name:     "a long option of another utility",
 			fsys:     testFS(),
 			args:     []string{"--raw", "hello.txt"},
-			wantErr:  "sha256sum: unrecognized option '--raw'\n",
+			wantErr:  "sha256sum: unrecognized option '--raw'\nTry 'sha256sum --help' for more information.\n",
 			wantExit: 2,
 		},
 		{
 			name:     "a long option given a value",
 			fsys:     testFS(),
 			args:     []string{"--tag=1", "hello.txt"},
-			wantErr:  "sha256sum: option '--tag=1' doesn't allow an argument\n",
+			wantErr:  "sha256sum: option '--tag=1' doesn't allow an argument\nTry 'sha256sum --help' for more information.\n",
 			wantExit: 2,
 		},
 		{
@@ -483,67 +483,67 @@ func TestRunOptionConflicts(t *testing.T) {
 		{
 			name:     "zero while verifying",
 			args:     []string{"-z", "-c", "sums.txt"},
-			wantErr:  "sha256sum: the --zero option is not supported when verifying checksums\n",
+			wantErr:  "sha256sum: the --zero option is not supported when verifying checksums\nTry 'sha256sum --help' for more information.\n",
 			wantExit: 2,
 		},
 		{
 			name:     "tag while verifying",
 			args:     []string{"--tag", "-c", "sums.txt"},
-			wantErr:  "sha256sum: the --tag option is meaningless when verifying checksums\n",
+			wantErr:  "sha256sum: the --tag option is meaningless when verifying checksums\nTry 'sha256sum --help' for more information.\n",
 			wantExit: 2,
 		},
 		{
 			name:     "binary while verifying",
 			args:     []string{"-b", "-c", "sums.txt"},
-			wantErr:  "sha256sum: the --binary and --text options are meaningless when verifying checksums\n",
+			wantErr:  "sha256sum: the --binary and --text options are meaningless when verifying checksums\nTry 'sha256sum --help' for more information.\n",
 			wantExit: 2,
 		},
 		{
 			name:     "text while verifying",
 			args:     []string{"-c", "-t", "sums.txt"},
-			wantErr:  "sha256sum: the --binary and --text options are meaningless when verifying checksums\n",
+			wantErr:  "sha256sum: the --binary and --text options are meaningless when verifying checksums\nTry 'sha256sum --help' for more information.\n",
 			wantExit: 2,
 		},
 		{
 			name:     "ignore-missing without verifying",
 			args:     []string{"--ignore-missing", "hello.txt"},
-			wantErr:  "sha256sum: the --ignore-missing option is meaningful only when verifying checksums\n",
+			wantErr:  "sha256sum: the --ignore-missing option is meaningful only when verifying checksums\nTry 'sha256sum --help' for more information.\n",
 			wantExit: 2,
 		},
 		{
 			name:     "status without verifying",
 			args:     []string{"--status", "hello.txt"},
-			wantErr:  "sha256sum: the --status option is meaningful only when verifying checksums\n",
+			wantErr:  "sha256sum: the --status option is meaningful only when verifying checksums\nTry 'sha256sum --help' for more information.\n",
 			wantExit: 2,
 		},
 		{
 			name:     "warn without verifying",
 			args:     []string{"-w", "hello.txt"},
-			wantErr:  "sha256sum: the --warn option is meaningful only when verifying checksums\n",
+			wantErr:  "sha256sum: the --warn option is meaningful only when verifying checksums\nTry 'sha256sum --help' for more information.\n",
 			wantExit: 2,
 		},
 		{
 			name:     "quiet without verifying",
 			args:     []string{"--quiet", "hello.txt"},
-			wantErr:  "sha256sum: the --quiet option is meaningful only when verifying checksums\n",
+			wantErr:  "sha256sum: the --quiet option is meaningful only when verifying checksums\nTry 'sha256sum --help' for more information.\n",
 			wantExit: 2,
 		},
 		{
 			name:     "strict without verifying",
 			args:     []string{"--strict", "hello.txt"},
-			wantErr:  "sha256sum: the --strict option is meaningful only when verifying checksums\n",
+			wantErr:  "sha256sum: the --strict option is meaningful only when verifying checksums\nTry 'sha256sum --help' for more information.\n",
 			wantExit: 2,
 		},
 		{
 			name:     "tagging in text mode",
 			args:     []string{"--tag", "-t", "hello.txt"},
-			wantErr:  "sha256sum: --tag does not support --text mode\n",
+			wantErr:  "sha256sum: --tag does not support --text mode\nTry 'sha256sum --help' for more information.\n",
 			wantExit: 2,
 		},
 		{
 			name:     "text mode before the tag option",
 			args:     []string{"-t", "--tag", "hello.txt"},
-			wantErr:  "sha256sum: --tag does not support --text mode\n",
+			wantErr:  "sha256sum: --tag does not support --text mode\nTry 'sha256sum --help' for more information.\n",
 			wantExit: 2,
 		},
 	}
@@ -596,5 +596,64 @@ func runCancelled(t *testing.T, ctx context.Context, stdin io.Reader, args []str
 	}
 	if stderr.Len() > 0 {
 		t.Errorf("Run() stderr = %q, want nothing", stderr.String())
+	}
+}
+
+// testFamily is the family utility the shasum tests would build.
+var testFamily = Family{
+	Name:    "shasum",
+	Default: "1",
+	Algorithms: map[string]Algorithm{
+		"1": {New: sha1.New},
+	},
+}
+
+func TestHelpVersion(t *testing.T) {
+	tests := []struct {
+		name  string
+		usage string
+		run   func(ctx context.Context, rt *coreutils.Runtime, args []string) error
+	}{
+		{"shasum", usage("shasum"), testFamily.Run},
+		{"md5sum", Usage("md5sum"), testMD5.Run},
+		{"sha1sum", Usage("sha1sum"), testSHA1.Run},
+		{"sha224sum", Usage("sha224sum"), testSHA224.Run},
+		{"sha256sum", Usage("sha256sum"), testSHA256.Run},
+		{"sha384sum", Usage("sha384sum"), testSHA384.Run},
+		{"sha512sum", Usage("sha512sum"), testSHA512.Run},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			t.Run("help", func(t *testing.T) {
+				stdout, stderr := new(bytes.Buffer), new(bytes.Buffer)
+				rt := &coreutils.Runtime{Stdout: stdout, Stderr: stderr}
+				if err := test.run(t.Context(), rt, []string{"--help"}); err != nil {
+					t.Fatalf("Run() error = %v, want nil (exit status 0)", err)
+				}
+				if got := stderr.String(); got != "" {
+					t.Errorf("Run() stderr = %q, want empty", got)
+				}
+				if got := stdout.String(); got != test.usage {
+					t.Errorf("Run() stdout = %q, want %q", got, test.usage)
+				}
+			})
+
+			t.Run("version", func(t *testing.T) {
+				stdout, stderr := new(bytes.Buffer), new(bytes.Buffer)
+				rt := &coreutils.Runtime{Stdout: stdout, Stderr: stderr}
+				if err := test.run(t.Context(), rt, []string{"--version"}); err != nil {
+					t.Fatalf("Run() error = %v, want nil (exit status 0)", err)
+				}
+				if got := stderr.String(); got != "" {
+					t.Errorf("Run() stderr = %q, want empty", got)
+				}
+				want := test.name + " (charm.land/snail/coreutils) " + coreutils.Version +
+					"\nhttps://charm.land/snail\n"
+				if got := stdout.String(); got != want {
+					t.Errorf("Run() stdout = %q, want %q", got, want)
+				}
+			})
+		})
 	}
 }

@@ -24,6 +24,7 @@ import (
 	"charm.land/snail/coreutils/internal/getopt"
 	"charm.land/snail/coreutils/internal/input"
 	"charm.land/snail/coreutils/internal/patherr"
+	"charm.land/snail/coreutils/internal/stdopts"
 	"charm.land/snail/coreutils/internal/textutil"
 )
 
@@ -42,9 +43,13 @@ func New(rt *coreutils.Runtime) coreutils.Program {
 //
 // Reading is interrupted when ctx is done, and the context error is returned.
 func (p *Prog) Run(ctx context.Context, args ...string) error {
+	if done, err := stdopts.Check(p.Runtime, "uniq", usage, optSet, args); done {
+		return err
+	}
 	opts, operands, err := parseFlags(args)
 	if err != nil {
 		p.errorf("%v", err)
+		stdopts.TryHelp(p.Runtime, "uniq")
 		return &coreutils.ExitError{Code: 2}
 	}
 	var inName, outName string
@@ -56,6 +61,7 @@ func (p *Prog) Run(ctx context.Context, args ...string) error {
 		inName, outName = operands[0], operands[1]
 	default:
 		p.errorf("extra operand '%s'", operands[2])
+		stdopts.TryHelp(p.Runtime, "uniq")
 		return &coreutils.ExitError{Code: 2}
 	}
 	if slices.Contains(operands, "") {
@@ -314,11 +320,50 @@ var longOptions = map[string]rune{
 	"zero-terminated": 'z',
 }
 
+// optSet describes the options of uniq.
+var optSet = getopt.Set{
+	Valued:   "fsw",
+	Optional: string(optAllRepeated),
+	Long:     longOptions,
+}
+
+// usage describes the options of uniq.
+const usage = `Usage: uniq [OPTION]... [INPUT [OUTPUT]]
+Filter adjacent matching lines from INPUT (or standard input),
+writing to OUTPUT (or standard output).
+
+With no options, matching lines are merged to the first occurrence.
+
+  -c, --count
+         prefix lines by the number of occurrences
+  -d, --repeated
+         only print duplicate lines, one for each group
+  -D, --all-repeated[=METHOD]
+         print all duplicate lines, delimiting the groups with METHOD: none
+         (default), prepend or separate
+  -f, --skip-fields=N
+         avoid comparing the first N fields
+  -i, --ignore-case
+         ignore differences in case when comparing
+  -s, --skip-chars=N
+         avoid comparing the first N characters
+  -u, --unique
+         only print unique lines
+  -w, --check-chars=N
+         compare no more than N characters in lines
+  -z, --zero-terminated
+         line delimiter is NUL, not newline
+      --help
+         display this help and exit
+      --version
+         output version information and exit
+`
+
 // parseFlags parses the command line options. Option parsing stops at the
 // first operand or at "--".
 func parseFlags(args []string) (options, []string, error) {
 	opts := options{checkChars: -1}
-	operands, err := getopt.Set{Valued: "fsw", Optional: string(optAllRepeated), Long: longOptions}.Parse(args, func(opt rune, value string) error {
+	operands, err := optSet.Parse(args, func(opt rune, value string) error {
 		switch opt {
 		case 'c':
 			opts.count = true

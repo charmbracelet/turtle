@@ -18,6 +18,7 @@ import (
 	"charm.land/snail/coreutils/internal/ctxio"
 	"charm.land/snail/coreutils/internal/getopt"
 	"charm.land/snail/coreutils/internal/patherr"
+	"charm.land/snail/coreutils/internal/stdopts"
 	"charm.land/snail/fsx"
 )
 
@@ -37,9 +38,13 @@ func New(rt *coreutils.Runtime) coreutils.Program {
 //
 // Reading is interrupted when ctx is done, and the context error is returned.
 func (p *Prog) Run(ctx context.Context, args ...string) error {
+	if done, err := stdopts.Check(p.Runtime, "tee", usage, optSet, args); done {
+		return err
+	}
 	opts, operands, err := parseFlags(args)
 	if err != nil {
 		p.errorf("%v", err)
+		stdopts.TryHelp(p.Runtime, "tee")
 		return &coreutils.ExitError{Code: 2}
 	}
 	if p.Stdin == nil {
@@ -143,12 +148,29 @@ var longOptions = map[string]rune{
 	"ignore-interrupts": 'i',
 }
 
+// optSet describes the options of tee.
+var optSet = getopt.Set{Long: longOptions}
+
+// usage describes the options of tee.
+const usage = `Usage: tee [OPTION]... [FILE]...
+Copy the standard input to the standard output and to each FILE.
+
+  -a, --append
+         append to the given FILEs, do not overwrite
+  -i, --ignore-interrupts
+         ignore interrupt signals
+      --help
+         display this help and exit
+      --version
+         output version information and exit
+`
+
 // parseFlags parses the command line options. The -i option is accepted and
 // has no effect: signals aren't delivered to the utility in this context.
 // Option parsing stops at the first operand or at "--".
 func parseFlags(args []string) (options, []string, error) {
 	var opts options
-	operands, err := getopt.Set{Long: longOptions}.Parse(args, func(opt rune, _ string) error {
+	operands, err := optSet.Parse(args, func(opt rune, _ string) error {
 		switch opt {
 		case 'a':
 			opts.append = true

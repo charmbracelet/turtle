@@ -548,14 +548,14 @@ func TestRunLongOptions(t *testing.T) {
 			name:     "an unknown time word is an error",
 			files:    fsx.MemFS{},
 			args:     []string{"--time=bogus", "file.txt"},
-			wantErr:  "touch: invalid argument 'bogus' for '--time'\n",
+			wantErr:  "touch: invalid argument 'bogus' for '--time'\nTry 'touch --help' for more information.\n",
 			wantExit: 2,
 		},
 		{
 			name:     "time requires an argument",
 			files:    fsx.MemFS{},
 			args:     []string{"--time"},
-			wantErr:  "touch: option '--time' requires an argument\n",
+			wantErr:  "touch: option '--time' requires an argument\nTry 'touch --help' for more information.\n",
 			wantExit: 2,
 		},
 	}
@@ -574,42 +574,42 @@ func TestRunUsageErrors(t *testing.T) {
 	}{
 		{
 			name:    "no operands",
-			wantErr: "touch: missing file operand\n",
+			wantErr: "touch: missing file operand\nTry 'touch --help' for more information.\n",
 		},
 		{
 			name:    "only options",
 			args:    []string{"-a"},
-			wantErr: "touch: missing file operand\n",
+			wantErr: "touch: missing file operand\nTry 'touch --help' for more information.\n",
 		},
 		{
 			name:    "invalid option",
 			args:    []string{"-x", "file.txt"},
-			wantErr: "touch: invalid option -- 'x'\n",
+			wantErr: "touch: invalid option -- 'x'\nTry 'touch --help' for more information.\n",
 		},
 		{
 			name:    "invalid grouped option",
 			args:    []string{"-ax", "file.txt"},
-			wantErr: "touch: invalid option -- 'x'\n",
+			wantErr: "touch: invalid option -- 'x'\nTry 'touch --help' for more information.\n",
 		},
 		{
 			name:    "unrecognized long option",
 			args:    []string{"--all", "file.txt"},
-			wantErr: "touch: unrecognized option '--all'\n",
+			wantErr: "touch: unrecognized option '--all'\nTry 'touch --help' for more information.\n",
 		},
 		{
 			name:    "missing r argument",
 			args:    []string{"-r"},
-			wantErr: "touch: option requires an argument -- 'r'\n",
+			wantErr: "touch: option requires an argument -- 'r'\nTry 'touch --help' for more information.\n",
 		},
 		{
 			name:    "missing t argument",
 			args:    []string{"-t"},
-			wantErr: "touch: option requires an argument -- 't'\n",
+			wantErr: "touch: option requires an argument -- 't'\nTry 'touch --help' for more information.\n",
 		},
 		{
 			name:    "missing d argument",
 			args:    []string{"-d"},
-			wantErr: "touch: option requires an argument -- 'd'\n",
+			wantErr: "touch: option requires an argument -- 'd'\nTry 'touch --help' for more information.\n",
 		},
 	}
 
@@ -1129,4 +1129,29 @@ func TestParseFlags(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestHelpVersion(t *testing.T) {
+	t.Run("help", func(t *testing.T) {
+		stdout := new(bytes.Buffer)
+		rt := &coreutils.Runtime{Stdout: stdout, Stderr: new(bytes.Buffer)}
+		if err := New(rt).Run(t.Context(), "--help"); err != nil {
+			t.Fatalf("Run() error = %v, want nil (exit status 0)", err)
+		}
+		if got, want := stdout.String(), usage; got != want {
+			t.Errorf("Run() stdout = %q, want %q", got, want)
+		}
+	})
+
+	t.Run("version", func(t *testing.T) {
+		stdout := new(bytes.Buffer)
+		rt := &coreutils.Runtime{Stdout: stdout, Stderr: new(bytes.Buffer)}
+		if err := New(rt).Run(t.Context(), "--version"); err != nil {
+			t.Fatalf("Run() error = %v, want nil (exit status 0)", err)
+		}
+		want := "touch (charm.land/snail/coreutils) " + coreutils.Version + "\nhttps://charm.land/snail\n"
+		if got := stdout.String(); got != want {
+			t.Errorf("Run() stdout = %q, want %q", got, want)
+		}
+	})
 }

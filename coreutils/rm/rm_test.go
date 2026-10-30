@@ -568,7 +568,7 @@ func TestRunLongOptions(t *testing.T) {
 			files:    fsx.MemFS{"a.txt": {Data: []byte("a")}},
 			args:     []string{"--force=yes", "a.txt"},
 			present:  []string{"a.txt"},
-			wantErr:  "rm: option '--force=yes' doesn't allow an argument\n",
+			wantErr:  "rm: option '--force=yes' doesn't allow an argument\nTry 'rm --help' for more information.\n",
 			wantExit: 2,
 		},
 	}
@@ -586,7 +586,7 @@ func TestRunErrors(t *testing.T) {
 			name:     "missing operand",
 			files:    fsx.MemFS{},
 			args:     []string{},
-			wantErr:  "rm: missing operand\n",
+			wantErr:  "rm: missing operand\nTry 'rm --help' for more information.\n",
 			wantExit: 2,
 		},
 		{
@@ -594,7 +594,7 @@ func TestRunErrors(t *testing.T) {
 			files:    fsx.MemFS{"a.txt": {Data: []byte("a")}},
 			args:     []string{"-x", "a.txt"},
 			present:  []string{"a.txt"},
-			wantErr:  "rm: invalid option -- 'x'\n",
+			wantErr:  "rm: invalid option -- 'x'\nTry 'rm --help' for more information.\n",
 			wantExit: 2,
 		},
 		{
@@ -602,7 +602,7 @@ func TestRunErrors(t *testing.T) {
 			files:    fsx.MemFS{"a.txt": {Data: []byte("a")}},
 			args:     []string{"--bogus", "a.txt"},
 			present:  []string{"a.txt"},
-			wantErr:  "rm: unrecognized option '--bogus'\n",
+			wantErr:  "rm: unrecognized option '--bogus'\nTry 'rm --help' for more information.\n",
 			wantExit: 2,
 		},
 		{
@@ -690,4 +690,29 @@ func TestProtectedErr(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestHelpVersion(t *testing.T) {
+	t.Run("help", func(t *testing.T) {
+		stdout := new(bytes.Buffer)
+		rt := &coreutils.Runtime{Stdout: stdout, Stderr: new(bytes.Buffer)}
+		if err := New(rt).Run(t.Context(), "--help"); err != nil {
+			t.Fatalf("Run() error = %v, want nil (exit status 0)", err)
+		}
+		if got, want := stdout.String(), usage; got != want {
+			t.Errorf("Run() stdout = %q, want %q", got, want)
+		}
+	})
+
+	t.Run("version", func(t *testing.T) {
+		stdout := new(bytes.Buffer)
+		rt := &coreutils.Runtime{Stdout: stdout, Stderr: new(bytes.Buffer)}
+		if err := New(rt).Run(t.Context(), "--version"); err != nil {
+			t.Fatalf("Run() error = %v, want nil (exit status 0)", err)
+		}
+		want := "rm (charm.land/snail/coreutils) " + coreutils.Version + "\nhttps://charm.land/snail\n"
+		if got := stdout.String(); got != want {
+			t.Errorf("Run() stdout = %q, want %q", got, want)
+		}
+	})
 }

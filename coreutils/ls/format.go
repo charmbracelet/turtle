@@ -285,11 +285,109 @@ const (
 // equivalent.
 const valuedLong = string(optFormat) + string(optIndicatorStyle) + string(optSort) + string(optTime)
 
+// optSet describes the options of ls.
+var optSet = getopt.Set{Valued: valuedLong, Long: longOptions}
+
+// usage describes the options of ls.
+const usage = `Usage: ls [OPTION]... [FILE]...
+List information about the FILEs (the current directory by default).
+Sort entries alphabetically if none of -cftuvSUX nor --sort is specified.
+
+  -a, --all
+         do not ignore entries starting with .
+  -A, --almost-all
+         do not list implied . and ..
+  -c
+         with -lt: sort by, and show, ctime;
+         with -l: show ctime and sort by name;
+         otherwise: sort by ctime, newest first
+  -C
+         list entries by columns (the default)
+  -d, --directory
+         list directories themselves, not their contents
+  -f
+         same as -a -U
+  -F, --classify
+         append indicator (one of */=>@|) to entries
+      --file-type
+         like -F, except do not append '*'
+      --format=WORD
+         across,horizontal (-x), commas (-m), long (-l),
+         single-column (-1), verbose (-l), vertical (-C)
+  -g
+         like -l, but do not list owner
+  -H, --dereference-command-line
+         follow symbolic links listed on the command line
+      --indicator-style=WORD
+         append indicator with style WORD to entry names:
+         none (default), slash (-p), file-type (--file-type), classify (-F)
+  -i, --inode
+         print the index number of each file
+  -k, --kibibytes
+         default to 1024-byte blocks for file system usage;
+         used only with -s and per directory totals
+  -l
+         use a long listing format
+  -L, --dereference
+         when showing file information for a symbolic link,
+         show information for the file the link references
+         rather than for the link itself
+  -m
+         fill width with a comma separated list of entries
+  -n, --numeric-uid-gid
+         like -l, but list numeric user and group IDs
+  -o
+         like -l, but do not list group information
+  -p, --indicator-style=slash
+         append / indicator to directories
+  -q, --hide-control-chars
+         print ? instead of nongraphic characters
+  -r, --reverse
+         reverse order while sorting
+  -R, --recursive
+         list subdirectories recursively
+  -s, --size
+         print the allocated size of each file, in blocks
+  -S
+         sort by file size, largest first
+      --sort=WORD
+         change default 'name' sort to WORD:
+         none (-U), size (-S), time (-t), version (-v),
+         extension (-X), name, width
+      --time=WORD
+         select which timestamp used to display or sort;
+         access time (-u): atime, access, use;
+         metadata change time (-c): ctime, status;
+         modified time (default): mtime, modification;
+         with -l, WORD determines which time to show;
+         with --sort=time, sort by WORD (newest first)
+  -t
+         sort by time, newest first; see --time
+  -u
+         with -lt: sort by, and show, access time;
+         with -l: show access time and sort by name;
+         otherwise: sort by access time, newest first
+  -U
+         do not sort; list in directory order
+  -v
+         natural sort of (version) numbers within text
+  -x
+         list entries by lines instead of by columns
+  -X
+         sort alphabetically by entry extension
+  -1
+         list one file per line
+      --help
+         display this help and exit
+      --version
+         output version information and exit
+`
+
 // parseFlags parses the options and operands. Option parsing stops at the
 // first operand or at "--".
 func parseFlags(args []string) (options, []string, error) {
 	opts := options{owner: true, group: true}
-	operands, err := getopt.Set{Valued: valuedLong, Long: longOptions}.Parse(args, func(opt rune, value string) error {
+	operands, err := optSet.Parse(args, func(opt rune, value string) error {
 		return opts.set(opt, value)
 	})
 	if err != nil {

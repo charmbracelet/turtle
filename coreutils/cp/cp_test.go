@@ -865,14 +865,14 @@ func TestRunErrors(t *testing.T) {
 		{
 			name:     "missing file operand",
 			args:     []string{},
-			wantErr:  "cp: missing file operand\n",
+			wantErr:  "cp: missing file operand\nTry 'cp --help' for more information.\n",
 			wantExit: 2,
 		},
 		{
 			name:     "missing destination operand",
 			files:    fsx.MemFS{"a.txt": {Data: []byte("x")}},
 			args:     []string{"a.txt"},
-			wantErr:  "cp: missing destination file operand after 'a.txt'\n",
+			wantErr:  "cp: missing destination file operand after 'a.txt'\nTry 'cp --help' for more information.\n",
 			wantExit: 2,
 		},
 		{
@@ -880,7 +880,7 @@ func TestRunErrors(t *testing.T) {
 			files:    fsx.MemFS{"a.txt": {Data: []byte("x")}},
 			args:     []string{"-x", "a.txt", "b.txt"},
 			absent:   []string{"b.txt"},
-			wantErr:  "cp: invalid option -- 'x'\n",
+			wantErr:  "cp: invalid option -- 'x'\nTry 'cp --help' for more information.\n",
 			wantExit: 2,
 		},
 		{
@@ -888,7 +888,7 @@ func TestRunErrors(t *testing.T) {
 			files:    fsx.MemFS{"a.txt": {Data: []byte("x")}},
 			args:     []string{"--bogus", "a.txt", "b.txt"},
 			absent:   []string{"b.txt"},
-			wantErr:  "cp: unrecognized option '--bogus'\n",
+			wantErr:  "cp: unrecognized option '--bogus'\nTry 'cp --help' for more information.\n",
 			wantExit: 2,
 		},
 		{
@@ -1208,7 +1208,7 @@ func TestRunTargetDirectory(t *testing.T) {
 			name:     "no sources is a usage error",
 			files:    fsx.MemFS{"d/keep.txt": {}},
 			args:     []string{"-t", "d"},
-			wantErr:  "cp: missing file operand\n",
+			wantErr:  "cp: missing file operand\nTry 'cp --help' for more information.\n",
 			wantExit: 2,
 		},
 		{
@@ -1216,7 +1216,7 @@ func TestRunTargetDirectory(t *testing.T) {
 			files:    fsx.MemFS{"a.txt": {Data: []byte("a")}, "b.txt": {}},
 			args:     []string{"-t", "d", "-T", "a.txt", "b.txt"},
 			want:     map[string]string{"a.txt": "a"},
-			wantErr:  "cp: cannot combine --target-directory (-t) and --no-target-directory (-T)\n",
+			wantErr:  "cp: cannot combine --target-directory (-t) and --no-target-directory (-T)\nTry 'cp --help' for more information.\n",
 			wantExit: 2,
 		},
 		{
@@ -1237,7 +1237,7 @@ func TestRunTargetDirectory(t *testing.T) {
 			name:     "-T rejects extra operands",
 			files:    fsx.MemFS{"a.txt": {}, "b.txt": {}, "c.txt": {}},
 			args:     []string{"-T", "a.txt", "b.txt", "c.txt"},
-			wantErr:  "cp: extra operand 'c.txt'\n",
+			wantErr:  "cp: extra operand 'c.txt'\nTry 'cp --help' for more information.\n",
 			wantExit: 2,
 		},
 	}
@@ -1567,7 +1567,7 @@ func TestRunPreserveList(t *testing.T) {
 			files:    fsx.MemFS{"a.txt": {Data: []byte("x")}},
 			args:     []string{"--preserve=mode,bogus", "a.txt", "b.txt"},
 			absent:   []string{"b.txt"},
-			wantErr:  "cp: invalid attribute list: 'mode,bogus'\n",
+			wantErr:  "cp: invalid attribute list: 'mode,bogus'\nTry 'cp --help' for more information.\n",
 			wantExit: 2,
 		},
 		{
@@ -1575,7 +1575,7 @@ func TestRunPreserveList(t *testing.T) {
 			files:    fsx.MemFS{"a.txt": {Data: []byte("x")}},
 			args:     []string{"--no-preserve=bogus", "a.txt", "b.txt"},
 			absent:   []string{"b.txt"},
-			wantErr:  "cp: invalid attribute list: 'bogus'\n",
+			wantErr:  "cp: invalid attribute list: 'bogus'\nTry 'cp --help' for more information.\n",
 			wantExit: 2,
 		},
 		{
@@ -1583,7 +1583,7 @@ func TestRunPreserveList(t *testing.T) {
 			files:    fsx.MemFS{"a.txt": {Data: []byte("x"), Mode: 0o666, ModTime: oldTime}},
 			umask:    0o022,
 			args:     []string{"-p", "--no-preserve", "a.txt", "b.txt"},
-			wantErr:  "cp: invalid attribute list: 'a.txt'\n",
+			wantErr:  "cp: invalid attribute list: 'a.txt'\nTry 'cp --help' for more information.\n",
 			wantExit: 2,
 		},
 		{
@@ -1591,7 +1591,7 @@ func TestRunPreserveList(t *testing.T) {
 			files:    fsx.MemFS{"a.txt": {Data: []byte("x"), Mode: 0o666, ModTime: oldTime}},
 			umask:    0o022,
 			args:     []string{"-p", "--no-preserve=", "a.txt", "b.txt"},
-			wantErr:  "cp: ambiguous argument '' for '--no-preserve'\n",
+			wantErr:  "cp: ambiguous argument '' for '--no-preserve'\nTry 'cp --help' for more information.\n",
 			wantExit: 2,
 		},
 		{
@@ -1626,4 +1626,29 @@ func TestRunPreserveOwnership(t *testing.T) {
 	if !ok || uid != 1000 || gid != 2000 {
 		t.Errorf("owner of b.txt = %d, %d, %v, want 1000, 2000, true", uid, gid, ok)
 	}
+}
+
+func TestHelpVersion(t *testing.T) {
+	t.Run("help", func(t *testing.T) {
+		stdout := new(bytes.Buffer)
+		rt := &coreutils.Runtime{Stdout: stdout, Stderr: new(bytes.Buffer)}
+		if err := New(rt).Run(t.Context(), "--help"); err != nil {
+			t.Fatalf("Run() error = %v, want nil (exit status 0)", err)
+		}
+		if got, want := stdout.String(), usage; got != want {
+			t.Errorf("Run() stdout = %q, want %q", got, want)
+		}
+	})
+
+	t.Run("version", func(t *testing.T) {
+		stdout := new(bytes.Buffer)
+		rt := &coreutils.Runtime{Stdout: stdout, Stderr: new(bytes.Buffer)}
+		if err := New(rt).Run(t.Context(), "--version"); err != nil {
+			t.Fatalf("Run() error = %v, want nil (exit status 0)", err)
+		}
+		want := "cp (charm.land/snail/coreutils) " + coreutils.Version + "\nhttps://charm.land/snail\n"
+		if got := stdout.String(); got != want {
+			t.Errorf("Run() stdout = %q, want %q", got, want)
+		}
+	})
 }

@@ -911,14 +911,14 @@ func TestRunCheck(t *testing.T) {
 			name:     "an extra operand",
 			fsys:     testFS(),
 			args:     []string{"-c", "sorted1.txt", "sorted2.txt"},
-			wantErr:  "sort: extra operand 'sorted2.txt' not allowed with -c\n",
+			wantErr:  "sort: extra operand 'sorted2.txt' not allowed with -c\nTry 'sort --help' for more information.\n",
 			wantExit: 2,
 		},
 		{
 			name:     "c and m are incompatible",
 			fsys:     testFS(),
 			args:     []string{"-c", "-m", "sorted1.txt"},
-			wantErr:  "sort: options -c and -m are incompatible\n",
+			wantErr:  "sort: options -c and -m are incompatible\nTry 'sort --help' for more information.\n",
 			wantExit: 2,
 		},
 		{
@@ -1012,7 +1012,7 @@ func TestRunOutput(t *testing.T) {
 			name:     "a zero-length output name",
 			stdin:    strings.NewReader("a\n"),
 			args:     []string{"-o", ""},
-			wantErr:  "sort: invalid zero-length file name\n",
+			wantErr:  "sort: invalid zero-length file name\nTry 'sort --help' for more information.\n",
 			wantExit: 2,
 		},
 	}
@@ -1029,91 +1029,91 @@ func TestRunOptions(t *testing.T) {
 		{
 			name:     "invalid option",
 			args:     []string{"-x"},
-			wantErr:  "sort: invalid option -- 'x'\n",
+			wantErr:  "sort: invalid option -- 'x'\nTry 'sort --help' for more information.\n",
 			wantExit: 2,
 		},
 		{
 			name:     "unknown long option",
 			args:     []string{"--foo"},
-			wantErr:  "sort: unrecognized option '--foo'\n",
+			wantErr:  "sort: unrecognized option '--foo'\nTry 'sort --help' for more information.\n",
 			wantExit: 2,
 		},
 		{
 			name:     "missing key argument",
 			args:     []string{"-k"},
-			wantErr:  "sort: option requires an argument -- 'k'\n",
+			wantErr:  "sort: option requires an argument -- 'k'\nTry 'sort --help' for more information.\n",
 			wantExit: 2,
 		},
 		{
 			name:     "missing output argument",
 			args:     []string{"-o"},
-			wantErr:  "sort: option requires an argument -- 'o'\n",
+			wantErr:  "sort: option requires an argument -- 'o'\nTry 'sort --help' for more information.\n",
 			wantExit: 2,
 		},
 		{
 			name:     "missing separator argument",
 			args:     []string{"-t"},
-			wantErr:  "sort: option requires an argument -- 't'\n",
+			wantErr:  "sort: option requires an argument -- 't'\nTry 'sort --help' for more information.\n",
 			wantExit: 2,
 		},
 		{
 			name:     "a separator of two characters",
 			args:     []string{"-t", "::"},
-			wantErr:  "sort: the separator must be a single character\n",
+			wantErr:  "sort: the separator must be a single character\nTry 'sort --help' for more information.\n",
 			wantExit: 2,
 		},
 		{
 			name:     "an empty key definition",
 			args:     []string{"-k", ""},
-			wantErr:  "sort: invalid key definition: ''\n",
+			wantErr:  "sort: invalid key definition: ''\nTry 'sort --help' for more information.\n",
 			wantExit: 2,
 		},
 		{
 			name:     "a zero field",
 			args:     []string{"-k", "0"},
-			wantErr:  "sort: invalid key definition: '0'\n",
+			wantErr:  "sort: invalid key definition: '0'\nTry 'sort --help' for more information.\n",
 			wantExit: 2,
 		},
 		{
 			name:     "a zero start character",
 			args:     []string{"-k", "1.0"},
-			wantErr:  "sort: invalid key definition: '1.0'\n",
+			wantErr:  "sort: invalid key definition: '1.0'\nTry 'sort --help' for more information.\n",
 			wantExit: 2,
 		},
 		{
 			name:     "a non numeric field",
 			args:     []string{"-k", "x"},
-			wantErr:  "sort: invalid key definition: 'x'\n",
+			wantErr:  "sort: invalid key definition: 'x'\nTry 'sort --help' for more information.\n",
 			wantExit: 2,
 		},
 		{
 			name:     "an unknown key modifier",
 			args:     []string{"-k", "1x"},
-			wantErr:  "sort: invalid key definition: '1x'\n",
+			wantErr:  "sort: invalid key definition: '1x'\nTry 'sort --help' for more information.\n",
 			wantExit: 2,
 		},
 		{
 			name:     "a zero end field",
 			args:     []string{"-k", "1,0"},
-			wantErr:  "sort: invalid key definition: '1,0'\n",
+			wantErr:  "sort: invalid key definition: '1,0'\nTry 'sort --help' for more information.\n",
 			wantExit: 2,
 		},
 		{
 			name:     "an empty key end",
 			args:     []string{"-k", "1,"},
-			wantErr:  "sort: invalid key definition: '1,'\n",
+			wantErr:  "sort: invalid key definition: '1,'\nTry 'sort --help' for more information.\n",
 			wantExit: 2,
 		},
 		{
 			name:     "an invalid sort word",
 			args:     []string{"--sort=bogus"},
-			wantErr:  "sort: invalid argument 'bogus' for '--sort'\n",
+			wantErr:  "sort: invalid argument 'bogus' for '--sort'\nTry 'sort --help' for more information.\n",
 			wantExit: 2,
 		},
 		{
 			name:     "a missing sort argument",
 			args:     []string{"--sort"},
-			wantErr:  "sort: option '--sort' requires an argument\n",
+			wantErr:  "sort: option '--sort' requires an argument\nTry 'sort --help' for more information.\n",
 			wantExit: 2,
 		},
 	}
@@ -1394,4 +1394,29 @@ func TestRunSortTypeLastWins(t *testing.T) {
 			runCase(t, test)
 		})
 	}
+}
+
+func TestHelpVersion(t *testing.T) {
+	t.Run("help", func(t *testing.T) {
+		stdout := new(bytes.Buffer)
+		rt := &coreutils.Runtime{Stdout: stdout, Stderr: new(bytes.Buffer)}
+		if err := New(rt).Run(t.Context(), "--help"); err != nil {
+			t.Fatalf("Run() error = %v, want nil (exit status 0)", err)
+		}
+		if got, want := stdout.String(), usage; got != want {
+			t.Errorf("Run() stdout = %q, want %q", got, want)
+		}
+	})
+
+	t.Run("version", func(t *testing.T) {
+		stdout := new(bytes.Buffer)
+		rt := &coreutils.Runtime{Stdout: stdout, Stderr: new(bytes.Buffer)}
+		if err := New(rt).Run(t.Context(), "--version"); err != nil {
+			t.Fatalf("Run() error = %v, want nil (exit status 0)", err)
+		}
+		want := "sort (charm.land/snail/coreutils) " + coreutils.Version + "\nhttps://charm.land/snail\n"
+		if got := stdout.String(); got != want {
+			t.Errorf("Run() stdout = %q, want %q", got, want)
+		}
+	})
 }

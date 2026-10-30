@@ -15,6 +15,7 @@ import (
 
 	"charm.land/snail/coreutils"
 	"charm.land/snail/coreutils/internal/getopt"
+	"charm.land/snail/coreutils/internal/stdopts"
 )
 
 // Prog is the dirname core utility.
@@ -30,13 +31,18 @@ func New(rt *coreutils.Runtime) coreutils.Program {
 // Run writes the directory portion of each name operand to standard output,
 // one result per line, or separated by NUL bytes with -z.
 func (p *Prog) Run(ctx context.Context, args ...string) error {
+	if done, err := stdopts.Check(p.Runtime, "dirname", usage, optSet, args); done {
+		return err
+	}
 	zero, names, err := parseFlags(args)
 	if err != nil {
 		p.errorf("%v", err)
+		stdopts.TryHelp(p.Runtime, "dirname")
 		return &coreutils.ExitError{Code: 2}
 	}
 	if len(names) == 0 {
 		p.errorf("missing operand")
+		stdopts.TryHelp(p.Runtime, "dirname")
 		return &coreutils.ExitError{Code: 2}
 	}
 
@@ -69,10 +75,26 @@ var longOptions = map[string]rune{
 	"zero": 'z',
 }
 
+// optSet describes the options of dirname.
+var optSet = getopt.Set{Long: longOptions}
+
+// usage describes the options of dirname.
+const usage = `Usage: dirname [OPTION] NAME...
+Output each NAME with its last non-slash component and trailing slashes
+removed; if NAME contains no /, output '.' (meaning the current directory).
+
+  -z, --zero
+         end each output line with NUL, not newline
+      --help
+         display this help and exit
+      --version
+         output version information and exit
+`
+
 // parseFlags parses the options and operands. Option parsing stops at the
 // first operand or at "--".
 func parseFlags(args []string) (zero bool, names []string, err error) {
-	names, err = getopt.Set{Long: longOptions}.Parse(args, func(opt rune, _ string) error {
+	names, err = optSet.Parse(args, func(opt rune, _ string) error {
 		if opt != 'z' {
 			return getopt.InvalidOption(opt)
 		}

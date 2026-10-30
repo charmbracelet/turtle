@@ -164,17 +164,17 @@ func TestParseFlags(t *testing.T) {
 		args    []string
 		wantErr string
 	}{
-		{"no mode", nil, "tar: You must specify one of the '-ctrux' options\n"},
-		{"no mode with operand", []string{"nf", "-"}, "tar: You must specify one of the '-ctrux' options\n"},
-		{"two modes", []string{"-ct", "-"}, "tar: You may not specify more than one '-ctrux' option\n"},
-		{"two modes long", []string{"--create", "--list"}, "tar: You may not specify more than one '-ctrux' option\n"},
-		{"invalid option", []string{"-cz", "-"}, "tar: invalid option -- 'z'\n"},
-		{"unrecognized long option", []string{"-c", "--bogus"}, "tar: unrecognized option '--bogus'\n"},
-		{"missing archive", []string{"-c", "-f"}, "tar: option requires an argument -- 'f'\n"},
-		{"missing blocking factor", []string{"-c", "--blocking-factor"}, "tar: option '--blocking-factor' requires an argument\n"},
-		{"zero blocking factor", []string{"-c", "-b", "0"}, `tar: invalid blocking factor "0"` + "\n"},
-		{"bad blocking factor", []string{"-c", "-b", "x"}, `tar: invalid blocking factor "x"` + "\n"},
-		{"bad old style letter", []string{"czf", "-", "-"}, "tar: invalid option -- 'z'\n"},
+		{"no mode", nil, "tar: You must specify one of the '-ctrux' options\nTry 'tar --help' for more information.\n"},
+		{"no mode with operand", []string{"nf", "-"}, "tar: You must specify one of the '-ctrux' options\nTry 'tar --help' for more information.\n"},
+		{"two modes", []string{"-ct", "-"}, "tar: You may not specify more than one '-ctrux' option\nTry 'tar --help' for more information.\n"},
+		{"two modes long", []string{"--create", "--list"}, "tar: You may not specify more than one '-ctrux' option\nTry 'tar --help' for more information.\n"},
+		{"invalid option", []string{"-cz", "-"}, "tar: invalid option -- 'z'\nTry 'tar --help' for more information.\n"},
+		{"unrecognized long option", []string{"-c", "--bogus"}, "tar: unrecognized option '--bogus'\nTry 'tar --help' for more information.\n"},
+		{"missing archive", []string{"-c", "-f"}, "tar: option requires an argument -- 'f'\nTry 'tar --help' for more information.\n"},
+		{"missing blocking factor", []string{"-c", "--blocking-factor"}, "tar: option '--blocking-factor' requires an argument\nTry 'tar --help' for more information.\n"},
+		{"zero blocking factor", []string{"-c", "-b", "0"}, `tar: invalid blocking factor "0"` + "\nTry 'tar --help' for more information.\n"},
+		{"bad blocking factor", []string{"-c", "-b", "x"}, `tar: invalid blocking factor "x"` + "\nTry 'tar --help' for more information.\n"},
+		{"bad old style letter", []string{"czf", "-", "-"}, "tar: invalid option -- 'z'\nTry 'tar --help' for more information.\n"},
 	}
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
@@ -549,4 +549,29 @@ func TestParseSize(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestHelpVersion(t *testing.T) {
+	t.Run("help", func(t *testing.T) {
+		stdout, _, err := run(t, fsx.MemFS{}, "", nil, 0, "--help")
+
+		if code := exitCode(t, err); code != 0 {
+			t.Fatalf("Run() exit code = %d, want 0 (error = %v)", code, err)
+		}
+		if got := stdout.String(); got != usage {
+			t.Errorf("Run() stdout = %q, want %q", got, usage)
+		}
+	})
+
+	t.Run("version", func(t *testing.T) {
+		stdout, _, err := run(t, fsx.MemFS{}, "", nil, 0, "--version")
+
+		if code := exitCode(t, err); code != 0 {
+			t.Fatalf("Run() exit code = %d, want 0 (error = %v)", code, err)
+		}
+		want := "tar (charm.land/snail/coreutils) " + coreutils.Version + "\nhttps://charm.land/snail\n"
+		if got := stdout.String(); got != want {
+			t.Errorf("Run() stdout = %q, want %q", got, want)
+		}
+	})
 }

@@ -370,21 +370,21 @@ func TestRunOptions(t *testing.T) {
 			name:     "-l and -s are incompatible",
 			fsys:     testFS(),
 			args:     []string{"-l", "-s", "a.txt", "b.txt"},
-			wantErr:  "cmp: options -l and -s are incompatible\n",
+			wantErr:  "cmp: options -l and -s are incompatible\nTry 'cmp --help' for more information.\n",
 			wantExit: 2,
 		},
 		{
 			name:     "-s and -l are incompatible",
 			fsys:     testFS(),
 			args:     []string{"-s", "-l", "a.txt", "b.txt"},
-			wantErr:  "cmp: options -l and -s are incompatible\n",
+			wantErr:  "cmp: options -l and -s are incompatible\nTry 'cmp --help' for more information.\n",
 			wantExit: 2,
 		},
 		{
 			name:     "-l and -s grouped are incompatible",
 			fsys:     testFS(),
 			args:     []string{"-ls", "a.txt", "b.txt"},
-			wantErr:  "cmp: options -l and -s are incompatible\n",
+			wantErr:  "cmp: options -l and -s are incompatible\nTry 'cmp --help' for more information.\n",
 			wantExit: 2,
 		},
 	}
@@ -562,70 +562,70 @@ func TestRunInvalidUsage(t *testing.T) {
 		{
 			name:     "no operands",
 			fsys:     testFS(),
-			wantErr:  "cmp: missing operand\n",
+			wantErr:  "cmp: missing operand\nTry 'cmp --help' for more information.\n",
 			wantExit: 2,
 		},
 		{
 			name:     "one operand",
 			fsys:     testFS(),
 			args:     []string{"a.txt"},
-			wantErr:  "cmp: missing operand\n",
+			wantErr:  "cmp: missing operand\nTry 'cmp --help' for more information.\n",
 			wantExit: 2,
 		},
 		{
 			name:     "an extra operand",
 			fsys:     testFS(),
 			args:     []string{"a.txt", "b.txt", "third.txt"},
-			wantErr:  "cmp: extra operand 'third.txt'\n",
+			wantErr:  "cmp: extra operand 'third.txt'\nTry 'cmp --help' for more information.\n",
 			wantExit: 2,
 		},
 		{
 			name:     "an invalid option",
 			fsys:     testFS(),
 			args:     []string{"-x", "a.txt", "b.txt"},
-			wantErr:  "cmp: invalid option -- 'x'\n",
+			wantErr:  "cmp: invalid option -- 'x'\nTry 'cmp --help' for more information.\n",
 			wantExit: 2,
 		},
 		{
 			name:     "an unsupported long option",
 			fsys:     testFS(),
 			args:     []string{"--initial", "a.txt", "b.txt"},
-			wantErr:  "cmp: unrecognized option '--initial'\n",
+			wantErr:  "cmp: unrecognized option '--initial'\nTry 'cmp --help' for more information.\n",
 			wantExit: 2,
 		},
 		{
 			name:     "an invalid limit",
 			fsys:     testFS(),
 			args:     []string{"-n", "x", "a.txt", "b.txt"},
-			wantErr:  "cmp: invalid --bytes value 'x'\n",
+			wantErr:  "cmp: invalid --bytes value 'x'\nTry 'cmp --help' for more information.\n",
 			wantExit: 2,
 		},
 		{
 			name:     "a negative limit",
 			fsys:     testFS(),
 			args:     []string{"-n", "-1", "a.txt", "b.txt"},
-			wantErr:  "cmp: invalid --bytes value '-1'\n",
+			wantErr:  "cmp: invalid --bytes value '-1'\nTry 'cmp --help' for more information.\n",
 			wantExit: 2,
 		},
 		{
 			name:     "an empty limit",
 			fsys:     testFS(),
 			args:     []string{"--bytes=", "a.txt", "b.txt"},
-			wantErr:  "cmp: invalid --bytes value ''\n",
+			wantErr:  "cmp: invalid --bytes value ''\nTry 'cmp --help' for more information.\n",
 			wantExit: 2,
 		},
 		{
 			name:     "-n without an argument",
 			fsys:     testFS(),
 			args:     []string{"-n"},
-			wantErr:  "cmp: option requires an argument -- 'n'\n",
+			wantErr:  "cmp: option requires an argument -- 'n'\nTry 'cmp --help' for more information.\n",
 			wantExit: 2,
 		},
 		{
 			name:     "--bytes without an argument",
 			fsys:     testFS(),
 			args:     []string{"--bytes"},
-			wantErr:  "cmp: option '--bytes' requires an argument\n",
+			wantErr:  "cmp: option '--bytes' requires an argument\nTry 'cmp --help' for more information.\n",
 			wantExit: 2,
 		},
 	}
@@ -771,4 +771,29 @@ func runCancelled(t *testing.T, ctx context.Context, stdin io.Reader) {
 	if got := stderr.String(); got != "" {
 		t.Errorf("Run() stderr = %q, want empty", got)
 	}
+}
+
+func TestHelpVersion(t *testing.T) {
+	t.Run("help", func(t *testing.T) {
+		stdout := new(bytes.Buffer)
+		rt := &coreutils.Runtime{Stdout: stdout, Stderr: new(bytes.Buffer)}
+		if err := New(rt).Run(t.Context(), "--help"); err != nil {
+			t.Fatalf("Run() error = %v, want nil (exit status 0)", err)
+		}
+		if got, want := stdout.String(), usage; got != want {
+			t.Errorf("Run() stdout = %q, want %q", got, want)
+		}
+	})
+
+	t.Run("version", func(t *testing.T) {
+		stdout := new(bytes.Buffer)
+		rt := &coreutils.Runtime{Stdout: stdout, Stderr: new(bytes.Buffer)}
+		if err := New(rt).Run(t.Context(), "--version"); err != nil {
+			t.Fatalf("Run() error = %v, want nil (exit status 0)", err)
+		}
+		want := "cmp (charm.land/snail/coreutils) " + coreutils.Version + "\nhttps://charm.land/snail\n"
+		if got := stdout.String(); got != want {
+			t.Errorf("Run() stdout = %q, want %q", got, want)
+		}
+	})
 }
