@@ -12,6 +12,7 @@ import (
 	"charm.land/snail/coreutils"
 	"charm.land/snail/coreutils/internal/getopt"
 	"charm.land/snail/coreutils/internal/patherr"
+	"charm.land/snail/coreutils/internal/stdopts"
 )
 
 // chmodModeBits holds the bits a mode operand may change: the permissions and
@@ -33,6 +34,9 @@ func New(rt *coreutils.Runtime) coreutils.Program {
 // by the mode of a reference file. With -R, directories have their whole
 // hierarchy changed.
 func (p *Prog) Run(ctx context.Context, args ...string) error {
+	if done, err := stdopts.Check(p.Runtime, "chmod", usage, optSet, args); done {
+		return err
+	}
 	opts, operands, err := parseFlags(args)
 	if err != nil {
 		p.errorf("%v", err)
@@ -261,6 +265,25 @@ var longOptions = map[string]rune{
 	"reference": optReference,
 }
 
+// optSet describes the options of chmod.
+var optSet = getopt.Set{Valued: string(optReference), Long: longOptions}
+
+// usage describes the options of chmod.
+const usage = `Usage: chmod [OPTION]... {MODE | --reference=REF_FILE} FILE...
+Change the access permissions of each FILE.
+
+  -c, --changes          verbosely describe the action for each file whose
+                         permissions actually change
+  -R, --recursive        recursively change permissions of directories and
+                         their contents
+      --reference=REF_FILE
+                         use the mode of REF_FILE instead of a MODE operand
+  -v, --verbose          verbosely describe the action or non-action taken
+                         for every file
+      --help     display this help and exit
+      --version  output version information and exit
+`
+
 // optReference is a rune which no short option can reach, so --reference
 // stays long-only.
 const optReference rune = 0x100 + iota
@@ -280,7 +303,7 @@ type options struct {
 // first operand or at "--".
 func parseFlags(args []string) (options, []string, error) {
 	var opts options
-	operands, err := getopt.Set{Valued: string(optReference), Long: longOptions}.Parse(args, func(opt rune, value string) error {
+	operands, err := optSet.Parse(args, func(opt rune, value string) error {
 		switch opt {
 		case 'R':
 			opts.recursive = true
