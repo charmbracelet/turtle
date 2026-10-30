@@ -64,10 +64,12 @@ func (p *Prog) Run(ctx context.Context, args ...string) error {
 	opts, operands, err := parseFlags(args)
 	if err != nil {
 		p.errorf("%v", err)
+		stdopts.TryHelp(p.Runtime, "tail")
 		return &coreutils.ExitError{Code: 2}
 	}
 	if opts.follow && len(operands) > 1 {
 		p.errorf("cannot follow more than one file")
+		stdopts.TryHelp(p.Runtime, "tail")
 		return &coreutils.ExitError{Code: 2}
 	}
 
