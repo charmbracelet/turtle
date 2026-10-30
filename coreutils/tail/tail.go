@@ -32,6 +32,7 @@ import (
 	"charm.land/snail/coreutils/internal/input"
 	"charm.land/snail/coreutils/internal/patherr"
 	"charm.land/snail/coreutils/internal/sizeparse"
+	"charm.land/snail/coreutils/internal/stdopts"
 	"charm.land/snail/fsx"
 )
 
@@ -57,6 +58,9 @@ func New(rt *coreutils.Runtime) coreutils.Program {
 //
 // Reading is interrupted when ctx is done, and the context error is returned.
 func (p *Prog) Run(ctx context.Context, args ...string) error {
+	if done, err := stdopts.Check(p.Runtime, "tail", usage, optSet, args); done {
+		return err
+	}
 	opts, operands, err := parseFlags(args)
 	if err != nil {
 		p.errorf("%v", err)
@@ -359,6 +363,30 @@ var longOptions = map[string]rune{
 	"zero-terminated": 'z',
 }
 
+// optSet describes the options of tail.
+var optSet = getopt.Set{Valued: "cn", Long: longOptions}
+
+// usage describes the options of tail.
+const usage = `Usage: tail [OPTION]... [FILE]...
+Print the last 10 lines of each FILE to standard output.
+With more than one FILE, precede each with a header giving the file name.
+
+With no FILE, or when FILE is -, read standard input.
+
+  -c, --bytes=[+]NUM     output the last NUM bytes; or use -c +NUM to output
+                         starting with byte NUM of each file
+  -f, --follow           output appended data as the file grows; a single
+                         file operand only
+  -n, --lines=[+]NUM     output the last NUM lines, instead of the last 10;
+                         or use -n +NUM to output starting with line NUM
+  -q, --quiet, --silent  never print headers giving file names
+  -r                     output the lines in reverse, starting from the end
+  -v, --verbose          always print headers giving file names
+  -z, --zero-terminated  line delimiter is NUL, not newline
+      --help     display this help and exit
+      --version  output version information and exit
+`
+
 func parseFlags(args []string) (options, []string, error) {
 	var opts options
 	if len(args) > 0 {
@@ -366,7 +394,7 @@ func parseFlags(args []string) (options, []string, error) {
 			opts, args = obsolete, rest
 		}
 	}
-	operands, err := getopt.Set{Valued: "cn", Long: longOptions}.Parse(args, func(opt rune, value string) error {
+	operands, err := optSet.Parse(args, func(opt rune, value string) error {
 		switch opt {
 		case 'f':
 			opts.follow = true
