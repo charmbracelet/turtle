@@ -14,6 +14,7 @@ import (
 
 	"charm.land/snail/coreutils"
 	"charm.land/snail/coreutils/internal/getopt"
+	"charm.land/snail/coreutils/internal/stdopts"
 )
 
 // Prog is the basename core utility.
@@ -31,6 +32,9 @@ func New(rt *coreutils.Runtime) coreutils.Program {
 // option-argument of -s, from each result. With -a every operand is a name,
 // and with -z each result ends in a NUL byte instead of a newline.
 func (p *Prog) Run(ctx context.Context, args ...string) error {
+	if done, err := stdopts.Check(p.Runtime, "basename", usage, optSet, args); done {
+		return err
+	}
 	opts, names, suffix, err := parseArgs(args)
 	if err != nil {
 		return &coreutils.ExitError{Code: 2, Err: err}
@@ -59,7 +63,7 @@ func (p *Prog) Run(ctx context.Context, args ...string) error {
 // name, with the suffix coming from -s.
 func parseArgs(args []string) (options, []string, string, error) {
 	var opts options
-	operands, err := getopt.Set{Valued: "s", Long: longOptions}.Parse(args, func(opt rune, value string) error {
+	operands, err := optSet.Parse(args, func(opt rune, value string) error {
 		switch opt {
 		case 'a':
 			opts.multiple = true
@@ -124,6 +128,22 @@ var longOptions = map[string]rune{
 	"suffix":   's',
 	"zero":     'z',
 }
+
+// optSet describes the options of basename.
+var optSet = getopt.Set{Valued: "s", Long: longOptions}
+
+// usage describes the options of basename.
+const usage = `Usage: basename NAME [SUFFIX]
+  or:  basename OPTION... NAME...
+Print NAME with any leading directory components removed.
+If specified, also remove a trailing SUFFIX.
+
+  -a, --multiple       support multiple arguments and treat each one as a NAME
+  -s, --suffix=SUFFIX  remove a trailing SUFFIX; implies -a
+  -z, --zero           end each output line with NUL, not newline
+      --help     display this help and exit
+      --version  output version information and exit
+`
 
 var (
 	_ coreutils.Program = (*Prog)(nil)

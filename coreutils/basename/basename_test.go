@@ -635,3 +635,26 @@ func TestRunWriteError(t *testing.T) {
 		t.Errorf("errors.Is(Run(), writeErr) = false, want true (error = %v)", err)
 	}
 }
+
+func TestHelpVersion(t *testing.T) {
+	t.Run("help", func(t *testing.T) {
+		stdout, err := runBasename(t, "--help")
+		if err != nil {
+			t.Fatalf("Run() error = %v, want nil (exit status 0)", err)
+		}
+		if got, want := stdout, usage; got != want {
+			t.Errorf("Run() stdout = %q, want %q", got, want)
+		}
+	})
+
+	t.Run("version", func(t *testing.T) {
+		stdout, err := runBasename(t, "--version")
+		if err != nil {
+			t.Fatalf("Run() error = %v, want nil (exit status 0)", err)
+		}
+		want := "basename (charm.land/snail/coreutils) " + coreutils.Version + "\nhttps://charm.land/snail\n"
+		if got := stdout; got != want {
+			t.Errorf("Run() stdout = %q, want %q", got, want)
+		}
+	})
+}
