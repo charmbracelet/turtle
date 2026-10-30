@@ -598,3 +598,62 @@ func runCancelled(t *testing.T, ctx context.Context, stdin io.Reader, args []str
 		t.Errorf("Run() stderr = %q, want nothing", stderr.String())
 	}
 }
+
+// testFamily is the family utility the shasum tests would build.
+var testFamily = Family{
+	Name:    "shasum",
+	Default: "1",
+	Algorithms: map[string]Algorithm{
+		"1": {New: sha1.New},
+	},
+}
+
+func TestHelpVersion(t *testing.T) {
+	tests := []struct {
+		name  string
+		usage string
+		run   func(ctx context.Context, rt *coreutils.Runtime, args []string) error
+	}{
+		{"shasum", usage("shasum"), testFamily.Run},
+		{"md5sum", Usage("md5sum"), testMD5.Run},
+		{"sha1sum", Usage("sha1sum"), testSHA1.Run},
+		{"sha224sum", Usage("sha224sum"), testSHA224.Run},
+		{"sha256sum", Usage("sha256sum"), testSHA256.Run},
+		{"sha384sum", Usage("sha384sum"), testSHA384.Run},
+		{"sha512sum", Usage("sha512sum"), testSHA512.Run},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			t.Run("help", func(t *testing.T) {
+				stdout, stderr := new(bytes.Buffer), new(bytes.Buffer)
+				rt := &coreutils.Runtime{Stdout: stdout, Stderr: stderr}
+				if err := test.run(t.Context(), rt, []string{"--help"}); err != nil {
+					t.Fatalf("Run() error = %v, want nil (exit status 0)", err)
+				}
+				if got := stderr.String(); got != "" {
+					t.Errorf("Run() stderr = %q, want empty", got)
+				}
+				if got := stdout.String(); got != test.usage {
+					t.Errorf("Run() stdout = %q, want %q", got, test.usage)
+				}
+			})
+
+			t.Run("version", func(t *testing.T) {
+				stdout, stderr := new(bytes.Buffer), new(bytes.Buffer)
+				rt := &coreutils.Runtime{Stdout: stdout, Stderr: stderr}
+				if err := test.run(t.Context(), rt, []string{"--version"}); err != nil {
+					t.Fatalf("Run() error = %v, want nil (exit status 0)", err)
+				}
+				if got := stderr.String(); got != "" {
+					t.Errorf("Run() stderr = %q, want empty", got)
+				}
+				want := test.name + " (charm.land/snail/coreutils) " + coreutils.Version +
+					"\nhttps://charm.land/snail\n"
+				if got := stdout.String(); got != want {
+					t.Errorf("Run() stdout = %q, want %q", got, want)
+				}
+			})
+		})
+	}
+}

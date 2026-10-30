@@ -7,13 +7,13 @@ import (
 
 	"charm.land/snail/coreutils"
 	"charm.land/snail/coreutils/internal/getopt"
+	"charm.land/snail/coreutils/internal/stdopts"
 )
 
 // Family is a checksum utility, like shasum, which selects the algorithm of
 // each run with an -a option instead of having one fixed algorithm. It
 // follows the Perl shasum script of the Digest::SHA distribution: SHA-1
-// unless -a says otherwise, no --zero, and -h and -v asking for the usage
-// and the version.
+// unless -a says otherwise, and no --zero.
 type Family struct {
 	// Name is the program name, used on diagnostic messages.
 	Name string
@@ -34,14 +34,13 @@ type Family struct {
 // It returns a [*coreutils.ExitError] when an operand failed, and the context
 // error when ctx is done.
 func (f Family) Run(ctx context.Context, rt *coreutils.Runtime, args []string) error {
+	if done, err := stdopts.Check(rt, f.Name, usage(f.Name), familyOptSet, args); done {
+		return err
+	}
 	set, err := f.parseFlags(args)
 	if err != nil {
 		f.errorf(rt, "%v", err)
 		return &coreutils.ExitError{Code: 1}
-	}
-	if set.help {
-		fmt.Fprint(rt.Stdout, usage(f.Name))
-		return nil
 	}
 	if err := set.validate(); err != nil {
 		f.errorf(rt, "%v", err)
@@ -51,10 +50,6 @@ func (f Family) Run(ctx context.Context, rt *coreutils.Runtime, args []string) e
 	if !ok {
 		f.errorf(rt, "unrecognized algorithm '%s'", set.algorithm)
 		return &coreutils.ExitError{Code: 1}
-	}
-	if set.version {
-		fmt.Fprintf(rt.Stdout, "%s (charm.land/snail/coreutils)\n", f.Name)
-		return nil
 	}
 	a.Name = f.Name
 	operands := set.operands
@@ -73,15 +68,12 @@ func (f Family) errorf(rt *coreutils.Runtime, format string, args ...any) {
 }
 
 // settings holds what a run of a family utility selects: the options shared
-// with the {prog}sum utilities, the algorithm its -a option selects, and the
-// requests which make it stop before hashing anything.
+// with the {prog}sum utilities and the algorithm its -a option selects.
 type settings struct {
 	options
 
 	algorithm string
 	operands  []string
-	help      bool
-	version   bool
 
 	// binaryGiven and textGiven tell the modes the -b and -t options asked
 	// for, which the Perl script refuses to take together.
@@ -95,22 +87,23 @@ var familyLongOptions = map[string]rune{
 	"algorithm":      'a',
 	"binary":         'b',
 	"check":          'c',
-	"help":           'h',
 	"ignore-missing": optIgnoreMissing,
 	"quiet":          optQuiet,
 	"status":         optStatus,
 	"strict":         optStrict,
 	"tag":            optTag,
 	"text":           't',
-	"version":        optVersion,
 	"warn":           'w',
 }
+
+// familyOptSet describes the options of the family utilities.
+var familyOptSet = getopt.Set{Valued: "a", Long: familyLongOptions}
 
 // parseFlags parses the options and operands, along with the algorithm the
 // -a option selects. Option parsing stops at the first operand or at "--".
 func (f Family) parseFlags(args []string) (settings, error) {
 	set := settings{algorithm: f.Default}
-	operands, err := getopt.Set{Valued: "a", Long: familyLongOptions}.Parse(args, func(opt rune, value string) error {
+	operands, err := familyOptSet.Parse(args, func(opt rune, value string) error {
 		switch opt {
 		case 'a':
 			set.algorithm = value
@@ -118,12 +111,8 @@ func (f Family) parseFlags(args []string) (settings, error) {
 			set.binary, set.binaryGiven = true, true
 		case 'c':
 			set.check = true
-		case 'h':
-			set.help = true
 		case 't':
 			set.binary, set.textGiven = false, true
-		case 'v':
-			set.version = true
 		case 'w':
 			set.status, set.quiet = false, false
 			set.warn = true
@@ -183,8 +172,6 @@ func usage(prog string) string {
             read in binary mode
   -c, --check
             read SHA sums from the files and check them
-  -h, --help
-            display this help and exit
       --ignore-missing
             don't fail or report status for missing files
   -q, --quiet
@@ -197,9 +184,9 @@ func usage(prog string) string {
             create a BSD-style checksum
   -t, --text
             read in text mode (default)
-  -v, --version
-            output version information and exit
   -w, --warn
             warn about improperly formatted checksum lines
+      --help     display this help and exit
+      --version  output version information and exit
 `
 }
