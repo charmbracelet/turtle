@@ -4,6 +4,8 @@ import (
 	"bytes"
 	"context"
 	"errors"
+	"io"
+	"strings"
 	"testing"
 	"time"
 
@@ -31,6 +33,7 @@ type testCase struct {
 	name     string
 	fsys     fsx.MemFS
 	env      map[string]string
+	stdin    io.Reader
 	args     []string
 	want     string
 	wantErr  string
@@ -60,6 +63,7 @@ func runCase(t *testing.T, test testCase) {
 	rt := &coreutils.Runtime{
 		Stdout:  stdout,
 		Stderr:  stderr,
+		Stdin:   test.stdin,
 		Clock:   func() time.Time { return clockTime },
 		Environ: func() []string { return environ(env) },
 	}
@@ -584,6 +588,385 @@ func TestParseTZ(t *testing.T) {
 			if got := clockTime.In(loc).Format("15:04:05 -0700 MST"); got != test.want {
 				t.Errorf("parseTZ(%q) zone = %s, want %s", test.tz, got, test.want)
 			}
+		})
+	}
+}
+
+func TestRunDateOption(t *testing.T) {
+	tests := []testCase{
+		{
+			name: "the example of the specification",
+			args: []string{"-d", "2020-07-21 14:19:13 +0530"},
+			want: "Tue Jul 21 08:49:13 UTC 2020\n",
+		},
+		{
+			name: "the format operand applies to the result",
+			args: []string{"-d", "2020-07-21 14:19:13 +0530", "+%Y-%m-%d %H:%M:%S"},
+			want: "2020-07-21 08:49:13\n",
+		},
+		{
+			name: "nanoseconds with %s and %N",
+			args: []string{"-d", "2020-07-21 14:19:13.489392193 +0530", "+%s.%N"},
+			want: "1595321353.489392193\n",
+		},
+		{
+			name: "a relative item",
+			args: []string{"-d", "yesterday"},
+			want: "Mon Jun 25 00:00:00 UTC 1990\n",
+		},
+		{
+			name: "a time since the epoch",
+			args: []string{"-d", "@646394290"},
+			want: "Tue Jun 26 09:58:10 UTC 1990\n",
+		},
+		{
+			name: "the --date long option",
+			args: []string{"--date=yesterday"},
+			want: "Mon Jun 25 00:00:00 UTC 1990\n",
+		},
+		{
+			name: "the --date long option with the next argument",
+			args: []string{"--date", "yesterday"},
+			want: "Mon Jun 25 00:00:00 UTC 1990\n",
+		},
+		{
+			name: "only the last -d counts",
+			args: []string{"-d", "2020-01-01", "-d", "2021-01-01", "+%Y"},
+			want: "2021\n",
+		},
+		{
+			name: "the string without a zone is parsed in the TZ zone",
+			env:  map[string]string{"TZ": "EST5"},
+			args: []string{"-d", "2020-01-01 12:00"},
+			want: "Wed Jan  1 12:00:00 EST 2020\n",
+		},
+		{
+			name: "the zone of the string is honored, the output is in the TZ zone",
+			env:  map[string]string{"TZ": "EST5"},
+			args: []string{"-d", "2020-01-01 12:00 +0100", "+%Y-%m-%d %H:%M %Z"},
+			want: "2020-01-01 06:00 EST\n",
+		},
+		{
+			name: "-u displays the -d string in UTC",
+			env:  map[string]string{"TZ": "EST5"},
+			args: []string{"-u", "-d", "2020-01-01 12:00 +0100", "+%Y-%m-%d %H:%M %Z"},
+			want: "2020-01-01 11:00 UTC\n",
+		},
+		{
+			name:     "an invalid date string",
+			args:     []string{"-d", "bogus"},
+			wantErr:  "date: invalid date 'bogus'\n",
+			wantExit: 1,
+		},
+		{
+			name: "an empty date string is the beginning of today",
+			args: []string{"-d", ""},
+			want: "Tue Jun 26 00:00:00 UTC 1990\n",
+		},
+		{
+			name:     "the -d option without an argument",
+			args:     []string{"-d"},
+			wantErr:  "date: option requires an argument -- 'd'\n",
+			wantExit: 1,
+		},
+		{
+			name:     "a settime operand with -d",
+			args:     []string{"-d", "2020-01-01", "07101230"},
+			wantErr:  "date: the argument '07101230' lacks a leading '+'; when using an option to specify date(s), any non-option argument must be a format string beginning with '+'\n",
+			wantExit: 1,
+		},
+		{
+			name:     "-d with -r",
+			args:     []string{"-d", "2020-01-01", "-r", "ref.txt"},
+			fsys:     fsx.MemFS{"ref.txt": {Data: []byte("x"), ModTime: refTime}},
+			wantErr:  "date: the options to specify dates for printing are mutually exclusive\n",
+			wantExit: 1,
+		},
+		{
+			name:     "-d with -f",
+			args:     []string{"-d", "2020-01-01", "-f", "dates.txt"},
+			fsys:     fsx.MemFS{"dates.txt": {Data: []byte("2020-01-01\n")}},
+			wantErr:  "date: the options to specify dates for printing are mutually exclusive\n",
+			wantExit: 1,
+		},
+		{
+			name:     "-r with -f",
+			args:     []string{"-r", "ref.txt", "-f", "dates.txt"},
+			fsys:     fsx.MemFS{"ref.txt": {Data: []byte("x"), ModTime: refTime}, "dates.txt": {Data: []byte("2020-01-01\n")}},
+			wantErr:  "date: the options to specify dates for printing are mutually exclusive\n",
+			wantExit: 1,
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			runCase(t, test)
+		})
+	}
+}
+
+func TestRunFileOption(t *testing.T) {
+	tests := []testCase{
+		{
+			name: "one date per line",
+			args: []string{"-f", "dates.txt"},
+			fsys: fsx.MemFS{"dates.txt": {Data: []byte("2020-01-01\n2021-02-03\n")}},
+			want: "Wed Jan  1 00:00:00 UTC 2020\nWed Feb  3 00:00:00 UTC 2021\n",
+		},
+		{
+			name: "the format operand applies to every line",
+			args: []string{"-f", "dates.txt", "+%Y-%m-%d"},
+			fsys: fsx.MemFS{"dates.txt": {Data: []byte("2020-01-01\n2021-02-03\n")}},
+			want: "2020-01-01\n2021-02-03\n",
+		},
+		{
+			name: "the --file long option",
+			args: []string{"--file=dates.txt"},
+			fsys: fsx.MemFS{"dates.txt": {Data: []byte("2020-01-01\n")}},
+			want: "Wed Jan  1 00:00:00 UTC 2020\n",
+		},
+		{
+			name: "a relative line",
+			args: []string{"-f", "dates.txt"},
+			fsys: fsx.MemFS{"dates.txt": {Data: []byte("yesterday\n")}},
+			want: "Mon Jun 25 00:00:00 UTC 1990\n",
+		},
+		{
+			name: "the last line without a newline",
+			args: []string{"-f", "dates.txt"},
+			fsys: fsx.MemFS{"dates.txt": {Data: []byte("2020-01-01")}},
+			want: "Wed Jan  1 00:00:00 UTC 2020\n",
+		},
+		{
+			name:  "the lines of the standard input with -",
+			args:  []string{"-f", "-"},
+			stdin: strings.NewReader("2020-01-01\n2021-02-03\n"),
+			want:  "Wed Jan  1 00:00:00 UTC 2020\nWed Feb  3 00:00:00 UTC 2021\n",
+		},
+		{
+			name:     "an invalid line, after the valid ones were printed",
+			args:     []string{"-f", "dates.txt"},
+			fsys:     fsx.MemFS{"dates.txt": {Data: []byte("2020-01-01\nbogus\n2020-02-02\n")}},
+			want:     "Wed Jan  1 00:00:00 UTC 2020\nSun Feb  2 00:00:00 UTC 2020\n",
+			wantErr:  "date: invalid date 'bogus'\n",
+			wantExit: 1,
+		},
+		{
+			name: "an empty line is the beginning of today",
+			args: []string{"-f", "dates.txt"},
+			fsys: fsx.MemFS{"dates.txt": {Data: []byte("2020-01-01\n\n")}},
+			want: "Wed Jan  1 00:00:00 UTC 2020\nTue Jun 26 00:00:00 UTC 1990\n",
+		},
+		{
+			name:     "a file which does not exist",
+			args:     []string{"-f", "missing.txt"},
+			fsys:     fsx.MemFS{},
+			wantErr:  "date: missing.txt: file does not exist\n",
+			wantExit: 1,
+		},
+		{
+			name:     "no file system",
+			args:     []string{"-f", "dates.txt"},
+			wantErr:  "date: dates.txt: no file system available\n",
+			wantExit: 1,
+		},
+		{
+			name:     "the -f option without an argument",
+			args:     []string{"-f"},
+			wantErr:  "date: option requires an argument -- 'f'\n",
+			wantExit: 1,
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			runCase(t, test)
+		})
+	}
+}
+
+func TestRunISO8601(t *testing.T) {
+	tests := []testCase{
+		{
+			name: "the date only by default",
+			args: []string{"-I"},
+			want: "1990-06-26\n",
+		},
+		{
+			name: "the auto timespec",
+			args: []string{"-Iauto"},
+			want: "1990-06-26\n",
+		},
+		{
+			name: "the date timespec",
+			args: []string{"-Idate"},
+			want: "1990-06-26\n",
+		},
+		{
+			name: "the hours timespec",
+			args: []string{"-Ihours"},
+			want: "1990-06-26T09+00:00\n",
+		},
+		{
+			name: "the minutes timespec",
+			args: []string{"-Iminutes"},
+			want: "1990-06-26T09:58+00:00\n",
+		},
+		{
+			name: "the seconds timespec",
+			args: []string{"-Iseconds"},
+			want: "1990-06-26T09:58:10+00:00\n",
+		},
+		{
+			name: "the ns timespec",
+			args: []string{"-Ins"},
+			want: "1990-06-26T09:58:10,000000000+00:00\n",
+		},
+		{
+			name: "the --iso-8601 long option",
+			args: []string{"--iso-8601"},
+			want: "1990-06-26\n",
+		},
+		{
+			name: "the --iso-8601 long option with an attached argument",
+			args: []string{"--iso-8601=ns"},
+			want: "1990-06-26T09:58:10,000000000+00:00\n",
+		},
+		{
+			name: "the zone of TZ",
+			env:  map[string]string{"TZ": "EST5"},
+			args: []string{"-Iseconds"},
+			want: "1990-06-26T04:58:10-05:00\n",
+		},
+		{
+			name: "with the -d option",
+			args: []string{"-Iseconds", "-d", "2020-07-21T14:19:13+0530"},
+			want: "2020-07-21T08:49:13+00:00\n",
+		},
+		{
+			name: "nanoseconds with the -d option",
+			args: []string{"-Ins", "-d", "2020-07-21 14:19:13.489392193 +0530"},
+			want: "2020-07-21T08:49:13,489392193+00:00\n",
+		},
+		{
+			name:     "with a format operand",
+			args:     []string{"-I", "+%Y"},
+			wantErr:  "date: multiple output formats specified\n",
+			wantExit: 1,
+		},
+		{
+			name:     "an invalid timespec",
+			args:     []string{"-Ibogus"},
+			wantErr:  "date: invalid argument 'bogus' for '--iso-8601'\n",
+			wantExit: 1,
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			runCase(t, test)
+		})
+	}
+}
+
+func TestRunRfcEmail(t *testing.T) {
+	tests := []testCase{
+		{
+			name: "the -R option",
+			args: []string{"-R"},
+			want: "Tue, 26 Jun 1990 09:58:10 +0000\n",
+		},
+		{
+			name: "the --rfc-email long option",
+			args: []string{"--rfc-email"},
+			want: "Tue, 26 Jun 1990 09:58:10 +0000\n",
+		},
+		{
+			name: "the --rfc-2822 alias",
+			args: []string{"--rfc-2822"},
+			want: "Tue, 26 Jun 1990 09:58:10 +0000\n",
+		},
+		{
+			name: "the --rfc-822 alias",
+			args: []string{"--rfc-822"},
+			want: "Tue, 26 Jun 1990 09:58:10 +0000\n",
+		},
+		{
+			name: "the zone of TZ",
+			env:  map[string]string{"TZ": "EST5"},
+			args: []string{"-R"},
+			want: "Tue, 26 Jun 1990 04:58:10 -0500\n",
+		},
+		{
+			name: "with the -d option",
+			args: []string{"-R", "-d", "2020-07-21T14:19:13+0530"},
+			want: "Tue, 21 Jul 2020 08:49:13 +0000\n",
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			runCase(t, test)
+		})
+	}
+}
+
+func TestRunRfc3339(t *testing.T) {
+	tests := []testCase{
+		{
+			name: "the date timespec",
+			args: []string{"--rfc-3339=date"},
+			want: "1990-06-26\n",
+		},
+		{
+			name: "the seconds timespec",
+			args: []string{"--rfc-3339=seconds"},
+			want: "1990-06-26 09:58:10+00:00\n",
+		},
+		{
+			name: "the ns timespec",
+			args: []string{"--rfc-3339=ns"},
+			want: "1990-06-26 09:58:10.000000000+00:00\n",
+		},
+		{
+			name: "the argument in the next argument",
+			args: []string{"--rfc-3339", "seconds"},
+			want: "1990-06-26 09:58:10+00:00\n",
+		},
+		{
+			name: "the zone of TZ",
+			env:  map[string]string{"TZ": "EST5"},
+			args: []string{"--rfc-3339=seconds"},
+			want: "1990-06-26 04:58:10-05:00\n",
+		},
+		{
+			name: "with the -d option",
+			args: []string{"--rfc-3339=ns", "-d", "2020-07-21 14:19:13.489392193 +0530"},
+			want: "2020-07-21 08:49:13.489392193+00:00\n",
+		},
+		{
+			name:     "an invalid timespec",
+			args:     []string{"--rfc-3339=bogus"},
+			wantErr:  "date: invalid argument 'bogus' for '--rfc-3339'\n",
+			wantExit: 1,
+		},
+		{
+			name:     "without an argument",
+			args:     []string{"--rfc-3339"},
+			wantErr:  "date: option '--rfc-3339' requires an argument\n",
+			wantExit: 1,
+		},
+		{
+			name:     "with a format operand",
+			args:     []string{"--rfc-3339=date", "+%Y"},
+			wantErr:  "date: multiple output formats specified\n",
+			wantExit: 1,
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			runCase(t, test)
 		})
 	}
 }

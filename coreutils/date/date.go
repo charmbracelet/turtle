@@ -1,13 +1,17 @@
 // Package date implements the POSIX date utility.
 //
-// The -r option is a GNU extension: it displays the modification time of a
-// file instead of the current time. The XSI settime operand is parsed to
-// diagnose invalid dates, but it is never applied: the Runtime exposes a
-// clock to read the current time, but no way to set it, so setting the date
-// fails like a date running without the privileges to do so.
+// The GNU extensions for printing other times than the current one are
+// supported too: -d/--date parses a date string, -f/--file parses one per
+// line of a file, -r/--reference shows the modification time of a file, and
+// -I/--iso-8601, -R/--rfc-email and --rfc-3339 pick fixed formats. The XSI
+// settime operand is parsed to diagnose invalid dates, but it is never
+// applied: the Runtime exposes a clock to read the current time, but no way
+// to set it, so setting the date fails like a date running without the
+// privileges to do so.
 package date
 
 import (
+	"bufio"
 	"context"
 	"errors"
 	"fmt"
@@ -20,6 +24,8 @@ import (
 
 	"charm.land/snail/coreutils"
 	"charm.land/snail/coreutils/internal/getopt"
+	"charm.land/snail/coreutils/internal/gnudate"
+	"charm.land/snail/coreutils/internal/input"
 	"charm.land/snail/coreutils/internal/patherr"
 )
 
@@ -37,9 +43,10 @@ func New(rt *coreutils.Runtime) coreutils.Program {
 	return &Prog{Runtime: rt}
 }
 
-// Run writes the date and time to the standard output: the current one, or
-// the modification time of the file given to -r, formatted by the +format
-// operand when given.
+// Run writes the date and time to the standard output: the current one, the
+// one described by the -d string, one per line of the -f file, or the
+// modification time of the file given to -r, formatted by the +format operand
+// or by one of the -I, -R and --rfc-3339 options when given.
 func (p *Prog) Run(ctx context.Context, args ...string) error {
 	if err := ctx.Err(); err != nil {
 		return err
@@ -47,6 +54,16 @@ func (p *Prog) Run(ctx context.Context, args ...string) error {
 	opts, operands, err := parseFlags(args)
 	if err != nil {
 		p.errorf("%v", err)
+		return &coreutils.ExitError{Code: 1}
+	}
+	specified := 0
+	for _, set := range []bool{opts.dateSet, opts.fileSet, opts.refSet} {
+		if set {
+			specified++
+		}
+	}
+	if specified > 1 {
+		p.errorf("the options to specify dates for printing are mutually exclusive")
 		return &coreutils.ExitError{Code: 1}
 	}
 	if len(operands) > 1 {
@@ -58,22 +75,46 @@ func (p *Prog) Run(ctx context.Context, args ...string) error {
 	if !opts.utc {
 		loc = p.location()
 	}
+	now := p.Now()
 
-	if len(operands) == 1 && !strings.HasPrefix(operands[0], "+") {
-		return p.setClock(operands[0], loc)
+	format, formatSet := opts.format, opts.format != ""
+	if len(operands) == 1 {
+		operand := operands[0]
+		switch {
+		case strings.HasPrefix(operand, "+"):
+			if formatSet {
+				p.errorf("multiple output formats specified")
+				return &coreutils.ExitError{Code: 1}
+			}
+			format = operand[1:]
+			formatSet = true
+		case specified > 0:
+			p.errorf("the argument '%s' lacks a leading '+'; when using an option to specify date(s), any non-option argument must be a format string beginning with '+'", operand)
+			return &coreutils.ExitError{Code: 1}
+		default:
+			return p.setClock(operand, loc)
+		}
+	}
+	if !formatSet {
+		format = defaultFormat
 	}
 
-	t := p.Now()
-	if opts.refSet {
+	if opts.fileSet {
+		return p.datesFromFile(ctx, opts.file, format, loc, now)
+	}
+
+	t := now
+	switch {
+	case opts.dateSet:
+		if t, err = gnudate.Parse(opts.dateStr, now, loc); err != nil {
+			p.errorf("invalid date '%s'", opts.dateStr)
+			return &coreutils.ExitError{Code: 1}
+		}
+	case opts.refSet:
 		if t, err = p.referenceTime(opts.ref); err != nil {
 			p.errorf("%v", err)
 			return &coreutils.ExitError{Code: 1}
 		}
-	}
-
-	format := defaultFormat
-	if len(operands) == 1 {
-		format = operands[0][1:]
 	}
 	return p.write(strftime(format, t.In(loc)))
 }
@@ -88,6 +129,52 @@ func (p *Prog) setClock(operand string, loc *time.Location) error {
 	}
 	p.errorf("cannot set date: setting the system clock is not supported")
 	return &coreutils.ExitError{Code: 1}
+}
+
+// datesFromFile writes the date described by each line of the -f file, like
+// one -d option per line. A line which fails to parse is reported and makes
+// the program fail, after the valid lines before it were written.
+func (p *Prog) datesFromFile(ctx context.Context, name, format string, loc *time.Location, now time.Time) error {
+	in := input.New(name)
+	r, err := input.Open(p.Runtime, ctx, in)
+	if err != nil {
+		p.errorf("%s: %v", in.Label(), patherr.Unwrap(err))
+		return &coreutils.ExitError{Code: 1, Err: err}
+	}
+	defer r.Close()
+
+	ok := true
+	br := bufio.NewReader(r)
+	for {
+		if err := ctx.Err(); err != nil {
+			return err
+		}
+		line, rerr := br.ReadString('\n')
+		if rerr != nil && !errors.Is(rerr, io.EOF) {
+			if cerr := ctx.Err(); cerr != nil {
+				return cerr
+			}
+			p.errorf("%s: %v", in.Label(), patherr.Unwrap(rerr))
+			return &coreutils.ExitError{Code: 1, Err: rerr}
+		}
+		if line != "" {
+			line = strings.TrimSuffix(strings.TrimSuffix(line, "\n"), "\r")
+			t, err := gnudate.Parse(line, now, loc)
+			if err != nil {
+				p.errorf("invalid date '%s'", line)
+				ok = false
+			} else if werr := p.write(strftime(format, t.In(loc))); werr != nil {
+				return werr
+			}
+		}
+		if rerr != nil {
+			break
+		}
+	}
+	if !ok {
+		return &coreutils.ExitError{Code: 1}
+	}
+	return nil
 }
 
 // referenceTime returns the modification time of the file given to -r.
@@ -199,39 +286,150 @@ func (p *Prog) errorf(format string, args ...any) {
 	fmt.Fprintf(p.Stderr, "date: "+format+"\n", args...)
 }
 
-// options holds the -u flag, and whether -r was given, with the
-// option-argument it took.
+// options holds the -u flag, whether -d, -f or -r were given with their
+// option-arguments, and the format an option picked, empty when none did.
 type options struct {
-	utc    bool
-	refSet bool
-	ref    string
+	utc     bool
+	refSet  bool
+	ref     string
+	dateSet bool
+	dateStr string
+	fileSet bool
+	file    string
+	format  string
 }
 
-// longOptions maps the long options of date to the short ones they stand for.
+// rfc3339Opt is the pseudo option --rfc-3339 stands for, which has no short
+// form. Its value is beyond any character a short option can be.
+const rfc3339Opt = rune('\u0100')
+
+// longOptions maps the long options of date to the options they stand for.
 var longOptions = map[string]rune{
+	"date":      'd',
+	"file":      'f',
+	"iso-8601":  'I',
 	"reference": 'r',
+	"rfc-822":   'R',
+	"rfc-2822":  'R',
+	"rfc-3339":  rfc3339Opt,
+	"rfc-email": 'R',
 	"universal": 'u',
 	"utc":       'u',
 }
 
+// isoFormats maps the timespec of -I/--iso-8601 to the format it stands for,
+// with "auto" as the default one, printing just the date.
+var isoFormats = map[string]string{
+	"auto":    "%Y-%m-%d",
+	"date":    "%Y-%m-%d",
+	"hours":   "%Y-%m-%dT%H%:z",
+	"minutes": "%Y-%m-%dT%H:%M%:z",
+	"seconds": "%Y-%m-%dT%H:%M:%S%:z",
+	"ns":      "%Y-%m-%dT%H:%M:%S,%N%:z",
+}
+
+// rfc3339Formats maps the timespec of --rfc-3339 to the format it stands
+// for, like the ISO 8601 one but with a space and a period.
+var rfc3339Formats = map[string]string{
+	"date":    "%Y-%m-%d",
+	"seconds": "%Y-%m-%d %H:%M:%S%:z",
+	"ns":      "%Y-%m-%d %H:%M:%S.%N%:z",
+}
+
+// rfcEmailFormat is the format of -R/--rfc-email, from the Internet email
+// standards RFC 5322, 2822 and 822.
+const rfcEmailFormat = "%a, %d %b %Y %H:%M:%S %z"
+
 // parseFlags parses the options and operands. Option parsing stops at the
-// first operand or at "--". The -r option takes an option-argument, either
-// glued to the option or in the next argument.
+// first operand or at "--". The -d, -f and -r options take an
+// option-argument, either glued to the option or in the next argument, and
+// -I takes an optional one. Repeating -d keeps only the last value.
 func parseFlags(args []string) (options, []string, error) {
 	var opts options
-	operands, err := getopt.Set{Valued: "r", Long: longOptions}.Parse(args, func(opt rune, value string) error {
+	// The pseudo option of --rfc-3339 requires an argument too, so it joins
+	// the valued characters, where no short option can ever match it.
+	operands, err := getopt.Set{
+		Valued:   "dfr" + string(rfc3339Opt),
+		Optional: "I",
+		Long:     longOptions,
+	}.Parse(bareISO(args), func(opt rune, value string) error {
 		switch opt {
+		case 'd':
+			opts.dateSet = true
+			opts.dateStr = value
+		case 'f':
+			opts.fileSet = true
+			opts.file = value
+		case 'I':
+			if value == "" {
+				value = "auto"
+			}
+			format, ok := isoFormats[value]
+			if !ok {
+				return fmt.Errorf("invalid argument '%s' for '--iso-8601'", value)
+			}
+			opts.format = format
 		case 'r':
 			opts.refSet = true
 			opts.ref = value
+		case 'R':
+			opts.format = rfcEmailFormat
 		case 'u':
 			opts.utc = true
+		case rfc3339Opt:
+			format, ok := rfc3339Formats[value]
+			if !ok {
+				return fmt.Errorf("invalid argument '%s' for '--rfc-3339'", value)
+			}
+			opts.format = format
 		default:
 			return getopt.InvalidOption(opt)
 		}
 		return nil
 	})
 	return opts, operands, err
+}
+
+// bareISO rewrites the short -I options which end their group, like "-I" or
+// "-uI", into the long one: the getopt package takes the argument of a short
+// optional option from the next argument, while the timespec of -I is
+// optional and only the one glued to the option counts.
+func bareISO(args []string) []string {
+	out := make([]string, 0, len(args)+1)
+	for _, arg := range args {
+		prefix, ok := splitISO(arg)
+		if !ok {
+			out = append(out, arg)
+			continue
+		}
+		if prefix != "-" {
+			out = append(out, prefix)
+		}
+		out = append(out, "--iso-8601")
+	}
+	return out
+}
+
+// splitISO tells whether arg is a group of short options ending in -I, with
+// no option before it swallowing the rest of the group, returning the group
+// without the trailing I.
+func splitISO(arg string) (string, bool) {
+	if len(arg) < 2 || arg[0] != '-' || arg[1] == '-' {
+		return "", false
+	}
+	for j := 1; j < len(arg); j++ {
+		switch {
+		case strings.IndexByte("dfr", arg[j]) >= 0:
+			// A valued option: the rest of the group is its argument.
+			return "", false
+		case arg[j] == 'I' && j < len(arg)-1:
+			// The timespec is glued to the option, like in -Iseconds.
+			return "", false
+		case arg[j] == 'I':
+			return arg[:len(arg)-1], true
+		}
+	}
+	return "", false
 }
 
 // parseSetTime parses the XSI settime operand, mmddhhmm[[cc]yy], as the time
