@@ -146,6 +146,13 @@ Code style guidelines:
   defaults and conflict checks in their `parseFlags` function. (This doesn't
   apply to `echo`, which the POSIX specification forbids from supporting
   options at all.)
+* The GNU common options `--help` and `--version` are shared: every utility
+  which takes options calls `stdopts.Check` from
+  `charm.land/snail/coreutils/internal/stdopts` at the top of its `Run`, with
+  its `getopt.Set` and its usage text, a `usage` string constant following
+  the GNU layout and describing only what the utility implements. The
+  exceptions are `echo`, `printf` and `test`, whose specifications forbid
+  options. `false` still exits with status 1 after handling them.
 * Avoid `panic`s. We should return errors instead.
 * Make sure to implement code in smaller functions rather than having a big
   `Run` implementation.
