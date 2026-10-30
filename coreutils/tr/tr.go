@@ -22,6 +22,7 @@ import (
 	"charm.land/snail/coreutils/internal/charset"
 	"charm.land/snail/coreutils/internal/ctxio"
 	"charm.land/snail/coreutils/internal/getopt"
+	"charm.land/snail/coreutils/internal/stdopts"
 )
 
 // chunkSize is how many bytes of the input are read at a time, which is also
@@ -41,6 +42,9 @@ func New(rt *coreutils.Runtime) coreutils.Program {
 // Run translates the characters of the standard input as told by the
 // operands, writing the result to the standard output.
 func (p *Prog) Run(ctx context.Context, args ...string) error {
+	if done, err := stdopts.Check(p.Runtime, "tr", usage, optSet, args); done {
+		return err
+	}
 	opts, operands, err := parseFlags(args)
 	if err != nil {
 		p.errorf("%v", err)
@@ -159,9 +163,26 @@ var longOptions = map[string]rune{
 	"truncate-set1":   't',
 }
 
+// optSet describes the options of tr.
+var optSet = getopt.Set{Long: longOptions}
+
+// usage describes the options of tr.
+const usage = `Usage: tr [OPTION]... string1 [string2]
+Translate, squeeze, and/or delete characters from the standard input.
+
+  -c, -C, --complement   use the complement of string1
+  -d, --delete            delete characters in string1, do not translate
+  -s, --squeeze-repeats   replace each sequence of a repeated character
+                           with a single occurrence of that character
+  -t, --truncate-set1     truncate string1 to the length of string2
+  -u                      (ignored)
+      --help     display this help and exit
+      --version  output version information and exit
+`
+
 func parseFlags(args []string) (options, []string, error) {
 	var opts options
-	operands, err := getopt.Set{Long: longOptions}.Parse(args, func(opt rune, _ string) error {
+	operands, err := optSet.Parse(args, func(opt rune, _ string) error {
 		switch opt {
 		case 'c', 'C':
 			opts.complement = true
