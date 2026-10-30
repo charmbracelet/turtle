@@ -46,10 +46,12 @@ func (p *Prog) Run(ctx context.Context, args ...string) error {
 	opts, operands, err := parseFlags(args)
 	if err != nil {
 		p.errorf("%v", err)
+		stdopts.TryHelp(p.Runtime, "join")
 		return &coreutils.ExitError{Code: 1}
 	}
 	if err := checkOperands(operands); err != nil {
 		p.errorf("%v", err)
+		stdopts.TryHelp(p.Runtime, "join")
 		return &coreutils.ExitError{Code: 1}
 	}
 	r1, err := input.Open(p.Runtime, ctx, input.New(operands[0]))
