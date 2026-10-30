@@ -219,6 +219,107 @@ func TestRunTabStops(t *testing.T) {
 	}
 }
 
+func TestRunInitial(t *testing.T) {
+	tests := []testCase{
+		{
+			name:  "a leading tab is converted",
+			stdin: strings.NewReader("\tfoo\n"),
+			args:  []string{"-i"},
+			want:  "        foo\n",
+		},
+		{
+			name:  "consecutive leading tabs are converted",
+			stdin: strings.NewReader("\t\tx\n"),
+			args:  []string{"-i"},
+			want:  "                x\n",
+		},
+		{
+			name:  "a tab after a non blank character is kept",
+			stdin: strings.NewReader("bar\tbaz\n"),
+			args:  []string{"-i"},
+			want:  "bar\tbaz\n",
+		},
+		{
+			name:  "spaces before a leading tab count as blanks",
+			stdin: strings.NewReader(" \tb\n"),
+			args:  []string{"-i"},
+			want:  "        b\n",
+		},
+		{
+			name:  "the initial blanks are reset on each line",
+			stdin: strings.NewReader("a\tb\n\tc\n"),
+			args:  []string{"-i"},
+			want:  "a\tb\n        c\n",
+		},
+		{
+			name:  "a backspace ends the initial blanks",
+			stdin: strings.NewReader("\b\ta\n"),
+			args:  []string{"-i"},
+			want:  "\b\ta\n",
+		},
+		{
+			name:  "a backspace after blanks ends them",
+			stdin: strings.NewReader(" \b\ta\n"),
+			args:  []string{"-i"},
+			want:  " \b\ta\n",
+		},
+		{
+			name:  "a line without tabs is copied",
+			stdin: strings.NewReader("plain text\n"),
+			args:  []string{"-i"},
+			want:  "plain text\n",
+		},
+		{
+			name:  "a line with blanks only is converted",
+			stdin: strings.NewReader(" \t\n"),
+			args:  []string{"-i"},
+			want:  "        \n",
+		},
+		{
+			name:  "a missing final newline is not added",
+			stdin: strings.NewReader("a\tb"),
+			args:  []string{"-i"},
+			want:  "a\tb",
+		},
+		{
+			name:  "a single distance",
+			stdin: strings.NewReader("\ta\tb\n"),
+			args:  []string{"-i", "-t", "4"},
+			want:  "    a\tb\n",
+		},
+		{
+			name:  "a list of stops",
+			stdin: strings.NewReader("\t\ta\n"),
+			args:  []string{"-i", "-t", "4,8"},
+			want:  "        a\n",
+		},
+		{
+			name:  "a leading tab past the last stop becomes a single space",
+			stdin: strings.NewReader("\t\t\ta\n"),
+			args:  []string{"-i", "-t", "4,8"},
+			want:  "         a\n",
+		},
+		{
+			name:  "grouped with a valued option",
+			stdin: strings.NewReader("\ta\tb\n"),
+			args:  []string{"-it4"},
+			want:  "    a\tb\n",
+		},
+		{
+			name: "a file operand",
+			fsys: testFS(),
+			args: []string{"-i", "tabs.txt"},
+			want: "        foo\nbar\tbaz\n",
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			runCase(t, test)
+		})
+	}
+}
+
 func TestRunBackspace(t *testing.T) {
 	tests := []testCase{
 		{
@@ -354,12 +455,6 @@ func TestRunOptions(t *testing.T) {
 			wantExit: 2,
 		},
 		{
-			name:     "the gnu initial option is not supported",
-			args:     []string{"-i"},
-			wantErr:  "expand: invalid option -- 'i'\n",
-			wantExit: 2,
-		},
-		{
 			name:     "unknown long option",
 			args:     []string{"--foo"},
 			wantErr:  "expand: unrecognized option '--foo'\n",
@@ -429,6 +524,24 @@ func TestRunLongOptions(t *testing.T) {
 			stdin: strings.NewReader("a\tb\n"),
 			args:  []string{"--tabs=4"},
 			want:  "a   b\n",
+		},
+		{
+			name:  "initial",
+			stdin: strings.NewReader("\tfoo\nbar\tbaz\n"),
+			args:  []string{"--initial"},
+			want:  "        foo\nbar\tbaz\n",
+		},
+		{
+			name:  "initial and tabs",
+			stdin: strings.NewReader("\ta\tb\n"),
+			args:  []string{"--initial", "--tabs", "4"},
+			want:  "    a\tb\n",
+		},
+		{
+			name:     "initial with an attached value",
+			args:     []string{"--initial=1"},
+			wantErr:  "expand: option '--initial=1' doesn't allow an argument\n",
+			wantExit: 2,
 		},
 	}
 
