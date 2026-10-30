@@ -16,6 +16,7 @@ import (
 	"charm.land/snail/coreutils/internal/getopt"
 	"charm.land/snail/coreutils/internal/gnudate"
 	"charm.land/snail/coreutils/internal/patherr"
+	"charm.land/snail/coreutils/internal/stdopts"
 	"charm.land/snail/fsx"
 )
 
@@ -34,6 +35,9 @@ func New(rt *coreutils.Runtime) coreutils.Program {
 // choose the times to set, and -h makes symbolic links themselves be acted
 // on instead of the files they refer to.
 func (p *Prog) Run(ctx context.Context, args ...string) error {
+	if done, err := stdopts.Check(p.Runtime, "touch", usage, optSet, args); done {
+		return err
+	}
 	opts, files, err := parseFlags(args)
 	if err != nil {
 		p.errorf("%v", err)
@@ -256,6 +260,30 @@ var longOptions = map[string]rune{
 // above the bytes a group of short options can hold.
 const optTime rune = 0x100
 
+// optSet describes the options of touch.
+var optSet = getopt.Set{Valued: "drt" + string(optTime), Long: longOptions}
+
+// usage describes the options of touch.
+const usage = `Usage: touch [OPTION]... FILE...
+Update the access and modification times of each FILE to the current time.
+
+A FILE argument that does not exist is created, unless -c or -h is supplied.
+
+  -a                     change only the access time
+  -c, --no-create        do not create any files
+  -d, --date=STRING      parse STRING and use it instead of current time
+  -f                     (ignored)
+  -h, --no-dereference   affect each symbolic link instead of any referenced
+                         file
+  -m                     change only the modification time
+  -r, --reference=FILE   use this file's times instead of current time
+  -t STAMP               use [[CC]YY]MMDDhhmm[.ss] instead of current time
+      --time=WORD        change the time WORD names: access, atime, use,
+                         modify or mtime
+      --help     display this help and exit
+      --version  output version information and exit
+`
+
 // parseFlags parses the options and operands. Option parsing stops at the
 // first operand or at "--". The -d, -r and -t options take an option-argument,
 // either glued to the option or in the next argument, and the last one given
@@ -263,7 +291,7 @@ const optTime rune = 0x100
 // stand for. The -f option is accepted and ignored, for BSD compatibility.
 func parseFlags(args []string) (options, []string, error) {
 	var opts options
-	files, err := getopt.Set{Valued: "drt" + string(optTime), Long: longOptions}.Parse(args, func(opt rune, value string) error {
+	files, err := optSet.Parse(args, func(opt rune, value string) error {
 		switch opt {
 		case 'a':
 			opts.access = true
