@@ -17,7 +17,7 @@ import (
 	"path/filepath"
 	"slices"
 	"strconv"
-	"strings"
+	"unicode/utf8"
 
 	"charm.land/snail/coreutils"
 
@@ -93,33 +93,35 @@ func (p *Prog) Run(ctx context.Context, args ...string) error {
 	return nil
 }
 
-// uniq copies the groups of adjacent equal lines of r to out, as the options
-// demand.
+// uniq copies the groups of adjacent equal items of r to out, as the options
+// demand. Items are delimited by the byte the options pick.
 func (p *Prog) uniq(ctx context.Context, r io.Reader, out io.Writer, opts options) error {
 	br := bufio.NewReader(r)
+	delim := opts.delimiter()
+	term := []byte{delim}
 	var (
+		group    [][]byte
 		prevKey  []byte
-		prevRaw  []byte
-		count    int
 		havePrev bool
 	)
+	w := groupWriter{out: out, opts: opts}
 	for {
 		if err := ctx.Err(); err != nil {
 			return err
 		}
-		line, err := br.ReadString('\n')
-		if len(line) > 0 {
-			raw := []byte(line)
-			key := opts.key([]byte(strings.TrimSuffix(line, "\n")))
+		item, err := br.ReadString(delim)
+		if len(item) > 0 {
+			raw := []byte(item)
+			key := opts.key(bytes.TrimSuffix(raw, term))
 			if havePrev && bytes.Equal(prevKey, key) {
-				count++
+				group = append(group, raw)
 			} else {
 				if havePrev {
-					if werr := p.writeGroup(out, prevRaw, count, opts); werr != nil {
+					if werr := w.write(group); werr != nil {
 						return werr
 					}
 				}
-				prevKey, prevRaw, count, havePrev = key, raw, 1, true
+				group, prevKey, havePrev = [][]byte{raw}, key, true
 			}
 		}
 		if err != nil {
@@ -130,32 +132,127 @@ func (p *Prog) uniq(ctx context.Context, r io.Reader, out io.Writer, opts option
 		}
 	}
 	if havePrev {
-		return p.writeGroup(out, prevRaw, count, opts)
+		return w.write(group)
 	}
 	return nil
 }
 
-// writeGroup writes the representative line of a group of count equal lines,
-// as the options demand.
-func (p *Prog) writeGroup(out io.Writer, raw []byte, count int, opts options) error {
-	if opts.uniqueOnly && count > 1 || opts.repeatedOnly && count == 1 {
+// groupWriter writes the groups of adjacent equal items to an output, as the
+// options demand. It remembers whether a group was already written, to
+// separate the ones -D delimits.
+type groupWriter struct {
+	out   io.Writer
+	opts  options
+	wrote bool
+}
+
+// write writes a group of count equal items, as the options demand.
+func (w *groupWriter) write(group [][]byte) error {
+	count := len(group)
+	if w.opts.uniqueOnly && count > 1 || w.opts.repeatedOnly && count == 1 {
 		return nil
 	}
-	if opts.count {
-		if _, err := fmt.Fprintf(out, "%7d ", count); err != nil {
+	if w.opts.allRepeated {
+		return w.writeRepeated(group)
+	}
+	if w.opts.count {
+		if _, err := fmt.Fprintf(w.out, "%7d ", count); err != nil {
 			return &writeError{err: err}
 		}
 	}
-	if _, err := out.Write(raw); err != nil {
+	if _, err := w.out.Write(group[0]); err != nil {
 		return &writeError{err: err}
 	}
 	return nil
 }
 
+// writeRepeated writes every item of a group of repeated ones, delimited as
+// the delimit method of the -D option asks. Groups of a single item are
+// discarded.
+func (w *groupWriter) writeRepeated(group [][]byte) error {
+	if len(group) == 1 {
+		return nil
+	}
+	if w.opts.delimit == delimitPrepend || w.opts.delimit == delimitSeparate && w.wrote {
+		if _, err := w.out.Write([]byte{w.opts.delimiter()}); err != nil {
+			return &writeError{err: err}
+		}
+	}
+	for _, item := range group {
+		if _, err := w.out.Write(item); err != nil {
+			return &writeError{err: err}
+		}
+	}
+	w.wrote = true
+	return nil
+}
+
 // key returns the part of the line which takes part in comparisons: the line
-// with the first opts.fields fields and opts.chars characters skipped.
+// with the first opts.fields fields and opts.chars characters skipped, cut
+// to the first opts.checkChars characters when set, and with the case of its
+// ASCII letters folded when -i was given.
 func (opts options) key(line []byte) []byte {
-	return textutil.SkipChars(textutil.SkipFields(line, opts.fields), opts.chars)
+	key := textutil.SkipChars(opts.skipFields(line, opts.fields), opts.chars)
+	if opts.checkChars >= 0 {
+		key = limitChars(key, opts.checkChars)
+	}
+	if opts.ignoreCase {
+		key = foldCase(key)
+	}
+	return key
+}
+
+// skipFields returns the line with its first n fields skipped. With
+// NUL-terminated items, a newline separates fields as well.
+func (opts options) skipFields(line []byte, n int) []byte {
+	if !opts.zeroTerm {
+		return textutil.SkipFields(line, n)
+	}
+	blank := func(c byte) bool {
+		return textutil.IsBlank(c) || c == '\n'
+	}
+	for ; n > 0 && len(line) > 0; n-- {
+		i := 0
+		for i < len(line) && blank(line[i]) {
+			i++
+		}
+		for i < len(line) && !blank(line[i]) {
+			i++
+		}
+		line = line[i:]
+	}
+	return line
+}
+
+// delimiter returns the byte which terminates the items: a newline, or a NUL
+// with -z.
+func (opts options) delimiter() byte {
+	if opts.zeroTerm {
+		return 0
+	}
+	return '\n'
+}
+
+// limitChars returns s cut to its first n characters, decoding it as UTF-8.
+func limitChars(s []byte, n int) []byte {
+	i := 0
+	for ; n > 0 && i < len(s); n-- {
+		_, size := utf8.DecodeRune(s[i:])
+		i += size
+	}
+	return s[:i]
+}
+
+// foldCase lowercases the ASCII letters of s.
+func foldCase(s []byte) []byte {
+	folded := make([]byte, len(s))
+	for i, c := range s {
+		if c >= 'A' && c <= 'Z' {
+			c += 'a' - 'A'
+		}
+		folded[i] = c
+	}
+	return folded
 }
 
 // openOutput returns a writer for the output operand. An empty name or "-"
@@ -180,24 +277,48 @@ type options struct {
 	count        bool
 	repeatedOnly bool
 	uniqueOnly   bool
+	allRepeated  bool
+	delimit      delimitMethod
 	fields       int
 	chars        int
+	checkChars   int // -1 when -w wasn't given
+	ignoreCase   bool
+	zeroTerm     bool
 }
+
+// delimitMethod is the way the groups of repeated items are delimited by the
+// -D option.
+type delimitMethod int
+
+const (
+	delimitNone     delimitMethod = iota // no delimiter
+	delimitPrepend                       // a delimiter before each group
+	delimitSeparate                      // a delimiter between groups
+)
+
+// optAllRepeated is the option character the --all-repeated long option maps
+// to. It stands for no short option: -D takes its optional argument only
+// when the long form carries it attached, as in --all-repeated=separate.
+const optAllRepeated = '\x00'
 
 // longOptions maps the long options of uniq to the short ones they stand for.
 var longOptions = map[string]rune{
-	"count":       'c',
-	"repeated":    'd',
-	"unique":      'u',
-	"skip-fields": 'f',
-	"skip-chars":  's',
+	"count":           'c',
+	"repeated":        'd',
+	"unique":          'u',
+	"skip-fields":     'f',
+	"skip-chars":      's',
+	"ignore-case":     'i',
+	"all-repeated":    optAllRepeated,
+	"check-chars":     'w',
+	"zero-terminated": 'z',
 }
 
 // parseFlags parses the command line options. Option parsing stops at the
 // first operand or at "--".
 func parseFlags(args []string) (options, []string, error) {
-	var opts options
-	operands, err := getopt.Set{Valued: "fs", Long: longOptions}.Parse(args, func(opt rune, value string) error {
+	opts := options{checkChars: -1}
+	operands, err := getopt.Set{Valued: "fsw", Optional: string(optAllRepeated), Long: longOptions}.Parse(args, func(opt rune, value string) error {
 		switch opt {
 		case 'c':
 			opts.count = true
@@ -205,6 +326,20 @@ func parseFlags(args []string) (options, []string, error) {
 			opts.repeatedOnly = true
 		case 'u':
 			opts.uniqueOnly = true
+		case 'D':
+			opts.allRepeated = true
+			opts.delimit = delimitNone
+		case optAllRepeated:
+			method, err := parseDelimit(value)
+			if err != nil {
+				return err
+			}
+			opts.allRepeated = true
+			opts.delimit = method
+		case 'i':
+			opts.ignoreCase = true
+		case 'z':
+			opts.zeroTerm = true
 		case 'f':
 			n, err := parseSkip(value, "fields")
 			if err != nil {
@@ -217,6 +352,12 @@ func parseFlags(args []string) (options, []string, error) {
 				return err
 			}
 			opts.chars = n
+		case 'w':
+			n, err := parseSkip(value, "characters to compare")
+			if err != nil {
+				return err
+			}
+			opts.checkChars = n
 		default:
 			return getopt.InvalidOption(opt)
 		}
@@ -225,10 +366,29 @@ func parseFlags(args []string) (options, []string, error) {
 	if err != nil {
 		return options{}, nil, err
 	}
-	if opts.repeatedOnly && opts.uniqueOnly {
+	switch {
+	case opts.repeatedOnly && opts.uniqueOnly:
 		return options{}, nil, errors.New("printing only duplicated and unique lines is not supported")
+	case opts.allRepeated && opts.uniqueOnly:
+		return options{}, nil, errors.New("printing all duplicated and unique lines is not supported")
+	case opts.count && opts.allRepeated:
+		return options{}, nil, errors.New("printing all duplicated lines and repeat counts is meaningless")
 	}
 	return opts, operands, nil
+}
+
+// parseDelimit parses the delimit method of the --all-repeated option, where
+// an empty value means none.
+func parseDelimit(s string) (delimitMethod, error) {
+	switch s {
+	case "", "none":
+		return delimitNone, nil
+	case "prepend":
+		return delimitPrepend, nil
+	case "separate":
+		return delimitSeparate, nil
+	}
+	return delimitNone, fmt.Errorf("invalid argument '%s' for '--all-repeated'", s)
 }
 
 // parseSkip parses a non-negative decimal count of fields or characters to
