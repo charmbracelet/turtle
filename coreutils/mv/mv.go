@@ -1,4 +1,6 @@
-// Package mv implements the POSIX mv utility.
+// Package mv implements the POSIX mv utility, plus the GNU -n, -u, -v, -t
+// and -T options. Only the plain -u form is supported; the --update=WHEN
+// form of GNU 9.3+ is out of scope.
 //
 // Files are moved by renaming them, falling back to duplicating and removing
 // the source when the rename fails because the two names are on different
@@ -40,32 +42,29 @@ func New(rt *coreutils.Runtime) coreutils.Program {
 	return &Prog{Runtime: rt}
 }
 
-// Run moves each source file to the destination named by the last operand: an
-// existing directory to move into, or the new name of the single source.
+// Run moves each source file to the destination named by the last operand:
+// an existing directory to move into, or the new name of the single source.
+// The -t option names the destination directory instead, and -T makes the
+// last operand a plain destination name.
 func (p *Prog) Run(ctx context.Context, args ...string) error {
 	opts, operands, err := parseFlags(args)
 	if err != nil {
 		p.errorf("%v", err)
 		return &coreutils.ExitError{Code: 2}
 	}
-	switch len(operands) {
-	case 0:
-		p.errorf("missing file operand")
-		return &coreutils.ExitError{Code: 2}
-	case 1:
-		p.errorf("missing destination file operand after '%s'", operands[0])
+	sources, target, err := splitOperands(operands, opts)
+	if err != nil {
+		p.errorf("%v", err)
 		return &coreutils.ExitError{Code: 2}
 	}
 	if p.FS == nil {
 		p.errorf("no file system available")
 		return &coreutils.ExitError{Code: 1}
 	}
-	if slices.Contains(operands, "") {
+	if slices.Contains(operands, "") || (opts.targetDirSet && opts.targetDir == "") {
 		p.errorf("invalid zero-length file name")
 		return &coreutils.ExitError{Code: 1}
 	}
-
-	sources, target := operands[:len(operands)-1], operands[len(operands)-1]
 
 	dst := p.resolve(target)
 	fi, err := fs.Stat(p.FS, dst)
@@ -75,7 +74,12 @@ func (p *Prog) Run(ctx context.Context, args ...string) error {
 	}
 	targetIsDir := err == nil && fi.IsDir()
 	slash := strings.HasSuffix(filepath.ToSlash(target), "/")
-	if !targetIsDir && (len(sources) > 1 || slash) {
+	if opts.targetDirSet && !targetIsDir {
+		p.errorf("target '%s' is not a directory", target)
+		return &coreutils.ExitError{Code: 1}
+	}
+	moveInto := targetIsDir && !opts.noTarget
+	if !moveInto && (len(sources) > 1 || slash) {
 		p.errorf("target '%s' is not a directory", target)
 		return &coreutils.ExitError{Code: 1}
 	}
@@ -86,7 +90,7 @@ func (p *Prog) Run(ctx context.Context, args ...string) error {
 			return err
 		}
 		e := pair{src: p.resolve(source), srcName: source, dst: dst, dstName: target}
-		if targetIsDir {
+		if moveInto {
 			base := baseName(source)
 			e.dst = path.Join(dst, base)
 			e.dstName = path.Join(target, base)
@@ -110,7 +114,7 @@ func (p *Prog) Run(ctx context.Context, args ...string) error {
 
 // moveEntry moves a single source to its destination. Errors are returned
 // ready to be reported; errSkipped is returned when a move was declined
-// through -i.
+// through -n, -u or -i.
 func (p *Prog) moveEntry(ctx context.Context, e pair, opts options) error {
 	fi, err := fs.Stat(p.FS, e.src)
 	if err != nil {
@@ -132,19 +136,31 @@ func (p *Prog) moveEntry(ctx context.Context, e pair, opts options) error {
 	case err != nil && !errors.Is(err, fs.ErrNotExist):
 		return fmt.Errorf("cannot stat '%s': %v", e.dstName, patherr.Unwrap(err))
 	}
-	if err == nil && opts.interactive && !p.confirm(e.dstName) {
-		return errSkipped
+	if err == nil {
+		switch {
+		case opts.clobber == clobberSkip:
+			return errSkipped
+		case opts.update && !fi.IsDir() && !fi.ModTime().After(dfi.ModTime()):
+			return errSkipped
+		case opts.clobber == clobberPrompt && !p.confirm(e.dstName):
+			return errSkipped
+		}
 	}
 
 	err = p.FS.Rename(e.src, e.dst)
 	switch {
 	case err == nil:
-		return nil
 	case crossDevice(err):
-		return p.moveAcross(ctx, e, fi)
+		if err := p.moveAcross(ctx, e, fi); err != nil {
+			return err
+		}
 	default:
 		return fmt.Errorf("cannot move '%s' to '%s': %v", e.srcName, e.dstName, unwrapRenameError(err))
 	}
+	if opts.verbose && p.Stdout != nil {
+		fmt.Fprintf(p.Stdout, "renamed '%s' -> '%s'\n", e.srcName, e.dstName)
+	}
+	return nil
 }
 
 // moveAcross moves a file between file systems, where renaming doesn't work:
@@ -343,7 +359,8 @@ func atime(fi fs.FileInfo) time.Time {
 // chmodBits are the mode bits that a duplicated entry keeps.
 const chmodBits = fs.ModePerm | fs.ModeSetuid | fs.ModeSetgid | fs.ModeSticky
 
-// errSkipped marks a move declined through -i, which isn't a failure.
+// errSkipped marks a move declined through -n, -u or -i, which isn't a
+// failure.
 var errSkipped = errors.New("skipped")
 
 // errorf writes a diagnostic message to standard error.
@@ -367,34 +384,93 @@ func crossDevice(err error) bool {
 	return errors.Is(unwrapRenameError(err), exdev)
 }
 
-// options holds the -i flag; -f only cancels an earlier -i.
+// options holds the flags of mv. For -f, -i and -n, only the last one given
+// takes effect, and -u is ignored when -n is in effect.
 type options struct {
-	interactive bool
+	clobber      clobber
+	update       bool
+	verbose      bool
+	targetDir    string
+	targetDirSet bool
+	noTarget     bool
 }
+
+// clobber is the policy for an existing destination, set by the last of
+// -f, -i and -n.
+type clobber int
+
+const (
+	clobberOverwrite clobber = iota // -f, and the default
+	clobberPrompt                   // -i
+	clobberSkip                     // -n
+)
 
 // longOptions maps the long options of mv to the short ones they stand for.
 var longOptions = map[string]rune{
-	"force":       'f',
-	"interactive": 'i',
+	"force":               'f',
+	"interactive":         'i',
+	"no-clobber":          'n',
+	"no-target-directory": 'T',
+	"target-directory":    't',
+	"update":              'u',
+	"verbose":             'v',
+}
+
+// splitOperands splits the operands into the sources and the target,
+// following the -t and -T options.
+func splitOperands(operands []string, opts options) (sources []string, target string, err error) {
+	if opts.targetDirSet {
+		if len(operands) == 0 {
+			return nil, "", errors.New("missing file operand")
+		}
+		return operands, opts.targetDir, nil
+	}
+	switch len(operands) {
+	case 0:
+		return nil, "", errors.New("missing file operand")
+	case 1:
+		return nil, "", fmt.Errorf("missing destination file operand after '%s'", operands[0])
+	}
+	if opts.noTarget {
+		if len(operands) > 2 {
+			return nil, "", fmt.Errorf("extra operand '%s'", operands[2])
+		}
+		return operands[:1], operands[1], nil
+	}
+	return operands[:len(operands)-1], operands[len(operands)-1], nil
 }
 
 // parseFlags parses the options and operands. Option parsing stops at the
-// first operand or at "--", and the last of -f and -i wins.
+// first operand or at "--", the last of -f, -i and -n wins, and -t can't be
+// combined with -T.
 func parseFlags(args []string) (options, []string, error) {
 	var opts options
-	operands, err := getopt.Set{Long: longOptions}.Parse(args, func(opt rune, _ string) error {
+	operands, err := getopt.Set{Long: longOptions, Valued: "t"}.Parse(args, func(opt rune, value string) error {
 		switch opt {
 		case 'f':
-			opts.interactive = false
+			opts.clobber = clobberOverwrite
 		case 'i':
-			opts.interactive = true
+			opts.clobber = clobberPrompt
+		case 'n':
+			opts.clobber = clobberSkip
+		case 'u':
+			opts.update = true
+		case 'v':
+			opts.verbose = true
+		case 't':
+			opts.targetDir, opts.targetDirSet = value, true
+		case 'T':
+			opts.noTarget = true
 		default:
 			return getopt.InvalidOption(opt)
 		}
 		return nil
 	})
-	if err != nil {
+	switch {
+	case err != nil:
 		return options{}, nil, err
+	case opts.targetDirSet && opts.noTarget:
+		return options{}, nil, errors.New("cannot combine --target-directory (-t) and --no-target-directory (-T)")
 	}
 	return opts, operands, nil
 }
