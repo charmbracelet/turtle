@@ -754,7 +754,7 @@ func TestRunTargetDirectory(t *testing.T) {
 			name:     "without sources it is an error",
 			files:    fsx.MemFS{"d": {Mode: fs.ModeDir}},
 			args:     []string{"-t", "d"},
-			wantErr:  "mv: missing file operand\n",
+			wantErr:  "mv: missing file operand\nTry 'mv --help' for more information.\n",
 			wantExit: 2,
 		},
 		{
@@ -762,7 +762,7 @@ func TestRunTargetDirectory(t *testing.T) {
 			files:    fsx.MemFS{"a.txt": {Data: []byte("a")}, "d": {Mode: fs.ModeDir}},
 			args:     []string{"-t", "d", "-T", "a.txt"},
 			absent:   []string{"d/a.txt"},
-			wantErr:  "mv: cannot combine --target-directory (-t) and --no-target-directory (-T)\n",
+			wantErr:  "mv: cannot combine --target-directory (-t) and --no-target-directory (-T)\nTry 'mv --help' for more information.\n",
 			wantExit: 2,
 		},
 		{
@@ -811,7 +811,7 @@ func TestRunNoTargetDirectory(t *testing.T) {
 			files:    fsx.MemFS{"a.txt": {Data: []byte("a")}, "b.txt": {Data: []byte("b")}, "c.txt": {Data: []byte("c")}},
 			args:     []string{"-T", "a.txt", "b.txt", "c.txt"},
 			present:  []string{"a.txt", "b.txt", "c.txt"},
-			wantErr:  "mv: extra operand 'c.txt'\n",
+			wantErr:  "mv: extra operand 'c.txt'\nTry 'mv --help' for more information.\n",
 			wantExit: 2,
 		},
 		{
@@ -1001,14 +1001,14 @@ func TestRunErrors(t *testing.T) {
 		{
 			name:     "missing file operand",
 			args:     []string{},
-			wantErr:  "mv: missing file operand\n",
+			wantErr:  "mv: missing file operand\nTry 'mv --help' for more information.\n",
 			wantExit: 2,
 		},
 		{
 			name:     "missing destination operand",
 			files:    fsx.MemFS{"a.txt": {Data: []byte("x")}},
 			args:     []string{"a.txt"},
-			wantErr:  "mv: missing destination file operand after 'a.txt'\n",
+			wantErr:  "mv: missing destination file operand after 'a.txt'\nTry 'mv --help' for more information.\n",
 			wantExit: 2,
 		},
 		{
@@ -1016,7 +1016,7 @@ func TestRunErrors(t *testing.T) {
 			files:    fsx.MemFS{"a.txt": {Data: []byte("x")}},
 			args:     []string{"-x", "a.txt", "b.txt"},
 			absent:   []string{"b.txt"},
-			wantErr:  "mv: invalid option -- 'x'\n",
+			wantErr:  "mv: invalid option -- 'x'\nTry 'mv --help' for more information.\n",
 			wantExit: 2,
 		},
 		{
@@ -1024,7 +1024,7 @@ func TestRunErrors(t *testing.T) {
 			files:    fsx.MemFS{"d/f.txt": {}},
 			args:     []string{"-R", "d", "e"},
 			absent:   []string{"e"},
-			wantErr:  "mv: invalid option -- 'R'\n",
+			wantErr:  "mv: invalid option -- 'R'\nTry 'mv --help' for more information.\n",
 			wantExit: 2,
 		},
 		{
@@ -1032,7 +1032,7 @@ func TestRunErrors(t *testing.T) {
 			files:    fsx.MemFS{"a.txt": {Data: []byte("x")}},
 			args:     []string{"--bogus", "a.txt", "b.txt"},
 			absent:   []string{"b.txt"},
-			wantErr:  "mv: unrecognized option '--bogus'\n",
+			wantErr:  "mv: unrecognized option '--bogus'\nTry 'mv --help' for more information.\n",
 			wantExit: 2,
 		},
 		{
@@ -1089,7 +1089,7 @@ func TestRunErrors(t *testing.T) {
 			files:    fsx.MemFS{"a.txt": {Data: []byte("x")}},
 			args:     []string{"--update=older", "a.txt", "b.txt"},
 			absent:   []string{"b.txt"},
-			wantErr:  "mv: option '--update=older' doesn't allow an argument\n",
+			wantErr:  "mv: option '--update=older' doesn't allow an argument\nTry 'mv --help' for more information.\n",
 			wantExit: 2,
 		},
 	}

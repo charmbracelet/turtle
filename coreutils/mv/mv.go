@@ -54,11 +54,13 @@ func (p *Prog) Run(ctx context.Context, args ...string) error {
 	opts, operands, err := parseFlags(args)
 	if err != nil {
 		p.errorf("%v", err)
+		stdopts.TryHelp(p.Runtime, "mv")
 		return &coreutils.ExitError{Code: 2}
 	}
 	sources, target, err := splitOperands(operands, opts)
 	if err != nil {
 		p.errorf("%v", err)
+		stdopts.TryHelp(p.Runtime, "mv")
 		return &coreutils.ExitError{Code: 2}
 	}
 	if p.FS == nil {
