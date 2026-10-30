@@ -47,6 +47,7 @@ func (p *Prog) Run(ctx context.Context, args ...string) error {
 	opts, operands, err := parseFlags(args)
 	if err != nil {
 		p.errorf("%v", err)
+		stdopts.TryHelp(p.Runtime, "env")
 		return &coreutils.ExitError{Code: 125, Err: err}
 	}
 	if opts.chdir != "" {

@@ -632,27 +632,27 @@ func TestRunUsageErrors(t *testing.T) {
 		{
 			name:    "an invalid short option",
 			args:    []string{"-x"},
-			wantErr: "env: invalid option -- 'x'\n",
+			wantErr: "env: invalid option -- 'x'\nTry 'env --help' for more information.\n",
 		},
 		{
 			name:    "an unrecognized long option",
 			args:    []string{"--foo"},
-			wantErr: "env: unrecognized option '--foo'\n",
+			wantErr: "env: unrecognized option '--foo'\nTry 'env --help' for more information.\n",
 		},
 		{
 			name:    "-u without an argument",
 			args:    []string{"-u"},
-			wantErr: "env: option requires an argument -- 'u'\n",
+			wantErr: "env: option requires an argument -- 'u'\nTry 'env --help' for more information.\n",
 		},
 		{
 			name:    "-u of an empty name",
 			args:    []string{"-u", ""},
-			wantErr: "env: cannot unset \"\": invalid name\n",
+			wantErr: "env: cannot unset \"\": invalid name\nTry 'env --help' for more information.\n",
 		},
 		{
 			name:    "-u of a name holding a value",
 			args:    []string{"-u", "FOO=1"},
-			wantErr: "env: cannot unset \"FOO=1\": invalid name\n",
+			wantErr: "env: cannot unset \"FOO=1\": invalid name\nTry 'env --help' for more information.\n",
 		},
 	}
 
