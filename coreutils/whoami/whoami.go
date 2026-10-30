@@ -37,6 +37,7 @@ func (p *Prog) Run(ctx context.Context, args ...string) error {
 	}
 	if err := parseArgs(args); err != nil {
 		p.errorf("%v", err)
+		stdopts.TryHelp(p.Runtime, "whoami")
 		return &coreutils.ExitError{Code: 1, Err: err}
 	}
 	name, ok := p.user()
