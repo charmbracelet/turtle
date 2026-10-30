@@ -2,8 +2,8 @@
 //
 // It converts the blank runs of the given files to tabs, writing the result
 // to the standard output. Only leading blanks are converted, unless -a or -t
-// are given. The standard input is used when no operands are given, and also
-// when an operand is "-".
+// are given, or --first-only cancels them. The standard input is used when no
+// operands are given, and also when an operand is "-".
 package unexpand
 
 import (
@@ -211,20 +211,28 @@ func (p *Prog) errorf(format string, args ...any) {
 
 // options holds the parsed command line options.
 type options struct {
-	stops tabutil.Stops
-	all   bool
+	stops     tabutil.Stops
+	all       bool
+	firstOnly bool
 }
+
+// firstOnlyOpt is the pseudo short option --first-only stands for, as it has
+// no short form of its own. It's above the range a byte can hold, so no short
+// option can ever stand for it.
+const firstOnlyOpt rune = 0x100
 
 // longOptions maps the long options of unexpand to the short ones they stand
 // for.
 var longOptions = map[string]rune{
-	"all":  'a',
-	"tabs": 't',
+	"all":        'a',
+	"tabs":       't',
+	"first-only": firstOnlyOpt,
 }
 
 // parseFlags parses the command line options. Giving -t implies -a, as the
-// conversions aren't limited to the leading blanks anymore. Option parsing
-// stops at the first operand or at "--".
+// conversions aren't limited to the leading blanks anymore, unless
+// --first-only cancels it. Option parsing stops at the first operand or at
+// "--".
 func parseFlags(args []string) (options, []string, error) {
 	opts := options{stops: tabutil.Default}
 	tabsSet := false
@@ -239,6 +247,8 @@ func parseFlags(args []string) (options, []string, error) {
 			}
 			opts.stops = stops
 			tabsSet = true
+		case firstOnlyOpt:
+			opts.firstOnly = true
 		default:
 			return getopt.InvalidOption(opt)
 		}
@@ -249,6 +259,9 @@ func parseFlags(args []string) (options, []string, error) {
 	}
 	if tabsSet {
 		opts.all = true
+	}
+	if opts.firstOnly {
+		opts.all = false
 	}
 	return opts, operands, nil
 }
