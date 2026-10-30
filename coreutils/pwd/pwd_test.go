@@ -246,11 +246,6 @@ func TestRun(t *testing.T) {
 				want: 2,
 			},
 			{
-				name: "a long option is rejected",
-				args: []string{"--help"},
-				want: 2,
-			},
-			{
 				name: "an unrecognized long option is rejected",
 				args: []string{"--bogus"},
 				want: 2,
@@ -331,4 +326,27 @@ func TestRunWriteError(t *testing.T) {
 	if !errors.Is(err, writeErr) {
 		t.Errorf("errors.Is(Run(), writeErr) = false, want true (error = %v)", err)
 	}
+}
+
+func TestHelpVersion(t *testing.T) {
+	t.Run("help", func(t *testing.T) {
+		stdout, err := runPwd(t, "", nil, "--help")
+		if err != nil {
+			t.Fatalf("Run() error = %v, want nil (exit status 0)", err)
+		}
+		if got, want := stdout, usage; got != want {
+			t.Errorf("Run() stdout = %q, want %q", got, want)
+		}
+	})
+
+	t.Run("version", func(t *testing.T) {
+		stdout, err := runPwd(t, "", nil, "--version")
+		if err != nil {
+			t.Fatalf("Run() error = %v, want nil (exit status 0)", err)
+		}
+		want := "pwd (charm.land/snail/coreutils) " + coreutils.Version + "\nhttps://charm.land/snail\n"
+		if got := stdout; got != want {
+			t.Errorf("Run() stdout = %q, want %q", got, want)
+		}
+	})
 }
