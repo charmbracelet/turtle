@@ -127,18 +127,19 @@ func TestRunDefaults(t *testing.T) {
 			want: "apple\n\t\tbanana\n\t\tcherry\ndate\n\telderberry\n",
 		},
 		{
-			// Lines are compared as read, trailing newline included, so
-			// the unterminated "b" sorts before the terminated one.
+			// A missing final newline is treated as present: the
+			// unterminated "b" equals the terminated one, and the output
+			// is still newline-terminated.
 			name: "a missing final newline takes part in comparisons",
 			fsys: testFS(),
 			args: []string{"nonl1.txt", "nonl2.txt"},
-			want: "\t\ta\nb\tb\n",
+			want: "\t\ta\n\t\tb\n",
 		},
 		{
-			name: "a missing final newline is kept in the output",
+			name: "a missing final newline is terminated in the output",
 			fsys: testFS(),
 			args: []string{"nonl1.txt", "nonl1.txt"},
-			want: "\t\ta\n\t\tb",
+			want: "\t\ta\n\t\tb\n",
 		},
 		{
 			name: "identical files are all in the third column",
@@ -269,6 +270,109 @@ func TestRunOptions(t *testing.T) {
 	}
 }
 
+func TestRunOutputDelimiter(t *testing.T) {
+	tests := []testCase{
+		{
+			name: "--output-delimiter replaces the tabs between columns",
+			fsys: testFS(),
+			args: []string{"--output-delimiter=|", "left.txt", "right.txt"},
+			want: "apple\n||banana\n||cherry\ndate\n|elderberry\n",
+		},
+		{
+			name: "the delimiter can be given in the next argument",
+			fsys: testFS(),
+			args: []string{"--output-delimiter", "|", "left.txt", "right.txt"},
+			want: "apple\n||banana\n||cherry\ndate\n|elderberry\n",
+		},
+		{
+			name: "an empty delimiter selects NUL",
+			fsys: testFS(),
+			args: []string{"--output-delimiter=", "left.txt", "right.txt"},
+			want: "apple\n\x00\x00banana\n\x00\x00cherry\ndate\n\x00elderberry\n",
+		},
+		{
+			name: "a suppressed column removes its delimiter",
+			fsys: testFS(),
+			args: []string{"-1", "--output-delimiter=|", "left.txt", "right.txt"},
+			want: "|banana\n|cherry\nelderberry\n",
+		},
+		{
+			name: "two suppressed columns leave no delimiters",
+			fsys: testFS(),
+			args: []string{"-12", "--output-delimiter=|", "left.txt", "right.txt"},
+			want: "banana\ncherry\n",
+		},
+		{
+			name: "the last delimiter given is the one used",
+			fsys: testFS(),
+			args: []string{"--output-delimiter=|", "--output-delimiter=+", "left.txt", "right.txt"},
+			want: "apple\n++banana\n++cherry\ndate\n+elderberry\n",
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			runCase(t, test)
+		})
+	}
+}
+
+func TestRunZeroTerminated(t *testing.T) {
+	zfs := fsx.MemFS{
+		"z1.txt": {Data: []byte("apple\x00date\x00")},
+		"z2.txt": {Data: []byte("date\x00elderberry\x00")},
+	}
+	tests := []testCase{
+		{
+			name: "-z reads and writes NUL-terminated items",
+			fsys: zfs,
+			args: []string{"-z", "z1.txt", "z2.txt"},
+			want: "apple\x00\t\tdate\x00\telderberry\x00",
+		},
+		{
+			name: "--zero-terminated is the long form of -z",
+			fsys: zfs,
+			args: []string{"--zero-terminated", "z1.txt", "z2.txt"},
+			want: "apple\x00\t\tdate\x00\telderberry\x00",
+		},
+		{
+			name: "-z can be grouped with other options",
+			fsys: zfs,
+			args: []string{"-1z", "z1.txt", "z2.txt"},
+			want: "\tdate\x00elderberry\x00",
+		},
+		{
+			name: "-z can use a custom output delimiter",
+			fsys: zfs,
+			args: []string{"-z", "--output-delimiter=|", "z1.txt", "z2.txt"},
+			want: "apple\x00||date\x00|elderberry\x00",
+		},
+		{
+			// A missing final NUL is treated as present, so the
+			// unterminated "b" equals the terminated one.
+			name: "a missing final NUL takes part in comparisons",
+			fsys: fsx.MemFS{
+				"z1.txt": {Data: []byte("a\x00b")},
+				"z2.txt": {Data: []byte("a\x00b\x00")},
+			},
+			args: []string{"-z", "z1.txt", "z2.txt"},
+			want: "\t\ta\x00\t\tb\x00",
+		},
+		{
+			name: "newlines are ordinary bytes under -z",
+			fsys: fsx.MemFS{"z1.txt": {Data: []byte("a\nb\x00")}, "z2.txt": {Data: []byte("a\nb\x00")}},
+			args: []string{"-z", "z1.txt", "z2.txt"},
+			want: "\t\ta\nb\x00",
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			runCase(t, test)
+		})
+	}
+}
+
 func TestRunInvalidUsage(t *testing.T) {
 	tests := []testCase{
 		{
@@ -303,6 +407,20 @@ func TestRunInvalidUsage(t *testing.T) {
 			fsys:     testFS(),
 			args:     []string{"--total", "left.txt", "right.txt"},
 			wantErr:  "comm: unrecognized option '--total'\n",
+			wantExit: 2,
+		},
+		{
+			name:     "a short option that only exists in long form",
+			fsys:     testFS(),
+			args:     []string{"-o", "left.txt", "right.txt"},
+			wantErr:  "comm: invalid option -- 'o'\n",
+			wantExit: 2,
+		},
+		{
+			name:     "a long option missing its argument",
+			fsys:     testFS(),
+			args:     []string{"--output-delimiter"},
+			wantErr:  "comm: option '--output-delimiter' requires an argument\n",
 			wantExit: 2,
 		},
 	}
