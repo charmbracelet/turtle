@@ -77,6 +77,7 @@ func (p *Prog) Run(ctx context.Context, args ...string) error {
 	set, err := parseFlags(append(envOptions(p.Getenv("GZIP")), args...), p.base)
 	if err != nil {
 		fmt.Fprintf(p.Stderr, "%s: %v\n", p.base.Prog, err)
+		stdopts.TryHelp(p.Runtime, p.base.Prog)
 		return &coreutils.ExitError{Code: 1, Err: err}
 	}
 	switch {

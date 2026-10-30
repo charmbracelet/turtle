@@ -1,12 +1,29 @@
 package gunzip
 
 import (
+	"errors"
 	"strings"
 	"testing"
 
 	"charm.land/snail/coreutils"
 	"charm.land/snail/coreutils/gzip"
 )
+
+func TestUsageError(t *testing.T) {
+	var stderr strings.Builder
+	rt := &coreutils.Runtime{Stderr: &stderr}
+
+	err := New(rt).Run(t.Context(), "-Z")
+
+	var exitErr *coreutils.ExitError
+	if !errors.As(err, &exitErr) || exitErr.Code != 1 {
+		t.Fatalf("Run() error = %v, want exit status 1", err)
+	}
+	want := "gunzip: invalid option -- 'Z'\nTry 'gunzip --help' for more information.\n"
+	if got := stderr.String(); got != want {
+		t.Errorf("stderr = %q, want %q", got, want)
+	}
+}
 
 func TestHelpVersion(t *testing.T) {
 	t.Run("help", func(t *testing.T) {
