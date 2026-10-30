@@ -51,14 +51,17 @@ func (p *Prog) Run(ctx context.Context, args ...string) error {
 	opts, operands, err := parseFlags(args)
 	if err != nil {
 		p.errorf("%v", err)
+		stdopts.TryHelp(p.Runtime, "csplit")
 		return &coreutils.ExitError{Code: 1}
 	}
 	if len(operands) == 0 {
 		p.errorf("missing operand")
+		stdopts.TryHelp(p.Runtime, "csplit")
 		return &coreutils.ExitError{Code: 1}
 	}
 	if len(operands) == 1 {
 		p.errorf("missing operand after '%s'", operands[0])
+		stdopts.TryHelp(p.Runtime, "csplit")
 		return &coreutils.ExitError{Code: 1}
 	}
 	if p.FS == nil {
