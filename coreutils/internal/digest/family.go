@@ -40,15 +40,18 @@ func (f Family) Run(ctx context.Context, rt *coreutils.Runtime, args []string) e
 	set, err := f.parseFlags(args)
 	if err != nil {
 		f.errorf(rt, "%v", err)
+		stdopts.TryHelp(rt, f.Name)
 		return &coreutils.ExitError{Code: 1}
 	}
 	if err := set.validate(); err != nil {
 		f.errorf(rt, "%v", err)
+		stdopts.TryHelp(rt, f.Name)
 		return &coreutils.ExitError{Code: 1}
 	}
 	a, ok := f.Algorithms[set.algorithm]
 	if !ok {
 		f.errorf(rt, "unrecognized algorithm '%s'", set.algorithm)
+		stdopts.TryHelp(rt, f.Name)
 		return &coreutils.ExitError{Code: 1}
 	}
 	a.Name = f.Name

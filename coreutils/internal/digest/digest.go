@@ -53,10 +53,12 @@ func (a Algorithm) Run(ctx context.Context, rt *coreutils.Runtime, args []string
 	opts, operands, err := parseFlags(args)
 	if err != nil {
 		a.errorf(rt, "%v", err)
+		stdopts.TryHelp(rt, a.Name)
 		return &coreutils.ExitError{Code: 2}
 	}
 	if err := opts.validate(); err != nil {
 		a.errorf(rt, "%v", err)
+		stdopts.TryHelp(rt, a.Name)
 		return &coreutils.ExitError{Code: 2}
 	}
 	if len(operands) == 0 {
