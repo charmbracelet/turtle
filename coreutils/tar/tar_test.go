@@ -550,3 +550,28 @@ func TestParseSize(t *testing.T) {
 		})
 	}
 }
+
+func TestHelpVersion(t *testing.T) {
+	t.Run("help", func(t *testing.T) {
+		stdout, _, err := run(t, fsx.MemFS{}, "", nil, 0, "--help")
+
+		if code := exitCode(t, err); code != 0 {
+			t.Fatalf("Run() exit code = %d, want 0 (error = %v)", code, err)
+		}
+		if got := stdout.String(); got != usage {
+			t.Errorf("Run() stdout = %q, want %q", got, usage)
+		}
+	})
+
+	t.Run("version", func(t *testing.T) {
+		stdout, _, err := run(t, fsx.MemFS{}, "", nil, 0, "--version")
+
+		if code := exitCode(t, err); code != 0 {
+			t.Fatalf("Run() exit code = %d, want 0 (error = %v)", code, err)
+		}
+		want := "tar (charm.land/snail/coreutils) " + coreutils.Version + "\nhttps://charm.land/snail\n"
+		if got := stdout.String(); got != want {
+			t.Errorf("Run() stdout = %q, want %q", got, want)
+		}
+	})
+}
