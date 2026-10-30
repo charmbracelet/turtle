@@ -19,6 +19,7 @@ import (
 	"charm.land/snail/coreutils/internal/input"
 	"charm.land/snail/coreutils/internal/patherr"
 	"charm.land/snail/coreutils/internal/sizeparse"
+	"charm.land/snail/coreutils/internal/stdopts"
 )
 
 // Prog is the head core utility.
@@ -46,6 +47,9 @@ const (
 //
 // Reading is interrupted when ctx is done, and the context error is returned.
 func (p *Prog) Run(ctx context.Context, args ...string) error {
+	if done, err := stdopts.Check(p.Runtime, "head", usage, optSet, args); done {
+		return err
+	}
 	opts, operands, err := parseFlags(args)
 	if err != nil {
 		p.errorf("%v", err)
@@ -300,13 +304,36 @@ var longOptions = map[string]rune{
 	"zero-terminated": 'z',
 }
 
+// optSet describes the options of head.
+var optSet = getopt.Set{Valued: "cn", Long: longOptions}
+
+// usage describes the options of head.
+const usage = `Usage: head [OPTION]... [FILE]...
+Print the first 10 lines of each FILE to standard output.
+With more than one FILE, precede each with a header giving the file name.
+
+With no FILE, or when FILE is -, read standard input.
+
+  -c, --bytes=[-]NUM     print the first NUM bytes of each file; with a
+                         leading '-', print all but the last NUM bytes of
+                         each file
+  -n, --lines=[-]NUM     print the first NUM lines instead of the first 10;
+                         with a leading '-', print all but the last NUM lines
+                         of each file
+  -q, --quiet, --silent  never print headers giving file names
+  -v, --verbose          always print headers giving file names
+  -z, --zero-terminated  line delimiter is NUL, not newline
+      --help     display this help and exit
+      --version  output version information and exit
+`
+
 func parseFlags(args []string) (options, []string, error) {
 	var opts options
 	args, err := parseObsolete(args, &opts)
 	if err != nil {
 		return options{}, nil, err
 	}
-	operands, err := getopt.Set{Valued: "cn", Long: longOptions}.Parse(args, func(opt rune, value string) error {
+	operands, err := optSet.Parse(args, func(opt rune, value string) error {
 		switch opt {
 		case 'q':
 			opts.header = headerNever
