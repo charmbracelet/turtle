@@ -21,6 +21,7 @@ import (
 	"charm.land/snail/coreutils"
 	"charm.land/snail/coreutils/internal/getopt"
 	"charm.land/snail/coreutils/internal/patherr"
+	"charm.land/snail/coreutils/internal/stdopts"
 )
 
 // Prog is the env core utility.
@@ -40,6 +41,9 @@ func New(rt *coreutils.Runtime) coreutils.Program {
 // of the execution are passed along with a diagnostic. The failures of env
 // itself, including usage and write errors, exit with 125.
 func (p *Prog) Run(ctx context.Context, args ...string) error {
+	if done, err := stdopts.Check(p.Runtime, "env", usage, optSet, args); done {
+		return err
+	}
 	opts, operands, err := parseFlags(args)
 	if err != nil {
 		p.errorf("%v", err)
@@ -85,11 +89,32 @@ var longOptions = map[string]rune{
 	"split-string":       'S',
 }
 
+// optSet describes the options of env.
+var optSet = getopt.Set{Valued: "uCS", Long: longOptions}
+
+// usage describes the options of env.
+const usage = `Usage: env [OPTION]... [NAME=VALUE]... [COMMAND [ARG]...]
+  or:  env [OPTION]... -S [OPTION]... [NAME=VALUE]... [COMMAND [ARG]...]
+Run a command in a modified environment.
+
+With no COMMAND, print the resulting environment.
+
+  -i, --ignore-environment  start with an empty environment
+  -u, --unset=NAME           remove NAME from the environment
+  -0, --null                 end each output line with NUL, not newline
+  -C, --chdir=DIR            change the working directory to DIR
+  -S, --split-string=STRING  process and split STRING into separate
+                             arguments, used to pass multiple arguments on
+                             shebang lines
+      --help     display this help and exit
+      --version  output version information and exit
+`
+
 // parseFlags parses the options and operands. The -u option may repeat,
 // and option parsing stops at the first operand or at "--".
 func parseFlags(args []string) (settings, []string, error) {
 	var set settings
-	operands, err := getopt.Set{Valued: "uCS", Long: longOptions}.Parse(args, func(opt rune, value string) error {
+	operands, err := optSet.Parse(args, func(opt rune, value string) error {
 		switch opt {
 		case 'i':
 			set.ignore = true
