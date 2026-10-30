@@ -1,19 +1,26 @@
-// Package env implements the POSIX env utility.
+// Package env implements the GNU env utility.
 //
 // It modifies the current environment according to its options and
 // operands, then either writes the resulting environment to the standard
-// output or invokes the utility operand with it.
+// output or invokes the utility operand with it. The -S option splits its
+// argument with shell-like quoting, which supports the #!/usr/bin/env -S
+// shebang form, and -C changes the directory the utility runs in.
 //
 // The -u option is an extension beyond the Issue 8 env specification.
 package env
 
 import (
 	"context"
+	"errors"
 	"fmt"
+	"io/fs"
+	"path"
+	"path/filepath"
 	"strings"
 
 	"charm.land/snail/coreutils"
 	"charm.land/snail/coreutils/internal/getopt"
+	"charm.land/snail/coreutils/internal/patherr"
 )
 
 // Prog is the env core utility.
@@ -38,10 +45,23 @@ func (p *Prog) Run(ctx context.Context, args ...string) error {
 		p.errorf("%v", err)
 		return &coreutils.ExitError{Code: 125, Err: err}
 	}
+	if opts.chdir != "" {
+		if err := p.chdir(opts.chdir); err != nil {
+			return err
+		}
+	}
+	if opts.split != "" {
+		split, err := p.splitArgs(opts.split)
+		if err != nil {
+			p.errorf("%v", err)
+			return &coreutils.ExitError{Code: 125, Err: err}
+		}
+		operands = append(split, operands...)
+	}
 	assignments, utility, arguments, given := splitOperands(operands)
 	entries := p.buildEnv(opts, assignments)
 	if !given {
-		return p.printEnv(entries)
+		return p.printEnv(entries, opts.null)
 	}
 	return p.invoke(ctx, utility, arguments, entries)
 }
@@ -50,13 +70,26 @@ func (p *Prog) Run(ctx context.Context, args ...string) error {
 type settings struct {
 	ignore bool     // -i
 	unset  []string // -u, in the order given
+	null   bool     // -0
+	chdir  string   // -C
+	split  string   // -S, the arguments to split and prepend
 }
 
-// parseFlags parses the options and operands. The -u option may repeat, and
-// option parsing stops at the first operand or at "--".
+// longOptions maps the long options of env to the short ones they stand
+// for.
+var longOptions = map[string]rune{
+	"ignore-environment": 'i',
+	"unset":              'u',
+	"null":               '0',
+	"chdir":              'C',
+	"split-string":       'S',
+}
+
+// parseFlags parses the options and operands. The -u option may repeat,
+// and option parsing stops at the first operand or at "--".
 func parseFlags(args []string) (settings, []string, error) {
 	var set settings
-	operands, err := getopt.Set{Valued: "u"}.Parse(args, func(opt rune, value string) error {
+	operands, err := getopt.Set{Valued: "uCS", Long: longOptions}.Parse(args, func(opt rune, value string) error {
 		switch opt {
 		case 'i':
 			set.ignore = true
@@ -65,12 +98,154 @@ func parseFlags(args []string) (settings, []string, error) {
 				return fmt.Errorf("cannot unset %q: invalid name", value)
 			}
 			set.unset = append(set.unset, value)
+		case '0':
+			set.null = true
+		case 'C':
+			set.chdir = value
+		case 'S':
+			set.split = value
 		default:
 			return getopt.InvalidOption(opt)
 		}
 		return nil
 	})
 	return set, operands, err
+}
+
+// chdir changes the directory the utility runs in, checking that it is a
+// directory first.
+func (p *Prog) chdir(dir string) error {
+	resolved := path.Clean(filepath.ToSlash(p.ResolvePath(dir)))
+	fi, err := fs.Stat(p.FS, resolved)
+	if err != nil {
+		p.errorf("cannot change directory to %s: %v", dir, patherr.Unwrap(err))
+		return &coreutils.ExitError{Code: 125, Err: err}
+	}
+	if !fi.IsDir() {
+		p.errorf("cannot change directory to %s: not a directory", dir)
+		return &coreutils.ExitError{Code: 125}
+	}
+	p.WorkingDir = resolved
+	return nil
+}
+
+// splitArgs splits an -S string into its arguments, with the shell-like
+// quoting the GNU manual documents: whitespace separates the arguments,
+// single quotes preserve their content (except \' and \\), double quotes
+// process the escapes, an unquoted hash at the start of an argument or the
+// \c escape ignores the rest of the string, and ${VAR} expands to the
+// value the environment held before the options changed it.
+func (p *Prog) splitArgs(s string) ([]string, error) {
+	var args []string
+	var cur []byte
+	inArg := false
+	var quote byte
+	flush := func() {
+		if inArg {
+			args = append(args, string(cur))
+			cur, inArg = cur[:0], false
+		}
+	}
+	for i := 0; i < len(s); i++ {
+		c := s[i]
+		if quote == '\'' {
+			switch {
+			case c == '\'':
+				quote = 0
+				continue
+			case c == '\\' && i+1 < len(s) && (s[i+1] == '\'' || s[i+1] == '\\'):
+				i++
+				c = s[i]
+			}
+			cur = append(cur, c)
+			continue
+		}
+		switch c {
+		case ' ', '\t', '\n', '\r', '\f', '\v':
+			if quote != 0 {
+				cur = append(cur, c)
+				continue
+			}
+			flush()
+		case '\'':
+			quote, inArg = '\'', true
+		case '"':
+			if quote == '"' {
+				quote = 0
+			} else {
+				quote, inArg = '"', true
+			}
+		case '#':
+			// An unquoted hash only starts a comment at the start of an
+			// argument.
+			if quote == 0 && !inArg {
+				return args, nil
+			}
+			cur = append(cur, c)
+			inArg = true
+		case '$':
+			if i+1 >= len(s) || s[i+1] != '{' {
+				return nil, errors.New("only ${VAR} expansion is supported")
+			}
+			end := strings.IndexByte(s[i+2:], '}')
+			if end < 0 {
+				return nil, errors.New("missing '}' in ${VAR}")
+			}
+			name := s[i+2 : i+2+end]
+			i += 2 + end
+			value, _ := p.LookupEnv(name)
+			cur = append(cur, value...)
+			inArg = true
+		case '\\':
+			if i+1 >= len(s) {
+				return nil, errors.New("string ends in a backslash")
+			}
+			i++
+			switch e := s[i]; e {
+			case 'c':
+				if quote == '"' {
+					cur = append(cur, 'c')
+					continue
+				}
+				flush()
+				return args, nil
+			case 'f':
+				cur = append(cur, '\f')
+			case 'n':
+				cur = append(cur, '\n')
+			case 'r':
+				cur = append(cur, '\r')
+			case 't':
+				cur = append(cur, '\t')
+			case 'v':
+				cur = append(cur, '\v')
+			case '_':
+				if quote == '"' {
+					cur = append(cur, ' ')
+				} else {
+					flush()
+				}
+			case '#', '$', '"', '\\':
+				cur = append(cur, e)
+			case '\'':
+				// Outside single quotes a backslash before a quote keeps
+				// the quote from opening one.
+				cur = append(cur, e)
+			default:
+				// The backslash escapes any character, dropping itself.
+				cur = append(cur, e)
+			}
+			inArg = true
+		default:
+			cur = append(cur, c)
+			inArg = true
+		}
+	}
+	if quote != 0 {
+		return nil, errors.New("unterminated quote")
+	}
+	flush()
+	return args, nil
 }
 
 // splitOperands splits the leading name=value assignments from the utility
@@ -112,14 +287,18 @@ func (p *Prog) buildEnv(opts settings, assignments []string) []string {
 }
 
 // printEnv writes the environment to the standard output, one name=value
-// pair per line.
-func (p *Prog) printEnv(entries []string) error {
+// pair per line, each terminated with a newline or a NUL with -0.
+func (p *Prog) printEnv(entries []string, null bool) error {
 	if p.Stdout == nil {
 		p.errorf("no standard output available")
 		return &coreutils.ExitError{Code: 125}
 	}
+	term := "\n"
+	if null {
+		term = "\x00"
+	}
 	for _, entry := range entries {
-		if _, err := fmt.Fprintln(p.Stdout, entry); err != nil {
+		if _, err := fmt.Fprint(p.Stdout, entry+term); err != nil {
 			return &coreutils.ExitError{Code: 125, Err: err}
 		}
 	}

@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"errors"
+	"io/fs"
 	"os"
 	"path/filepath"
 	"runtime"
@@ -11,6 +12,7 @@ import (
 	"testing"
 
 	"charm.land/snail/coreutils"
+	"charm.land/snail/fsx"
 )
 
 // execRecord records an invocation of the stub Exec.
@@ -85,6 +87,21 @@ func TestRunPrintEnv(t *testing.T) {
 			name: "-i empties the environment",
 			args: []string{"-i"},
 			want: "",
+		},
+		{
+			name: "-0 ends each entry with NUL",
+			args: []string{"-0"},
+			want: "FOO=1\x00BAR=2\x00",
+		},
+		{
+			name: "--null ends each entry with NUL",
+			args: []string{"--null"},
+			want: "FOO=1\x00BAR=2\x00",
+		},
+		{
+			name: "-0 combines with -u",
+			args: []string{"-0", "-u", "FOO"},
+			want: "BAR=2\x00",
 		},
 		{
 			name: "-i and -u combine",
@@ -195,6 +212,152 @@ func TestRunInvoke(t *testing.T) {
 			args:     []string{"utility", "one", "two"},
 			wantName: "utility",
 			wantArgs: []string{"one", "two"},
+			wantEnv:  environ,
+		},
+		{
+			name:     "-S splits the command and its arguments",
+			args:     []string{"-S", "utility one two"},
+			wantName: "utility",
+			wantArgs: []string{"one", "two"},
+			wantEnv:  environ,
+		},
+		{
+			name:     "-S arguments come before the operands",
+			args:     []string{"-S", "utility one", "two", "three"},
+			wantName: "utility",
+			wantArgs: []string{"one", "two", "three"},
+			wantEnv:  environ,
+		},
+		{
+			name:     "-S single quotes keep their content whole",
+			args:     []string{"-S", "utility 'one two' three"},
+			wantName: "utility",
+			wantArgs: []string{"one two", "three"},
+			wantEnv:  environ,
+		},
+		{
+			name:     "-S double quotes keep their content whole",
+			args:     []string{"-S", `utility "one two" three`},
+			wantName: "utility",
+			wantArgs: []string{"one two", "three"},
+			wantEnv:  environ,
+		},
+		{
+			name:     "-S backslash escapes outside quotes",
+			args:     []string{`-Sutility\ one`},
+			wantName: "utility one",
+			wantEnv:  environ,
+		},
+		{
+			name:     "-S escapes in double quotes act on quote and backslash",
+			args:     []string{`-Sutility "a\"b" "c\\d" "e\nf"`},
+			wantName: "utility",
+			wantArgs: []string{`a"b`, `c\d`, "e\nf"},
+			wantEnv:  environ,
+		},
+		{
+			name:     "-S escapes in single quotes act on nothing",
+			args:     []string{`-Sutility 'a\"b'`},
+			wantName: "utility",
+			wantArgs: []string{`a\"b`},
+			wantEnv:  environ,
+		},
+		{
+			name:     "-S leading and trailing whitespace are dropped",
+			args:     []string{"-S", "  utility one  "},
+			wantName: "utility",
+			wantArgs: []string{"one"},
+			wantEnv:  environ,
+		},
+		{
+			name:     "-S expands environment variables",
+			args:     []string{"-S", "utility ${FOO}-${BAR}"},
+			wantName: "utility",
+			wantArgs: []string{"1-2"},
+			wantEnv:  environ,
+		},
+		{
+			name:     "-S expands an unset variable to nothing",
+			args:     []string{"-S", "utility ${MISSING}x"},
+			wantName: "utility",
+			wantArgs: []string{"x"},
+			wantEnv:  environ,
+		},
+		{
+			name:     "-S expansion takes the inherited environment",
+			args:     []string{"-i", "-S", "utility ${FOO}"},
+			wantName: "utility",
+			wantArgs: []string{"1"},
+			wantEnv:  []string{},
+		},
+		{
+			name:     "-S rejects a dollar sign without braces",
+			args:     []string{"-S", "utility $FOO"},
+			wantCode: 125,
+		},
+		{
+			name:     "-S rejects an unterminated variable",
+			args:     []string{"-S", "utility ${FOO"},
+			wantCode: 125,
+		},
+		{
+			name:     "-S rejects an unterminated quote",
+			args:     []string{"-S", "utility 'one"},
+			wantCode: 125,
+		},
+		{
+			name:     "-S a hash at the start of an argument comments the rest",
+			args:     []string{"-S", "utility one #two three"},
+			wantName: "utility",
+			wantArgs: []string{"one"},
+			wantEnv:  environ,
+		},
+		{
+			name:     "-S a hash inside an argument is literal",
+			args:     []string{"-S", "utility one#two"},
+			wantName: "utility",
+			wantArgs: []string{"one#two"},
+			wantEnv:  environ,
+		},
+		{
+			name:     "-S an escaped hash is literal at the start",
+			args:     []string{"-S", `utility \#one`},
+			wantName: "utility",
+			wantArgs: []string{"#one"},
+			wantEnv:  environ,
+		},
+		{
+			name:     "-S c ignores the rest of the string",
+			args:     []string{"-S", `utility one\ctwo`},
+			wantName: "utility",
+			wantArgs: []string{"one"},
+			wantEnv:  environ,
+		},
+		{
+			name:     "-S the escapes render their characters",
+			args:     []string{"-S", `utility \n\t\f\r\v`},
+			wantName: "utility",
+			wantArgs: []string{"\n\t\f\r\v"},
+			wantEnv:  environ,
+		},
+		{
+			name:     "-S an escaped underscore separates outside quotes",
+			args:     []string{"-S", `utility\_one`},
+			wantName: "utility",
+			wantArgs: []string{"one"},
+			wantEnv:  environ,
+		},
+		{
+			name:     "-S an escaped underscore is a space in quotes",
+			args:     []string{"-S", `utility "a\_b"`},
+			wantName: "utility",
+			wantArgs: []string{"a b"},
+			wantEnv:  environ,
+		},
+		{
+			name:     "-S a backslash escapes a space",
+			args:     []string{`-Sutility\ one`},
+			wantName: "utility one",
 			wantEnv:  environ,
 		},
 		{
@@ -391,6 +554,72 @@ func TestRunInvokeRealUtility(t *testing.T) {
 	}
 	if got := out.String(); got != "FOO=fromenv\n" {
 		t.Errorf("Run() output = %q, want %q", got, "FOO=fromenv\n")
+	}
+}
+
+func TestRunChdir(t *testing.T) {
+	tests := []struct {
+		name     string
+		fsys     fsx.MemFS
+		args     []string
+		wantWd   string
+		wantErr  string
+		wantCode int
+	}{
+		{
+			name:   "-C changes the working directory",
+			fsys:   fsx.MemFS{"sub": {Mode: fs.ModeDir | 0o755}},
+			args:   []string{"-C", "sub", "utility"},
+			wantWd: "sub",
+		},
+		{
+			name:   "--chdir works too",
+			fsys:   fsx.MemFS{"sub": {Mode: fs.ModeDir | 0o755}},
+			args:   []string{"--chdir=sub", "utility"},
+			wantWd: "sub",
+		},
+		{
+			name:   "-C resolves a nested directory",
+			fsys:   fsx.MemFS{"a/b": {Mode: fs.ModeDir | 0o755}},
+			args:   []string{"-C", "a/b"},
+			wantWd: "a/b",
+		},
+		{
+			name:     "a missing directory fails",
+			fsys:     fsx.MemFS{},
+			args:     []string{"-C", "nope", "utility"},
+			wantErr:  "env: cannot change directory to nope: file does not exist\n",
+			wantCode: 125,
+		},
+		{
+			name:     "a file is not a directory",
+			fsys:     fsx.MemFS{"f": {}},
+			args:     []string{"-C", "f"},
+			wantErr:  "env: cannot change directory to f: not a directory\n",
+			wantCode: 125,
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			rec := &execRecord{}
+			rt := newRuntime(nil, rec)
+			rt.FS = test.fsys
+			err := New(rt).Run(t.Context(), test.args...)
+			if exitErr, ok := errors.AsType[*coreutils.ExitError](err); ok {
+				if exitErr.Code != test.wantCode {
+					t.Errorf("Run() exit code = %d, want %d", exitErr.Code, test.wantCode)
+				}
+			} else if err != nil && test.wantCode != 0 {
+				t.Fatalf("Run() error = %v, want a *coreutils.ExitError", err)
+			}
+			if got := rt.WorkingDir; got != test.wantWd {
+				t.Errorf("WorkingDir = %q, want %q", got, test.wantWd)
+			}
+			if got := stderr(t, rt); got != test.wantErr {
+				t.Errorf("Run() stderr = %q, want %q", got, test.wantErr)
+			}
+		})
 	}
 }
 
