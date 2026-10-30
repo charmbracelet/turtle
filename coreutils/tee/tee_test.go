@@ -279,19 +279,19 @@ func TestRunOptions(t *testing.T) {
 		{
 			name:     "invalid option",
 			args:     []string{"-x"},
-			wantErr:  "tee: invalid option -- 'x'\n",
+			wantErr:  "tee: invalid option -- 'x'\nTry 'tee --help' for more information.\n",
 			wantExit: 2,
 		},
 		{
 			name:     "invalid option in a group",
 			args:     []string{"-ax"},
-			wantErr:  "tee: invalid option -- 'x'\n",
+			wantErr:  "tee: invalid option -- 'x'\nTry 'tee --help' for more information.\n",
 			wantExit: 2,
 		},
 		{
 			name:     "unknown long option",
 			args:     []string{"--foo"},
-			wantErr:  "tee: unrecognized option '--foo'\n",
+			wantErr:  "tee: unrecognized option '--foo'\nTry 'tee --help' for more information.\n",
 			wantExit: 2,
 		},
 	}
