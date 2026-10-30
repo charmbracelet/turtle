@@ -58,8 +58,7 @@ func (p *Prog) Run(ctx context.Context, args ...string) error {
 		}
 		if !opts.quiet {
 			p.errorf("%v", err)
-			var usage *usageError
-			if errors.As(err, &usage) {
+			if _, ok := errors.AsType[*usageError](err); ok {
 				stdopts.TryHelp(p.Runtime, "mktemp")
 			}
 		}
