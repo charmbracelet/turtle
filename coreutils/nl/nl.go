@@ -26,6 +26,7 @@ import (
 	"charm.land/snail/coreutils/internal/getopt"
 	"charm.land/snail/coreutils/internal/input"
 	"charm.land/snail/coreutils/internal/patherr"
+	"charm.land/snail/coreutils/internal/stdopts"
 )
 
 // Prog is the nl core utility.
@@ -47,6 +48,9 @@ func New(rt *coreutils.Runtime) coreutils.Program {
 //
 // Reading is interrupted when ctx is done, and the context error is returned.
 func (p *Prog) Run(ctx context.Context, args ...string) error {
+	if done, err := stdopts.Check(p.Runtime, "nl", usage, optSet, args); done {
+		return err
+	}
 	opts, operands, err := parseFlags(args)
 	if err != nil {
 		p.errorf("%v", err)
@@ -309,6 +313,39 @@ var longOptions = map[string]rune{
 	"starting-line-number": 'v',
 }
 
+// optSet describes the options of nl.
+var optSet = getopt.Set{Valued: "bdfhilnsvw", Long: longOptions}
+
+// usage describes the options of nl.
+const usage = `Usage: nl [OPTION]... [FILE]...
+Number lines of files and write to standard output.
+
+Each logical page has a header, body and footer section, delimited by input
+lines holding only '\:\:\:', '\:\:' or '\:', and numbered in its own style.
+The input files are treated as a single document.
+
+  -b, --body-numbering=STYLE      use STYLE for numbering body lines
+  -d, --section-delimiter=CC      use CC for logical page delimiters
+  -f, --footer-numbering=STYLE    use STYLE for numbering footer lines
+  -h, --header-numbering=STYLE    use STYLE for numbering header lines
+  -i, --line-increment=NUMBER     line number increment at each line
+  -l, --join-blank-lines=NUMBER   group of NUMBER empty lines counted as one
+  -n, --number-format=FORMAT      insert line numbers according to FORMAT
+  -p, --no-renumber               do not reset line numbers at each section
+  -s, --number-separator=STRING   add STRING after (possible) line number
+  -v, --starting-line-number=NUMBER
+                                  first line number of each logical page
+  -w, --number-width=NUMBER       use NUMBER columns for line numbers
+
+STYLE is one of: a (all lines), t (nonempty lines), n (no lines) or pBRE
+(number only lines matching the basic regular expression BRE). FORMAT is
+one of: ln (left justified), rn (right justified) or rz (right justified,
+with leading zeros).
+
+      --help     display this help and exit
+      --version  output version information and exit
+`
+
 // parseFlags parses the command line options. Option parsing stops at the
 // first operand or at "--".
 func parseFlags(args []string) (options, []string, error) {
@@ -325,7 +362,7 @@ func parseFlags(args []string) (options, []string, error) {
 		start:   1,
 		width:   6,
 	}
-	operands, err := getopt.Set{Valued: "bdfhilnsvw", Long: longOptions}.Parse(args, func(opt rune, value string) error {
+	operands, err := optSet.Parse(args, func(opt rune, value string) error {
 		var err error
 		switch opt {
 		case 'b':
