@@ -19,6 +19,7 @@ import (
 	"charm.land/snail/coreutils/internal/getopt"
 	"charm.land/snail/coreutils/internal/input"
 	"charm.land/snail/coreutils/internal/patherr"
+	"charm.land/snail/coreutils/internal/stdopts"
 )
 
 // Prog is the cmp core utility.
@@ -36,6 +37,9 @@ func New(rt *coreutils.Runtime) coreutils.Program {
 //
 // Reading is interrupted when ctx is done, and the context error is returned.
 func (p *Prog) Run(ctx context.Context, args ...string) error {
+	if done, err := stdopts.Check(p.Runtime, "cmp", usage, optSet, args); done {
+		return err
+	}
 	opts, operands, err := parseFlags(args)
 	if err != nil {
 		p.errorf("%v", err)
@@ -229,12 +233,29 @@ var longOptions = map[string]rune{
 	"silent":  's',
 }
 
+// optSet describes the options of cmp.
+var optSet = getopt.Set{Valued: "n", Long: longOptions}
+
+// usage describes the options of cmp.
+const usage = `Usage: cmp [OPTION]... FILE1 FILE2
+Compare two files byte by byte.
+
+An operand of "-" is the standard input. An exit status of 1 means the
+files differ, and 2 that an error happened.
+
+  -l, --verbose          output byte numbers and values of all differing bytes
+  -n, --bytes=N          compare at most N bytes
+  -s, --quiet, --silent  suppress all normal output
+      --help     display this help and exit
+      --version  output version information and exit
+`
+
 // parseFlags parses the command line options. Option parsing stops at the
 // first operand or at "--".
 func parseFlags(args []string) (options, []string, error) {
 	opts := options{bytes: -1}
 	var mode byte
-	operands, err := getopt.Set{Valued: "n", Long: longOptions}.Parse(args, func(opt rune, value string) error {
+	operands, err := optSet.Parse(args, func(opt rune, value string) error {
 		switch opt {
 		case 'l':
 			if mode != 0 && mode != 'l' {
