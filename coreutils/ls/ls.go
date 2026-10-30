@@ -34,6 +34,7 @@ import (
 
 	"charm.land/snail/coreutils"
 	"charm.land/snail/coreutils/internal/patherr"
+	"charm.land/snail/coreutils/internal/stdopts"
 )
 
 // Prog is the ls core utility.
@@ -50,9 +51,13 @@ func New(rt *coreutils.Runtime) coreutils.Program {
 // working directory when no operand is given. Listing stops when ctx is done,
 // and the context error is returned.
 func (p *Prog) Run(ctx context.Context, args ...string) error {
+	if done, err := stdopts.Check(p.Runtime, "ls", usage, optSet, args); done {
+		return err
+	}
 	opts, operands, err := parseFlags(args)
 	if err != nil {
 		p.errorf("%v", err)
+		stdopts.TryHelp(p.Runtime, "ls")
 		return &coreutils.ExitError{Code: 2}
 	}
 	if p.FS == nil {
