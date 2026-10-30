@@ -37,6 +37,8 @@ func (p *Prog) Run(ctx context.Context, args ...string) error {
 	}
 	opts, names, suffix, err := parseArgs(args)
 	if err != nil {
+		p.errorf("%v", err)
+		stdopts.TryHelp(p.Runtime, "basename")
 		return &coreutils.ExitError{Code: 2, Err: err}
 	}
 	sep := "\n"
@@ -92,6 +94,11 @@ func parseArgs(args []string) (options, []string, string, error) {
 		}
 	}
 	return opts, operands, opts.suffix, nil
+}
+
+// errorf writes a diagnostic message to standard error.
+func (p *Prog) errorf(format string, args ...any) {
+	fmt.Fprintf(p.Stderr, "basename: "+format+"\n", args...)
 }
 
 // basename returns the last component of path, with suffix removed when it's
