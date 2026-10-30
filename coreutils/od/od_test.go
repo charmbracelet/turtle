@@ -66,13 +66,13 @@ func TestRun(t *testing.T) {
 		{
 			name:     "invalid type is rejected",
 			args:     []string{"-t", "q"},
-			wantErr:  "od: invalid type string\n",
+			wantErr:  "od: invalid type string\nTry 'od --help' for more information.\n",
 			wantCode: 1,
 		},
 		{
 			name:     "unknown option is rejected",
 			args:     []string{"-q"},
-			wantErr:  "od: invalid option -- 'q'\n",
+			wantErr:  "od: invalid option -- 'q'\nTry 'od --help' for more information.\n",
 			wantCode: 1,
 		},
 	}
