@@ -333,6 +333,256 @@ func TestRunOptions(t *testing.T) {
 	}
 }
 
+func TestRunNumber(t *testing.T) {
+	tests := []testCase{
+		{
+			name:  "all lines are numbered",
+			stdin: strings.NewReader("a\nb\n"),
+			args:  []string{"-n"},
+			want:  "     1\ta\n     2\tb\n",
+		},
+		{
+			name:  "blank lines are numbered",
+			stdin: strings.NewReader("a\n\nb\n"),
+			args:  []string{"-n"},
+			want:  "     1\ta\n     2\t\n     3\tb\n",
+		},
+		{
+			name:  "a missing trailing newline is numbered",
+			stdin: strings.NewReader("a"),
+			args:  []string{"-n"},
+			want:  "     1\ta",
+		},
+		{
+			name:  "the long form numbers too",
+			stdin: strings.NewReader("a\n"),
+			args:  []string{"--number"},
+			want:  "     1\ta\n",
+		},
+		{
+			name:  "only non-blank lines are numbered",
+			stdin: strings.NewReader("a\n\nb\n"),
+			args:  []string{"-b"},
+			want:  "     1\ta\n\n     2\tb\n",
+		},
+		{
+			name:  "b overrides n",
+			stdin: strings.NewReader("a\n\nb\n"),
+			args:  []string{"-nb"},
+			want:  "     1\ta\n\n     2\tb\n",
+		},
+		{
+			name: "numbering continues across files",
+			fsys: fsx.MemFS{"a": {Data: []byte("a\n")}, "b": {Data: []byte("b\n")}},
+			args: []string{"-n", "a", "b"},
+			want: "     1\ta\n     2\tb\n",
+		},
+		{
+			name: "an unfinished line spans file boundaries",
+			fsys: fsx.MemFS{"a": {Data: []byte("a")}, "b": {Data: []byte("\n")}},
+			args: []string{"-n", "a", "b"},
+			want: "     1\ta\n",
+		},
+		{
+			name:  "an unfinished line spans the standard input and a file",
+			stdin: strings.NewReader("a"),
+			fsys:  fsx.MemFS{"b": {Data: []byte("b\n")}},
+			args:  []string{"-nE", "-", "b"},
+			want:  "     1\tab$\n",
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			runCase(t, test)
+		})
+	}
+
+	// The counter widens past the six-digit field.
+	t.Run("numbers widen past six digits", func(t *testing.T) {
+		stdout := new(bytes.Buffer)
+		pr := newPrinter(options{number: true}, stdout)
+		for range 999998 {
+			if err := pr.line([]byte("fill\n")); err != nil {
+				t.Fatal(err)
+			}
+		}
+		if err := pr.flush(); err != nil {
+			t.Fatal(err)
+		}
+		stdout.Reset()
+		for _, line := range [][]byte{[]byte("x\n"), []byte("y\n")} {
+			if err := pr.line(line); err != nil {
+				t.Fatal(err)
+			}
+		}
+		if err := pr.flush(); err != nil {
+			t.Fatal(err)
+		}
+		if want := "999999\tx\n1000000\ty\n"; stdout.String() != want {
+			t.Errorf("stdout = %q, want %q", stdout.String(), want)
+		}
+	})
+}
+
+func TestRunSqueeze(t *testing.T) {
+	tests := []testCase{
+		{
+			name:  "repeated blank lines become one",
+			stdin: strings.NewReader("a\n\n\n\nb\n"),
+			args:  []string{"-s"},
+			want:  "a\n\nb\n",
+		},
+		{
+			name:  "a single blank line is kept",
+			stdin: strings.NewReader("a\n\nb\n"),
+			args:  []string{"-s"},
+			want:  "a\n\nb\n",
+		},
+		{
+			name:  "leading blanks are squeezed",
+			stdin: strings.NewReader("\n\n\na\n"),
+			args:  []string{"-s"},
+			want:  "\na\n",
+		},
+		{
+			name:  "blank lines without a newline still squeeze",
+			stdin: strings.NewReader("a\n\n\n"),
+			args:  []string{"-s"},
+			want:  "a\n\n",
+		},
+		{
+			name:  "the long form squeezes too",
+			stdin: strings.NewReader("a\n\n\nb\n"),
+			args:  []string{"--squeeze-blank"},
+			want:  "a\n\nb\n",
+		},
+		{
+			name: "squeezing spans file boundaries",
+			fsys: fsx.MemFS{"a": {Data: []byte("a\n\n")}, "b": {Data: []byte("\nb\n")}},
+			args: []string{"-s", "a", "b"},
+			want: "a\n\nb\n",
+		},
+		{
+			name:  "squeeze with numbering",
+			stdin: strings.NewReader("a\n\n\n\nb\n"),
+			args:  []string{"-sn"},
+			want:  "     1\ta\n     2\t\n     3\tb\n",
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			runCase(t, test)
+		})
+	}
+}
+
+func TestRunShow(t *testing.T) {
+	tests := []testCase{
+		// -E.
+		{
+			name:  "line ends are marked",
+			stdin: strings.NewReader("a\n"),
+			args:  []string{"-E"},
+			want:  "a$\n",
+		},
+		{
+			name:  "a missing trailing newline is still marked",
+			stdin: strings.NewReader("a"),
+			args:  []string{"-E"},
+			want:  "a$",
+		},
+		// -T.
+		{
+			name:  "tabs are shown",
+			stdin: strings.NewReader("a\tb\n"),
+			args:  []string{"-T"},
+			want:  "a^Ib\n",
+		},
+		// -v.
+		{
+			name:  "control characters are shown",
+			stdin: strings.NewReader("a\x01b\n"),
+			args:  []string{"-v"},
+			want:  "a^Ab\n",
+		},
+		{
+			name:  "nul is shown",
+			stdin: strings.NewReader("\x00\n"),
+			args:  []string{"-v"},
+			want:  "^@\n",
+		},
+		{
+			name:  "delete is shown",
+			stdin: strings.NewReader("\x7f\n"),
+			args:  []string{"-v"},
+			want:  "^?\n",
+		},
+		{
+			name:  "tabs are kept by v",
+			stdin: strings.NewReader("a\tb\n"),
+			args:  []string{"-v"},
+			want:  "a\tb\n",
+		},
+		{
+			name:  "high bytes use the M- notation",
+			stdin: strings.NewReader("\x80\xff\n"),
+			args:  []string{"-v"},
+			want:  "M-^@M-^?\n",
+		},
+		{
+			name:  "printable multibyte characters pass through",
+			stdin: strings.NewReader("café\n"),
+			args:  []string{"-v"},
+			want:  "café\n",
+		},
+		{
+			name:  "invalid multibyte bytes use the M- notation",
+			stdin: strings.NewReader("\xc3\x29\n"),
+			args:  []string{"-v"},
+			want:  "M-C)\n",
+		},
+		// Combinations.
+		{
+			name:  "e is v plus E",
+			stdin: strings.NewReader("a\x01\n"),
+			args:  []string{"-e"},
+			want:  "a^A$\n",
+		},
+		{
+			name:  "t is v plus T",
+			stdin: strings.NewReader("a\tb\n"),
+			args:  []string{"-t"},
+			want:  "a^Ib\n",
+		},
+		{
+			name:  "A is vET",
+			stdin: strings.NewReader("a\tb\x7f\n"),
+			args:  []string{"-A"},
+			want:  "a^Ib^?$\n",
+		},
+		{
+			name:  "the long form of A",
+			stdin: strings.NewReader("a\n"),
+			args:  []string{"--show-all"},
+			want:  "a$\n",
+		},
+		{
+			name:  "show ends with numbering",
+			stdin: strings.NewReader("a\n"),
+			args:  []string{"-nE"},
+			want:  "     1\ta$\n",
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			runCase(t, test)
+		})
+	}
+}
+
 func TestRunErrors(t *testing.T) {
 	tests := []testCase{
 		{
@@ -378,8 +628,8 @@ func TestRunErrors(t *testing.T) {
 		},
 		{
 			name:     "unknown long option",
-			args:     []string{"--number"},
-			wantErr:  "cat: unrecognized option '--number'\n",
+			args:     []string{"--partial"},
+			wantErr:  "cat: unrecognized option '--partial'\n",
 			wantExit: 2,
 		},
 		{
