@@ -24,6 +24,9 @@ func TestParse(t *testing.T) {
 
 		// Epoch times.
 		{"epoch", "@1700000000", time.Unix(1700000000, 0)},
+		{"negative epoch fraction", "@-0.5", time.Unix(0, -500000000)},
+		{"the empty string is the beginning of today", "", time.Date(2024, 3, 15, 0, 0, 0, 0, time.UTC)},
+		{"blank is the empty string", "  ", time.Date(2024, 3, 15, 0, 0, 0, 0, time.UTC)},
 		{"epoch fraction", "@1700000000.5", time.Unix(1700000000, 500000000)},
 		{"negative epoch", "@-1", time.Unix(-1, 0)},
 
@@ -93,7 +96,6 @@ func TestParse(t *testing.T) {
 
 func TestParseErrors(t *testing.T) {
 	for _, in := range []string{
-		"",
 		"foo",
 		"5 furlongs",
 		"@abc",
