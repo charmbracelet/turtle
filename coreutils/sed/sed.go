@@ -19,6 +19,7 @@ import (
 	"charm.land/snail/coreutils"
 	"charm.land/snail/coreutils/internal/getopt"
 	"charm.land/snail/coreutils/internal/patherr"
+	"charm.land/snail/coreutils/internal/stdopts"
 )
 
 // errMissingScript reports that no script of editing commands was given,
@@ -41,6 +42,9 @@ func New(rt *coreutils.Runtime) coreutils.Program {
 //
 // Reading is interrupted when ctx is done, and the context error is returned.
 func (p *Prog) Run(ctx context.Context, args ...string) error {
+	if done, err := stdopts.Check(p.Runtime, "sed", usage, optSet, args); done {
+		return err
+	}
 	opts, operands, err := parseFlags(args)
 	if err != nil {
 		p.errorf("%v", err)
@@ -111,10 +115,27 @@ var longOptions = map[string]rune{
 	"in-place": 'i',
 }
 
+// optSet describes the options of sed.
+var optSet = getopt.Set{Valued: "ef", Optional: "i", Long: longOptions}
+
+// usage describes the options of sed.
+const usage = `Usage: sed [OPTION]... {script-only-if-no-other-script} [input-file]...
+Edit the standard input or the given files with a script of commands.
+
+  -n                    suppress automatic printing of the pattern space
+  -E                    use extended regular expressions in the script
+  -e script             add script to the commands to be executed
+  -f script-file        add the contents of script-file to the commands to
+                          be executed
+  -i[SUFFIX], --in-place[=SUFFIX]
+                        edit files in place, making a backup with SUFFIX
+      --help     display this help and exit
+      --version  output version information and exit
+`
+
 func parseFlags(args []string) (*options, []string, error) {
 	opts := &options{}
-	set := getopt.Set{Valued: "ef", Optional: "i", Long: longOptions}
-	operands, err := set.Parse(expandInPlace(args), func(opt rune, value string) error {
+	operands, err := optSet.Parse(expandInPlace(args), func(opt rune, value string) error {
 		switch opt {
 		case 'n':
 			opts.quiet = true
