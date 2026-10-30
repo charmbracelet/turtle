@@ -5,6 +5,9 @@ import (
 	"errors"
 	"io"
 	"io/fs"
+	"os"
+	"path/filepath"
+	"runtime"
 	"testing"
 
 	"charm.land/snail/coreutils"
@@ -22,6 +25,7 @@ type testCase struct {
 	umask    fs.FileMode
 	args     []string
 	want     map[string]fs.FileMode
+	wantOut  string
 	wantErr  string
 	wantExit int
 }
@@ -29,9 +33,9 @@ type testCase struct {
 func runCase(t *testing.T, test testCase) {
 	t.Helper()
 
-	stderr := new(bytes.Buffer)
+	stdout, stderr := new(bytes.Buffer), new(bytes.Buffer)
 	rt := &coreutils.Runtime{
-		Stdout: io.Discard,
+		Stdout: stdout,
 		Stderr: stderr,
 		FS:     test.files,
 		Umask:  test.umask,
@@ -42,12 +46,21 @@ func runCase(t *testing.T, test testCase) {
 	if code := exitCode(t, err); code != test.wantExit {
 		t.Errorf("Run() exit code = %d, want %d (error = %v)", code, test.wantExit, err)
 	}
+	if got := stdout.String(); got != test.wantOut {
+		t.Errorf("Run() stdout = %q, want %q", got, test.wantOut)
+	}
 	if got := stderr.String(); got != test.wantErr {
 		t.Errorf("Run() stderr = %q, want %q", got, test.wantErr)
 	}
 
 	for name, want := range test.want {
-		fi, err := fs.Stat(test.files, name)
+		var fi fs.FileInfo
+		var err error
+		if want.Type()&fs.ModeSymlink != 0 {
+			fi, err = test.files.Lstat(name)
+		} else {
+			fi, err = fs.Stat(test.files, name)
+		}
 		if err != nil {
 			t.Errorf("Stat(%q) error = %v", name, err)
 			continue
@@ -504,6 +517,11 @@ func TestRunRecursive(t *testing.T) {
 	})
 }
 
+// symlink is a symbolic link to a file of the tree.
+func symlink(target string) *fsx.MemFile {
+	return &fsx.MemFile{Data: []byte(target), Mode: fs.ModeSymlink | 0o777}
+}
+
 func TestRunLongOptions(t *testing.T) {
 	runTests(t, []testCase{
 		{
@@ -573,4 +591,377 @@ func TestRunGeneral(t *testing.T) {
 			wantExit: 1,
 		},
 	})
+}
+
+func TestRunReference(t *testing.T) {
+	runTests(t, []testCase{
+		{
+			name:  "uses the mode of the reference file",
+			files: fsx.MemFS{"ref": {Mode: 0o640}, "file.txt": {Mode: 0o600}},
+			args:  []string{"--reference=ref", "file.txt"},
+			want:  map[string]fs.FileMode{"file.txt": 0o640},
+		},
+		{
+			name:  "the reference can be a separate argument",
+			files: fsx.MemFS{"ref": {Mode: 0o640}, "file.txt": {Mode: 0o600}},
+			args:  []string{"--reference", "ref", "file.txt"},
+			want:  map[string]fs.FileMode{"file.txt": 0o640},
+		},
+		{
+			name:  "the mode applies to every file",
+			files: fsx.MemFS{"ref": {Mode: 0o600}, "a.txt": {Mode: 0o644}, "b.txt": {Mode: 0o755}},
+			args:  []string{"--reference=ref", "a.txt", "b.txt"},
+			want:  map[string]fs.FileMode{"a.txt": 0o600, "b.txt": 0o600},
+		},
+		{
+			name:  "the special bits are copied",
+			files: fsx.MemFS{"ref": {Mode: 0o755 | fs.ModeSetuid | fs.ModeSticky}, "file.txt": {Mode: 0o644}},
+			args:  []string{"--reference=ref", "file.txt"},
+			want:  map[string]fs.FileMode{"file.txt": 0o755 | fs.ModeSetuid | fs.ModeSticky},
+		},
+		{
+			name:  "a reference to a symbolic link is dereferenced",
+			files: fsx.MemFS{"ref": {Mode: 0o640}, "link": symlink("ref"), "file.txt": {Mode: 0o600}},
+			args:  []string{"--reference=link", "file.txt"},
+			want:  map[string]fs.FileMode{"file.txt": 0o640},
+		},
+		{
+			name:  "a reference can be combined with R",
+			files: fsx.MemFS{"ref": {Mode: 0o700}, "dir": {Mode: dir(0o755)}, "dir/a.txt": {Mode: 0o644}},
+			args:  []string{"-R", "--reference=ref", "dir"},
+			want: map[string]fs.FileMode{
+				"ref":       0o700,
+				"dir":       dir(0o700),
+				"dir/a.txt": 0o700,
+			},
+		},
+		{
+			// With --reference, every operand is a file: a mode-looking
+			// name is just a missing file.
+			name:     "a mode-looking operand is a file with --reference",
+			files:    fsx.MemFS{"ref": {Mode: 0o640}, "file.txt": {Mode: 0o644}},
+			args:     []string{"--reference=ref", "644", "file.txt"},
+			want:     map[string]fs.FileMode{"ref": 0o640, "file.txt": 0o640},
+			wantErr:  "chmod: 644: file does not exist\n",
+			wantExit: 1,
+		},
+		{
+			name:     "a missing reference file is an error",
+			files:    fsx.MemFS{"file.txt": {Mode: 0o644}},
+			args:     []string{"--reference=missing", "file.txt"},
+			want:     map[string]fs.FileMode{"file.txt": 0o644},
+			wantErr:  "chmod: failed to get attributes of missing: file does not exist\n",
+			wantExit: 1,
+		},
+		{
+			name:     "no operands is a usage error",
+			files:    fsx.MemFS{"ref": {Mode: 0o640}},
+			args:     []string{"--reference=ref"},
+			want:     map[string]fs.FileMode{"ref": 0o640},
+			wantErr:  "chmod: missing operand\n",
+			wantExit: 2,
+		},
+		{
+			name:  "a lone operand is a file, not a mode",
+			files: fsx.MemFS{"ref": {Mode: 0o640}, "u+x": {Mode: 0o600}},
+			args:  []string{"--reference=ref", "u+x"},
+			want:  map[string]fs.FileMode{"u+x": 0o640},
+		},
+		{
+			name:  "--reference works with the mode-like file x+y", // sanity: non-mode operand
+			files: fsx.MemFS{"ref": {Mode: 0o640}, "x+y": {Mode: 0o600}},
+			args:  []string{"--reference=ref", "x+y"},
+			want:  map[string]fs.FileMode{"x+y": 0o640},
+		},
+	})
+}
+
+func TestRunVerbose(t *testing.T) {
+	runTests(t, []testCase{
+		{
+			name:    "v reports a change",
+			files:   fsx.MemFS{"file.txt": {Mode: 0o600}},
+			args:    []string{"-v", "644", "file.txt"},
+			want:    map[string]fs.FileMode{"file.txt": 0o644},
+			wantOut: "mode of 'file.txt' changed from 0600 (rw-------) to 0644 (rw-r--r--)\n",
+		},
+		{
+			name:    "v reports a retained mode",
+			files:   fsx.MemFS{"file.txt": {Mode: 0o644}},
+			args:    []string{"-v", "644", "file.txt"},
+			want:    map[string]fs.FileMode{"file.txt": 0o644},
+			wantOut: "mode of 'file.txt' retained as 0644 (rw-r--r--)\n",
+		},
+		{
+			name:    "c reports only the files whose mode changed",
+			files:   fsx.MemFS{"a.txt": {Mode: 0o600}, "b.txt": {Mode: 0o644}},
+			args:    []string{"-c", "644", "a.txt", "b.txt"},
+			want:    map[string]fs.FileMode{"a.txt": 0o644, "b.txt": 0o644},
+			wantOut: "mode of 'a.txt' changed from 0600 (rw-------) to 0644 (rw-r--r--)\n",
+		},
+		{
+			name:  "c reports nothing when no mode changes",
+			files: fsx.MemFS{"file.txt": {Mode: 0o644}},
+			args:  []string{"-c", "644", "file.txt"},
+			want:  map[string]fs.FileMode{"file.txt": 0o644},
+		},
+		{
+			name:  "without c or v nothing is reported",
+			files: fsx.MemFS{"file.txt": {Mode: 0o600}},
+			args:  []string{"644", "file.txt"},
+			want:  map[string]fs.FileMode{"file.txt": 0o644},
+		},
+		{
+			name:    "the last of c and v wins",
+			files:   fsx.MemFS{"file.txt": {Mode: 0o644}},
+			args:    []string{"-c", "-v", "644", "file.txt"},
+			want:    map[string]fs.FileMode{"file.txt": 0o644},
+			wantOut: "mode of 'file.txt' retained as 0644 (rw-r--r--)\n",
+		},
+		{
+			name:  "the last of v and c wins",
+			files: fsx.MemFS{"file.txt": {Mode: 0o644}},
+			args:  []string{"-v", "-c", "644", "file.txt"},
+			want:  map[string]fs.FileMode{"file.txt": 0o644},
+		},
+		{
+			name:    "the long options work",
+			files:   fsx.MemFS{"file.txt": {Mode: 0o600}},
+			args:    []string{"--changes", "644", "file.txt"},
+			want:    map[string]fs.FileMode{"file.txt": 0o644},
+			wantOut: "mode of 'file.txt' changed from 0600 (rw-------) to 0644 (rw-r--r--)\n",
+		},
+		{
+			name:    "v reports the special bits like ls does",
+			files:   fsx.MemFS{"file.txt": {Mode: 0o644}},
+			args:    []string{"-v", "4755", "file.txt"},
+			want:    map[string]fs.FileMode{"file.txt": 0o755 | fs.ModeSetuid},
+			wantOut: "mode of 'file.txt' changed from 0644 (rw-r--r--) to 4755 (rwsr-xr-x)\n",
+		},
+		{
+			name:    "v reports the special bits without execute like ls does",
+			files:   fsx.MemFS{"file.txt": {Mode: 0o644}},
+			args:    []string{"-v", "2644", "file.txt"},
+			want:    map[string]fs.FileMode{"file.txt": 0o644 | fs.ModeSetgid},
+			wantOut: "mode of 'file.txt' changed from 0644 (rw-r--r--) to 2644 (rw-r-Sr--)\n",
+		},
+		{
+			name:    "v reports the sticky bit like ls does",
+			files:   fsx.MemFS{"dir": {Mode: dir(0o755)}},
+			args:    []string{"-v", "1755", "dir"},
+			want:    map[string]fs.FileMode{"dir": dir(0o755) | fs.ModeSticky},
+			wantOut: "mode of 'dir' changed from 0755 (rwxr-xr-x) to 1755 (rwxr-xr-t)\n",
+		},
+		{
+			name:    "v reports the operand as given",
+			files:   fsx.MemFS{"file.txt": {Mode: 0o600}},
+			args:    []string{"-v", "644", "./file.txt"},
+			want:    map[string]fs.FileMode{"file.txt": 0o644},
+			wantOut: "mode of './file.txt' changed from 0600 (rw-------) to 0644 (rw-r--r--)\n",
+		},
+		{
+			name:    "v with a symbolic mode reports the resulting mode",
+			files:   fsx.MemFS{"file.txt": {Mode: 0o600}},
+			args:    []string{"-v", "g+r,o+r", "file.txt"},
+			want:    map[string]fs.FileMode{"file.txt": 0o644},
+			wantOut: "mode of 'file.txt' changed from 0600 (rw-------) to 0644 (rw-r--r--)\n",
+		},
+		{
+			name:    "v with --reference reports the change",
+			files:   fsx.MemFS{"ref": {Mode: 0o640}, "file.txt": {Mode: 0o600}},
+			args:    []string{"-v", "--reference=ref", "file.txt"},
+			want:    map[string]fs.FileMode{"file.txt": 0o640},
+			wantOut: "mode of 'file.txt' changed from 0600 (rw-------) to 0640 (rw-r-----)\n",
+		},
+	})
+}
+
+func TestRunVerboseRecursive(t *testing.T) {
+	tree := func() fsx.MemFS {
+		return fsx.MemFS{
+			"dir":           {Mode: dir(0o755)},
+			"dir/a.txt":     {Mode: 0o644},
+			"dir/sub":       {Mode: dir(0o755)},
+			"dir/sub/b.txt": {Mode: 0o600},
+		}
+	}
+
+	runTests(t, []testCase{
+		{
+			name:  "v reports every file of the walk",
+			files: tree(),
+			args:  []string{"-Rv", "700", "dir"},
+			want: map[string]fs.FileMode{
+				"dir":           dir(0o700),
+				"dir/a.txt":     0o700,
+				"dir/sub":       dir(0o700),
+				"dir/sub/b.txt": 0o700,
+			},
+			wantOut: "mode of 'dir' changed from 0755 (rwxr-xr-x) to 0700 (rwx------)\n" +
+				"mode of 'dir/a.txt' changed from 0644 (rw-r--r--) to 0700 (rwx------)\n" +
+				"mode of 'dir/sub' changed from 0755 (rwxr-xr-x) to 0700 (rwx------)\n" +
+				"mode of 'dir/sub/b.txt' changed from 0600 (rw-------) to 0700 (rwx------)\n",
+		},
+		{
+			name:  "c reports only the files whose mode changed",
+			files: tree(),
+			args:  []string{"-Rc", "a+X", "dir"},
+			want: map[string]fs.FileMode{
+				"dir":           dir(0o755),
+				"dir/a.txt":     0o644,
+				"dir/sub":       dir(0o755),
+				"dir/sub/b.txt": 0o600,
+			},
+		},
+	})
+}
+
+func TestRunRecursiveSymlinks(t *testing.T) {
+	runTests(t, []testCase{
+		{
+			name: "R ignores a symbolic link of the walk",
+			files: fsx.MemFS{
+				"dir":       {Mode: dir(0o755)},
+				"dir/a.txt": {Mode: 0o644},
+				"dir/link":  symlink("a.txt"),
+			},
+			args: []string{"-R", "700", "dir"},
+			want: map[string]fs.FileMode{
+				"dir":       dir(0o700),
+				"dir/a.txt": 0o700,
+				"dir/link":  fs.ModeSymlink | 0o777,
+			},
+		},
+		{
+			name: "R ignores a dangling symbolic link",
+			files: fsx.MemFS{
+				"dir":       {Mode: dir(0o755)},
+				"dir/a.txt": {Mode: 0o644},
+				"dir/link":  symlink("missing"),
+			},
+			args: []string{"-R", "700", "dir"},
+			want: map[string]fs.FileMode{
+				"dir":       dir(0o700),
+				"dir/a.txt": 0o700,
+				"dir/link":  fs.ModeSymlink | 0o777,
+			},
+		},
+		{
+			name: "R does not act on what a link of the walk points at",
+			files: fsx.MemFS{
+				"dir":      {Mode: dir(0o755)},
+				"dir/link": symlink("target"),
+				"target":   {Mode: 0o600},
+			},
+			args: []string{"-R", "700", "dir"},
+			want: map[string]fs.FileMode{
+				"dir":      dir(0o700),
+				"dir/link": fs.ModeSymlink | 0o777,
+				"target":   0o600,
+			},
+		},
+		{
+			name: "R follows a symbolic link operand to a directory, like -H",
+			files: fsx.MemFS{
+				"dir":       {Mode: dir(0o755)},
+				"dir/a.txt": {Mode: 0o644},
+				"dlink":     symlink("dir"),
+			},
+			args: []string{"-R", "700", "dlink"},
+			want: map[string]fs.FileMode{
+				"dir":       dir(0o700),
+				"dir/a.txt": 0o700,
+				"dlink":     fs.ModeSymlink | 0o777,
+			},
+		},
+		{
+			name: "R does not follow a symbolic link to a directory",
+			files: fsx.MemFS{
+				"dir":       {Mode: dir(0o755)},
+				"dir/a.txt": {Mode: 0o644},
+				"dir/sub":   {Mode: dir(0o755)},
+				"dir/link":  symlink("sub"),
+			},
+			args: []string{"-R", "700", "dir"},
+			want: map[string]fs.FileMode{
+				"dir":       dir(0o700),
+				"dir/a.txt": 0o700,
+				"dir/sub":   dir(0o700),
+				"dir/link":  fs.ModeSymlink | 0o777,
+			},
+		},
+		{
+			name: "v does not report the links ignored in the walk",
+			files: fsx.MemFS{
+				"dir":       {Mode: dir(0o755)},
+				"dir/a.txt": {Mode: 0o644},
+				"dir/link":  symlink("a.txt"),
+			},
+			args: []string{"-Rv", "700", "dir"},
+			want: map[string]fs.FileMode{
+				"dir":       dir(0o700),
+				"dir/a.txt": 0o700,
+				"dir/link":  fs.ModeSymlink | 0o777,
+			},
+			wantOut: "mode of 'dir' changed from 0755 (rwxr-xr-x) to 0700 (rwx------)\n" +
+				"mode of 'dir/a.txt' changed from 0644 (rw-r--r--) to 0700 (rwx------)\n",
+		},
+	})
+}
+
+func TestRunSymlinksOsFS(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("symbolic links need privileges on Windows")
+	}
+
+	dir := t.TempDir()
+	must := func(err error) {
+		t.Helper()
+		if err != nil {
+			t.Fatalf("setup: %v", err)
+		}
+	}
+	must(os.Mkdir(filepath.Join(dir, "sub"), 0o755))
+	must(os.WriteFile(filepath.Join(dir, "a.txt"), nil, 0o644))
+	must(os.WriteFile(filepath.Join(dir, "sub", "b.txt"), nil, 0o600))
+	must(os.Symlink("a.txt", filepath.Join(dir, "link.txt")))
+	must(os.Symlink("a.txt", filepath.Join(dir, "sub", "link.txt")))
+
+	// The mode a symbolic link shows is platform-specific, so the links
+	// are expected to keep whatever mode they were created with.
+	linkMode := func(name string) fs.FileMode {
+		fi, err := os.Lstat(filepath.Join(dir, name))
+		must(err)
+		return fi.Mode()
+	}
+	link, subLink := linkMode("link.txt"), linkMode("sub/link.txt")
+
+	stderr := new(bytes.Buffer)
+	rt := &coreutils.Runtime{
+		Stdout: io.Discard,
+		Stderr: stderr,
+		FS:     fsx.OsFS(dir),
+	}
+	if err := New(rt).Run(t.Context(), "-R", "700", "."); err != nil {
+		t.Errorf("Run() error = %v, stderr = %q", err, stderr)
+	}
+
+	want := map[string]fs.FileMode{
+		".":            fs.ModeDir | 0o700,
+		"a.txt":        0o700,
+		"sub":          fs.ModeDir | 0o700,
+		"sub/b.txt":    0o700,
+		"link.txt":     link,
+		"sub/link.txt": subLink,
+	}
+	for name, mode := range want {
+		fi, err := os.Lstat(filepath.Join(dir, name))
+		if err != nil {
+			t.Errorf("Lstat(%q) error = %v", name, err)
+			continue
+		}
+		if got := fi.Mode(); got != mode {
+			t.Errorf("%s mode = %v, want %v", name, got, mode)
+		}
+	}
 }
