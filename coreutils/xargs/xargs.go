@@ -1,8 +1,15 @@
 // Package xargs implements the POSIX xargs utility.
 //
-// It reads arguments from the standard input, delimited by unquoted blanks,
-// newlines or null bytes, and invokes the utility operand with them, in
-// groups that fit the count and length limits given by the options.
+// It reads arguments from the standard input or the file of the -a option,
+// delimited by unquoted blanks, newlines, null bytes or a given delimiter,
+// and invokes the utility operand with them, in groups that fit the count
+// and length limits given by the options.
+//
+// The GNU extensions are supported as well: -0 (--null), -a (--arg-file),
+// -d (--delimiter), --replace, --max-lines, --max-args, --max-chars, --eof,
+// --no-run-if-empty, --interactive, --exit and --verbose. The -P
+// (--max-procs), -o (--open-tty), --show-limits and --process-slot-var
+// options are not implemented.
 package xargs
 
 import (
@@ -12,6 +19,7 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"path/filepath"
 	"runtime"
 	"strconv"
 	"strings"
@@ -20,6 +28,7 @@ import (
 
 	"charm.land/snail/coreutils/internal/ctxio"
 	"charm.land/snail/coreutils/internal/getopt"
+	"charm.land/snail/coreutils/internal/patherr"
 )
 
 // maxLen is the largest command line length supported. It's the default
@@ -49,10 +58,10 @@ func New(rt *coreutils.Runtime) coreutils.Program {
 	return &Prog{Runtime: rt}
 }
 
-// Run invokes the utility operand with the arguments read from the standard
-// input, as many per invocation as the options allow. The utility defaults
-// to echo, and an invocation that exits with 255 stops the processing, as
-// do the utilities that cannot be run at all.
+// Run invokes the utility operand with the arguments read from the input
+// source, as many per invocation as the options allow. The utility defaults
+// to echo, and an invocation that exits with 255 or 125 stops the
+// processing, as do the utilities that cannot be run at all.
 //
 // Invocations stop when ctx is done, and the context error is returned.
 func (p *Prog) Run(ctx context.Context, args ...string) error {
@@ -65,9 +74,11 @@ func (p *Prog) Run(ctx context.Context, args ...string) error {
 		p.errorf("no command execution available")
 		return &coreutils.ExitError{Code: 1}
 	}
-	if p.Stdin == nil {
-		p.errorf("no standard input available")
-		return &coreutils.ExitError{Code: 1}
+	if !opts.argGiven || opts.argFile == "-" {
+		if p.Stdin == nil {
+			p.errorf("no standard input available")
+			return &coreutils.ExitError{Code: 1}
+		}
 	}
 	utility := "echo"
 	if len(operands) > 0 {
@@ -79,7 +90,7 @@ func (p *Prog) Run(ctx context.Context, args ...string) error {
 		if ctx.Err() != nil {
 			return ctx.Err()
 		}
-		p.errorf("standard input: %v", err)
+		p.errorf("%v", err)
 		return &coreutils.ExitError{Code: 1}
 	}
 
@@ -121,6 +132,11 @@ func (p *Prog) Run(ctx context.Context, args ...string) error {
 		}
 		switch status {
 		case 0:
+		case 125:
+			// An exit status of 125 means the utility was terminated by
+			// a signal, so like 255 it stops the processing.
+			p.errorf("%s exited with status 125", utility)
+			return &coreutils.ExitError{Code: 125}
 		case 255:
 			p.errorf("%s exited with status 255", utility)
 			return &coreutils.ExitError{Code: 124}
@@ -195,23 +211,33 @@ func readLine(r io.Reader) ([]byte, error) {
 	}
 }
 
-// readArgs reads the arguments of the invocations from the standard input,
-// delimited as the options require, and stops at the logical end-of-file
-// string when it's enabled. Null-delimited input isn't checked for it, as
-// the combination of -0 and -E is unspecified.
+// readArgs reads the arguments of the invocations from the input source,
+// the file of the -a option or the standard input, delimited as the options
+// require, and stops at the logical end-of-file string when it's enabled.
+// Null- and delimiter-separated input isn't checked for it, as the -0 and
+// -d options disable the string.
 func (p *Prog) readArgs(ctx context.Context, opts options) ([]string, error) {
-	data, err := io.ReadAll(ctxio.NewReader(ctx, p.Stdin))
+	in, closer, err := p.openInput(opts.argFile, opts.argGiven)
 	if err != nil {
 		return nil, err
+	}
+	if closer != nil {
+		defer closer.Close()
+	}
+	data, err := io.ReadAll(ctxio.NewReader(ctx, in))
+	if err != nil {
+		return nil, fmt.Errorf("%s: %v", inputName(opts.argFile, opts.argGiven), err)
 	}
 	if err := ctx.Err(); err != nil {
 		return nil, err
 	}
-	eof := ""
-	if !opts.zero {
-		eof = opts.eof
+	eof := opts.eof
+	if opts.zero || opts.delimSet {
+		eof = ""
 	}
 	switch {
+	case opts.delimSet:
+		return splitDelim(ctx, data, opts.delim)
 	case opts.zero:
 		return splitNull(ctx, data)
 	case opts.replstr != "":
@@ -221,6 +247,31 @@ func (p *Prog) readArgs(ctx context.Context, opts options) ([]string, error) {
 	default:
 		return tokenize(ctx, data, eof)
 	}
+}
+
+// openInput returns the reader the items are read from, and the closer to
+// call when it's done: the standard input, or the file of the -a option,
+// "-" denoting the standard input.
+func (p *Prog) openInput(file string, given bool) (io.Reader, io.Closer, error) {
+	if !given || file == "-" {
+		return p.Stdin, nil, nil
+	}
+	if p.FS == nil {
+		return nil, nil, fmt.Errorf("%s: no file system available", file)
+	}
+	f, err := p.FS.Open(filepath.ToSlash(p.ResolvePath(file)))
+	if err != nil {
+		return nil, nil, fmt.Errorf("%s: %v", file, patherr.Unwrap(err))
+	}
+	return f, f, nil
+}
+
+// inputName returns the name the input source has in diagnostics.
+func inputName(file string, given bool) string {
+	if !given || file == "-" {
+		return "standard input"
+	}
+	return file
 }
 
 // errorf writes a diagnostic message to the standard error.
@@ -233,8 +284,12 @@ func (p *Prog) errorf(format string, args ...any) {
 
 // options holds the parsed command line options.
 type options struct {
-	eof      string // logical end-of-file string, "" when disabled
+	eof      string // -E, "" when disabled
 	zero     bool   // -0
+	argFile  string // -a, "-" meaning the standard input
+	argGiven bool   // whether -a was given, so an empty name is a name
+	delimSet bool   // -d, also set (and zero cleared) by the last of the two
+	delim    byte   // -d
 	replstr  string // -I
 	maxLines int    // -L
 	maxArgs  int    // -n
@@ -251,31 +306,72 @@ func (o options) exitIfBig() bool {
 	return o.exit || o.replstr != ""
 }
 
+// The long options --eof, --replace and --max-lines take an optional
+// option-argument, which the short forms -E, -I and -L require. The long
+// forms have no short equivalent with those semantics, so they map to
+// pseudo-runes kept above the bytes a group of short options can hold.
+const (
+	optEof      rune = 0x100 + iota // --eof[=eof-str]
+	optReplace                      // --replace[=replace-str]
+	optMaxLines                     // --max-lines[=max-lines]
+)
+
+// longOptions maps the long options of xargs to the short ones they stand
+// for.
+var longOptions = map[string]rune{
+	"null":            '0',
+	"arg-file":        'a',
+	"delimiter":       'd',
+	"eof":             optEof,
+	"replace":         optReplace,
+	"max-lines":       optMaxLines,
+	"max-args":        'n',
+	"interactive":     'p',
+	"no-run-if-empty": 'r',
+	"max-chars":       's',
+	"verbose":         't',
+	"exit":            'x',
+}
+
 // parseFlags parses the options and operands. The -I, -L and -n options are
 // mutually exclusive, and the last one given wins. Option parsing stops at
 // the first operand, the utility to invoke, or at "--".
 func parseFlags(args []string) (options, []string, error) {
 	var sizeSet bool
-	opts := options{eof: "_", size: maxLen}
-	operands, err := getopt.Set{Valued: "EILns"}.Parse(args, func(opt rune, value string) error {
+	opts := options{size: maxLen}
+	operands, err := getopt.Set{
+		Valued:   "aEdILns",
+		Optional: string(optEof) + string(optReplace) + string(optMaxLines),
+		Long:     longOptions,
+	}.Parse(args, func(opt rune, value string) error {
 		switch opt {
-		case 'E':
+		case 'E', optEof:
 			opts.eof = value
-		case 'I':
+		case 'I', optReplace:
+			if opt == optReplace && value == "" {
+				// The option-argument of --replace is optional,
+				// defaulting to "{}".
+				value = "{}"
+			}
 			if value == "" {
 				return errors.New("value for -I option should not be empty")
 			}
 			opts.replstr = value
 			opts.maxArgs, opts.maxLines = 0, 0
-		case 'L':
-			n, err := parseNumber(opt, value)
+		case 'L', optMaxLines:
+			if opt == optMaxLines && value == "" {
+				// The option-argument of --max-lines is optional,
+				// defaulting to one line.
+				value = "1"
+			}
+			n, err := parseNumber(optName(opt), value)
 			if err != nil {
 				return err
 			}
 			opts.maxLines = n
 			opts.replstr, opts.maxArgs = "", 0
 		case 'n':
-			n, err := parseNumber(opt, value)
+			n, err := parseNumber(optName(opt), value)
 			if err != nil {
 				return err
 			}
@@ -296,7 +392,15 @@ func parseFlags(args []string) (options, []string, error) {
 		case 'x':
 			opts.exit = true
 		case '0':
-			opts.zero = true
+			opts.zero, opts.delimSet = true, false
+		case 'a':
+			opts.argFile, opts.argGiven = value, true
+		case 'd':
+			d, err := parseDelim(value)
+			if err != nil {
+				return err
+			}
+			opts.delimSet, opts.delim, opts.zero = true, d, false
 		default:
 			return getopt.InvalidOption(opt)
 		}
@@ -308,12 +412,24 @@ func parseFlags(args []string) (options, []string, error) {
 	return opts, operands, err
 }
 
+// optName returns the name an option has in the option-argument diagnostics.
+func optName(opt rune) string {
+	switch opt {
+	case optMaxLines:
+		return "--max-lines"
+	case 'n':
+		return "-n"
+	default:
+		return "-" + string(opt)
+	}
+}
+
 // parseNumber parses the option-argument of the -L and -n options: a
 // positive decimal integer.
-func parseNumber(opt rune, value string) (int, error) {
+func parseNumber(name, value string) (int, error) {
 	n, err := parseDigits(value)
 	if err != nil || n < 1 {
-		return 0, fmt.Errorf("value for -%c option should be a positive integer", opt)
+		return 0, fmt.Errorf("value for %s option should be a positive integer", name)
 	}
 	return n, nil
 }
@@ -460,6 +576,104 @@ func cmdLen(utility string, args []string) int {
 		n += len(arg) + 1
 	}
 	return n
+}
+
+// parseDelim parses the option-argument of the -d option: a single
+// character, or a backslash escape understood as the printf command
+// understands them. Multibyte characters are not supported.
+func parseDelim(value string) (byte, error) {
+	if len(value) == 1 {
+		return value[0], nil
+	}
+	if len(value) > 1 && value[0] == '\\' {
+		if b, err := parseEscape(value); err == nil {
+			return b, nil
+		}
+	}
+	return 0, errors.New("value for -d option should be a single character or an escape sequence")
+}
+
+// parseEscape parses a backslash escape sequence: the single-character
+// escapes, or an octal or hexadecimal character code.
+func parseEscape(value string) (byte, error) {
+	invalid := fmt.Errorf("invalid escape sequence %s in the -d option value", value)
+	if len(value) == 2 {
+		switch value[1] {
+		case 'a':
+			return '\a', nil
+		case 'b':
+			return '\b', nil
+		case 'f':
+			return '\f', nil
+		case 'n':
+			return '\n', nil
+		case 'r':
+			return '\r', nil
+		case 't':
+			return '\t', nil
+		case 'v':
+			return '\v', nil
+		case '\\':
+			return '\\', nil
+		}
+	}
+	digits := value[1:]
+	base := 8
+	if value[1] == 'x' {
+		digits = value[2:]
+		base = 16
+	}
+	if digits == "" {
+		return 0, invalid
+	}
+	for i := 0; i < len(digits); i++ {
+		if !isDigit(digits[i], base) {
+			return 0, invalid
+		}
+	}
+	n, err := strconv.ParseUint(digits, base, 8)
+	if err != nil {
+		return 0, invalid
+	}
+	return byte(n), nil
+}
+
+// isDigit reports whether c is a digit of the given base.
+func isDigit(c byte, base int) bool {
+	switch {
+	case c >= '0' && c <= '9':
+		return int(c-'0') < base
+	case base == 16 && c >= 'a' && c <= 'f':
+		return true
+	case base == 16 && c >= 'A' && c <= 'F':
+		return true
+	default:
+		return false
+	}
+}
+
+// splitDelim splits the input at every occurrence of the delimiter byte of
+// the -d option, as GNU xargs does: every character is taken literally, each
+// delimiter terminates an argument, and a final run of bytes without one is
+// still used as the last argument. Parsing stops when ctx is done.
+func splitDelim(ctx context.Context, data []byte, delim byte) ([]string, error) {
+	var items []string
+	start := 0
+	for i := range data {
+		if i%checkEvery == 0 {
+			if err := ctx.Err(); err != nil {
+				return nil, err
+			}
+		}
+		if data[i] == delim {
+			items = append(items, string(data[start:i]))
+			start = i + 1
+		}
+	}
+	if start < len(data) {
+		items = append(items, string(data[start:]))
+	}
+	return items, nil
 }
 
 // splitNull splits the input at every null byte, as the -0 option requires.
