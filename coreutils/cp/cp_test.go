@@ -7,6 +7,7 @@ import (
 	"io"
 	"io/fs"
 	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 	"time"
@@ -31,6 +32,8 @@ type testCase struct {
 	want     map[string]string
 	wantMode map[string]fs.FileMode
 	wantTime map[string]time.Time
+	wantLink map[string]string
+	wantOut  string
 	present  []string
 	absent   []string
 	wantErr  string
@@ -40,16 +43,17 @@ type testCase struct {
 func runCase(t *testing.T, test testCase) {
 	t.Helper()
 
-	fsys := test.fsys
-	if fsys == nil {
-		fsys = test.files
+	folder := test.fsys
+	if folder == nil {
+		folder = test.files
 	}
+	stdout := new(bytes.Buffer)
 	stderr := new(bytes.Buffer)
 	rt := &coreutils.Runtime{
 		Stdin:      strings.NewReader(test.stdin),
-		Stdout:     io.Discard,
+		Stdout:     stdout,
 		Stderr:     stderr,
-		FS:         fsys,
+		FS:         folder,
 		WorkingDir: test.wd,
 		Umask:      test.umask,
 	}
@@ -61,6 +65,9 @@ func runCase(t *testing.T, test testCase) {
 	}
 	if got := stderr.String(); got != test.wantErr {
 		t.Errorf("Run() stderr = %q, want %q", got, test.wantErr)
+	}
+	if got := stdout.String(); got != test.wantOut {
+		t.Errorf("Run() stdout = %q, want %q", got, test.wantOut)
 	}
 
 	for name, want := range test.want {
@@ -99,6 +106,24 @@ func runCase(t *testing.T, test testCase) {
 	for _, name := range test.present {
 		if _, err := fs.Stat(test.files, name); err != nil {
 			t.Errorf("Stat(%q) error = %v, want it to still exist", name, err)
+		}
+	}
+	for name, want := range test.wantLink {
+		got, err := test.files.ReadLink(name)
+		if err != nil {
+			t.Errorf("ReadLink(%q) error = %v", name, err)
+			continue
+		}
+		if got != want {
+			t.Errorf("ReadLink(%q) = %q, want %q", name, got, want)
+		}
+		fi, err := test.files.Lstat(name)
+		if err != nil {
+			t.Errorf("Lstat(%q) error = %v", name, err)
+			continue
+		}
+		if fi.Mode()&fs.ModeSymlink == 0 {
+			t.Errorf("Lstat(%q) mode = %v, want a symbolic link", name, fi.Mode())
 		}
 	}
 	for _, name := range test.absent {
@@ -407,6 +432,12 @@ func TestRunRecursive(t *testing.T) {
 			files: fsx.MemFS{"a.txt": {Data: []byte("new")}, "b.txt": {Data: []byte("old")}},
 			args:  []string{"-R", "a.txt", "b.txt"},
 			want:  map[string]string{"b.txt": "new"},
+		},
+		{
+			name:  "the r option copies a tree like -R",
+			files: fsx.MemFS{"d/f.txt": {Data: []byte("f")}, "d/sub/g.txt": {Data: []byte("g")}},
+			args:  []string{"-r", "d", "e"},
+			want:  map[string]string{"e/f.txt": "f", "e/sub/g.txt": "g"},
 		},
 		{
 			name:     "a directory into itself is an error",
@@ -853,14 +884,6 @@ func TestRunErrors(t *testing.T) {
 			wantExit: 2,
 		},
 		{
-			name:     "the r option is not supported",
-			files:    fsx.MemFS{"d/f.txt": {}},
-			args:     []string{"-r", "d", "e"},
-			absent:   []string{"e"},
-			wantErr:  "cp: invalid option -- 'r'\n",
-			wantExit: 2,
-		},
-		{
 			name:     "an unrecognized long option",
 			files:    fsx.MemFS{"a.txt": {Data: []byte("x")}},
 			args:     []string{"--bogus", "a.txt", "b.txt"},
@@ -923,5 +946,684 @@ func TestRunContext(t *testing.T) {
 	err := New(rt).Run(ctx, "a.txt", "b.txt")
 	if !errors.Is(err, context.Canceled) {
 		t.Errorf("Run() error = %v, want context.Canceled", err)
+	}
+}
+
+func TestRunArchive(t *testing.T) {
+	tests := []testCase{
+		{
+			name:     "copies a tree preserving mode and times",
+			files:    fsx.MemFS{"d": {Mode: fs.ModeDir | 0o751, ModTime: oldTime}, "d/f.txt": {Data: []byte("f"), Mode: 0o640, ModTime: oldTime}},
+			args:     []string{"-a", "d", "e"},
+			want:     map[string]string{"e/f.txt": "f"},
+			wantMode: map[string]fs.FileMode{"e": fs.ModeDir | 0o751, "e/f.txt": 0o640},
+			wantTime: map[string]time.Time{"e": oldTime, "e/f.txt": oldTime},
+		},
+		{
+			name:     "the umask doesn't apply",
+			files:    fsx.MemFS{"d": {Mode: fs.ModeDir | 0o777}, "d/f.txt": {Data: []byte("x"), Mode: 0o666}},
+			umask:    0o022,
+			args:     []string{"-a", "d", "e"},
+			wantMode: map[string]fs.FileMode{"e": fs.ModeDir | 0o777, "e/f.txt": 0o666},
+		},
+		{
+			name:     "a symbolic link operand is copied as a link",
+			files:    fsx.MemFS{"a.txt": {Data: []byte("x")}, "link": {Mode: fs.ModeSymlink, Data: []byte("a.txt")}},
+			args:     []string{"-a", "link", "b"},
+			wantLink: map[string]string{"b": "a.txt"},
+		},
+		{
+			name:     "the links of a hierarchy are kept",
+			files:    fsx.MemFS{"d/a.txt": {Data: []byte("x")}, "d/link": {Mode: fs.ModeSymlink, Data: []byte("a.txt")}},
+			args:     []string{"-a", "d", "e"},
+			wantLink: map[string]string{"e/link": "a.txt"},
+		},
+		{
+			name:  "the long option works",
+			files: fsx.MemFS{"d/f.txt": {Data: []byte("f")}},
+			args:  []string{"--archive", "d", "e"},
+			want:  map[string]string{"e/f.txt": "f"},
+		},
+		{
+			name:  "a later -L still dereferences",
+			files: fsx.MemFS{"a.txt": {Data: []byte("x")}, "link": {Mode: fs.ModeSymlink, Data: []byte("a.txt")}},
+			args:  []string{"-aL", "link", "b"},
+			want:  map[string]string{"b": "x"},
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			runCase(t, test)
+		})
+	}
+}
+
+func TestRunNoClobber(t *testing.T) {
+	tests := []testCase{
+		{
+			name:  "keeps an existing destination",
+			files: fsx.MemFS{"a.txt": {Data: []byte("new")}, "b.txt": {Data: []byte("old")}},
+			args:  []string{"-n", "a.txt", "b.txt"},
+			want:  map[string]string{"b.txt": "old"},
+		},
+		{
+			name:  "copies when the destination is missing",
+			files: fsx.MemFS{"a.txt": {Data: []byte("new")}},
+			args:  []string{"-n", "a.txt", "b.txt"},
+			want:  map[string]string{"b.txt": "new"},
+		},
+		{
+			name:  "keeps the files of an existing hierarchy",
+			files: fsx.MemFS{"d/a.txt": {Data: []byte("new")}, "e/d/a.txt": {Data: []byte("old")}, "e/d/keep.txt": {Data: []byte("keep")}},
+			args:  []string{"-Rn", "d", "e"},
+			want:  map[string]string{"e/d/a.txt": "old", "e/d/keep.txt": "keep"},
+		},
+		{
+			name:  "the long option works",
+			files: fsx.MemFS{"a.txt": {Data: []byte("new")}, "b.txt": {Data: []byte("old")}},
+			args:  []string{"--no-clobber", "a.txt", "b.txt"},
+			want:  map[string]string{"b.txt": "old"},
+		},
+		{
+			name:     "a later -i overrides -n",
+			files:    fsx.MemFS{"a.txt": {Data: []byte("new")}, "b.txt": {Data: []byte("old")}},
+			stdin:    "n\n",
+			args:     []string{"-ni", "a.txt", "b.txt"},
+			want:     map[string]string{"b.txt": "old"},
+			wantErr:  "cp: overwrite 'b.txt'? ",
+			wantExit: 0,
+		},
+		{
+			name:  "a later -n overrides -i",
+			files: fsx.MemFS{"a.txt": {Data: []byte("new")}, "b.txt": {Data: []byte("old")}},
+			args:  []string{"-in", "a.txt", "b.txt"},
+			want:  map[string]string{"b.txt": "old"},
+		},
+		{
+			name:  "-f is ignored with -n",
+			files: fsx.MemFS{"a.txt": {Data: []byte("new")}, "b.txt": {Data: []byte("old")}},
+			args:  []string{"-fn", "a.txt", "b.txt"},
+			want:  map[string]string{"b.txt": "old"},
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			runCase(t, test)
+		})
+	}
+}
+
+func TestRunUpdate(t *testing.T) {
+	tests := []testCase{
+		{
+			name:  "copies when the source is newer",
+			files: fsx.MemFS{"a.txt": {Data: []byte("new"), ModTime: oldTime}, "b.txt": {Data: []byte("old"), ModTime: otherTime}},
+			args:  []string{"-u", "a.txt", "b.txt"},
+			want:  map[string]string{"b.txt": "new"},
+		},
+		{
+			name:  "skips when the source is older",
+			files: fsx.MemFS{"a.txt": {Data: []byte("old"), ModTime: otherTime}, "b.txt": {Data: []byte("new"), ModTime: oldTime}},
+			args:  []string{"-u", "a.txt", "b.txt"},
+			want:  map[string]string{"b.txt": "new"},
+		},
+		{
+			name:  "skips when the times are equal",
+			files: fsx.MemFS{"a.txt": {Data: []byte("new"), ModTime: oldTime}, "b.txt": {Data: []byte("old"), ModTime: oldTime}},
+			args:  []string{"-u", "a.txt", "b.txt"},
+			want:  map[string]string{"b.txt": "old"},
+		},
+		{
+			name:  "copies when the destination is missing",
+			files: fsx.MemFS{"a.txt": {Data: []byte("new"), ModTime: oldTime}},
+			args:  []string{"-u", "a.txt", "b.txt"},
+			want:  map[string]string{"b.txt": "new"},
+		},
+		{
+			name: "skips only the outdated files of a hierarchy",
+			files: fsx.MemFS{
+				"d/new.txt":   {Data: []byte("new"), ModTime: oldTime},
+				"d/old.txt":   {Data: []byte("old"), ModTime: otherTime},
+				"e/d/new.txt": {Data: []byte("kept"), ModTime: otherTime},
+				"e/d/old.txt": {Data: []byte("kept"), ModTime: oldTime},
+			},
+			args: []string{"-Ru", "d", "e"},
+			want: map[string]string{"e/d/new.txt": "new", "e/d/old.txt": "kept"},
+		},
+		{
+			name:  "a missing destination directory is still created",
+			files: fsx.MemFS{"d/f.txt": {Data: []byte("f"), ModTime: oldTime}},
+			args:  []string{"-Ru", "d", "e"},
+			want:  map[string]string{"e/f.txt": "f"},
+		},
+		{
+			name:  "-n takes precedence over -u",
+			files: fsx.MemFS{"a.txt": {Data: []byte("new"), ModTime: oldTime}, "b.txt": {Data: []byte("old"), ModTime: otherTime}},
+			args:  []string{"-nu", "a.txt", "b.txt"},
+			want:  map[string]string{"b.txt": "old"},
+		},
+		{
+			name:  "the long option works",
+			files: fsx.MemFS{"a.txt": {Data: []byte("new"), ModTime: oldTime}, "b.txt": {Data: []byte("old"), ModTime: otherTime}},
+			args:  []string{"--update", "a.txt", "b.txt"},
+			want:  map[string]string{"b.txt": "new"},
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			runCase(t, test)
+		})
+	}
+}
+
+func TestRunVerbose(t *testing.T) {
+	tests := []testCase{
+		{
+			name:    "names each copied file",
+			files:   fsx.MemFS{"a.txt": {Data: []byte("x")}},
+			args:    []string{"-v", "a.txt", "b.txt"},
+			want:    map[string]string{"b.txt": "x"},
+			wantOut: "'a.txt' -> 'b.txt'\n",
+		},
+		{
+			name:    "the long option works",
+			files:   fsx.MemFS{"a.txt": {Data: []byte("x")}},
+			args:    []string{"--verbose", "a.txt", "b.txt"},
+			want:    map[string]string{"b.txt": "x"},
+			wantOut: "'a.txt' -> 'b.txt'\n",
+		},
+		{
+			name:  "names each entry of a hierarchy",
+			files: fsx.MemFS{"d/f.txt": {Data: []byte("f")}, "d/sub/g.txt": {Data: []byte("g")}},
+			args:  []string{"-Rv", "d", "e"},
+			want:  map[string]string{"e/f.txt": "f", "e/sub/g.txt": "g"},
+			wantOut: "'d' -> 'e'\n" +
+				"'d/f.txt' -> 'e/f.txt'\n" +
+				"'d/sub' -> 'e/sub'\n" +
+				"'d/sub/g.txt' -> 'e/sub/g.txt'\n",
+		},
+		{
+			name:    "names multiple sources copied into a directory",
+			files:   fsx.MemFS{"a.txt": {Data: []byte("a")}, "b.txt": {Data: []byte("b")}, "d/keep.txt": {}},
+			args:    []string{"-v", "a.txt", "b.txt", "d"},
+			want:    map[string]string{"d/a.txt": "a", "d/b.txt": "b"},
+			wantOut: "'a.txt' -> 'd/a.txt'\n'b.txt' -> 'd/b.txt'\n",
+		},
+		{
+			name:    "a skipped file isn't named",
+			files:   fsx.MemFS{"a.txt": {Data: []byte("new")}, "b.txt": {Data: []byte("old")}},
+			args:    []string{"-nv", "a.txt", "b.txt"},
+			want:    map[string]string{"b.txt": "old"},
+			wantOut: "",
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			runCase(t, test)
+		})
+	}
+}
+
+func TestRunTargetDirectory(t *testing.T) {
+	tests := []testCase{
+		{
+			name:  "copies into the target directory",
+			files: fsx.MemFS{"a.txt": {Data: []byte("a")}, "b.txt": {Data: []byte("b")}, "d/keep.txt": {}},
+			args:  []string{"-t", "d", "a.txt", "b.txt"},
+			want:  map[string]string{"d/a.txt": "a", "d/b.txt": "b", "d/keep.txt": ""},
+		},
+		{
+			name:  "the long option with an attached value",
+			files: fsx.MemFS{"a.txt": {Data: []byte("a")}, "d/keep.txt": {}},
+			args:  []string{"--target-directory=d", "a.txt"},
+			want:  map[string]string{"d/a.txt": "a"},
+		},
+		{
+			name:  "the long option with the next argument",
+			files: fsx.MemFS{"a.txt": {Data: []byte("a")}, "d/keep.txt": {}},
+			args:  []string{"--target-directory", "d", "a.txt"},
+			want:  map[string]string{"d/a.txt": "a"},
+		},
+		{
+			name:     "the target must be an existing directory",
+			files:    fsx.MemFS{"a.txt": {Data: []byte("a")}, "b.txt": {Data: []byte("b")}},
+			args:     []string{"-t", "b.txt", "a.txt"},
+			want:     map[string]string{"b.txt": "b"},
+			wantErr:  "cp: target 'b.txt' is not a directory\n",
+			wantExit: 1,
+		},
+		{
+			name:     "a missing target is an error",
+			files:    fsx.MemFS{"a.txt": {Data: []byte("a")}},
+			args:     []string{"-t", "d", "a.txt"},
+			absent:   []string{"d"},
+			wantErr:  "cp: target 'd' is not a directory\n",
+			wantExit: 1,
+		},
+		{
+			name:     "no sources is a usage error",
+			files:    fsx.MemFS{"d/keep.txt": {}},
+			args:     []string{"-t", "d"},
+			wantErr:  "cp: missing file operand\n",
+			wantExit: 2,
+		},
+		{
+			name:     "-t and -T conflict",
+			files:    fsx.MemFS{"a.txt": {Data: []byte("a")}, "b.txt": {}},
+			args:     []string{"-t", "d", "-T", "a.txt", "b.txt"},
+			want:     map[string]string{"a.txt": "a"},
+			wantErr:  "cp: cannot combine --target-directory (-t) and --no-target-directory (-T)\n",
+			wantExit: 2,
+		},
+		{
+			name:  "-T copies to an exact name",
+			files: fsx.MemFS{"a.txt": {Data: []byte("x")}, "d/keep.txt": {}},
+			args:  []string{"-T", "a.txt", "d/b.txt"},
+			want:  map[string]string{"d/b.txt": "x", "d/keep.txt": ""},
+		},
+		{
+			name:     "-T keeps a directory destination from being used",
+			files:    fsx.MemFS{"a.txt": {Data: []byte("x")}, "d/keep.txt": {Data: []byte("keep")}},
+			args:     []string{"-T", "a.txt", "d"},
+			want:     map[string]string{"d/keep.txt": "keep"},
+			wantErr:  "cp: cannot overwrite directory 'd' with non-directory 'a.txt'\n",
+			wantExit: 1,
+		},
+		{
+			name:     "-T rejects extra operands",
+			files:    fsx.MemFS{"a.txt": {}, "b.txt": {}, "c.txt": {}},
+			args:     []string{"-T", "a.txt", "b.txt", "c.txt"},
+			wantErr:  "cp: extra operand 'c.txt'\n",
+			wantExit: 2,
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			runCase(t, test)
+		})
+	}
+}
+
+// link is a MemFS entry holding a symbolic link to target.
+func link(target string) *fsx.MemFile {
+	return &fsx.MemFile{Mode: fs.ModeSymlink, Data: []byte(target)}
+}
+
+func TestRunSymlinks(t *testing.T) {
+	tests := []testCase{
+		{
+			name:  "a link operand is followed without -R",
+			files: fsx.MemFS{"a.txt": {Data: []byte("x")}, "l": link("a.txt")},
+			args:  []string{"l", "b.txt"},
+			want:  map[string]string{"b.txt": "x"},
+		},
+		{
+			name:  "-H follows a link operand",
+			files: fsx.MemFS{"a.txt": {Data: []byte("x")}, "l": link("a.txt")},
+			args:  []string{"-H", "l", "b.txt"},
+			want:  map[string]string{"b.txt": "x"},
+		},
+		{
+			name:  "-L follows a link operand",
+			files: fsx.MemFS{"a.txt": {Data: []byte("x")}, "l": link("a.txt")},
+			args:  []string{"-L", "l", "b.txt"},
+			want:  map[string]string{"b.txt": "x"},
+		},
+		{
+			name:     "-d copies a link operand as a link",
+			files:    fsx.MemFS{"a.txt": {Data: []byte("x")}, "l": link("a.txt")},
+			args:     []string{"-d", "l", "b"},
+			wantLink: map[string]string{"b": "a.txt"},
+		},
+		{
+			name:     "-P copies a link operand as a link",
+			files:    fsx.MemFS{"a.txt": {Data: []byte("x")}, "l": link("a.txt")},
+			args:     []string{"-P", "l", "b"},
+			wantLink: map[string]string{"b": "a.txt"},
+		},
+		{
+			name:     "-d replaces an existing destination",
+			files:    fsx.MemFS{"a.txt": {Data: []byte("x")}, "l": link("a.txt"), "b": {Data: []byte("old")}},
+			args:     []string{"-d", "l", "b"},
+			wantLink: map[string]string{"b": "a.txt"},
+		},
+		{
+			name:     "-d copies a dangling link",
+			files:    fsx.MemFS{"l": link("missing")},
+			args:     []string{"-d", "l", "b"},
+			wantLink: map[string]string{"b": "missing"},
+		},
+		{
+			name:  "-d with -n keeps an existing destination",
+			files: fsx.MemFS{"a.txt": {Data: []byte("x")}, "l": link("a.txt"), "b": {Data: []byte("old")}},
+			args:  []string{"-dn", "l", "b"},
+			want:  map[string]string{"b": "old"},
+		},
+		{
+			name:     "-d with -i prompts",
+			files:    fsx.MemFS{"a.txt": {Data: []byte("x")}, "l": link("a.txt"), "b": {Data: []byte("old")}},
+			stdin:    "y\n",
+			args:     []string{"-di", "l", "b"},
+			wantLink: map[string]string{"b": "a.txt"},
+			wantErr:  "cp: overwrite 'b'? ",
+		},
+		{
+			name:     "-R keeps the links of a hierarchy",
+			files:    fsx.MemFS{"d/a.txt": {Data: []byte("x")}, "d/l": link("a.txt")},
+			args:     []string{"-R", "d", "e"},
+			wantLink: map[string]string{"e/l": "a.txt"},
+		},
+		{
+			name:     "-r keeps the links of a hierarchy",
+			files:    fsx.MemFS{"d/a.txt": {Data: []byte("x")}, "d/l": link("a.txt")},
+			args:     []string{"-r", "d", "e"},
+			wantLink: map[string]string{"e/l": "a.txt"},
+		},
+		{
+			name:     "-R copies a link operand as a link",
+			files:    fsx.MemFS{"d/a.txt": {Data: []byte("x")}, "d/l": link("a.txt"), "e/keep.txt": {}},
+			args:     []string{"-R", "d", "e"},
+			wantLink: map[string]string{"e/d/l": "a.txt"},
+		},
+		{
+			name:  "-L follows the links of a hierarchy",
+			files: fsx.MemFS{"d/a.txt": {Data: []byte("x")}, "d/l": link("a.txt")},
+			args:  []string{"-RL", "d", "e"},
+			want:  map[string]string{"e/l": "x"},
+		},
+		{
+			name:     "-H dereferences only the command line operands",
+			files:    fsx.MemFS{"d/a.txt": {Data: []byte("x")}, "d/l": link("a.txt")},
+			args:     []string{"-RH", "d", "e"},
+			want:     map[string]string{"e/a.txt": "x"},
+			wantLink: map[string]string{"e/l": "a.txt"},
+		},
+		{
+			name:  "-H follows a directory link operand",
+			files: fsx.MemFS{"d/f.txt": {Data: []byte("f")}, "l": link("d")},
+			args:  []string{"-RH", "l", "e"},
+			want:  map[string]string{"e/f.txt": "f"},
+		},
+		{
+			name:  "-L follows a directory link operand",
+			files: fsx.MemFS{"d/f.txt": {Data: []byte("f")}, "l": link("d")},
+			args:  []string{"-RL", "l", "e"},
+			want:  map[string]string{"e/f.txt": "f"},
+		},
+		{
+			name:     "-d copies a directory link operand as a link",
+			files:    fsx.MemFS{"d/f.txt": {Data: []byte("f")}, "l": link("d"), "e/keep.txt": {}},
+			args:     []string{"-dR", "l", "e"},
+			wantLink: map[string]string{"e/l": "d"},
+		},
+		{
+			name:     "a link to a directory in a tree stays a link",
+			files:    fsx.MemFS{"d/sub/f.txt": {Data: []byte("f")}, "d/l": link("sub")},
+			args:     []string{"-R", "d", "e"},
+			wantLink: map[string]string{"e/l": "sub"},
+		},
+		{
+			name:  "-L follows a link to a directory in a tree",
+			files: fsx.MemFS{"d/sub/f.txt": {Data: []byte("f")}, "d/l": link("sub")},
+			args:  []string{"-RL", "d", "e"},
+			want:  map[string]string{"e/l/f.txt": "f"},
+		},
+		{
+			name:  "a symbolic link destination is followed",
+			files: fsx.MemFS{"a.txt": {Data: []byte("x")}, "b.txt": {Data: []byte("old")}, "b": link("b.txt")},
+			args:  []string{"a.txt", "b"},
+			want:  map[string]string{"b.txt": "x"},
+		},
+		{
+			name:     "a copied link is named with -v",
+			files:    fsx.MemFS{"a.txt": {Data: []byte("x")}, "l": link("a.txt")},
+			args:     []string{"-dv", "l", "b"},
+			wantLink: map[string]string{"b": "a.txt"},
+			wantOut:  "'l' -> 'b'\n",
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			runCase(t, test)
+		})
+	}
+}
+
+func TestRunSymlinksCycles(t *testing.T) {
+	t.Run("-L on a link to an ancestor is refused", func(t *testing.T) {
+		files := fsx.MemFS{
+			"d":       {Mode: fs.ModeDir | 0o755},
+			"d/f.txt": {Data: []byte("x")},
+			"d/up":    link(".."),
+		}
+		rt := &coreutils.Runtime{Stdout: io.Discard, Stderr: io.Discard, FS: files}
+		err := New(rt).Run(t.Context(), "-RL", "d", "e")
+		if err == nil {
+			t.Fatal("Run() error = nil, want a failure")
+		}
+		if _, statErr := fs.Stat(files, "e/f.txt"); statErr != nil {
+			t.Errorf("Stat(e/f.txt) error = %v, want the copy to complete", statErr)
+		}
+	})
+
+	t.Run("a link to a sibling directory is copied twice, without a cycle", func(t *testing.T) {
+		files := fsx.MemFS{
+			"d":       {Mode: fs.ModeDir | 0o755},
+			"d/f.txt": {Data: []byte("x")},
+			"d/sub":   {Mode: fs.ModeDir | 0o755},
+		}
+		rt := &coreutils.Runtime{Stdout: io.Discard, Stderr: io.Discard, FS: files}
+		if err := New(rt).Run(t.Context(), "-RL", "d", "e"); err != nil {
+			t.Fatalf("Run() error = %v", err)
+		}
+		if _, statErr := fs.Stat(files, "e/sub"); statErr != nil {
+			t.Errorf("Stat(e/sub) error = %v", statErr)
+		}
+	})
+}
+
+func TestRunDanglingDestination(t *testing.T) {
+	files := fsx.MemFS{
+		"a.txt": {Data: []byte("x")},
+		"dlink": link("missing"),
+	}
+	stderr := new(bytes.Buffer)
+	rt := &coreutils.Runtime{Stdout: io.Discard, Stderr: stderr, FS: files}
+	err := New(rt).Run(t.Context(), "a.txt", "dlink")
+	if code := exitCode(t, err); code != 1 {
+		t.Errorf("Run() exit code = %d, want 1 (error = %v)", code, err)
+	}
+	if want := "cp: not writing through dangling symlink 'dlink'\n"; stderr.String() != want {
+		t.Errorf("Run() stderr = %q, want %q", stderr.String(), want)
+	}
+	if _, statErr := fs.Stat(files, "missing"); !errors.Is(statErr, fs.ErrNotExist) {
+		t.Errorf("Stat(missing) error = %v, want it to stay missing", statErr)
+	}
+}
+
+func TestRunSymlinksOsFS(t *testing.T) {
+	dir := t.TempDir()
+	if err := os.WriteFile(filepath.Join(dir, "a.txt"), []byte("x"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Symlink("a.txt", filepath.Join(dir, "l")); err != nil {
+		t.Skipf("symbolic links aren't supported here: %v", err)
+	}
+
+	tests := []struct {
+		name    string
+		args    []string
+		dst     string
+		want    string
+		wantOut bool
+	}{
+		{
+			name: "a link operand is followed without -R",
+			args: []string{"l", "b"},
+			dst:  "b",
+			want: "x",
+		},
+		{
+			name:    "-d copies a link operand as a link",
+			args:    []string{"-d", "l", "b"},
+			dst:     "b",
+			wantOut: true,
+		},
+		{
+			name:    "-R keeps a link operand as a link",
+			args:    []string{"-R", "l", "b"},
+			dst:     "b",
+			wantOut: true,
+		},
+		{
+			name: "-L follows a link operand",
+			args: []string{"-L", "l", "c"},
+			dst:  "c",
+			want: "x",
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			stdout := new(bytes.Buffer)
+			rt := &coreutils.Runtime{
+				Stdout:     stdout,
+				Stderr:     io.Discard,
+				FS:         fsx.OsFS(dir),
+				WorkingDir: dir,
+			}
+			if err := New(rt).Run(t.Context(), test.args...); err != nil {
+				t.Fatalf("Run() error = %v", err)
+			}
+
+			dst := filepath.Join(dir, test.dst)
+			target, err := os.Readlink(dst)
+			if err != nil {
+				if !test.wantOut {
+					got, err := os.ReadFile(dst)
+					if err != nil || string(got) != test.want {
+						t.Errorf("ReadFile(%q) = %q, %v, want %q", dst, got, err, test.want)
+					}
+					return
+				}
+				t.Fatalf("Readlink(%q) error = %v", dst, err)
+			}
+			if !test.wantOut {
+				t.Fatalf("Readlink(%q) = %q, want a regular file", dst, target)
+			}
+			if target != "a.txt" {
+				t.Errorf("Readlink(%q) = %q, want %q", dst, target, "a.txt")
+			}
+		})
+	}
+}
+
+func TestRunPreserveList(t *testing.T) {
+	tests := []testCase{
+		{
+			name:     "--preserve keeps the mode and times",
+			files:    fsx.MemFS{"a.txt": {Data: []byte("x"), Mode: 0o640, ModTime: oldTime}},
+			args:     []string{"--preserve", "a.txt", "b.txt"},
+			wantMode: map[string]fs.FileMode{"b.txt": 0o640},
+			wantTime: map[string]time.Time{"b.txt": oldTime},
+		},
+		{
+			name:     "--preserve=mode keeps only the mode",
+			files:    fsx.MemFS{"a.txt": {Data: []byte("x"), Mode: 0o666, ModTime: oldTime}},
+			umask:    0o022,
+			args:     []string{"--preserve=mode", "a.txt", "b.txt"},
+			wantMode: map[string]fs.FileMode{"b.txt": 0o666},
+		},
+		{
+			name:     "--preserve=timestamps keeps only the times",
+			files:    fsx.MemFS{"a.txt": {Data: []byte("x"), Mode: 0o666, ModTime: oldTime}},
+			umask:    0o022,
+			args:     []string{"--preserve=timestamps", "a.txt", "b.txt"},
+			wantMode: map[string]fs.FileMode{"b.txt": 0o644},
+			wantTime: map[string]time.Time{"b.txt": oldTime},
+		},
+		{
+			name:     "attributes can be combined",
+			files:    fsx.MemFS{"a.txt": {Data: []byte("x"), Mode: 0o640, ModTime: oldTime}},
+			args:     []string{"--preserve=mode,timestamps", "a.txt", "b.txt"},
+			wantMode: map[string]fs.FileMode{"b.txt": 0o640},
+			wantTime: map[string]time.Time{"b.txt": oldTime},
+		},
+		{
+			name:     "--no-preserve drops the mode and times",
+			files:    fsx.MemFS{"a.txt": {Data: []byte("x"), Mode: 0o666, ModTime: oldTime}},
+			umask:    0o022,
+			args:     []string{"-p", "--no-preserve=mode,timestamps", "a.txt", "b.txt"},
+			wantMode: map[string]fs.FileMode{"b.txt": 0o644},
+		},
+		{
+			name:     "an unknown attribute is an error",
+			files:    fsx.MemFS{"a.txt": {Data: []byte("x")}},
+			args:     []string{"--preserve=mode,bogus", "a.txt", "b.txt"},
+			absent:   []string{"b.txt"},
+			wantErr:  "cp: invalid attribute list: 'mode,bogus'\n",
+			wantExit: 2,
+		},
+		{
+			name:     "an unknown attribute of --no-preserve is an error",
+			files:    fsx.MemFS{"a.txt": {Data: []byte("x")}},
+			args:     []string{"--no-preserve=bogus", "a.txt", "b.txt"},
+			absent:   []string{"b.txt"},
+			wantErr:  "cp: invalid attribute list: 'bogus'\n",
+			wantExit: 2,
+		},
+		{
+			name:     "--no-preserve takes the next argument as its list",
+			files:    fsx.MemFS{"a.txt": {Data: []byte("x"), Mode: 0o666, ModTime: oldTime}},
+			umask:    0o022,
+			args:     []string{"-p", "--no-preserve", "a.txt", "b.txt"},
+			wantErr:  "cp: invalid attribute list: 'a.txt'\n",
+			wantExit: 2,
+		},
+		{
+			name:     "--no-preserve= with an empty list is ambiguous",
+			files:    fsx.MemFS{"a.txt": {Data: []byte("x"), Mode: 0o666, ModTime: oldTime}},
+			umask:    0o022,
+			args:     []string{"-p", "--no-preserve=", "a.txt", "b.txt"},
+			wantErr:  "cp: ambiguous argument '' for '--no-preserve'\n",
+			wantExit: 2,
+		},
+		{
+			name:     "--no-preserve=mode clears only the mode",
+			files:    fsx.MemFS{"a.txt": {Data: []byte("x"), Mode: 0o666, ModTime: oldTime}},
+			umask:    0o022,
+			args:     []string{"-p", "--no-preserve=mode", "a.txt", "b.txt"},
+			wantMode: map[string]fs.FileMode{"b.txt": 0o644},
+			wantTime: map[string]time.Time{"b.txt": oldTime},
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			runCase(t, test)
+		})
+	}
+}
+
+func TestRunPreserveOwnership(t *testing.T) {
+	files := fsx.MemFS{"a.txt": {Data: []byte("x"), Uid: 1000, Gid: 2000}}
+	runCase(t, testCase{
+		files: files,
+		args:  []string{"--preserve=all", "a.txt", "b.txt"},
+	})
+
+	fi, err := fs.Stat(files, "b.txt")
+	if err != nil {
+		t.Fatalf("Stat() error = %v", err)
+	}
+	uid, gid, ok := fsx.Owner(fi)
+	if !ok || uid != 1000 || gid != 2000 {
+		t.Errorf("owner of b.txt = %d, %d, %v, want 1000, 2000, true", uid, gid, ok)
 	}
 }
