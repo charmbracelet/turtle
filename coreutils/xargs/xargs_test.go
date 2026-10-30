@@ -9,6 +9,7 @@ import (
 	"testing"
 
 	"charm.land/snail/coreutils"
+	"charm.land/snail/fsx"
 )
 
 // execRecorder records the commands run by Run, replying with the given
@@ -61,6 +62,7 @@ type testCase struct {
 	name     string
 	stdin    io.Reader
 	tty      io.Reader
+	fsys     fsx.FS
 	args     []string
 	exec     *execRecorder
 	wantCmds []string
@@ -77,6 +79,7 @@ func (tc testCase) run(t *testing.T) {
 		Stdin:  tc.stdin,
 		Stdout: io.Discard,
 		Stderr: &stderr,
+		FS:     tc.fsys,
 		Exec:   tc.exec.exec,
 	}).(*Prog)
 	p.tty = tc.tty
@@ -181,14 +184,15 @@ func TestTokenize(t *testing.T) {
 func TestEOFString(t *testing.T) {
 	tests := []testCase{
 		{
-			name:     "default is underscore",
+			name:     "no end-of-file string by default",
 			stdin:    strings.NewReader("a\n_\nb\n"),
 			exec:     newExec(),
-			wantCmds: []string{"echo a"},
+			wantCmds: []string{"echo a _ b"},
 		},
 		{
 			name:     "checked after quote processing",
 			stdin:    strings.NewReader("a \"_\" b\n"),
+			args:     []string{"-E", "_"},
 			exec:     newExec(),
 			wantCmds: []string{"echo a"},
 		},
@@ -344,7 +348,7 @@ func TestInsertMode(t *testing.T) {
 		{
 			name:     "end-of-file string stops the reading",
 			stdin:    strings.NewReader("a\n_\nb\n"),
-			args:     []string{"-I", "{}", "echo", "[{}]"},
+			args:     []string{"-E", "_", "-I", "{}", "echo", "[{}]"},
 			exec:     newExec(),
 			wantCmds: []string{"echo [a]"},
 		},
@@ -436,7 +440,7 @@ func TestLinesMode(t *testing.T) {
 		{
 			name:     "end-of-file string stops the reading",
 			stdin:    strings.NewReader("a\n_\nb\n"),
-			args:     []string{"-L", "1", "echo"},
+			args:     []string{"-E", "_", "-L", "1", "echo"},
 			exec:     newExec(),
 			wantCmds: []string{"echo a"},
 		},
@@ -530,7 +534,7 @@ func TestNoArguments(t *testing.T) {
 		{
 			name:  "-r with only the end-of-file string skips the invocation",
 			stdin: strings.NewReader("_\n"),
-			args:  []string{"-r"},
+			args:  []string{"-r", "-E", "_"},
 			exec:  newExec(),
 		},
 	}
@@ -714,6 +718,346 @@ func TestPrompt(t *testing.T) {
 	}
 }
 
+func TestArgFile(t *testing.T) {
+	tests := []testCase{
+		{
+			name:     "items are read from the file",
+			fsys:     fsx.MemFS{"items.txt": {Data: []byte("a b\nc\n")}},
+			args:     []string{"-a", "items.txt", "echo"},
+			exec:     newExec(),
+			wantCmds: []string{"echo a b c"},
+		},
+		{
+			name:     "the standard input is not read",
+			fsys:     fsx.MemFS{"items.txt": {Data: []byte("a\n")}},
+			stdin:    strings.NewReader("b\n"),
+			args:     []string{"-a", "items.txt", "-n", "1", "echo"},
+			exec:     newExec(),
+			wantCmds: []string{"echo a"},
+		},
+		{
+			name:     "- reads the standard input",
+			stdin:    strings.NewReader("a b\n"),
+			args:     []string{"-a", "-", "echo"},
+			exec:     newExec(),
+			wantCmds: []string{"echo a b"},
+		},
+		{
+			name:     "an empty file runs the utility once",
+			fsys:     fsx.MemFS{"empty.txt": {Data: []byte("")}},
+			args:     []string{"-a", "empty.txt", "echo"},
+			exec:     newExec(),
+			wantCmds: []string{"echo"},
+		},
+		{
+			name:     "-a skips the invocation when the file is empty and -r is given",
+			fsys:     fsx.MemFS{"empty.txt": {Data: []byte("")}},
+			args:     []string{"-a", "empty.txt", "-r", "echo"},
+			exec:     newExec(),
+			wantCmds: []string{},
+		},
+		{
+			name:     "the last -a wins",
+			fsys:     fsx.MemFS{"a.txt": {Data: []byte("a\n")}, "b.txt": {Data: []byte("b\n")}},
+			args:     []string{"-a", "a.txt", "-a", "b.txt", "echo"},
+			exec:     newExec(),
+			wantCmds: []string{"echo b"},
+		},
+		{
+			name:     "missing file",
+			fsys:     fsx.MemFS{},
+			args:     []string{"-a", "missing.txt", "echo"},
+			exec:     newExec(),
+			wantErr:  "xargs: missing.txt: file does not exist\n",
+			wantExit: 1,
+		},
+		{
+			name:     "no file system available",
+			args:     []string{"-a", "items.txt", "echo"},
+			exec:     newExec(),
+			wantErr:  "xargs: items.txt: no file system available\n",
+			wantExit: 1,
+		},
+	}
+	for _, test := range tests {
+		t.Run(test.name, test.run)
+	}
+}
+
+func TestDelimiter(t *testing.T) {
+	tests := []testCase{
+		{
+			name:     "each delimiter terminates an argument",
+			stdin:    strings.NewReader("a b\nc d\n"),
+			args:     []string{"-d", `\n`, "echo"},
+			exec:     newExec(),
+			wantCmds: []string{"echo a b c d"},
+		},
+		{
+			name:     "blanks are not delimiters",
+			stdin:    strings.NewReader("a b\nc\n"),
+			args:     []string{"-d", `\n`, "-n", "1", "echo"},
+			exec:     newExec(),
+			wantCmds: []string{"echo a b", "echo c"},
+		},
+		{
+			name:     "space delimiter",
+			stdin:    strings.NewReader("a b c "),
+			args:     []string{"-d", " ", "-n", "1", "echo"},
+			exec:     newExec(),
+			wantCmds: []string{"echo a", "echo b", "echo c"},
+		},
+		{
+			name:     "tab escape",
+			stdin:    strings.NewReader("a\tb\tc"),
+			args:     []string{"-d", `\t`, "echo"},
+			exec:     newExec(),
+			wantCmds: []string{"echo a b c"},
+		},
+		{
+			name:     "NUL escape",
+			stdin:    strings.NewReader("a\x00b\x00"),
+			args:     []string{"-d", `\0`, "echo"},
+			exec:     newExec(),
+			wantCmds: []string{"echo a b"},
+		},
+		{
+			name:     "hex escape",
+			stdin:    strings.NewReader("a:b"),
+			args:     []string{"-d", `\x3a`, "echo"},
+			exec:     newExec(),
+			wantCmds: []string{"echo a b"},
+		},
+		{
+			name:     "octal escape",
+			stdin:    strings.NewReader("a:b"),
+			args:     []string{"-d", `\72`, "echo"},
+			exec:     newExec(),
+			wantCmds: []string{"echo a b"},
+		},
+		{
+			name:     "a character above the ASCII range",
+			stdin:    strings.NewReader("a\xffb\xff"),
+			args:     []string{"-d", `\xff`, "echo"},
+			exec:     newExec(),
+			wantCmds: []string{"echo a b"},
+		},
+		{
+			name:     "each delimiter is a delimiter",
+			stdin:    strings.NewReader("a,,b"),
+			args:     []string{"-d", ",", "-n", "1", "echo"},
+			exec:     newExec(),
+			wantCmds: []string{"echo a", "echo ", "echo b"},
+		},
+		{
+			name:     "trailing delimiter doesn't make an empty argument",
+			stdin:    strings.NewReader("a,,b,"),
+			args:     []string{"-d", ",", "echo"},
+			exec:     newExec(),
+			wantCmds: []string{"echo a  b"},
+		},
+		{
+			name:     "trailing data without the delimiter is used",
+			stdin:    strings.NewReader("a\nb"),
+			args:     []string{"-d", `\n`, "echo"},
+			exec:     newExec(),
+			wantCmds: []string{"echo a b"},
+		},
+		{
+			name:     "quotes are not special",
+			stdin:    strings.NewReader(`"a b",c`),
+			args:     []string{"-d", ",", "-n", "1", "echo"},
+			exec:     newExec(),
+			wantCmds: []string{`echo "a b"`, "echo c"},
+		},
+		{
+			name:     "no end-of-file string",
+			stdin:    strings.NewReader("END\na\n"),
+			args:     []string{"-d", `\n`, "echo"},
+			exec:     newExec(),
+			wantCmds: []string{"echo END a"},
+		},
+		{
+			name:     "an empty end-of-file string has no effect either",
+			stdin:    strings.NewReader("a\nb\n"),
+			args:     []string{"-d", `\n`, "-E", "b", "echo"},
+			exec:     newExec(),
+			wantCmds: []string{"echo a b"},
+		},
+		{
+			name:     "replacement still applies",
+			stdin:    strings.NewReader("a\nb\n"),
+			args:     []string{"-d", `\n`, "-I", "{}", "echo", "[{}]"},
+			exec:     newExec(),
+			wantCmds: []string{"echo [a]", "echo [b]"},
+		},
+		{
+			name:     "-d after -0 wins",
+			stdin:    strings.NewReader("a\npartial"),
+			args:     []string{"-0", "-d", `\n`, "echo"},
+			exec:     newExec(),
+			wantCmds: []string{"echo a partial"},
+		},
+		{
+			name:     "-0 after -d wins",
+			stdin:    strings.NewReader("a\x00partial"),
+			args:     []string{"-d", `\n`, "-0", "echo"},
+			exec:     newExec(),
+			wantCmds: []string{"echo a"},
+		},
+		{
+			name:     "-d NUL keeps the trailing data, unlike -0",
+			stdin:    strings.NewReader("a\x00partial"),
+			args:     []string{"-d", `\0`, "echo"},
+			exec:     newExec(),
+			wantCmds: []string{"echo a partial"},
+		},
+	}
+	for _, test := range tests {
+		t.Run(test.name, test.run)
+	}
+}
+
+func TestLongOptions(t *testing.T) {
+	tests := []testCase{
+		{
+			name:     "--null",
+			stdin:    strings.NewReader("a b\x00c\x00"),
+			args:     []string{"--null", "echo"},
+			exec:     newExec(),
+			wantCmds: []string{"echo a b c"},
+		},
+		{
+			name:     "--arg-file=FILE",
+			fsys:     fsx.MemFS{"items.txt": {Data: []byte("a\nb\n")}},
+			args:     []string{"--arg-file=items.txt", "-n", "1", "echo"},
+			exec:     newExec(),
+			wantCmds: []string{"echo a", "echo b"},
+		},
+		{
+			name:     "an empty --arg-file is a name, not the standard input",
+			fsys:     fsx.MemFS{},
+			args:     []string{"--arg-file=", "echo"},
+			exec:     newExec(),
+			wantErr:  "xargs: : invalid argument\n",
+			wantExit: 1,
+		},
+		{
+			name:     "--delimiter takes the value in the next argument",
+			stdin:    strings.NewReader("a,b,c"),
+			args:     []string{"--delimiter", ",", "echo"},
+			exec:     newExec(),
+			wantCmds: []string{"echo a b c"},
+		},
+		{
+			name:     "--replace uses {} by default",
+			stdin:    strings.NewReader("a\nb\n"),
+			args:     []string{"--replace", "echo", "pre-{}"},
+			exec:     newExec(),
+			wantCmds: []string{"echo pre-a", "echo pre-b"},
+		},
+		{
+			name:     "--replace=R",
+			stdin:    strings.NewReader("a\nb\n"),
+			args:     []string{"--replace=X", "echo", "[X]"},
+			exec:     newExec(),
+			wantCmds: []string{"echo [a]", "echo [b]"},
+		},
+		{
+			name:     "--max-args=MAX-ARGS",
+			stdin:    strings.NewReader("a b c d\n"),
+			args:     []string{"--max-args=2", "echo"},
+			exec:     newExec(),
+			wantCmds: []string{"echo a b", "echo c d"},
+		},
+		{
+			name:     "--max-lines=MAX-LINES",
+			stdin:    strings.NewReader("a\nb\nc\n"),
+			args:     []string{"--max-lines=2", "echo"},
+			exec:     newExec(),
+			wantCmds: []string{"echo a b", "echo c"},
+		},
+		{
+			name:     "--max-lines defaults to one line",
+			stdin:    strings.NewReader("a\nb\n"),
+			args:     []string{"--max-lines", "echo"},
+			exec:     newExec(),
+			wantCmds: []string{"echo a", "echo b"},
+		},
+		{
+			name:  "--no-run-if-empty",
+			stdin: strings.NewReader(""),
+			args:  []string{"--no-run-if-empty", "echo"},
+			exec:  newExec(),
+		},
+		{
+			name:     "--interactive",
+			stdin:    strings.NewReader("a\n"),
+			tty:      strings.NewReader("y\n"),
+			args:     []string{"--interactive", "echo"},
+			exec:     newExec(),
+			wantCmds: []string{"echo a"},
+			wantErr:  "echo a ?...\n",
+		},
+		{
+			name:     "--exit",
+			stdin:    strings.NewReader("a b\n"),
+			args:     []string{"--exit", "-n", "2", "-s", "9", "echo"},
+			exec:     newExec(),
+			wantErr:  "xargs: command line too long\n",
+			wantExit: 1,
+		},
+		{
+			name:     "--verbose",
+			stdin:    strings.NewReader("a b\n"),
+			args:     []string{"--verbose", "-n", "1", "echo"},
+			exec:     newExec(),
+			wantCmds: []string{"echo a", "echo b"},
+			wantErr:  "echo a\necho b\n",
+		},
+		{
+			name:     "--max-chars=MAX-CHARS",
+			stdin:    strings.NewReader("aaaa\n"),
+			args:     []string{"--max-chars=10", "echo"},
+			exec:     newExec(),
+			wantErr:  "xargs: argument line too long\n",
+			wantExit: 1,
+		},
+		{
+			name:     "--eof=END",
+			stdin:    strings.NewReader("a\nEND\nb\n"),
+			args:     []string{"--eof=END", "echo"},
+			exec:     newExec(),
+			wantCmds: []string{"echo a"},
+		},
+		{
+			name:     "--eof disables the end-of-file string",
+			stdin:    strings.NewReader("a\n_\nb\n"),
+			args:     []string{"--eof", "echo"},
+			exec:     newExec(),
+			wantCmds: []string{"echo a _ b"},
+		},
+		{
+			name:     "options end at --",
+			stdin:    strings.NewReader("a\x00"),
+			args:     []string{"--null", "--", "-n"},
+			exec:     newExec(),
+			wantCmds: []string{"-n a"},
+		},
+		{
+			name:     "unknown long option",
+			stdin:    strings.NewReader(""),
+			args:     []string{"--max-procs=2"},
+			exec:     newExec(),
+			wantErr:  "xargs: unrecognized option '--max-procs=2'\n",
+			wantExit: 2,
+		},
+	}
+	for _, test := range tests {
+		t.Run(test.name, test.run)
+	}
+}
+
 func TestExitStatuses(t *testing.T) {
 	tests := []testCase{
 		{
@@ -739,6 +1083,24 @@ func TestExitStatuses(t *testing.T) {
 			wantCmds: []string{"echo a"},
 			wantErr:  "xargs: echo exited with status 255\n",
 			wantExit: 124,
+		},
+		{
+			name:     "status 125 stops the processing",
+			stdin:    strings.NewReader("a b\n"),
+			args:     []string{"-n", "1", "echo"},
+			exec:     newExec(125),
+			wantCmds: []string{"echo a"},
+			wantErr:  "xargs: echo exited with status 125\n",
+			wantExit: 125,
+		},
+		{
+			name:     "status 125 of the last invocation",
+			stdin:    strings.NewReader("a b\n"),
+			args:     []string{"-n", "1", "echo"},
+			exec:     newExec(0, 125),
+			wantCmds: []string{"echo a", "echo b"},
+			wantErr:  "xargs: echo exited with status 125\n",
+			wantExit: 125,
 		},
 		{
 			name:     "utility not found",
@@ -845,6 +1207,62 @@ func TestInvalidUsage(t *testing.T) {
 			args:     []string{"-I", ""},
 			exec:     newExec(),
 			wantErr:  "xargs: value for -I option should not be empty\n",
+			wantExit: 2,
+		},
+		{
+			name:     "empty delimiter",
+			stdin:    strings.NewReader(""),
+			args:     []string{"-d", ""},
+			exec:     newExec(),
+			wantErr:  "xargs: value for -d option should be a single character or an escape sequence\n",
+			wantExit: 2,
+		},
+		{
+			name:     "multi-character delimiter",
+			stdin:    strings.NewReader(""),
+			args:     []string{"-d", "xy"},
+			exec:     newExec(),
+			wantErr:  "xargs: value for -d option should be a single character or an escape sequence\n",
+			wantExit: 2,
+		},
+		{
+			name:     "invalid escape delimiter",
+			stdin:    strings.NewReader(""),
+			args:     []string{"-d", `\z`},
+			exec:     newExec(),
+			wantErr:  "xargs: value for -d option should be a single character or an escape sequence\n",
+			wantExit: 2,
+		},
+		{
+			name:     "delimiter escape too large",
+			stdin:    strings.NewReader(""),
+			args:     []string{"-d", `\x100`},
+			exec:     newExec(),
+			wantErr:  "xargs: value for -d option should be a single character or an escape sequence\n",
+			wantExit: 2,
+		},
+		{
+			name:     "missing argument of a long option",
+			stdin:    strings.NewReader(""),
+			args:     []string{"--max-args"},
+			exec:     newExec(),
+			wantErr:  "xargs: option '--max-args' requires an argument\n",
+			wantExit: 2,
+		},
+		{
+			name:     "unknown long option",
+			stdin:    strings.NewReader(""),
+			args:     []string{"--bogus"},
+			exec:     newExec(),
+			wantErr:  "xargs: unrecognized option '--bogus'\n",
+			wantExit: 2,
+		},
+		{
+			name:     "argument to a long option without one",
+			stdin:    strings.NewReader(""),
+			args:     []string{"--verbose=x"},
+			exec:     newExec(),
+			wantErr:  "xargs: option '--verbose=x' doesn't allow an argument\n",
 			wantExit: 2,
 		},
 	}
