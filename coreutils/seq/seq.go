@@ -358,7 +358,7 @@ func (p *Prog) errorf(f string, args ...any) {
 // a hint to the help, and returns the exit status it asks for.
 func (p *Prog) usageErrorf(f string, args ...any) *coreutils.ExitError {
 	p.errorf(f, args...)
-	fmt.Fprint(p.Stderr, "Try 'seq --help' for more information.\n")
+	stdopts.TryHelp(p.Runtime, "seq")
 	return &coreutils.ExitError{Code: 1}
 }
 
