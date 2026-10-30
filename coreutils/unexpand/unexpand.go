@@ -20,6 +20,7 @@ import (
 	"charm.land/snail/coreutils/internal/getopt"
 	"charm.land/snail/coreutils/internal/input"
 	"charm.land/snail/coreutils/internal/patherr"
+	"charm.land/snail/coreutils/internal/stdopts"
 	"charm.land/snail/coreutils/internal/tabutil"
 )
 
@@ -40,6 +41,9 @@ func New(rt *coreutils.Runtime) coreutils.Program {
 //
 // Reading is interrupted when ctx is done, and the context error is returned.
 func (p *Prog) Run(ctx context.Context, args ...string) error {
+	if done, err := stdopts.Check(p.Runtime, "unexpand", usage, optSet, args); done {
+		return err
+	}
 	opts, operands, err := parseFlags(args)
 	if err != nil {
 		p.errorf("%v", err)
@@ -229,6 +233,22 @@ var longOptions = map[string]rune{
 	"first-only": firstOnlyOpt,
 }
 
+// optSet describes the options of unexpand.
+var optSet = getopt.Set{Valued: "t", Long: longOptions}
+
+// usage describes the options of unexpand.
+const usage = `Usage: unexpand [OPTION]... [FILE]...
+Convert blanks in each FILE to tabs, writing to standard output.
+With no FILE, or when FILE is -, read standard input.
+
+  -a, --all           convert all blanks, not just initial blanks
+      --first-only    convert only leading sequences of blanks (overrides -a)
+  -t, --tabs=N        have tabs N characters apart, not 8
+  -t, --tabs=LIST     use comma separated LIST of tab positions
+      --help     display this help and exit
+      --version  output version information and exit
+`
+
 // parseFlags parses the command line options. Giving -t implies -a, as the
 // conversions aren't limited to the leading blanks anymore, unless
 // --first-only cancels it. Option parsing stops at the first operand or at
@@ -236,7 +256,7 @@ var longOptions = map[string]rune{
 func parseFlags(args []string) (options, []string, error) {
 	opts := options{stops: tabutil.Default}
 	tabsSet := false
-	operands, err := getopt.Set{Valued: "t", Long: longOptions}.Parse(args, func(opt rune, value string) error {
+	operands, err := optSet.Parse(args, func(opt rune, value string) error {
 		switch opt {
 		case 'a':
 			opts.all = true
