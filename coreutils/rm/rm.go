@@ -46,6 +46,7 @@ func (p *Prog) Run(ctx context.Context, args ...string) error {
 	opts, operands, err := parseFlags(args)
 	if err != nil {
 		p.errorf("%v", err)
+		stdopts.TryHelp(p.Runtime, "rm")
 		return &coreutils.ExitError{Code: 2}
 	}
 	if len(operands) == 0 {
@@ -53,6 +54,7 @@ func (p *Prog) Run(ctx context.Context, args ...string) error {
 			return nil
 		}
 		p.errorf("missing operand")
+		stdopts.TryHelp(p.Runtime, "rm")
 		return &coreutils.ExitError{Code: 2}
 	}
 	if p.FS == nil {

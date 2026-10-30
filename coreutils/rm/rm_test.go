@@ -568,7 +568,7 @@ func TestRunLongOptions(t *testing.T) {
 			files:    fsx.MemFS{"a.txt": {Data: []byte("a")}},
 			args:     []string{"--force=yes", "a.txt"},
 			present:  []string{"a.txt"},
-			wantErr:  "rm: option '--force=yes' doesn't allow an argument\n",
+			wantErr:  "rm: option '--force=yes' doesn't allow an argument\nTry 'rm --help' for more information.\n",
 			wantExit: 2,
 		},
 	}
@@ -586,7 +586,7 @@ func TestRunErrors(t *testing.T) {
 			name:     "missing operand",
 			files:    fsx.MemFS{},
 			args:     []string{},
-			wantErr:  "rm: missing operand\n",
+			wantErr:  "rm: missing operand\nTry 'rm --help' for more information.\n",
 			wantExit: 2,
 		},
 		{
@@ -594,7 +594,7 @@ func TestRunErrors(t *testing.T) {
 			files:    fsx.MemFS{"a.txt": {Data: []byte("a")}},
 			args:     []string{"-x", "a.txt"},
 			present:  []string{"a.txt"},
-			wantErr:  "rm: invalid option -- 'x'\n",
+			wantErr:  "rm: invalid option -- 'x'\nTry 'rm --help' for more information.\n",
 			wantExit: 2,
 		},
 		{
@@ -602,7 +602,7 @@ func TestRunErrors(t *testing.T) {
 			files:    fsx.MemFS{"a.txt": {Data: []byte("a")}},
 			args:     []string{"--bogus", "a.txt"},
 			present:  []string{"a.txt"},
-			wantErr:  "rm: unrecognized option '--bogus'\n",
+			wantErr:  "rm: unrecognized option '--bogus'\nTry 'rm --help' for more information.\n",
 			wantExit: 2,
 		},
 		{
