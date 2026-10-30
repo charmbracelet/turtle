@@ -39,14 +39,17 @@ func (p *Prog) Run(ctx context.Context, args ...string) error {
 	opts, operands, err := parseFlags(args)
 	if err != nil {
 		p.errorf("%v", err)
+		stdopts.TryHelp(p.Runtime, "sync")
 		return &coreutils.ExitError{Code: 2}
 	}
 	if opts.data && opts.fileSystem {
 		p.errorf("cannot specify both --data and --file-system")
+		stdopts.TryHelp(p.Runtime, "sync")
 		return &coreutils.ExitError{Code: 1}
 	}
 	if opts.data && len(operands) == 0 {
 		p.errorf("--data needs at least one argument")
+		stdopts.TryHelp(p.Runtime, "sync")
 		return &coreutils.ExitError{Code: 1}
 	}
 	if p.FS == nil {
