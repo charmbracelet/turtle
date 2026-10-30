@@ -39,10 +39,12 @@ func (p *Prog) Run(ctx context.Context, args ...string) error {
 	opts, operands, err := parseFlags(args)
 	if err != nil {
 		p.errorf("%v", err)
+		stdopts.TryHelp(p.Runtime, "mktemp")
 		return &coreutils.ExitError{Code: 2}
 	}
 	if len(operands) > 1 {
 		p.errorf("extra operand '%s'", operands[1])
+		stdopts.TryHelp(p.Runtime, "mktemp")
 		return &coreutils.ExitError{Code: 2}
 	}
 	if p.FS == nil {
@@ -56,6 +58,10 @@ func (p *Prog) Run(ctx context.Context, args ...string) error {
 		}
 		if !opts.quiet {
 			p.errorf("%v", err)
+			var usage *usageError
+			if errors.As(err, &usage) {
+				stdopts.TryHelp(p.Runtime, "mktemp")
+			}
 		}
 		return &coreutils.ExitError{Code: 1, Err: err}
 	}
@@ -121,11 +127,24 @@ func (p *Prog) create(ctx context.Context, opts options, operands []string) (str
 	return "", fmt.Errorf("failed to create %s via template '%s': too many tries", what, prefix+strings.Repeat("X", count)+suffix)
 }
 
+// usageError marks the errors of command-line misuse, like a bad template,
+// which the hint to the help follows.
+type usageError struct{ err error }
+
+// Error implements the error interface.
+func (e *usageError) Error() string { return e.err.Error() }
+
+// Unwrap returns the error it wraps.
+func (e *usageError) Unwrap() error { return e.err }
+
 // template resolves the name to generate from the operands and options. It
 // returns the prefix before the X's of the template, how many X's it holds,
 // and the suffix after them. The --suffix value is appended to that suffix
 // after the X's are located, so X's it starts with stay literal.
 func (p *Prog) template(opts options, operands []string) (string, int, string, error) {
+	usage := func(err error) error {
+		return &usageError{err: err}
+	}
 	given := ""
 	if len(operands) > 0 {
 		given = operands[0]
@@ -139,24 +158,24 @@ func (p *Prog) template(opts options, operands []string) (string, int, string, e
 	suffix := ""
 	if opts.suffixSet {
 		if strings.Contains(opts.suffix, "/") {
-			return "", 0, "", fmt.Errorf("invalid suffix '%s', contains directory separator", opts.suffix)
+			return "", 0, "", usage(fmt.Errorf("invalid suffix '%s', contains directory separator", opts.suffix))
 		}
 		if !strings.HasSuffix(tmpl, "X") {
-			return "", 0, "", fmt.Errorf("with --suffix, template '%s' must end in X", given)
+			return "", 0, "", usage(fmt.Errorf("with --suffix, template '%s' must end in X", given))
 		}
 		suffix = opts.suffix
 	}
 
 	first, end := xRun(tmpl)
 	if end-first < minXs || strings.Contains(tmpl[end:], "/") {
-		return "", 0, "", fmt.Errorf("too few X's in template '%s'", given)
+		return "", 0, "", usage(fmt.Errorf("too few X's in template '%s'", given))
 	}
 
 	dir := ""
 	switch {
 	case opts.deprecated:
 		if strings.Contains(tmpl, "/") {
-			return "", 0, "", fmt.Errorf("invalid template '%s', contains directory separator", given)
+			return "", 0, "", usage(fmt.Errorf("invalid template '%s', contains directory separator", given))
 		}
 		dir = p.Getenv("TMPDIR")
 		if dir == "" {
@@ -167,7 +186,7 @@ func (p *Prog) template(opts options, operands []string) (string, int, string, e
 		}
 	case opts.tmpDirSet || implied:
 		if path.IsAbs(tmpl) || filepath.IsAbs(given) {
-			return "", 0, "", fmt.Errorf("template '%s' must not be absolute", given)
+			return "", 0, "", usage(fmt.Errorf("template '%s' must not be absolute", given))
 		}
 		dir = opts.tmpDir
 		if dir == "" {
