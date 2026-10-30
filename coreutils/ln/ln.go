@@ -50,20 +50,25 @@ func (p *Prog) Run(ctx context.Context, args ...string) error {
 	opts, operands, err := parseFlags(args)
 	if err != nil {
 		p.errorf("%v", err)
+		stdopts.TryHelp(p.Runtime, "ln")
 		return &coreutils.ExitError{Code: 2}
 	}
 	switch {
 	case len(operands) == 0:
 		p.errorf("missing file operand")
+		stdopts.TryHelp(p.Runtime, "ln")
 		return &coreutils.ExitError{Code: 2}
 	case opts.noTarget && opts.targetDir != "":
 		p.errorf("cannot combine --target-directory and --no-target-directory")
+		stdopts.TryHelp(p.Runtime, "ln")
 		return &coreutils.ExitError{Code: 2}
 	case opts.noTarget && len(operands) < 2:
 		p.errorf("missing destination file operand after '%s'", operands[0])
+		stdopts.TryHelp(p.Runtime, "ln")
 		return &coreutils.ExitError{Code: 2}
 	case opts.noTarget && len(operands) > 2:
 		p.errorf("extra operand '%s'", operands[2])
+		stdopts.TryHelp(p.Runtime, "ln")
 		return &coreutils.ExitError{Code: 2}
 	}
 	if p.FS == nil {
