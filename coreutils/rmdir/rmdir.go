@@ -36,10 +36,12 @@ func (p *Prog) Run(ctx context.Context, args ...string) error {
 	opts, dirs, err := parseFlags(args)
 	if err != nil {
 		p.errorf("%v", err)
+		stdopts.TryHelp(p.Runtime, "rmdir")
 		return &coreutils.ExitError{Code: 2}
 	}
 	if len(dirs) == 0 {
 		p.errorf("missing operand")
+		stdopts.TryHelp(p.Runtime, "rmdir")
 		return &coreutils.ExitError{Code: 2}
 	}
 	if p.FS == nil {

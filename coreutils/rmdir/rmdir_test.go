@@ -343,14 +343,14 @@ func TestRunErrors(t *testing.T) {
 		{
 			name:     "missing operand",
 			args:     []string{},
-			wantErr:  "rmdir: missing operand\n",
+			wantErr:  "rmdir: missing operand\nTry 'rmdir --help' for more information.\n",
 			wantExit: 2,
 		},
 		{
 			name:     "invalid option",
 			files:    fsx.MemFS{},
 			args:     []string{"-x"},
-			wantErr:  "rmdir: invalid option -- 'x'\n",
+			wantErr:  "rmdir: invalid option -- 'x'\nTry 'rmdir --help' for more information.\n",
 			wantExit: 2,
 		},
 		{
@@ -358,7 +358,7 @@ func TestRunErrors(t *testing.T) {
 			files:    fsx.MemFS{"d": {Mode: fs.ModeDir}},
 			args:     []string{"--bogus", "d"},
 			present:  []string{"d"},
-			wantErr:  "rmdir: unrecognized option '--bogus'\n",
+			wantErr:  "rmdir: unrecognized option '--bogus'\nTry 'rmdir --help' for more information.\n",
 			wantExit: 2,
 		},
 	}
