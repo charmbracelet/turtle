@@ -21,6 +21,7 @@ import (
 	"charm.land/snail/coreutils/internal/getopt"
 	"charm.land/snail/coreutils/internal/input"
 	"charm.land/snail/coreutils/internal/patherr"
+	"charm.land/snail/coreutils/internal/stdopts"
 )
 
 // Prog is the fold core utility.
@@ -41,6 +42,9 @@ func New(rt *coreutils.Runtime) coreutils.Program {
 //
 // Reading is interrupted when ctx is done, and the context error is returned.
 func (p *Prog) Run(ctx context.Context, args ...string) error {
+	if done, err := stdopts.Check(p.Runtime, "fold", usage, optSet, args); done {
+		return err
+	}
 	opts, operands, err := parseFlags(args)
 	if err != nil {
 		p.errorf("%v", err)
@@ -233,11 +237,29 @@ var longOptions = map[string]rune{
 	"width":  'w',
 }
 
+// optSet describes the options of fold.
+var optSet = getopt.Set{Valued: "w", Long: longOptions}
+
+// usage describes the options of fold.
+const usage = `Usage: fold [OPTION]... [FILE]...
+Wrap input lines to fit in specified width.
+
+Writes each FILE ('-' means standard input), or standard input if none are
+given, to standard output, breaking lines so that no output line is wider
+than the limit, 80 columns by default.
+
+  -b, --bytes         count bytes rather than columns
+  -s, --spaces        break at word boundaries, after the last blank
+  -w, --width=WIDTH   use WIDTH columns instead of 80
+      --help     display this help and exit
+      --version  output version information and exit
+`
+
 // parseFlags parses the command line options. Option parsing stops at the
 // first operand or at "--".
 func parseFlags(args []string) (options, []string, error) {
 	opts := options{width: 80}
-	operands, err := getopt.Set{Valued: "w", Long: longOptions}.Parse(args, func(opt rune, value string) error {
+	operands, err := optSet.Parse(args, func(opt rune, value string) error {
 		switch opt {
 		case 'b':
 			opts.bytes = true
