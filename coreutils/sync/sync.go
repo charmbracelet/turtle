@@ -14,6 +14,7 @@ import (
 	"charm.land/snail/coreutils"
 	"charm.land/snail/coreutils/internal/getopt"
 	"charm.land/snail/coreutils/internal/patherr"
+	"charm.land/snail/coreutils/internal/stdopts"
 	"charm.land/snail/fsx"
 )
 
@@ -32,6 +33,9 @@ func New(rt *coreutils.Runtime) coreutils.Program {
 // The specification gives "-" no special meaning, so it names a regular
 // file, never the standard input.
 func (p *Prog) Run(ctx context.Context, args ...string) error {
+	if done, err := stdopts.Check(p.Runtime, "sync", usage, optSet, args); done {
+		return err
+	}
 	opts, operands, err := parseFlags(args)
 	if err != nil {
 		p.errorf("%v", err)
@@ -154,13 +158,24 @@ var longOptions = map[string]rune{
 	"file-system": 'f',
 }
 
+// optSet describes the options of sync.
+var optSet = getopt.Set{Long: longOptions}
+
+// usage describes the options of sync.
+const usage = `Usage: sync [OPTION] [FILE]...
+Synchronize cached writes to persistent storage
+
+  -d, --data             sync only file data, no unneeded metadata
+  -f, --file-system      sync the file systems that contain the files
+      --help     display this help and exit
+      --version  output version information and exit
+`
+
 // parseFlags parses the options and operands. Option parsing stops at the
 // first operand or at "--", and the last state of each flag is the one used.
 func parseFlags(args []string) (options, []string, error) {
 	var opts options
-	operands, err := getopt.Set{
-		Long: longOptions,
-	}.Parse(args, func(opt rune, _ string) error {
+	operands, err := optSet.Parse(args, func(opt rune, _ string) error {
 		switch opt {
 		case 'd':
 			opts.data = true
