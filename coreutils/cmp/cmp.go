@@ -246,9 +246,12 @@ Compare two files byte by byte.
 An operand of "-" is the standard input. An exit status of 1 means the
 files differ, and 2 that an error happened.
 
-  -l, --verbose          output byte numbers and values of all differing bytes
-  -n, --bytes=N          compare at most N bytes
-  -s, --quiet, --silent  suppress all normal output
+  -l, --verbose
+         output byte numbers and values of all differing bytes
+  -n, --bytes=N
+         compare at most N bytes
+  -s, --quiet, --silent
+         suppress all normal output
       --help
          display this help and exit
       --version

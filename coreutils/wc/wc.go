@@ -218,13 +218,19 @@ Print newline, word, and byte counts for each FILE, and a total line if
 more than one FILE is specified. A word is a non-zero-length sequence of
 characters delimited by white space.
 
-  -c, --bytes            print byte counts
-  -m, --chars            print character counts
-  -l, --lines            print newline counts
-  -w, --words            print word counts
-  -L, --max-line-length  print the maximum display width
-      --total=WHEN       print a line with totals; WHEN can be: auto, always,
-                         only, or never (default: auto)
+  -c, --bytes
+         print byte counts
+  -m, --chars
+         print character counts
+  -l, --lines
+         print newline counts
+  -w, --words
+         print word counts
+  -L, --max-line-length
+         print the maximum display width
+      --total=WHEN
+         print a line with totals; WHEN can be: auto, always, only, or never
+         (default: auto)
       --help
          display this help and exit
       --version

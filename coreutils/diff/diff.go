@@ -187,14 +187,22 @@ Compare FILE1 with FILE2 line by line, writing the changes which turn
 FILE1 into FILE2. An operand of '-' means the standard input, and a
 directory operand makes the files of the same name inside it compared.
 
-  -b              ignore changes in the amount of white space
-  -r              compare directories recursively
-  -c              output a copied context diff with 3 lines of context
-  -C NUM          output a copied context diff with NUM lines of context
-  -e              output an ed script
-  -f              output a forward ed script
-  -u              output a unified diff with 3 lines of context
-  -U NUM          output a unified diff with NUM lines of context
+  -b
+         ignore changes in the amount of white space
+  -r
+         compare directories recursively
+  -c
+         output a copied context diff with 3 lines of context
+  -C NUM
+         output a copied context diff with NUM lines of context
+  -e
+         output an ed script
+  -f
+         output a forward ed script
+  -u
+         output a unified diff with 3 lines of context
+  -U NUM
+         output a unified diff with NUM lines of context
       --help
          display this help and exit
       --version

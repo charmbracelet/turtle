@@ -361,16 +361,21 @@ const usage = `Usage: date [OPTION]... [+FORMAT]
   or:  date [OPTION]... MMDDhhmm[[CC]YY][.ss]
 Print or set the system date and time.
 
-  -d, --date=STRING        display the time described by STRING, not 'now'
-  -f, --file=DATEFILE      like --date, once for each line of DATEFILE
+  -d, --date=STRING
+         display the time described by STRING, not 'now'
+  -f, --file=DATEFILE
+         like --date, once for each line of DATEFILE
   -I[FMT], --iso-8601[=FMT]
-                           output an ISO 8601 date, FMT='date' (default),
-                           'hours', 'minutes', 'seconds' or 'ns'
-  -r, --reference=FILE     display the last modification time of FILE
-  -R, --rfc-email          output date and time in RFC 5322 format
-      --rfc-3339=FMT       output date and time in RFC 3339 format,
-                           FMT='date', 'seconds' or 'ns'
-  -u, --utc, --universal   print or set Coordinated Universal Time (UTC)
+         output an ISO 8601 date, FMT='date' (default), 'hours', 'minutes',
+         'seconds' or 'ns'
+  -r, --reference=FILE
+         display the last modification time of FILE
+  -R, --rfc-email
+         output date and time in RFC 5322 format
+      --rfc-3339=FMT
+         output date and time in RFC 3339 format, FMT='date', 'seconds' or 'ns'
+  -u, --utc, --universal
+         print or set Coordinated Universal Time (UTC)
       --help
          display this help and exit
       --version

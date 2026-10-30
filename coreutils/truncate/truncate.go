@@ -280,12 +280,14 @@ Any FILE that does not exist is created. If a FILE is larger than the
 specified size, the extra data is lost; if it is shorter, it is extended
 and the extended part reads as zero bytes.
 
-  -c, --no-create        do not create any files
-  -r, --reference=FILE   use FILE as a reference size
-  -s, --size=SIZE        set or adjust the file size by SIZE; SIZE may be
-                        relative to the size of each file, with a leading
-                        '+', '-', '<', '>', '/' or '%', and may hold a
-                        multiplier suffix
+  -c, --no-create
+         do not create any files
+  -r, --reference=FILE
+         use FILE as a reference size
+  -s, --size=SIZE
+         set or adjust the file size by SIZE; SIZE may be relative to the size
+         of each file, with a leading '+', '-', '<', '>', '/' or '%', and may
+         hold a multiplier suffix
       --help
          display this help and exit
       --version

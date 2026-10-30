@@ -192,34 +192,35 @@ func Usage(prog string) string {
 	return `Usage: ` + prog + ` [-cdfhknNqrStv] [-0..-9] [-S suffix] [file ...]
 Compress or expand files (Lempel-Ziv coding LZ77).
 
-  -1..-9    compression level: -1 (fast) to -9 (best), -0 for none
+  -1..-9
+         compression level: -1 (fast) to -9 (best), -0 for none
   -c, --stdout
-            write on standard output, keeping original files unchanged
+         write on standard output, keeping original files unchanged
   -d, --decompress
-            decompress instead of compress
+         decompress instead of compress
   -f, --force
-            force overwrite of output files and (with -c) pass
-            non-compressed data through unchanged
+         force overwrite of output files and (with -c) pass non-compressed data
+         through unchanged
   -h, --help
-            display this help and exit
+         display this help and exit
   -k, --keep
-            keep (do not delete or truncate) the input files
+         keep (do not delete or truncate) the input files
   -N, --name
-            use the name stored in a compressed file for the output
+         use the name stored in a compressed file for the output
   -n, --no-name
-            do not store the original name and modification time
+         do not store the original name and modification time
   -q, --quiet, --silent
-            suppress all warnings
+         suppress all warnings
   -r, --recursive
-            walk down directories recursively
+         walk down directories recursively
   -S, --suffix=suffix
-            override the suffix of compressed files
+         override the suffix of compressed files
   -t, --test
-            test the integrity of compressed files
+         test the integrity of compressed files
   -v, --verbose
-            be verbose
+         be verbose
   -V, --version
-            output version information and exit
+         output version information and exit
 `
 }
 

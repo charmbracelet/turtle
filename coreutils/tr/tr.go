@@ -173,12 +173,17 @@ var optSet = getopt.Set{Long: longOptions}
 const usage = `Usage: tr [OPTION]... string1 [string2]
 Translate, squeeze, and/or delete characters from the standard input.
 
-  -c, -C, --complement   use the complement of string1
-  -d, --delete            delete characters in string1, do not translate
-  -s, --squeeze-repeats   replace each sequence of a repeated character
-                           with a single occurrence of that character
-  -t, --truncate-set1     truncate string1 to the length of string2
-  -u                      (ignored)
+  -c, -C, --complement
+         use the complement of string1
+  -d, --delete
+         delete characters in string1, do not translate
+  -s, --squeeze-repeats
+         replace each sequence of a repeated character with a single occurrence
+         of that character
+  -t, --truncate-set1
+         truncate string1 to the length of string2
+  -u
+         (ignored)
       --help
          display this help and exit
       --version

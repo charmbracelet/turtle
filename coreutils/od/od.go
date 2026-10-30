@@ -253,20 +253,31 @@ Write an unambiguous representation of each FILE, or standard input, to
 standard output. Each line of output consists of the offset in the input,
 followed by groups of data from the file.
 
-  -A RADIX   select the base in which file offsets are printed: d for
-             decimal, o for octal, x for hexadecimal or n for none
-  -j BYTES   skip BYTES input bytes before formatting and writing
-  -N BYTES   output at most BYTES input bytes
-  -t TYPE    select the format of the output data; TYPE may combine a, c, d,
-             f, o, u and x, each optionally followed by a size
-  -v         output consecutive lines that are identical, instead of
-             replacing them with '*'
-  -b         same as -t o1
-  -c         same as -t c
-  -d         same as -t u2
-  -o         same as -t o2
-  -s         same as -t d2
-  -x         same as -t x2
+  -A RADIX
+         select the base in which file offsets are printed: d for decimal, o for
+         octal, x for hexadecimal or n for none
+  -j BYTES
+         skip BYTES input bytes before formatting and writing
+  -N BYTES
+         output at most BYTES input bytes
+  -t TYPE
+         select the format of the output data; TYPE may combine a, c, d, f, o, u
+         and x, each optionally followed by a size
+  -v
+         output consecutive lines that are identical, instead of replacing them
+         with '*'
+  -b
+         same as -t o1
+  -c
+         same as -t c
+  -d
+         same as -t u2
+  -o
+         same as -t o2
+  -s
+         same as -t d2
+  -x
+         same as -t x2
       --help
          display this help and exit
       --version

@@ -125,13 +125,16 @@ var optSet = getopt.Set{Valued: "ef", Optional: "i", Long: longOptions}
 const usage = `Usage: sed [OPTION]... {script-only-if-no-other-script} [input-file]...
 Edit the standard input or the given files with a script of commands.
 
-  -n                    suppress automatic printing of the pattern space
-  -E                    use extended regular expressions in the script
-  -e script             add script to the commands to be executed
-  -f script-file        add the contents of script-file to the commands to
-                          be executed
+  -n
+         suppress automatic printing of the pattern space
+  -E
+         use extended regular expressions in the script
+  -e script
+         add script to the commands to be executed
+  -f script-file
+         add the contents of script-file to the commands to be executed
   -i[SUFFIX], --in-place[=SUFFIX]
-                        edit files in place, making a backup with SUFFIX
+         edit files in place, making a backup with SUFFIX
       --help
          display this help and exit
       --version

@@ -479,13 +479,20 @@ const usage = `Usage: csplit [OPTION]... FILE_PATTERN...
 Output pieces of FILE separated by PATTERN(s) to files 'xx00', 'xx01', ...,
 and output byte counts of each piece to standard output.
 
-  -b, --suffix-format=FORMAT  use sprintf FORMAT instead of %02d
-  -f, --prefix=PREFIX         use PREFIX instead of 'xx'
-  -n, --digits=DIGITS         use specified number of digits instead of 2
-  -k, --keep-files            do not remove output files on errors
-  -s, --quiet, --silent       do not print counts of output file sizes
-  -z, --elide-empty-files     suppress zero-length output files
-      --suppress-matched      do not output lines matching the pattern
+  -b, --suffix-format=FORMAT
+         use sprintf FORMAT instead of %02d
+  -f, --prefix=PREFIX
+         use PREFIX instead of 'xx'
+  -n, --digits=DIGITS
+         use specified number of digits instead of 2
+  -k, --keep-files
+         do not remove output files on errors
+  -s, --quiet, --silent
+         do not print counts of output file sizes
+  -z, --elide-empty-files
+         suppress zero-length output files
+      --suppress-matched
+         do not output lines matching the pattern
       --help
          display this help and exit
       --version

@@ -155,8 +155,10 @@ var optSet = getopt.Set{Long: longOptions}
 const usage = `Usage: tee [OPTION]... [FILE]...
 Copy the standard input to the standard output and to each FILE.
 
-  -a, --append              append to the given FILEs, do not overwrite
-  -i, --ignore-interrupts   ignore interrupt signals
+  -a, --append
+         append to the given FILEs, do not overwrite
+  -i, --ignore-interrupts
+         ignore interrupt signals
       --help
          display this help and exit
       --version

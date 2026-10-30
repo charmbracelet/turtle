@@ -375,14 +375,22 @@ For each pair of input lines with identical join fields, write them to
 standard output. The default join field is the first, separated by
 blanks. When FILE1 or FILE2 (not both) is -, read standard input.
 
-  -a FILenum             also print unpairable lines from file FILenum
-  -e EMPTY               replace missing input fields with EMPTY
-  -i, --ignore-case      ignore differences in case when comparing fields
-  -1 FIELD               join on this FIELD of file 1
-  -2 FIELD               join on this FIELD of file 2
-  -o FORMAT              obey FORMAT while constructing output line
-  -t CHAR                use CHAR as input and output field separator
-  -v FILenum             like -a FILenum, but suppress joined output lines
+  -a FILenum
+         also print unpairable lines from file FILenum
+  -e EMPTY
+         replace missing input fields with EMPTY
+  -i, --ignore-case
+         ignore differences in case when comparing fields
+  -1 FIELD
+         join on this FIELD of file 1
+  -2 FIELD
+         join on this FIELD of file 2
+  -o FORMAT
+         obey FORMAT while constructing output line
+  -t CHAR
+         use CHAR as input and output field separator
+  -v FILenum
+         like -a FILenum, but suppress joined output lines
       --help
          display this help and exit
       --version

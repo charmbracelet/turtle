@@ -315,15 +315,18 @@ With more than one FILE, precede each with a header giving the file name.
 
 With no FILE, or when FILE is -, read standard input.
 
-  -c, --bytes=[-]NUM     print the first NUM bytes of each file; with a
-                         leading '-', print all but the last NUM bytes of
-                         each file
-  -n, --lines=[-]NUM     print the first NUM lines instead of the first 10;
-                         with a leading '-', print all but the last NUM lines
-                         of each file
-  -q, --quiet, --silent  never print headers giving file names
-  -v, --verbose          always print headers giving file names
-  -z, --zero-terminated  line delimiter is NUL, not newline
+  -c, --bytes=[-]NUM
+         print the first NUM bytes of each file; with a leading '-', print all
+         but the last NUM bytes of each file
+  -n, --lines=[-]NUM
+         print the first NUM lines instead of the first 10; with a leading '-',
+         print all but the last NUM lines of each file
+  -q, --quiet, --silent
+         never print headers giving file names
+  -v, --verbose
+         always print headers giving file names
+  -z, --zero-terminated
+         line delimiter is NUL, not newline
       --help
          display this help and exit
       --version

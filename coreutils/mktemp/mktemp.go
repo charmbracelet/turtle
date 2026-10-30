@@ -294,16 +294,22 @@ its name. If given, TEMPLATE must include at least three consecutive 'X's
 in its last component. If omitted, the template 'tmp.XXXXXXXXXX' is used,
 and --tmpdir is implied.
 
-  -d, --directory        create a directory, not a file
-  -u, --dry-run          do not create anything, merely print a name
-  -q, --quiet            suppress diagnostics about failure to create
-  -p, --tmpdir[=DIR]     interpret TEMPLATE relative to DIR; if DIR is not
-                        specified, use $TMPDIR if set, else /tmp; with this
-                        option, TEMPLATE must not be an absolute name
-      --suffix=SUFFIX    append SUFFIX to TEMPLATE; SUFFIX must not contain
-                        a slash, and TEMPLATE must end in X
-  -t                     treat TEMPLATE as a single path component relative
-                        to TMPDIR (deprecated)
+  -d, --directory
+         create a directory, not a file
+  -u, --dry-run
+         do not create anything, merely print a name
+  -q, --quiet
+         suppress diagnostics about failure to create
+  -p, --tmpdir[=DIR]
+         interpret TEMPLATE relative to DIR; if DIR is not specified, use
+         $TMPDIR if set, else /tmp; with this option, TEMPLATE must not be an
+         absolute name
+      --suffix=SUFFIX
+         append SUFFIX to TEMPLATE; SUFFIX must not contain a slash, and
+         TEMPLATE must end in X
+  -t
+         treat TEMPLATE as a single path component relative to TMPDIR
+         (deprecated)
       --help
          display this help and exit
       --version

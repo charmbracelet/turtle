@@ -158,8 +158,10 @@ OMP_NUM_THREADS or OMP_THREAD_LIMIT environment variables are set, then they
 will determine the minimum and maximum returned value respectively.  The
 result is guaranteed to be greater than zero.
 
-      --all          print the number of installed processors
-      --ignore=N     ignore up to N processors
+      --all
+         print the number of installed processors
+      --ignore=N
+         ignore up to N processors
       --help
          display this help and exit
       --version

@@ -142,15 +142,20 @@ Print CRC checksums and byte counts, or the digests the -a option selects.
 
 With no FILE, or when FILE is -, read standard input.
 
-  -a, --algorithm=TYPE  select the checksum type: crc (the default), sysv,
-                        bsd, crc32b, md5, sha1, sha2 or sha3
-      --base64          print base64-encoded digests, not hexadecimal
-  -l, --length=BITS     the digest length in bits, required with the sha2
-                        and sha3 algorithms: 224, 256, 384 or 512
-      --tag             create a tagged checksum (the default)
-      --untagged        create an untagged checksum, as the standalone
-                        digest utilities do
-  -z, --zero            end each output line with NUL, not newline
+  -a, --algorithm=TYPE
+         select the checksum type: crc (the default), sysv, bsd, crc32b, md5,
+         sha1, sha2 or sha3
+      --base64
+         print base64-encoded digests, not hexadecimal
+  -l, --length=BITS
+         the digest length in bits, required with the sha2 and sha3 algorithms:
+         224, 256, 384 or 512
+      --tag
+         create a tagged checksum (the default)
+      --untagged
+         create an untagged checksum, as the standalone digest utilities do
+  -z, --zero
+         end each output line with NUL, not newline
       --help
          display this help and exit
       --version

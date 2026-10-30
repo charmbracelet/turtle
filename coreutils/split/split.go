@@ -633,8 +633,8 @@ default FILE is stdin and default PREFIX is 'x'.
   -C, --line-bytes=SIZE
          put at most SIZE bytes of lines per output file
   -d, --numeric-suffixes[=FROM]
-         use numeric suffixes instead of alphabetic; FROM changes the
-         start value (default 0)
+         use numeric suffixes instead of alphabetic; FROM changes the start
+         value (default 0)
   -e, --elide-empty-files
          do not generate empty output files
   -l, --lines=NUMBER

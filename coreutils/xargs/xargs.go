@@ -351,25 +351,31 @@ var optSet = getopt.Set{
 const usage = `Usage: xargs [OPTION]... [COMMAND [INITIAL-ARG]...]
 Run COMMAND with arguments read from the input; the utility defaults to echo.
 
-  -0, --null                 items are separated by a null character, not
-                             whitespace
-  -a, --arg-file=FILE        read the items from FILE instead of the
-                             standard input
-  -d, --delimiter=CHARACTER  items are separated by CHARACTER, not
-                             whitespace
-  -E, --eof[=EOF-STR]        set the logical end-of-file string; an empty
-                             string disables it
-  -I, --replace=R            replace R in the initial arguments with each
-                             input item; R defaults to {}
-  -L, --max-lines=MAX-LINES  use at most MAX-LINES non-blank input lines per
-                             command line
-  -n, --max-args=MAX-ARGS    use at most MAX-ARGS arguments per command line
-  -p, --interactive          prompt before running each command line
-  -r, --no-run-if-empty      do not run the utility when the input holds no
-                             items
-  -s, --max-chars=MAX-CHARS  limit each command line to MAX-CHARS characters
-  -t, --verbose              print each command line before running it
-  -x, --exit                 exit when a command line exceeds the size limit
+  -0, --null
+         items are separated by a null character, not whitespace
+  -a, --arg-file=FILE
+         read the items from FILE instead of the standard input
+  -d, --delimiter=CHARACTER
+         items are separated by CHARACTER, not whitespace
+  -E, --eof[=EOF-STR]
+         set the logical end-of-file string; an empty string disables it
+  -I, --replace=R
+         replace R in the initial arguments with each input item; R defaults to
+         {}
+  -L, --max-lines=MAX-LINES
+         use at most MAX-LINES non-blank input lines per command line
+  -n, --max-args=MAX-ARGS
+         use at most MAX-ARGS arguments per command line
+  -p, --interactive
+         prompt before running each command line
+  -r, --no-run-if-empty
+         do not run the utility when the input holds no items
+  -s, --max-chars=MAX-CHARS
+         limit each command line to MAX-CHARS characters
+  -t, --verbose
+         print each command line before running it
+  -x, --exit
+         exit when a command line exceeds the size limit
       --help
          display this help and exit
       --version

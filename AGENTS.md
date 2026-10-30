@@ -163,13 +163,12 @@ Code style guidelines:
 
   The exceptions are `echo`, `printf` and `test`, whose specifications forbid
   options. `false` still exits with status 1 after handling them.
-* The option table of a usage text must be uniform, as current GNU does:
-  either every entry is inline with its description at a fixed column, or,
-  when some option is too long for the column, the whole table hangs, with
-  each option alone on its line and its description indented 9 spaces
-  below. Never mix both in one table, and never exceed 80 columns. (`tar`
-  follows GNU tar's own layout instead, and `nl` keeps a wide inline
-  column, as GNU does.)
+* The option table of a usage text is always in the hanging style: each
+  option alone on its line, indented 2 spaces (6 when it has no short
+  form), with its description indented 9 spaces below, wrapped greedily so
+  no line exceeds 80 columns. This keeps the table uniform with the
+  closing `--help` and `--version` pair, even when current GNU keeps a
+  two-column table for a few utilities.
 * Usage errors, like invalid options and missing or extra operands, are
   followed by the GNU hint on the standard error, written with
   `stdopts.TryHelp`.

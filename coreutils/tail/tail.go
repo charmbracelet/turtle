@@ -375,16 +375,22 @@ With more than one FILE, precede each with a header giving the file name.
 
 With no FILE, or when FILE is -, read standard input.
 
-  -c, --bytes=[+]NUM     output the last NUM bytes; or use -c +NUM to output
-                         starting with byte NUM of each file
-  -f, --follow           output appended data as the file grows; a single
-                         file operand only
-  -n, --lines=[+]NUM     output the last NUM lines, instead of the last 10;
-                         or use -n +NUM to output starting with line NUM
-  -q, --quiet, --silent  never print headers giving file names
-  -r                     output the lines in reverse, starting from the end
-  -v, --verbose          always print headers giving file names
-  -z, --zero-terminated  line delimiter is NUL, not newline
+  -c, --bytes=[+]NUM
+         output the last NUM bytes; or use -c +NUM to output starting with byte
+         NUM of each file
+  -f, --follow
+         output appended data as the file grows; a single file operand only
+  -n, --lines=[+]NUM
+         output the last NUM lines, instead of the last 10; or use -n +NUM to
+         output starting with line NUM
+  -q, --quiet, --silent
+         never print headers giving file names
+  -r
+         output the lines in reverse, starting from the end
+  -v, --verbose
+         always print headers giving file names
+  -z, --zero-terminated
+         line delimiter is NUL, not newline
       --help
          display this help and exit
       --version

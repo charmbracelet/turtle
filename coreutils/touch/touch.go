@@ -271,17 +271,24 @@ Update the access and modification times of each FILE to the current time.
 
 A FILE argument that does not exist is created, unless -c or -h is supplied.
 
-  -a                     change only the access time
-  -c, --no-create        do not create any files
-  -d, --date=STRING      parse STRING and use it instead of current time
-  -f                     (ignored)
-  -h, --no-dereference   affect each symbolic link instead of any referenced
-                         file
-  -m                     change only the modification time
-  -r, --reference=FILE   use this file's times instead of current time
-  -t STAMP               use [[CC]YY]MMDDhhmm[.ss] instead of current time
-      --time=WORD        change the time WORD names: access, atime, use,
-                         modify or mtime
+  -a
+         change only the access time
+  -c, --no-create
+         do not create any files
+  -d, --date=STRING
+         parse STRING and use it instead of current time
+  -f
+         (ignored)
+  -h, --no-dereference
+         affect each symbolic link instead of any referenced file
+  -m
+         change only the modification time
+  -r, --reference=FILE
+         use this file's times instead of current time
+  -t STAMP
+         use [[CC]YY]MMDDhhmm[.ss] instead of current time
+      --time=WORD
+         change the time WORD names: access, atime, use, modify or mtime
       --help
          display this help and exit
       --version

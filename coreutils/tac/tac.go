@@ -136,10 +136,12 @@ Concatenate and write files in reverse, last record first.
 
 With no FILE, or when FILE is -, read standard input.
 
-  -b, --before             attach the separator to the record it precedes
-  -r, --regex              treat the separator as a regular expression
-  -s, --separator=STRING   use STRING as the record separator; empty means
-                             a zero byte
+  -b, --before
+         attach the separator to the record it precedes
+  -r, --regex
+         treat the separator as a regular expression
+  -s, --separator=STRING
+         use STRING as the record separator; empty means a zero byte
       --help
          display this help and exit
       --version

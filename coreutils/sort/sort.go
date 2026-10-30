@@ -285,29 +285,47 @@ Sort, merge, or compare all the lines from the given files.
 
 With no FILE, or when FILE is -, read standard input.
 
-  -b, --ignore-leading-blanks   ignore leading blanks when finding sort keys
-  -c, --check                   check whether the input is sorted
-  -C                            like -c, but without printing a diagnostic
-  -d, --dictionary-order        consider only letters, digits and blanks
-  -f, --ignore-case             fold lowercase characters into uppercase
-  -h, --human-numeric-sort      compare human-numeric values, like 2K and 1G
-  -i, --ignore-nonprinting      ignore nonprinting characters
-  -k, --key=KEYDEF              sort by a key; KEYDEF gives the field and
-                                character positions, with the modifiers
-                                b, d, f, h, i, M, n, r, R and V
-  -m, --merge                   merge the given sorted files as a group
-  -M, --month-sort              compare (unknown) < 'JAN' < ... < 'DEC'
-  -n, --numeric-sort            compare according to string numerical value
-  -o, --output=FILE             write the result to FILE instead of stdout
-  -r, --reverse                 reverse the result of comparison
-  -R, --random-sort             sort by a hash of the input keys
-  -s, --stable                  disable the last-resort comparison
-  -t, --field-separator=SEP     use SEP as the field separator
-  -u, --unique                  output only the first of equal lines
-  -V, --version-sort            sort by version name and number
-  -z, --zero-terminated         delimit items with a zero byte, not a newline
-      --sort=WORD               sort by WORD: human-numeric, month,
-                                numeric, random, or version
+  -b, --ignore-leading-blanks
+         ignore leading blanks when finding sort keys
+  -c, --check
+         check whether the input is sorted
+  -C
+         like -c, but without printing a diagnostic
+  -d, --dictionary-order
+         consider only letters, digits and blanks
+  -f, --ignore-case
+         fold lowercase characters into uppercase
+  -h, --human-numeric-sort
+         compare human-numeric values, like 2K and 1G
+  -i, --ignore-nonprinting
+         ignore nonprinting characters
+  -k, --key=KEYDEF
+         sort by a key; KEYDEF gives the field and character positions, with the
+         modifiers b, d, f, h, i, M, n, r, R and V
+  -m, --merge
+         merge the given sorted files as a group
+  -M, --month-sort
+         compare (unknown) < 'JAN' < ... < 'DEC'
+  -n, --numeric-sort
+         compare according to string numerical value
+  -o, --output=FILE
+         write the result to FILE instead of stdout
+  -r, --reverse
+         reverse the result of comparison
+  -R, --random-sort
+         sort by a hash of the input keys
+  -s, --stable
+         disable the last-resort comparison
+  -t, --field-separator=SEP
+         use SEP as the field separator
+  -u, --unique
+         output only the first of equal lines
+  -V, --version-sort
+         sort by version name and number
+  -z, --zero-terminated
+         delimit items with a zero byte, not a newline
+      --sort=WORD
+         sort by WORD: human-numeric, month, numeric, random, or version
       --help
          display this help and exit
       --version

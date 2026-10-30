@@ -289,8 +289,9 @@ Scan the input for the output of uuencode and recreate the file it holds,
 on the standard output when the pathname of its header is '-' or
 '/dev/stdout'.
 
-  -o, --output-file=OUTFILE  write the decoded file to OUTFILE, instead of
-                             the pathname of the header
+  -o, --output-file=OUTFILE
+         write the decoded file to OUTFILE, instead of the pathname of the
+         header
       --help
          display this help and exit
       --version

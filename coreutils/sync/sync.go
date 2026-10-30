@@ -168,8 +168,10 @@ var optSet = getopt.Set{Long: longOptions}
 const usage = `Usage: sync [OPTION] [FILE]...
 Synchronize cached writes to persistent storage
 
-  -d, --data             sync only file data, no unneeded metadata
-  -f, --file-system      sync the file systems that contain the files
+  -d, --data
+         sync only file data, no unneeded metadata
+  -f, --file-system
+         sync the file systems that contain the files
       --help
          display this help and exit
       --version

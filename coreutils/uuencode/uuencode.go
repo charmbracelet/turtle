@@ -161,8 +161,8 @@ const usage = `Usage: uuencode [-m] [file] decode_pathname
 Write an encoded version of FILE, or of the standard input, to the standard
 output, announcing decode_pathname as the name of the recreated file.
 
-  -m, --base64  encode with the MIME base64 algorithm, instead of the
-                historical one
+  -m, --base64
+         encode with the MIME base64 algorithm, instead of the historical one
       --help
          display this help and exit
       --version

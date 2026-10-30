@@ -240,16 +240,26 @@ Print or check checksums.
 
 With no FILE, or when FILE is -, read standard input.
 
-  -b, --binary           read in binary mode
-  -c, --check            read checksums from the FILES and check them
-      --ignore-missing   don't fail or report status for missing files
-      --quiet            don't print OK for each successfully verified file
-      --status           don't output anything, status code shows success
-      --strict           exit non-zero for improperly formatted checksum lines
-      --tag              create a BSD-style checksum
-  -t, --text             read in text mode (default)
-  -w, --warn             warn about improperly formatted checksum lines
-  -z, --zero             end each output line with NUL, not newline
+  -b, --binary
+         read in binary mode
+  -c, --check
+         read checksums from the FILES and check them
+      --ignore-missing
+         don't fail or report status for missing files
+      --quiet
+         don't print OK for each successfully verified file
+      --status
+         don't output anything, status code shows success
+      --strict
+         exit non-zero for improperly formatted checksum lines
+      --tag
+         create a BSD-style checksum
+  -t, --text
+         read in text mode (default)
+  -w, --warn
+         warn about improperly formatted checksum lines
+  -z, --zero
+         end each output line with NUL, not newline
       --help
          display this help and exit
       --version

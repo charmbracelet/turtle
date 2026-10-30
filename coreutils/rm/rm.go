@@ -273,11 +273,16 @@ var optSet = getopt.Set{Long: longOptions}
 const usage = `Usage: rm [OPTION]... [FILE]...
 Remove (unlink) the FILE(s).
 
-  -f, --force           ignore nonexistent files and arguments, never prompt
-  -i, --interactive     prompt before every removal
-  -r, -R, --recursive   remove directories and their contents recursively
-  -d, --dir             remove empty directories
-  -v, --verbose         explain what is being done
+  -f, --force
+         ignore nonexistent files and arguments, never prompt
+  -i, --interactive
+         prompt before every removal
+  -r, -R, --recursive
+         remove directories and their contents recursively
+  -d, --dir
+         remove empty directories
+  -v, --verbose
+         explain what is being done
       --help
          display this help and exit
       --version

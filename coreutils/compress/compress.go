@@ -178,14 +178,21 @@ func Usage(prog string) string {
 	return `Usage: ` + prog + ` ` + synopsis + `
 Compress or expand files.
 
-  -b bits      set the code size, 9 to 16 bits for LZW, 1 to 9 for gzip
-  -c           write the result on the standard output, keeping the
-               input files unchanged
-  -d           restore the files, like uncompress
-  -f           force compression, even when the files would grow
-  -g           compress with the gzip format instead of LZW
-  -m method    compression method: lzw (default) or gzip
-  -v           write the names and the sizes of the files processed
+  -b bits
+         set the code size, 9 to 16 bits for LZW, 1 to 9 for gzip
+  -c
+         write the result on the standard output, keeping the input files
+         unchanged
+  -d
+         restore the files, like uncompress
+  -f
+         force compression, even when the files would grow
+  -g
+         compress with the gzip format instead of LZW
+  -m method
+         compression method: lzw (default) or gzip
+  -v
+         write the names and the sizes of the files processed
       --help
          display this help and exit
       --version

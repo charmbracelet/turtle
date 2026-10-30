@@ -100,13 +100,17 @@ Run a command in a modified environment.
 
 With no COMMAND, print the resulting environment.
 
-  -i, --ignore-environment  start with an empty environment
-  -u, --unset=NAME           remove NAME from the environment
-  -0, --null                 end each output line with NUL, not newline
-  -C, --chdir=DIR            change the working directory to DIR
-  -S, --split-string=STRING  process and split STRING into separate
-                             arguments, used to pass multiple arguments on
-                             shebang lines
+  -i, --ignore-environment
+         start with an empty environment
+  -u, --unset=NAME
+         remove NAME from the environment
+  -0, --null
+         end each output line with NUL, not newline
+  -C, --chdir=DIR
+         change the working directory to DIR
+  -S, --split-string=STRING
+         process and split STRING into separate arguments, used to pass multiple
+         arguments on shebang lines
       --help
          display this help and exit
       --version

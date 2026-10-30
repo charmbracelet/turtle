@@ -107,13 +107,13 @@ func TestRun(t *testing.T) {
 		{
 			name:     "invalid minimum length",
 			args:     []string{"-n0"},
-			wantErr:  "strings: invalid minimum string length\n",
+			wantErr:  "strings: invalid minimum string length\nTry 'strings --help' for more information.\n",
 			wantCode: 1,
 		},
 		{
 			name:     "invalid offset format",
 			args:     []string{"-tq"},
-			wantErr:  "strings: invalid format type\n",
+			wantErr:  "strings: invalid format type\nTry 'strings --help' for more information.\n",
 			wantCode: 1,
 		},
 		{
@@ -160,4 +160,31 @@ func TestRunCancellation(t *testing.T) {
 	if err := prog.Run(ctx); !errors.Is(err, context.Canceled) {
 		t.Fatalf("Run() error = %v, want context.Canceled", err)
 	}
+}
+
+func TestHelpVersion(t *testing.T) {
+	t.Run("help", func(t *testing.T) {
+		stdout := new(bytes.Buffer)
+		stderr := new(bytes.Buffer)
+		rt := &coreutils.Runtime{Stdout: stdout, Stderr: stderr}
+		if err := New(rt).Run(t.Context(), "--help"); err != nil {
+			t.Fatalf("Run() error = %v, want nil (exit status 0)", err)
+		}
+		if got, want := stdout.String(), usage; got != want {
+			t.Errorf("Run() stdout = %q, want %q", got, want)
+		}
+	})
+
+	t.Run("version", func(t *testing.T) {
+		stdout := new(bytes.Buffer)
+		stderr := new(bytes.Buffer)
+		rt := &coreutils.Runtime{Stdout: stdout, Stderr: stderr}
+		if err := New(rt).Run(t.Context(), "--version"); err != nil {
+			t.Fatalf("Run() error = %v, want nil (exit status 0)", err)
+		}
+		want := "strings (charm.land/snail/coreutils) " + coreutils.Version + "\nhttps://charm.land/snail\n"
+		if got := stdout.String(); got != want {
+			t.Errorf("Run() stdout = %q, want %q", got, want)
+		}
+	})
 }

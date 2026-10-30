@@ -339,8 +339,8 @@ With no options, matching lines are merged to the first occurrence.
   -d, --repeated
          only print duplicate lines, one for each group
   -D, --all-repeated[=METHOD]
-         print all duplicate lines, delimiting the groups
-         with METHOD: none (default), prepend or separate
+         print all duplicate lines, delimiting the groups with METHOD: none
+         (default), prepend or separate
   -f, --skip-fields=N
          avoid comparing the first N fields
   -i, --ignore-case

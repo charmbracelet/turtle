@@ -543,9 +543,12 @@ const usage = `Usage: seq [OPTION]... LAST
   or:  seq [OPTION]... FIRST INCREMENT LAST
 Print numbers from FIRST to LAST, in steps of INCREMENT.
 
-  -f, --format=FORMAT      use printf style floating-point FORMAT
-  -s, --separator=STRING   use STRING to separate numbers (default: \n)
-  -w, --equal-width        equalize width by padding with leading zeros
+  -f, --format=FORMAT
+         use printf style floating-point FORMAT
+  -s, --separator=STRING
+         use STRING to separate numbers (default: \n)
+  -w, --equal-width
+         equalize width by padding with leading zeros
       --help
          display this help and exit
       --version

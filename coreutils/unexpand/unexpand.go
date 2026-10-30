@@ -242,10 +242,14 @@ const usage = `Usage: unexpand [OPTION]... [FILE]...
 Convert blanks in each FILE to tabs, writing to standard output.
 With no FILE, or when FILE is -, read standard input.
 
-  -a, --all           convert all blanks, not just initial blanks
-      --first-only    convert only leading sequences of blanks (overrides -a)
-  -t, --tabs=N        have tabs N characters apart, not 8
-  -t, --tabs=LIST     use comma separated LIST of tab positions
+  -a, --all
+         convert all blanks, not just initial blanks
+      --first-only
+         convert only leading sequences of blanks (overrides -a)
+  -t, --tabs=N
+         have tabs N characters apart, not 8
+  -t, --tabs=LIST
+         use comma separated LIST of tab positions
       --help
          display this help and exit
       --version

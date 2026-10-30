@@ -189,9 +189,12 @@ const usage = `Usage: expand [OPTION]... [FILE]...
 Convert tabs in each FILE to spaces, writing to standard output.
 With no FILE, or when FILE is -, read standard input.
 
-  -i, --initial    do not convert tabs after non blanks
-  -t, --tabs=N     have tabs N characters apart, not 8
-  -t, --tabs=LIST  use comma separated LIST of tab positions
+  -i, --initial
+         do not convert tabs after non blanks
+  -t, --tabs=N
+         have tabs N characters apart, not 8
+  -t, --tabs=LIST
+         use comma separated LIST of tab positions
       --help
          display this help and exit
       --version

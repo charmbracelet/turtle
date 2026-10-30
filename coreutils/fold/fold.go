@@ -249,9 +249,12 @@ Writes each FILE ('-' means standard input), or standard input if none are
 given, to standard output, breaking lines so that no output line is wider
 than the limit, 80 columns by default.
 
-  -b, --bytes         count bytes rather than columns
-  -s, --spaces        break at word boundaries, after the last blank
-  -w, --width=WIDTH   use WIDTH columns instead of 80
+  -b, --bytes
+         count bytes rather than columns
+  -s, --spaces
+         break at word boundaries, after the last blank
+  -w, --width=WIDTH
+         use WIDTH columns instead of 80
       --help
          display this help and exit
       --version
