@@ -47,14 +47,17 @@ func (p *Prog) Run(ctx context.Context, args ...string) error {
 	base64, operands, err := parseFlags(args)
 	if err != nil {
 		p.errorf("%v", err)
+		stdopts.TryHelp(p.Runtime, "uuencode")
 		return &coreutils.ExitError{Code: 2}
 	}
 	switch {
 	case len(operands) == 0:
 		p.errorf("missing operand")
+		stdopts.TryHelp(p.Runtime, "uuencode")
 		return &coreutils.ExitError{Code: 2}
 	case len(operands) > 2:
 		p.errorf("extra operand '%s'", operands[2])
+		stdopts.TryHelp(p.Runtime, "uuencode")
 		return &coreutils.ExitError{Code: 2}
 	}
 
