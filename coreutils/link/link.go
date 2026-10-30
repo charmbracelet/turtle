@@ -41,13 +41,16 @@ func (p *Prog) Run(ctx context.Context, args ...string) error {
 	switch len(args) {
 	case 0:
 		p.errorf("missing file operand")
+		stdopts.TryHelp(p.Runtime, "link")
 		return &coreutils.ExitError{Code: 2}
 	case 1:
 		p.errorf("missing destination file operand after '%s'", args[0])
+		stdopts.TryHelp(p.Runtime, "link")
 		return &coreutils.ExitError{Code: 2}
 	case 2:
 	default:
 		p.errorf("extra operand '%s'", args[2])
+		stdopts.TryHelp(p.Runtime, "link")
 		return &coreutils.ExitError{Code: 2}
 	}
 	if p.FS == nil {

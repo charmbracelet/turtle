@@ -221,7 +221,7 @@ func TestRun(t *testing.T) {
 				name:     "no operand is an error",
 				files:    fsx.MemFS{},
 				args:     nil,
-				wantErr:  "link: missing file operand\n",
+				wantErr:  "link: missing file operand\nTry 'link --help' for more information.\n",
 				wantExit: 2,
 			},
 			{
@@ -229,7 +229,7 @@ func TestRun(t *testing.T) {
 				files:    fsx.MemFS{"a.txt": {Data: []byte("hello")}},
 				args:     []string{"a.txt"},
 				present:  []string{"a.txt"},
-				wantErr:  "link: missing destination file operand after 'a.txt'\n",
+				wantErr:  "link: missing destination file operand after 'a.txt'\nTry 'link --help' for more information.\n",
 				wantExit: 2,
 			},
 			{
@@ -238,7 +238,7 @@ func TestRun(t *testing.T) {
 				args:     []string{"a.txt", "b.txt", "c.txt"},
 				present:  []string{"a.txt", "b.txt"},
 				absent:   []string{"c.txt"},
-				wantErr:  "link: extra operand 'c.txt'\n",
+				wantErr:  "link: extra operand 'c.txt'\nTry 'link --help' for more information.\n",
 				wantExit: 2,
 			},
 		}
