@@ -1,4 +1,5 @@
-// Package cut implements the POSIX cut utility.
+// Package cut implements the cut utility: the POSIX specification plus the
+// main GNU extensions.
 //
 // It cuts out selected bytes, characters, or delimiter-separated fields of
 // each line of the given files. The standard input is used when no operands
@@ -93,13 +94,17 @@ func (p *Prog) cut(ctx context.Context, in input.Input, opts options) error {
 	defer r.Close()
 
 	br := bufio.NewReader(r)
+	term := byte('\n')
+	if opts.zero {
+		term = 0
+	}
 	for {
 		if err := ctx.Err(); err != nil {
 			return err
 		}
-		line, err := br.ReadString('\n')
+		line, err := br.ReadBytes(term)
 		if len(line) > 0 {
-			if cerr := p.cutLine([]byte(strings.TrimSuffix(line, "\n")), opts); cerr != nil {
+			if cerr := p.cutLine(bytes.TrimSuffix(line, []byte{term}), opts); cerr != nil {
 				return cerr
 			}
 		}
@@ -127,7 +132,11 @@ func (p *Prog) cutLine(line []byte, opts options) error {
 	default:
 		out = opts.cutBytes(line)
 	}
-	out = append(out, '\n')
+	term := byte('\n')
+	if opts.zero {
+		term = 0
+	}
+	out = append(out, term)
 	if _, err := p.Stdout.Write(out); err != nil {
 		return &writeError{err: err}
 	}
@@ -150,21 +159,31 @@ const (
 
 // options holds the parsed command line options.
 type options struct {
-	mode     mode
-	spans    []span
-	delim    byte
-	noSplit  bool
-	suppress bool
+	mode       mode
+	spans      []span
+	delim      byte
+	outDelim   []byte
+	noSplit    bool
+	suppress   bool
+	complement bool
+	zero       bool
 }
 
 // longOptions maps the long options of cut to the short ones they stand for.
 var longOptions = map[string]rune{
-	"bytes":          'b',
-	"characters":     'c',
-	"delimiter":      'd',
-	"fields":         'f',
-	"only-delimited": 's',
+	"bytes":            'b',
+	"characters":       'c',
+	"complement":       complementOpt,
+	"delimiter":        'd',
+	"fields":           'f',
+	"only-delimited":   's',
+	"output-delimiter": 'O',
+	"zero-terminated":  'z',
 }
+
+// complementOpt is the pseudo short option --complement stands for, as it
+// has no short form.
+const complementOpt rune = 0x100
 
 // parseFlags parses the options and operands, checking that exactly one list
 // option is given and that the other options combine with it. Option parsing
@@ -172,12 +191,13 @@ var longOptions = map[string]rune{
 func parseFlags(args []string) (options, []string, error) {
 	opts := options{delim: '\t'}
 	var (
-		listSeen rune
-		delimSet bool
-		nSet     bool
-		sSet     bool
+		listSeen    rune
+		delimSet    bool
+		outDelimSet bool
+		nSet        bool
+		sSet        bool
 	)
-	operands, err := getopt.Set{Valued: "bcdf", Long: longOptions}.Parse(args, func(opt rune, value string) error {
+	operands, err := getopt.Set{Valued: "bcdfO", Long: longOptions}.Parse(args, func(opt rune, value string) error {
 		switch opt {
 		case 'b', 'c', 'f':
 			if listSeen != 0 && listSeen != opt {
@@ -207,6 +227,13 @@ func parseFlags(args []string) (options, []string, error) {
 		case 's':
 			opts.suppress = true
 			sSet = true
+		case 'O':
+			opts.outDelim = []byte(value)
+			outDelimSet = true
+		case 'z':
+			opts.zero = true
+		case complementOpt:
+			opts.complement = true
 		default:
 			return getopt.InvalidOption(opt)
 		}
@@ -226,6 +253,11 @@ func parseFlags(args []string) (options, []string, error) {
 	}
 	if opts.mode != modeBytes && nSet {
 		return options{}, nil, errors.New("the -n option is only meaningful with the -b option")
+	}
+	if !outDelimSet && opts.mode == modeFields {
+		opts.outDelim = []byte{opts.delim}
+	} else if outDelimSet && len(opts.outDelim) == 0 {
+		opts.outDelim = []byte{0}
 	}
 	return opts, operands, nil
 }
@@ -307,33 +339,55 @@ func parsePosition(s string) (int, error) {
 	return n, nil
 }
 
-// cutBytes returns the selected bytes of the line.
+// cutBytes returns the selected bytes of the line, separated by the output
+// delimiter between the written ranges.
 func (opts options) cutBytes(line []byte) []byte {
 	spans := opts.spans
 	if opts.noSplit {
 		spans = charSpans(line, spans)
 	}
+	if opts.complement {
+		spans = complementSpans(spans)
+	}
 	var out []byte
+	wrote := false
 	for _, sp := range spans {
 		high := sp.high
 		if high == 0 || high > len(line) {
 			high = len(line)
 		}
-		if sp.low <= high {
-			out = append(out, line[sp.low-1:high]...)
+		if sp.low > high {
+			continue
 		}
+		if wrote {
+			out = append(out, opts.outDelim...)
+		}
+		out = append(out, line[sp.low-1:high]...)
+		wrote = true
 	}
 	return out
 }
 
-// cutChars returns the selected characters of the line.
+// cutChars returns the selected characters of the line, separated by the
+// output delimiter between the written ranges.
 func (opts options) cutChars(line []byte) []byte {
 	bounds := charBounds(line)
+	spans := opts.spans
+	if opts.complement {
+		spans = complementSpans(spans)
+	}
 	var out []byte
-	for _, sp := range opts.spans {
+	wrote := false
+	for _, sp := range spans {
 		high := sp.high
 		if high == 0 || high > len(bounds) {
 			high = len(bounds)
+		}
+		if sp.low > high {
+			continue
+		}
+		if wrote {
+			out = append(out, opts.outDelim...)
 		}
 		for i := sp.low; i <= high; i++ {
 			end := len(line)
@@ -342,33 +396,57 @@ func (opts options) cutChars(line []byte) []byte {
 			}
 			out = append(out, line[bounds[i-1]:end]...)
 		}
+		wrote = true
 	}
 	return out
 }
 
-// cutFields returns the selected fields of the line, joined by the delimiter.
-// Lines without a delimiter are returned as-is, unless -s suppresses them.
+// cutFields returns the selected fields of the line, joined by the output
+// delimiter. Lines without a delimiter are returned as-is, unless -s
+// suppresses them.
 func (opts options) cutFields(line []byte) ([]byte, bool) {
 	if !bytes.Contains(line, []byte{opts.delim}) {
 		return line, !opts.suppress
 	}
 	fields := bytes.Split(line, []byte{opts.delim})
+	spans := opts.spans
+	if opts.complement {
+		spans = complementSpans(spans)
+	}
 	var out []byte
 	wrote := false
-	for _, sp := range opts.spans {
+	for _, sp := range spans {
 		high := sp.high
 		if high == 0 || high > len(fields) {
 			high = len(fields)
 		}
 		for i := sp.low; i <= high; i++ {
 			if wrote {
-				out = append(out, opts.delim)
+				out = append(out, opts.outDelim...)
 			}
 			out = append(out, fields[i-1]...)
 			wrote = true
 		}
 	}
 	return out, true
+}
+
+// complementSpans returns the gaps the spans leave in the positions of a
+// line, in order: the span from the start up to the first one, the ones
+// between them, and a final one to the end of the line.
+func complementSpans(spans []span) []span {
+	var gaps []span
+	next := 1
+	for _, sp := range spans {
+		if sp.low > next {
+			gaps = append(gaps, span{next, sp.low - 1})
+		}
+		if sp.high == 0 {
+			return gaps
+		}
+		next = sp.high + 1
+	}
+	return append(gaps, span{next, 0})
 }
 
 // charBounds returns the byte offsets where the characters of the line
