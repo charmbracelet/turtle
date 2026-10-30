@@ -57,15 +57,18 @@ func (p *Prog) Run(ctx context.Context, args ...string) error {
 	opts, operands, err := parseFlags(args)
 	if err != nil {
 		p.errorf("%v", err)
+		stdopts.TryHelp(p.Runtime, "cksum")
 		return &coreutils.ExitError{Code: 1}
 	}
 	a, err := opts.chosen()
 	if err != nil {
 		p.errorf("%v", err)
+		stdopts.TryHelp(p.Runtime, "cksum")
 		return &coreutils.ExitError{Code: 1}
 	}
 	if err := opts.validate(a); err != nil {
 		p.errorf("%v", err)
+		stdopts.TryHelp(p.Runtime, "cksum")
 		return &coreutils.ExitError{Code: 1}
 	}
 	// The pathname is left out only when no file was given, so that an
