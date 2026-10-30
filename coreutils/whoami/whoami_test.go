@@ -74,8 +74,8 @@ func TestRun(t *testing.T) {
 		{
 			name:     "rejects a long option",
 			environ:  []string{"USER=alice"},
-			args:     []string{"--help"},
-			wantErr:  "whoami: unrecognized option '--help'\n",
+			args:     []string{"--bogus"},
+			wantErr:  "whoami: unrecognized option '--bogus'\n",
 			wantCode: 1,
 		},
 		{
@@ -150,4 +150,49 @@ func TestRun(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestHelpVersion(t *testing.T) {
+	t.Run("help", func(t *testing.T) {
+		stdout := new(bytes.Buffer)
+		stderr := new(bytes.Buffer)
+		rt := &coreutils.Runtime{
+			Stdout: stdout,
+			Stderr: stderr,
+			Environ: func() []string {
+				return []string{"USER=alice"}
+			},
+		}
+		if err := New(rt).Run(t.Context(), "--help"); err != nil {
+			t.Fatalf("Run() error = %v, want nil (exit status 0)", err)
+		}
+		if got, want := stdout.String(), usage; got != want {
+			t.Errorf("Run() stdout = %q, want %q", got, want)
+		}
+		if got := stderr.String(); got != "" {
+			t.Errorf("Run() stderr = %q, want empty", got)
+		}
+	})
+
+	t.Run("version", func(t *testing.T) {
+		stdout := new(bytes.Buffer)
+		stderr := new(bytes.Buffer)
+		rt := &coreutils.Runtime{
+			Stdout: stdout,
+			Stderr: stderr,
+			Environ: func() []string {
+				return []string{"USER=alice"}
+			},
+		}
+		if err := New(rt).Run(t.Context(), "--version"); err != nil {
+			t.Fatalf("Run() error = %v, want nil (exit status 0)", err)
+		}
+		want := "whoami (charm.land/snail/coreutils) " + coreutils.Version + "\nhttps://charm.land/snail\n"
+		if got := stdout.String(); got != want {
+			t.Errorf("Run() stdout = %q, want %q", got, want)
+		}
+		if got := stderr.String(); got != "" {
+			t.Errorf("Run() stderr = %q, want empty", got)
+		}
+	})
 }
