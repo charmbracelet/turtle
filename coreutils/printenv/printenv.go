@@ -36,6 +36,7 @@ func (p *Prog) Run(ctx context.Context, args ...string) error {
 	opts, names, err := parseArgs(args)
 	if err != nil {
 		p.errorf("%v", err)
+		stdopts.TryHelp(p.Runtime, "printenv")
 		return &coreutils.ExitError{Code: 1, Err: err}
 	}
 	sep := "\n"

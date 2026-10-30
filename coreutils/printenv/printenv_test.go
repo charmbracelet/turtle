@@ -430,6 +430,20 @@ func (w *cancelWriter) String() string {
 	return w.buf.String()
 }
 
+func TestRunUsageError(t *testing.T) {
+	stdout, stderr, err := runPrintenv(t, nil, "-x")
+	if code := exitCode(t, err); code != 1 {
+		t.Fatalf("Run() exit code = %d, want 1 (error = %v)", code, err)
+	}
+	if got := stdout; got != "" {
+		t.Errorf("Run() stdout = %q, want empty", got)
+	}
+	want := "printenv: invalid option -- 'x'\nTry 'printenv --help' for more information.\n"
+	if got := stderr; got != want {
+		t.Errorf("Run() stderr = %q, want %q", got, want)
+	}
+}
+
 func TestHelpVersion(t *testing.T) {
 	t.Run("help", func(t *testing.T) {
 		stdout, stderr, err := runPrintenv(t, nil, "--help")
