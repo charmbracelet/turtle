@@ -309,6 +309,65 @@ func TestRunTabStops(t *testing.T) {
 	}
 }
 
+func TestRunFirstOnly(t *testing.T) {
+	tests := []testCase{
+		{
+			name:  "interior blanks are not converted",
+			stdin: strings.NewReader("a       b\n"),
+			args:  []string{"--first-only"},
+			want:  "a       b\n",
+		},
+		{
+			name:  "leading blanks are converted",
+			stdin: strings.NewReader("        foo\n"),
+			args:  []string{"--first-only"},
+			want:  "\tfoo\n",
+		},
+		{
+			name:  "the leading blanks and the interior ones are separated",
+			stdin: strings.NewReader("        a  b\n"),
+			args:  []string{"--first-only"},
+			want:  "\ta  b\n",
+		},
+		{
+			name:  "first-only overrides a given all",
+			stdin: strings.NewReader("a       b\n"),
+			args:  []string{"--all", "--first-only"},
+			want:  "a       b\n",
+		},
+		{
+			name:  "first-only overrides all given before it",
+			stdin: strings.NewReader("a       b\n"),
+			args:  []string{"--first-only", "--all"},
+			want:  "a       b\n",
+		},
+		{
+			name:  "first-only with tabs converts only the leading blanks",
+			stdin: strings.NewReader("        a  b\n"),
+			args:  []string{"--first-only", "-t", "4"},
+			want:  "\t\ta  b\n",
+		},
+		{
+			name:  "first-only cancels the all implied by tabs",
+			stdin: strings.NewReader("a       b\n"),
+			args:  []string{"--first-only", "-t", "8"},
+			want:  "a       b\n",
+		},
+		{
+			name:  "first-only cancels the all implied by tabs given before it",
+			stdin: strings.NewReader("a       b\n"),
+			args:  []string{"-t", "8", "--first-only"},
+			want:  "a       b\n",
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			runCase(t, test)
+		})
+	}
+}
+
 func TestRunBackspace(t *testing.T) {
 	tests := []testCase{
 		{
@@ -469,6 +528,12 @@ func TestRunOptions(t *testing.T) {
 			name:     "not ascending stops",
 			args:     []string{"-t", "8,4"},
 			wantErr:  "unexpand: tab sizes must be ascending\n",
+			wantExit: 2,
+		},
+		{
+			name:     "first-only with a value",
+			args:     []string{"--first-only=1"},
+			wantErr:  "unexpand: option '--first-only=1' doesn't allow an argument\n",
 			wantExit: 2,
 		},
 		{
