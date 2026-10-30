@@ -36,10 +36,12 @@ func (p *Prog) Run(ctx context.Context, args ...string) error {
 	opts, dirs, err := parseFlags(args)
 	if err != nil {
 		p.errorf("%v", err)
+		stdopts.TryHelp(p.Runtime, "mkdir")
 		return &coreutils.ExitError{Code: 2}
 	}
 	if len(dirs) == 0 {
 		p.errorf("missing operand")
+		stdopts.TryHelp(p.Runtime, "mkdir")
 		return &coreutils.ExitError{Code: 2}
 	}
 	if p.FS == nil {
@@ -50,6 +52,7 @@ func (p *Prog) Run(ctx context.Context, args ...string) error {
 	if opts.modeSet {
 		if spec, err = chmod.ParseMode(opts.mode); err != nil {
 			p.errorf("%v", err)
+			stdopts.TryHelp(p.Runtime, "mkdir")
 			return &coreutils.ExitError{Code: 1}
 		}
 	}
