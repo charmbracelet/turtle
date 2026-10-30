@@ -170,25 +170,25 @@ func usage(prog string) string {
 	return `Usage: ` + prog + ` [-bcqstw] [-a algorithm] [file ...]
 
   -a, --algorithm=algorithm
-            1 (default), 224, 256, 384, 512, 512224, 512256
+         1 (default), 224, 256, 384, 512, 512224, 512256
   -b, --binary
-            read in binary mode
+         read in binary mode
   -c, --check
-            read SHA sums from the files and check them
+         read SHA sums from the files and check them
       --ignore-missing
-            don't fail or report status for missing files
+         don't fail or report status for missing files
   -q, --quiet
-            don't print OK for each successfully verified file
+         don't print OK for each successfully verified file
   -s, --status
-            don't output anything, status code shows success
+         don't output anything, status code shows success
       --strict
-            exit non-zero for improperly formatted checksum lines
+         exit non-zero for improperly formatted checksum lines
       --tag
-            create a BSD-style checksum
+         create a BSD-style checksum
   -t, --text
-            read in text mode (default)
+         read in text mode (default)
   -w, --warn
-            warn about improperly formatted checksum lines
+         warn about improperly formatted checksum lines
       --help
          display this help and exit
       --version

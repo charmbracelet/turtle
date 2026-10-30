@@ -431,17 +431,21 @@ const usage = `Usage: mv [OPTION]... [-T] SOURCE DEST
   or:  mv [OPTION]... -t DIRECTORY SOURCE...
 Rename SOURCE to DEST, or move SOURCE(s) to DIRECTORY.
 
-  -f, --force           do not prompt before overwriting
-  -i, --interactive     prompt before overwrite
-  -n, --no-clobber      do not overwrite an existing file
-  -u, --update          move only when the SOURCE file is newer than
-                        the destination file or when the destination
-                        file is missing
-  -v, --verbose         explain what is being done
+  -f, --force
+         do not prompt before overwriting
+  -i, --interactive
+         prompt before overwrite
+  -n, --no-clobber
+         do not overwrite an existing file
+  -u, --update
+         move only when the SOURCE file is newer than the destination file or
+         when the destination file is missing
+  -v, --verbose
+         explain what is being done
   -T, --no-target-directory
-                        treat DEST as a normal file
+         treat DEST as a normal file
   -t, --target-directory=DIRECTORY
-                        move all SOURCE arguments into DIRECTORY
+         move all SOURCE arguments into DIRECTORY
       --help
          display this help and exit
       --version

@@ -141,13 +141,11 @@ Create, list, extract, append to and update archives.
   -b, --blocking-factor=NUM  set the record size to NUM x 512 bytes
   -c, --create               create a new archive
   -e, --ignore-errors        ignore unreadable files while creating
-  -f, --file=ARCHIVE         use ARCHIVE, '-' for the standard
-                             input or output
+  -f, --file=ARCHIVE         use ARCHIVE, '-' for the standard input or output
   -h, --dereference          archive the files the links point to
   -m, --touch                don't restore the modification times
   -o, --no-same-owner        (accepted; ownership is never restored)
-  -p, --preserve-permissions
-                             restore the mode bits the archive holds
+  -p, --preserve-permissions restore the mode bits the archive holds
   -r, --append               append the files to the archive
   -t, --list                 list the entries of the archive
   -u, --update               append files newer than the archive copy

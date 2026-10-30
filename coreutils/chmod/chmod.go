@@ -276,14 +276,15 @@ var optSet = getopt.Set{Valued: string(optReference), Long: longOptions}
 const usage = `Usage: chmod [OPTION]... {MODE | --reference=REF_FILE} FILE...
 Change the access permissions of each FILE.
 
-  -c, --changes          verbosely describe the action for each file whose
-                         permissions actually change
-  -R, --recursive        recursively change permissions of directories and
-                         their contents
+  -c, --changes
+         verbosely describe the action for each file whose permissions actually
+         change
+  -R, --recursive
+         recursively change permissions of directories and their contents
       --reference=REF_FILE
-                         use the mode of REF_FILE instead of a MODE operand
-  -v, --verbose          verbosely describe the action or non-action taken
-                         for every file
+         use the mode of REF_FILE instead of a MODE operand
+  -v, --verbose
+         verbosely describe the action or non-action taken for every file
       --help
          display this help and exit
       --version

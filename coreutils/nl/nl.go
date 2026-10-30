@@ -325,18 +325,17 @@ Each logical page has a header, body and footer section, delimited by input
 lines holding only '\:\:\:', '\:\:' or '\:', and numbered in its own style.
 The input files are treated as a single document.
 
-  -b, --body-numbering=STYLE      use STYLE for numbering body lines
-  -d, --section-delimiter=CC      use CC for logical page delimiters
-  -f, --footer-numbering=STYLE    use STYLE for numbering footer lines
-  -h, --header-numbering=STYLE    use STYLE for numbering header lines
-  -i, --line-increment=NUMBER     line number increment at each line
-  -l, --join-blank-lines=NUMBER   group of NUMBER empty lines counted as one
-  -n, --number-format=FORMAT      insert line numbers according to FORMAT
-  -p, --no-renumber               do not reset line numbers at each section
-  -s, --number-separator=STRING   add STRING after (possible) line number
-  -v, --starting-line-number=NUMBER
-                                  first line number of each logical page
-  -w, --number-width=NUMBER       use NUMBER columns for line numbers
+  -b, --body-numbering=STYLE         use STYLE for numbering body lines
+  -d, --section-delimiter=CC         use CC for logical page delimiters
+  -f, --footer-numbering=STYLE       use STYLE for numbering footer lines
+  -h, --header-numbering=STYLE       use STYLE for numbering header lines
+  -i, --line-increment=NUMBER        line number increment at each line
+  -l, --join-blank-lines=NUMBER      group of NUMBER empty lines counted as one
+  -n, --number-format=FORMAT         insert line numbers according to FORMAT
+  -p, --no-renumber                  do not reset line numbers at each section
+  -s, --number-separator=STRING      add STRING after (possible) line number
+  -v, --starting-line-number=NUMBER  first line number of each logical page
+  -w, --number-width=NUMBER          use NUMBER columns for line numbers
 
 STYLE is one of: a (all lines), t (nonempty lines), n (no lines) or pBRE
 (number only lines matching the basic regular expression BRE). FORMAT is

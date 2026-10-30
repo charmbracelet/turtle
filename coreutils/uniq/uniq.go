@@ -334,17 +334,25 @@ writing to OUTPUT (or standard output).
 
 With no options, matching lines are merged to the first occurrence.
 
-  -c, --count           prefix lines by the number of occurrences
-  -d, --repeated        only print duplicate lines, one for each group
+  -c, --count
+         prefix lines by the number of occurrences
+  -d, --repeated
+         only print duplicate lines, one for each group
   -D, --all-repeated[=METHOD]
-                        print all duplicate lines, delimiting the groups
-                        with METHOD: none (default), prepend or separate
-  -f, --skip-fields=N   avoid comparing the first N fields
-  -i, --ignore-case     ignore differences in case when comparing
-  -s, --skip-chars=N    avoid comparing the first N characters
-  -u, --unique          only print unique lines
-  -w, --check-chars=N   compare no more than N characters in lines
-  -z, --zero-terminated line delimiter is NUL, not newline
+         print all duplicate lines, delimiting the groups
+         with METHOD: none (default), prepend or separate
+  -f, --skip-fields=N
+         avoid comparing the first N fields
+  -i, --ignore-case
+         ignore differences in case when comparing
+  -s, --skip-chars=N
+         avoid comparing the first N characters
+  -u, --unique
+         only print unique lines
+  -w, --check-chars=N
+         compare no more than N characters in lines
+  -z, --zero-terminated
+         line delimiter is NUL, not newline
       --help
          display this help and exit
       --version

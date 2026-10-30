@@ -287,16 +287,23 @@ const usage = `Usage: ln [OPTION]... [-T] TARGET LINK_NAME
   or:  ln [OPTION]... -t DIRECTORY TARGET...
 Link TARGET to LINK_NAME, or link TARGET(s) to DIRECTORY.
 
-  -f, --force                remove existing destination files
-  -L, --logical              link to the file a symbolic link points to
-  -n, --no-dereference       treat a destination symbolic link to a
-                             directory as if it were a normal file
-  -P, --physical             link to the symbolic link itself
-  -s, --symbolic             make symbolic links instead of hard links
+  -f, --force
+         remove existing destination files
+  -L, --logical
+         link to the file a symbolic link points to
+  -n, --no-dereference
+         treat a destination symbolic link to a directory as if it were a normal
+         file
+  -P, --physical
+         link to the symbolic link itself
+  -s, --symbolic
+         make symbolic links instead of hard links
   -t, --target-directory=DIRECTORY
-                             specify the destination directory
-  -T, --no-target-directory  treat the last operand as a normal file
-  -v, --verbose              print the name of each file after linking it
+         specify the destination directory
+  -T, --no-target-directory
+         treat the last operand as a normal file
+  -v, --verbose
+         print the name of each file after linking it
       --help
          display this help and exit
       --version

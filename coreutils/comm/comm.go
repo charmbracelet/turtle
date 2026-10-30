@@ -244,12 +244,16 @@ Compare sorted files FILE1 and FILE2 line by line.
 
 When FILE1 or FILE2 (not both) is -, read standard input.
 
-  -1                      suppress column 1 (lines unique to FILE1)
-  -2                      suppress column 2 (lines unique to FILE2)
-  -3                      suppress column 3 (lines that appear in both)
+  -1
+         suppress column 1 (lines unique to FILE1)
+  -2
+         suppress column 2 (lines unique to FILE2)
+  -3
+         suppress column 3 (lines that appear in both)
       --output-delimiter=STR
-                          separate columns with STR
-  -z, --zero-terminated   line delimiter is NUL, not newline
+         separate columns with STR
+  -z, --zero-terminated
+         line delimiter is NUL, not newline
       --help
          display this help and exit
       --version

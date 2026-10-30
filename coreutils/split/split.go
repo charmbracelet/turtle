@@ -626,19 +626,25 @@ const usage = `Usage: split [OPTION]... [FILE [PREFIX]]
 Output pieces of FILE to PREFIXaa, PREFIXab, ...;
 default FILE is stdin and default PREFIX is 'x'.
 
-  -a, --suffix-length=N   generate suffixes of length N (default 2)
-  -b, --bytes=SIZE        put SIZE bytes per output file
-  -C, --line-bytes=SIZE   put at most SIZE bytes of lines per output file
+  -a, --suffix-length=N
+         generate suffixes of length N (default 2)
+  -b, --bytes=SIZE
+         put SIZE bytes per output file
+  -C, --line-bytes=SIZE
+         put at most SIZE bytes of lines per output file
   -d, --numeric-suffixes[=FROM]
-                           use numeric suffixes instead of alphabetic;
-                           FROM changes the start value (default 0)
-  -e, --elide-empty-files do not generate empty output files
-  -l, --lines=NUMBER      put NUMBER lines per output file
-  -n, --number=CHUNKS     generate CHUNKS output files
+         use numeric suffixes instead of alphabetic; FROM changes the
+         start value (default 0)
+  -e, --elide-empty-files
+         do not generate empty output files
+  -l, --lines=NUMBER
+         put NUMBER lines per output file
+  -n, --number=CHUNKS
+         generate CHUNKS output files
   -x, --hex-suffixes[=FROM]
-                           like -d, but use hexadecimal suffixes
+         like -d, but use hexadecimal suffixes
       --additional-suffix=SUFFIX
-                           append SUFFIX to file names
+         append SUFFIX to file names
       --help
          display this help and exit
       --version

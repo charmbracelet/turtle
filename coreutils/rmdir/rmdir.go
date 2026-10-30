@@ -160,11 +160,11 @@ const usage = `Usage: rmdir [OPTION]... DIRECTORY...
 Remove empty directories.
 
       --ignore-fail-on-non-empty
-                          ignore each failure to remove a directory that is
-                          non-empty
-  -p, --parents           remove DIRECTORY, then try to remove each component
-                          of it
-  -v, --verbose           give a diagnostic for each successful removal
+         ignore each failure to remove a directory that is non-empty
+  -p, --parents
+         remove DIRECTORY, then try to remove each component of it
+  -v, --verbose
+         give a diagnostic for each successful removal
       --help
          display this help and exit
       --version

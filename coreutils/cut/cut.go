@@ -199,19 +199,25 @@ Print selected parts of lines from each FILE to standard output.
 
 With no FILE, or when FILE is -, read standard input.
 
-  -b, --bytes=LIST        select only these bytes
-  -c, --characters=LIST   select only these characters
-  -d, --delimiter=DELIM   use DELIM instead of TAB for field delimiter
-  -f, --fields=LIST       select only these fields;  also print any line
-                            that contains no delimiter character, unless
-                            the -s option is specified
-  -n                      with -b, do not split multi-byte characters
-      --complement        complement the set of selected bytes, characters
-                            or fields
-  -s, --only-delimited    do not print lines not containing delimiters
+  -b, --bytes=LIST
+         select only these bytes
+  -c, --characters=LIST
+         select only these characters
+  -d, --delimiter=DELIM
+         use DELIM instead of TAB for field delimiter
+  -f, --fields=LIST
+         select only these fields;  also print any line that contains no
+         delimiter character, unless the -s option is specified
+  -n
+         with -b, do not split multi-byte characters
+      --complement
+         complement the set of selected bytes, characters or fields
+  -s, --only-delimited
+         do not print lines not containing delimiters
   -O, --output-delimiter=STRING
-                            use STRING as the output delimiter
-  -z, --zero-terminated   line delimiter is NUL, not newline
+         use STRING as the output delimiter
+  -z, --zero-terminated
+         line delimiter is NUL, not newline
       --help
          display this help and exit
       --version
