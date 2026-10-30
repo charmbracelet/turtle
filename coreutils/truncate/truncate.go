@@ -44,18 +44,22 @@ func (p *Prog) Run(ctx context.Context, args ...string) error {
 	opts, files, err := parseFlags(args)
 	if err != nil {
 		p.errorf("%v", err)
+		stdopts.TryHelp(p.Runtime, "truncate")
 		return &coreutils.ExitError{Code: 2}
 	}
 	if len(files) == 0 {
 		p.errorf("missing file operand")
+		stdopts.TryHelp(p.Runtime, "truncate")
 		return &coreutils.ExitError{Code: 2}
 	}
 	if !opts.sizeGiven && !opts.referenceGiven {
 		p.errorf("you must specify either --size or --reference")
+		stdopts.TryHelp(p.Runtime, "truncate")
 		return &coreutils.ExitError{Code: 2}
 	}
 	if opts.referenceGiven && opts.sizeGiven && opts.size.adjust == adjustSet {
 		p.errorf("you must specify a relative --size with --reference")
+		stdopts.TryHelp(p.Runtime, "truncate")
 		return &coreutils.ExitError{Code: 2}
 	}
 	if p.FS == nil {
