@@ -137,3 +137,13 @@ func TestWriteError(t *testing.T) {
 type errWriter struct{ err error }
 
 func (w errWriter) Write([]byte) (int, error) { return 0, w.err }
+
+func TestTryHelp(t *testing.T) {
+	stderr := new(strings.Builder)
+	rt := &coreutils.Runtime{Stderr: stderr}
+	TryHelp(rt, "prog")
+	want := "Try 'prog --help' for more information.\n"
+	if got := stderr.String(); got != want {
+		t.Errorf("stderr = %q, want %q", got, want)
+	}
+}

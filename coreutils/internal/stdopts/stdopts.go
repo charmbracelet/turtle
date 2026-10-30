@@ -60,3 +60,10 @@ func Check(rt *coreutils.Runtime, prog, usage string, set getopt.Set, args []str
 	}
 	return true, nil
 }
+
+// TryHelp writes to the standard error the hint which follows the usage
+// errors of a utility, as the GNU utilities do: invalid options, missing
+// option arguments and missing or extra operands.
+func TryHelp(rt *coreutils.Runtime, prog string) {
+	fmt.Fprintf(rt.Stderr, "Try '%s --help' for more information.\n", prog)
+}
