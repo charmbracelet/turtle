@@ -486,8 +486,10 @@ and output byte counts of each piece to standard output.
   -s, --quiet, --silent       do not print counts of output file sizes
   -z, --elide-empty-files     suppress zero-length output files
       --suppress-matched      do not output lines matching the pattern
-      --help     display this help and exit
-      --version  output version information and exit
+      --help
+         display this help and exit
+      --version
+         output version information and exit
 `
 
 // parseFlags parses the command line options. Option parsing stops at the

@@ -278,8 +278,10 @@ Remove (unlink) the FILE(s).
   -r, -R, --recursive   remove directories and their contents recursively
   -d, --dir             remove empty directories
   -v, --verbose         explain what is being done
-      --help     display this help and exit
-      --version  output version information and exit
+      --help
+         display this help and exit
+      --version
+         output version information and exit
 `
 
 // parseFlags parses the options and operands. Option parsing stops at the

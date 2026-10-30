@@ -308,8 +308,10 @@ With no FILE, or when FILE is -, read standard input.
   -z, --zero-terminated         delimit items with a zero byte, not a newline
       --sort=WORD               sort by WORD: human-numeric, month,
                                 numeric, random, or version
-      --help     display this help and exit
-      --version  output version information and exit
+      --help
+         display this help and exit
+      --version
+         output version information and exit
 `
 
 // delimiter returns the byte that terminates an item: a zero byte with -z,

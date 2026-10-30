@@ -371,8 +371,10 @@ Print or set the system date and time.
       --rfc-3339=FMT       output date and time in RFC 3339 format,
                            FMT='date', 'seconds' or 'ns'
   -u, --utc, --universal   print or set Coordinated Universal Time (UTC)
-      --help     display this help and exit
-      --version  output version information and exit
+      --help
+         display this help and exit
+      --version
+         output version information and exit
 `
 
 // parseFlags parses the options and operands. Option parsing stops at the

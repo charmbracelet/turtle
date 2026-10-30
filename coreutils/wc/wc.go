@@ -225,8 +225,10 @@ characters delimited by white space.
   -L, --max-line-length  print the maximum display width
       --total=WHEN       print a line with totals; WHEN can be: auto, always,
                          only, or never (default: auto)
-      --help     display this help and exit
-      --version  output version information and exit
+      --help
+         display this help and exit
+      --version
+         output version information and exit
 `
 
 // parseFlags parses the options and operands. Option parsing stops at the

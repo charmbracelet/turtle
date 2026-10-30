@@ -291,8 +291,10 @@ func TestHelpVersion(t *testing.T) {
             read in text mode (default)
   -w, --warn
             warn about improperly formatted checksum lines
-      --help     display this help and exit
-      --version  output version information and exit
+      --help
+         display this help and exit
+      --version
+         output version information and exit
 `
 		if got := stdout.String(); got != want {
 			t.Errorf("Run() stdout = %q, want %q", got, want)

@@ -82,8 +82,10 @@ const usage = `Usage: yes [STRING]...
 
 Repeatedly output a line with all specified STRING(s), or 'y'.
 
-      --help     display this help and exit
-      --version  output version information and exit
+      --help
+         display this help and exit
+      --version
+         output version information and exit
 `
 
 var (

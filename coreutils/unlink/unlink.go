@@ -112,8 +112,10 @@ func (p *Prog) errorf(format string, args ...any) {
 const usage = `Usage: unlink FILE
 Call the unlink function to remove the specified FILE.
 
-      --help     display this help and exit
-      --version  output version information and exit
+      --help
+         display this help and exit
+      --version
+         output version information and exit
 `
 
 var (

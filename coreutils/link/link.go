@@ -114,8 +114,10 @@ func (p *Prog) errorf(format string, args ...any) {
 const usage = `Usage: link FILE1 FILE2
 Call the link function to create a link named FILE2 to an existing FILE1.
 
-      --help     display this help and exit
-      --version  output version information and exit
+      --help
+         display this help and exit
+      --version
+         output version information and exit
 `
 
 var (

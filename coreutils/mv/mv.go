@@ -442,8 +442,10 @@ Rename SOURCE to DEST, or move SOURCE(s) to DIRECTORY.
                         treat DEST as a normal file
   -t, --target-directory=DIRECTORY
                         move all SOURCE arguments into DIRECTORY
-      --help     display this help and exit
-      --version  output version information and exit
+      --help
+         display this help and exit
+      --version
+         output version information and exit
 `
 
 // splitOperands splits the operands into the sources and the target,

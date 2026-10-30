@@ -252,8 +252,10 @@ than the limit, 80 columns by default.
   -b, --bytes         count bytes rather than columns
   -s, --spaces        break at word boundaries, after the last blank
   -w, --width=WIDTH   use WIDTH columns instead of 80
-      --help     display this help and exit
-      --version  output version information and exit
+      --help
+         display this help and exit
+      --version
+         output version information and exit
 `
 
 // parseFlags parses the command line options. Option parsing stops at the

@@ -304,8 +304,10 @@ and --tmpdir is implied.
                         a slash, and TEMPLATE must end in X
   -t                     treat TEMPLATE as a single path component relative
                         to TMPDIR (deprecated)
-      --help     display this help and exit
-      --version  output version information and exit
+      --help
+         display this help and exit
+      --version
+         output version information and exit
 `
 
 // parseFlags parses the options and operands. Option parsing stops at the

@@ -648,8 +648,10 @@ Copy SOURCE to DEST, or multiple SOURCE(s) to DIRECTORY.
   -u, --update               copy only when the SOURCE file is newer than
                              the destination file or is missing
   -v, --verbose              explain what is being done
-      --help     display this help and exit
-      --version  output version information and exit
+      --help
+         display this help and exit
+      --version
+         output version information and exit
 `
 
 // splitOperands splits the operands into the sources and the target,

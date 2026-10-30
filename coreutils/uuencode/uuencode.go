@@ -163,8 +163,10 @@ output, announcing decode_pathname as the name of the recreated file.
 
   -m, --base64  encode with the MIME base64 algorithm, instead of the
                 historical one
-      --help     display this help and exit
-      --version  output version information and exit
+      --help
+         display this help and exit
+      --version
+         output version information and exit
 `
 
 // parseFlags parses the options and operands. Option parsing stops at the

@@ -250,8 +250,10 @@ When FILE1 or FILE2 (not both) is -, read standard input.
       --output-delimiter=STR
                           separate columns with STR
   -z, --zero-terminated   line delimiter is NUL, not newline
-      --help     display this help and exit
-      --version  output version information and exit
+      --help
+         display this help and exit
+      --version
+         output version information and exit
 `
 
 // options holds the parsed command line options. delimiter separates the

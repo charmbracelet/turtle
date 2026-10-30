@@ -267,8 +267,10 @@ followed by groups of data from the file.
   -o         same as -t o2
   -s         same as -t d2
   -x         same as -t x2
-      --help     display this help and exit
-      --version  output version information and exit
+      --help
+         display this help and exit
+      --version
+         output version information and exit
 `
 
 func parseFlags(args []string) (options, []string, error) {

@@ -249,8 +249,10 @@ files differ, and 2 that an error happened.
   -l, --verbose          output byte numbers and values of all differing bytes
   -n, --bytes=N          compare at most N bytes
   -s, --quiet, --silent  suppress all normal output
-      --help     display this help and exit
-      --version  output version information and exit
+      --help
+         display this help and exit
+      --version
+         output version information and exit
 `
 
 // parseFlags parses the command line options. Option parsing stops at the

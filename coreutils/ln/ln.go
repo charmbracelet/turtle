@@ -297,8 +297,10 @@ Link TARGET to LINK_NAME, or link TARGET(s) to DIRECTORY.
                              specify the destination directory
   -T, --no-target-directory  treat the last operand as a normal file
   -v, --verbose              print the name of each file after linking it
-      --help     display this help and exit
-      --version  output version information and exit
+      --help
+         display this help and exit
+      --version
+         output version information and exit
 `
 
 // parseFlags parses the options and operands. Option parsing stops at the

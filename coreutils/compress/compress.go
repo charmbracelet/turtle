@@ -186,7 +186,9 @@ Compress or expand files.
   -g           compress with the gzip format instead of LZW
   -m method    compression method: lzw (default) or gzip
   -v           write the names and the sizes of the files processed
-      --help     display this help and exit
-      --version  output version information and exit
+      --help
+         display this help and exit
+      --version
+         output version information and exit
 `
 }

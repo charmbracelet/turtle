@@ -370,8 +370,10 @@ Run COMMAND with arguments read from the input; the utility defaults to echo.
   -s, --max-chars=MAX-CHARS  limit each command line to MAX-CHARS characters
   -t, --verbose              print each command line before running it
   -x, --exit                 exit when a command line exceeds the size limit
-      --help     display this help and exit
-      --version  output version information and exit
+      --help
+         display this help and exit
+      --version
+         output version information and exit
 `
 
 // parseFlags parses the options and operands. The -I, -L and -n options are

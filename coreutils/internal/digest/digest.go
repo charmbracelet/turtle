@@ -250,8 +250,10 @@ With no FILE, or when FILE is -, read standard input.
   -t, --text             read in text mode (default)
   -w, --warn             warn about improperly formatted checksum lines
   -z, --zero             end each output line with NUL, not newline
-      --help             display this help and exit
-      --version          output version information and exit
+      --help
+         display this help and exit
+      --version
+         output version information and exit
 `
 }
 

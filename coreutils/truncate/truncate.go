@@ -286,8 +286,10 @@ and the extended part reads as zero bytes.
                         relative to the size of each file, with a leading
                         '+', '-', '<', '>', '/' or '%', and may hold a
                         multiplier suffix
-      --help     display this help and exit
-      --version  output version information and exit
+      --help
+         display this help and exit
+      --version
+         output version information and exit
 `
 
 // parseFlags parses the command line options. Option parsing stops at the

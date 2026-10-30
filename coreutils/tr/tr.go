@@ -179,8 +179,10 @@ Translate, squeeze, and/or delete characters from the standard input.
                            with a single occurrence of that character
   -t, --truncate-set1     truncate string1 to the length of string2
   -u                      (ignored)
-      --help     display this help and exit
-      --version  output version information and exit
+      --help
+         display this help and exit
+      --version
+         output version information and exit
 `
 
 func parseFlags(args []string) (options, []string, error) {

@@ -151,8 +151,10 @@ With no FILE, or when FILE is -, read standard input.
       --untagged        create an untagged checksum, as the standalone
                         digest utilities do
   -z, --zero            end each output line with NUL, not newline
-      --help     display this help and exit
-      --version  output version information and exit
+      --help
+         display this help and exit
+      --version
+         output version information and exit
 `
 
 // parseFlags parses the options and operands. Option parsing stops at the

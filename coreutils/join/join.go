@@ -383,8 +383,10 @@ blanks. When FILE1 or FILE2 (not both) is -, read standard input.
   -o FORMAT              obey FORMAT while constructing output line
   -t CHAR                use CHAR as input and output field separator
   -v FILenum             like -a FILenum, but suppress joined output lines
-      --help     display this help and exit
-      --version  output version information and exit
+      --help
+         display this help and exit
+      --version
+         output version information and exit
 `
 
 func parseFlags(args []string) (options, []string, error) {

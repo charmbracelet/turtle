@@ -90,8 +90,10 @@ func (p *Prog) errorf(format string, args ...any) {
 const usage = `Usage: whoami [OPTION]...
 Print the user name associated with the current effective user ID.
 
-      --help     display this help and exit
-      --version  output version information and exit
+      --help
+         display this help and exit
+      --version
+         output version information and exit
 `
 
 var (

@@ -639,8 +639,10 @@ default FILE is stdin and default PREFIX is 'x'.
                            like -d, but use hexadecimal suffixes
       --additional-suffix=SUFFIX
                            append SUFFIX to file names
-      --help     display this help and exit
-      --version  output version information and exit
+      --help
+         display this help and exit
+      --version
+         output version information and exit
 `
 
 // parseFlags parses the command line options. Option parsing stops at the

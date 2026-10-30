@@ -132,8 +132,10 @@ Edit the standard input or the given files with a script of commands.
                           be executed
   -i[SUFFIX], --in-place[=SUFFIX]
                         edit files in place, making a backup with SUFFIX
-      --help     display this help and exit
-      --version  output version information and exit
+      --help
+         display this help and exit
+      --version
+         output version information and exit
 `
 
 func parseFlags(args []string) (*options, []string, error) {

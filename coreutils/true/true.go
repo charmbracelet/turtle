@@ -24,8 +24,10 @@ const usage = `Usage: true [ignored command line arguments]
   or:  true OPTION
 Exit with a status code indicating success.
 
-      --help     display this help and exit
-      --version  output version information and exit
+      --help
+         display this help and exit
+      --version
+         output version information and exit
 `
 
 // Run returns a zero exit status, after handling the common options.

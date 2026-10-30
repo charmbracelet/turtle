@@ -140,8 +140,10 @@ With no FILE, or when FILE is -, read standard input.
   -r, --regex              treat the separator as a regular expression
   -s, --separator=STRING   use STRING as the record separator; empty means
                              a zero byte
-      --help     display this help and exit
-      --version  output version information and exit
+      --help
+         display this help and exit
+      --version
+         output version information and exit
 `
 
 func parseFlags(args []string) (options, []string, error) {

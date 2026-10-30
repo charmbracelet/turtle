@@ -114,8 +114,10 @@ Pause for NUMBER seconds.  SUFFIX may be 's' for seconds (the default),
 integer.  Given two or more arguments, pause for the amount of time
 specified by the sum of their values.
 
-      --help     display this help and exit
-      --version  output version information and exit
+      --help
+         display this help and exit
+      --version
+         output version information and exit
 `
 
 var (

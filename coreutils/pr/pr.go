@@ -165,8 +165,10 @@ lines. The standard input is read when no FILE is given, or when a FILE is -.
   -s[CHAR]              separate columns with a single CHAR (default TAB)
   -t                    do not print the header and trailer
   -w WIDTH              page width of WIDTH columns (default 72)
-      --help     display this help and exit
-      --version  output version information and exit
+      --help
+         display this help and exit
+      --version
+         output version information and exit
 `
 
 // parser holds the state of the command line scan.

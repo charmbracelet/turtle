@@ -160,8 +160,10 @@ result is guaranteed to be greater than zero.
 
       --all          print the number of installed processors
       --ignore=N     ignore up to N processors
-      --help     display this help and exit
-      --version  output version information and exit
+      --help
+         display this help and exit
+      --version
+         output version information and exit
 `
 
 var (

@@ -246,8 +246,10 @@ With no FILE, or when FILE is -, read standard input.
       --first-only    convert only leading sequences of blanks (overrides -a)
   -t, --tabs=N        have tabs N characters apart, not 8
   -t, --tabs=LIST     use comma separated LIST of tab positions
-      --help     display this help and exit
-      --version  output version information and exit
+      --help
+         display this help and exit
+      --version
+         output version information and exit
 `
 
 // parseFlags parses the command line options. Giving -t implies -a, as the

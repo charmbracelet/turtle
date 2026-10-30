@@ -195,8 +195,10 @@ directory operand makes the files of the same name inside it compared.
   -f              output a forward ed script
   -u              output a unified diff with 3 lines of context
   -U NUM          output a unified diff with NUM lines of context
-      --help     display this help and exit
-      --version  output version information and exit
+      --help
+         display this help and exit
+      --version
+         output version information and exit
 `
 
 // parseFlags parses the command line options. Option parsing stops at the

@@ -282,8 +282,10 @@ A FILE argument that does not exist is created, unless -c or -h is supplied.
   -t STAMP               use [[CC]YY]MMDDhhmm[.ss] instead of current time
       --time=WORD        change the time WORD names: access, atime, use,
                          modify or mtime
-      --help     display this help and exit
-      --version  output version information and exit
+      --help
+         display this help and exit
+      --version
+         output version information and exit
 `
 
 // parseFlags parses the options and operands. Option parsing stops at the

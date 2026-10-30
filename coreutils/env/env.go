@@ -107,8 +107,10 @@ With no COMMAND, print the resulting environment.
   -S, --split-string=STRING  process and split STRING into separate
                              arguments, used to pass multiple arguments on
                              shebang lines
-      --help     display this help and exit
-      --version  output version information and exit
+      --help
+         display this help and exit
+      --version
+         output version information and exit
 `
 
 // parseFlags parses the options and operands. The -u option may repeat,

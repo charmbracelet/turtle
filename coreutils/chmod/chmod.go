@@ -284,8 +284,10 @@ Change the access permissions of each FILE.
                          use the mode of REF_FILE instead of a MODE operand
   -v, --verbose          verbosely describe the action or non-action taken
                          for every file
-      --help     display this help and exit
-      --version  output version information and exit
+      --help
+         display this help and exit
+      --version
+         output version information and exit
 `
 
 // optReference is a rune which no short option can reach, so --reference

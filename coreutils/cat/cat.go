@@ -188,8 +188,10 @@ With no FILE, or when FILE is -, read standard input.
   -T, --show-tabs          display TAB characters as ^I
   -u                        (ignored)
   -v, --show-nonprinting   use ^ and M- notation, except for LFD and TAB
-      --help     display this help and exit
-      --version  output version information and exit
+      --help
+         display this help and exit
+      --version
+         output version information and exit
 `
 
 // parseFlags parses the command line options. Option parsing stops at the

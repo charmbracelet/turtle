@@ -212,8 +212,10 @@ With no FILE, or when FILE is -, read standard input.
   -O, --output-delimiter=STRING
                             use STRING as the output delimiter
   -z, --zero-terminated   line delimiter is NUL, not newline
-      --help     display this help and exit
-      --version  output version information and exit
+      --help
+         display this help and exit
+      --version
+         output version information and exit
 `
 
 // parseFlags parses the options and operands, checking that exactly one list

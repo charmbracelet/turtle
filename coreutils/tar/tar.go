@@ -155,8 +155,10 @@ Create, list, extract, append to and update archives.
   -w, --interactive, --confirmation
                              ask for confirmation before acting
   -x, --extract, --get       restore the entries of the archive
-      --help     display this help and exit
-      --version  output version information and exit
+      --help
+         display this help and exit
+      --version
+         output version information and exit
 `
 
 // parseFlags parses the options and operands of a run, expanding a leading

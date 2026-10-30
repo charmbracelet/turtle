@@ -343,8 +343,10 @@ STYLE is one of: a (all lines), t (nonempty lines), n (no lines) or pBRE
 one of: ln (left justified), rn (right justified) or rz (right justified,
 with leading zeros).
 
-      --help     display this help and exit
-      --version  output version information and exit
+      --help
+         display this help and exit
+      --version
+         output version information and exit
 `
 
 // parseFlags parses the command line options. Option parsing stops at the

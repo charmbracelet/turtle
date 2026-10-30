@@ -291,8 +291,10 @@ on the standard output when the pathname of its header is '-' or
 
   -o, --output-file=OUTFILE  write the decoded file to OUTFILE, instead of
                              the pathname of the header
-      --help     display this help and exit
-      --version  output version information and exit
+      --help
+         display this help and exit
+      --version
+         output version information and exit
 `
 
 // parseFlags parses the options and operands. The -o option takes a pathname

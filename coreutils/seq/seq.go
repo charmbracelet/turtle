@@ -546,8 +546,10 @@ Print numbers from FIRST to LAST, in steps of INCREMENT.
   -f, --format=FORMAT      use printf style floating-point FORMAT
   -s, --separator=STRING   use STRING to separate numbers (default: \n)
   -w, --equal-width        equalize width by padding with leading zeros
-      --help     display this help and exit
-      --version  output version information and exit
+      --help
+         display this help and exit
+      --version
+         output version information and exit
 `
 
 var (

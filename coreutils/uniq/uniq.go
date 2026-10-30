@@ -345,8 +345,10 @@ With no options, matching lines are merged to the first occurrence.
   -u, --unique          only print unique lines
   -w, --check-chars=N   compare no more than N characters in lines
   -z, --zero-terminated line delimiter is NUL, not newline
-      --help     display this help and exit
-      --version  output version information and exit
+      --help
+         display this help and exit
+      --version
+         output version information and exit
 `
 
 // parseFlags parses the command line options. Option parsing stops at the

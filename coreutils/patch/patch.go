@@ -230,8 +230,10 @@ from the standard input unless -i names it.
   -r FILE         write the hunks which failed to FILE
   -R              apply the patch in reverse
   -u              read a unified format patch
-      --help     display this help and exit
-      --version  output version information and exit
+      --help
+         display this help and exit
+      --version
+         output version information and exit
 `
 
 // parseFlags parses the command line options. Option parsing stops at the

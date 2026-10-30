@@ -175,8 +175,10 @@ Create the DIRECTORY(ies), if they do not already exist.
   -m, --mode=MODE    set the file mode bits of created directories to MODE
   -p, --parents      make any missing parent directories for each argument
   -v, --verbose      print a message for each created directory
-      --help     display this help and exit
-      --version  output version information and exit
+      --help
+         display this help and exit
+      --version
+         output version information and exit
 `
 
 func parseFlags(args []string) (options, []string, error) {

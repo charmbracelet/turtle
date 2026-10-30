@@ -134,8 +134,10 @@ const usage = `Usage: printenv [OPTION]... [VARIABLE]...
 Print the values of the specified environment VARIABLE(s).
 
   -0, --null     end each output line with NUL, not newline
-      --help     display this help and exit
-      --version  output version information and exit
+      --help
+         display this help and exit
+      --version
+         output version information and exit
 `
 
 var (
