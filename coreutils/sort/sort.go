@@ -37,6 +37,9 @@ func New(rt *coreutils.Runtime) coreutils.Program {
 // Run sorts, merges or checks the lines of the given files. A missing final
 // newline of an input file is added, as the specification demands.
 //
+// The --random-source option is not supported: -R sorts by a hash of the
+// keys seeded with a fixed value, so its permutation is deterministic.
+//
 // The exit status is 1 when -c detects disorder and 2 on errors. Reading is
 // interrupted when ctx is done, and the context error is returned.
 func (p *Prog) Run(ctx context.Context, args ...string) error {
@@ -107,6 +110,7 @@ func (p *Prog) check(ctx context.Context, in input.Input, opts options) error {
 		name = "-"
 	}
 
+	delim := opts.delimiter()
 	br := bufio.NewReader(r)
 	var prev sortLine
 	havePrev := false
@@ -115,10 +119,10 @@ func (p *Prog) check(ctx context.Context, in input.Input, opts options) error {
 		if err := ctx.Err(); err != nil {
 			return err
 		}
-		line, err := br.ReadString('\n')
+		line, err := br.ReadString(delim)
 		if len(line) > 0 {
 			number++
-			cur := opts.newLine([]byte(strings.TrimSuffix(line, "\n")))
+			cur := opts.newLine([]byte(strings.TrimSuffix(line, string(delim))))
 			if havePrev {
 				disorder := opts.compareLines(prev, cur) > 0
 				if opts.unique && opts.equalKeys(prev, cur) {
@@ -156,14 +160,15 @@ func (p *Prog) readLines(ctx context.Context, in input.Input, opts options) ([]s
 	defer r.Close()
 
 	var lines []sortLine
+	delim := opts.delimiter()
 	br := bufio.NewReader(r)
 	for {
 		if err := ctx.Err(); err != nil {
 			return nil, err
 		}
-		line, err := br.ReadString('\n')
+		line, err := br.ReadString(delim)
 		if len(line) > 0 {
-			lines = append(lines, opts.newLine([]byte(strings.TrimSuffix(line, "\n"))))
+			lines = append(lines, opts.newLine([]byte(strings.TrimSuffix(line, string(delim)))))
 		}
 		if err != nil {
 			if errors.Is(err, io.EOF) {
@@ -191,7 +196,7 @@ func (p *Prog) writeLines(ctx context.Context, lines []sortLine, opts options) e
 		if err := ctx.Err(); err != nil {
 			return err
 		}
-		if err := writeLine(out, line.data); err != nil {
+		if err := writeLine(out, line.data, opts.delimiter()); err != nil {
 			p.errorf("write error: %v", err)
 			return &coreutils.ExitError{Code: 2, Err: err}
 		}
@@ -199,11 +204,11 @@ func (p *Prog) writeLines(ctx context.Context, lines []sortLine, opts options) e
 	return nil
 }
 
-// writeLine writes a line and its newline to the output.
-func writeLine(out io.Writer, data []byte) error {
+// writeLine writes an item and its terminator to the output.
+func writeLine(out io.Writer, data []byte, delim byte) error {
 	line := make([]byte, 0, len(data)+1)
 	line = append(line, data...)
-	line = append(line, '\n')
+	line = append(line, delim)
 	if _, err := out.Write(line); err != nil {
 		return &writeError{err: err}
 	}
@@ -225,16 +230,22 @@ func (p *Prog) errorf(format string, args ...any) {
 
 // options holds the parsed command line options.
 type options struct {
-	check         byte // 0, or 'c' or 'C'
-	merge         bool
-	unique        bool
-	output        string
-	hasOutput     bool
-	sep           int // the -t separator byte, or -1 for blank separation
-	leadingBlanks bool
-	global        ordering
-	keys          []keydef
+	check          byte // 0, or 'c' or 'C'
+	merge          bool
+	unique         bool
+	stable         bool
+	zeroTerminated bool
+	output         string
+	hasOutput      bool
+	sep            int // the -t separator byte, or -1 for blank separation
+	leadingBlanks  bool
+	global         ordering
+	keys           []keydef
 }
+
+// sortOpt is the pseudo-option that stands for the --sort long option, which
+// has no short form.
+const sortOpt rune = 0
 
 // longOptions maps the long options of sort to the short ones they stand for.
 var longOptions = map[string]rune{
@@ -250,6 +261,22 @@ var longOptions = map[string]rune{
 	"ignore-leading-blanks": 'b',
 	"field-separator":       't',
 	"key":                   'k',
+	"human-numeric-sort":    'h',
+	"month-sort":            'M',
+	"random-sort":           'R',
+	"version-sort":          'V',
+	"zero-terminated":       'z',
+	"stable":                's',
+	"sort":                  sortOpt,
+}
+
+// delimiter returns the byte that terminates an item: a zero byte with -z,
+// and a newline otherwise.
+func (opts options) delimiter() byte {
+	if opts.zeroTerminated {
+		return 0
+	}
+	return '\n'
 }
 
 // parseFlags parses the command line options. Option parsing stops at the
@@ -257,7 +284,7 @@ var longOptions = map[string]rune{
 // modifiers inherit the global ordering options.
 func parseFlags(args []string) (options, []string, error) {
 	opts := options{sep: -1}
-	operands, err := getopt.Set{Valued: "kot", Long: longOptions}.Parse(args, func(opt rune, value string) error {
+	operands, err := getopt.Set{Valued: "kot" + string(sortOpt), Long: longOptions}.Parse(args, func(opt rune, value string) error {
 		switch opt {
 		case 'b':
 			opts.leadingBlanks = true
@@ -269,12 +296,16 @@ func parseFlags(args []string) (options, []string, error) {
 			opts.global.dictionary = true
 		case 'f':
 			opts.global.foldCase = true
+		case 'h':
+			opts.global.kind = humanNumeric
 		case 'i':
 			opts.global.ignoreNonPrint = true
 		case 'm':
 			opts.merge = true
+		case 'M':
+			opts.global.kind = month
 		case 'n':
-			opts.global.numeric = true
+			opts.global.kind = numeric
 		case 'o':
 			if value == "" {
 				return errors.New("invalid zero-length file name")
@@ -283,19 +314,42 @@ func parseFlags(args []string) (options, []string, error) {
 			opts.hasOutput = true
 		case 'r':
 			opts.global.reverse = true
-		case 'u':
-			opts.unique = true
+		case 'R':
+			opts.global.kind = random
+		case 's':
+			opts.stable = true
 		case 't':
 			if len(value) != 1 {
 				return errors.New("the separator must be a single character")
 			}
 			opts.sep = int(value[0])
+		case 'u':
+			opts.unique = true
+		case 'V':
+			opts.global.kind = version
+		case 'z':
+			opts.zeroTerminated = true
 		case 'k':
 			key, err := parseKeydef(value)
 			if err != nil {
 				return err
 			}
 			opts.keys = append(opts.keys, key)
+		case sortOpt:
+			switch value {
+			case "human-numeric":
+				opts.global.kind = humanNumeric
+			case "month":
+				opts.global.kind = month
+			case "numeric":
+				opts.global.kind = numeric
+			case "random":
+				opts.global.kind = random
+			case "version":
+				opts.global.kind = version
+			default:
+				return fmt.Errorf("invalid argument '%s' for '--sort'", value)
+			}
 		default:
 			return getopt.InvalidOption(opt)
 		}

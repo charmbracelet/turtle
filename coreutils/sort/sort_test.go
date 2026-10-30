@@ -327,6 +327,242 @@ func TestRunNumeric(t *testing.T) {
 	}
 }
 
+func TestRunHumanNumeric(t *testing.T) {
+	tests := []testCase{
+		{
+			name:  "sizes sort by unit and then by value",
+			stdin: strings.NewReader("1023M\n1G\n1K\n2K\n"),
+			args:  []string{"-h"},
+			want:  "1K\n2K\n1023M\n1G\n",
+		},
+		{
+			name:  "a plain number sorts before a suffixed one",
+			stdin: strings.NewReader("2000\n1K\n"),
+			args:  []string{"-h"},
+			want:  "2000\n1K\n",
+		},
+		{
+			name:  "the suffixes are case insensitive",
+			stdin: strings.NewReader("2m\n1M\n5M\n1g\n"),
+			args:  []string{"-h"},
+			want:  "1M\n2m\n5M\n1g\n",
+		},
+		{
+			name:  "decimal values are compared",
+			stdin: strings.NewReader("1.5\n1.25\n"),
+			args:  []string{"-h"},
+			want:  "1.25\n1.5\n",
+		},
+		{
+			name:  "leading blanks are skipped",
+			stdin: strings.NewReader("  10\n2\n"),
+			args:  []string{"-h"},
+			want:  "2\n  10\n",
+		},
+		{
+			name:  "a negative number sorts by its negated unit order",
+			stdin: strings.NewReader("-1K\n5\n"),
+			args:  []string{"-h"},
+			want:  "-1K\n5\n",
+		},
+		{
+			name:  "a zero number has no unit",
+			stdin: strings.NewReader("0K\n5\n1K\n"),
+			args:  []string{"-h"},
+			want:  "0K\n5\n1K\n",
+		},
+		{
+			name:  "missing and invalid numbers sort as zero",
+			stdin: strings.NewReader("abc\n0\n"),
+			args:  []string{"-h"},
+			want:  "0\nabc\n",
+		},
+		{
+			name:  "a human numeric key",
+			stdin: strings.NewReader("a 1K\nb 2\n"),
+			args:  []string{"-k", "2h"},
+			want:  "b 2\na 1K\n",
+		},
+		{
+			name:  "a key inherits the global human numeric ordering",
+			stdin: strings.NewReader("a 1K\nb 2\n"),
+			args:  []string{"-h", "-k", "2"},
+			want:  "b 2\na 1K\n",
+		},
+		{
+			name:  "the sort=human-numeric long form",
+			stdin: strings.NewReader("10\n2\n"),
+			args:  []string{"--sort=human-numeric"},
+			want:  "2\n10\n",
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			runCase(t, test)
+		})
+	}
+}
+
+func TestRunMonthSort(t *testing.T) {
+	tests := []testCase{
+		{
+			name:  "months compare in calendar order",
+			stdin: strings.NewReader("MAR\nJAN\nFEB\n"),
+			args:  []string{"-M"},
+			want:  "JAN\nFEB\nMAR\n",
+		},
+		{
+			name:  "the comparison is case insensitive",
+			stdin: strings.NewReader("jan\nFeb\nDEC\nMAR\n"),
+			args:  []string{"-M"},
+			want:  "jan\nFeb\nMAR\nDEC\n",
+		},
+		{
+			name:  "only the month abbreviation is significant",
+			stdin: strings.NewReader("MARCH\nJANUARY\nAPR\n"),
+			args:  []string{"-M"},
+			want:  "JANUARY\nMARCH\nAPR\n",
+		},
+		{
+			name:  "unknown months sort low to known ones",
+			stdin: strings.NewReader("xyz\nJAN\n"),
+			args:  []string{"-M"},
+			want:  "xyz\nJAN\n",
+		},
+		{
+			name:  "equal unknown months fall back to the whole lines",
+			stdin: strings.NewReader("zzz\naaa\nJAN\n"),
+			args:  []string{"-M"},
+			want:  "aaa\nzzz\nJAN\n",
+		},
+		{
+			name:  "blanks before the month are skipped",
+			stdin: strings.NewReader("  FEB\nJAN\n"),
+			args:  []string{"-M"},
+			want:  "JAN\n  FEB\n",
+		},
+		{
+			name:  "a month key",
+			stdin: strings.NewReader("a MAR\nb JAN\n"),
+			args:  []string{"-k", "2,2M"},
+			want:  "b JAN\na MAR\n",
+		},
+		{
+			name:  "the sort=month long form",
+			stdin: strings.NewReader("MAR\nJAN\n"),
+			args:  []string{"--sort=month"},
+			want:  "JAN\nMAR\n",
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			runCase(t, test)
+		})
+	}
+}
+
+func TestRunVersionSort(t *testing.T) {
+	tests := []testCase{
+		{
+			name:  "digits compare numerically",
+			stdin: strings.NewReader("1.10\n1.2\n1\n"),
+			args:  []string{"-V"},
+			want:  "1\n1.2\n1.10\n",
+		},
+		{
+			name:  "a digit run longer than the other wins",
+			stdin: strings.NewReader("10\n9\n"),
+			args:  []string{"-V"},
+			want:  "9\n10\n",
+		},
+		{
+			name:  "letters sort before other bytes",
+			stdin: strings.NewReader("foo07.7z\nfoo7a.7z\n"),
+			args:  []string{"-V"},
+			want:  "foo7a.7z\nfoo07.7z\n",
+		},
+		{
+			name:  "a tilde sorts before anything",
+			stdin: strings.NewReader("1.0~rc1\n1.0\n"),
+			args:  []string{"-V"},
+			want:  "1.0~rc1\n1.0\n",
+		},
+		{
+			name:  "equal numeric values fall back to the whole lines",
+			stdin: strings.NewReader("00123\n123\n"),
+			args:  []string{"-V"},
+			want:  "00123\n123\n",
+		},
+		{
+			name:  "the empty string counts as zero",
+			stdin: strings.NewReader("0\n\n"),
+			args:  []string{"-V"},
+			want:  "\n0\n",
+		},
+		{
+			name:  "a version key",
+			stdin: strings.NewReader("a 1.10\nb 1.2\n"),
+			args:  []string{"-k", "2V"},
+			want:  "b 1.2\na 1.10\n",
+		},
+		{
+			name:  "the sort=version long form",
+			stdin: strings.NewReader("1.10\n1.2\n"),
+			args:  []string{"--sort=version"},
+			want:  "1.2\n1.10\n",
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			runCase(t, test)
+		})
+	}
+}
+
+func TestRunRandomSort(t *testing.T) {
+	tests := []testCase{
+		{
+			name:  "the permutation is deterministic",
+			stdin: strings.NewReader("b\na\nd\nc\n"),
+			args:  []string{"-R"},
+			want:  "d\nb\nc\na\n",
+		},
+		{
+			name:  "a longer permutation",
+			stdin: strings.NewReader("a\nb\nc\nd\ne\nf\ng\nh\n"),
+			args:  []string{"-R"},
+			want:  "f\ng\nd\ne\nb\nc\na\nh\n",
+		},
+		{
+			name:  "equal keys sort together",
+			stdin: strings.NewReader("b\na\nb\n"),
+			args:  []string{"-R"},
+			want:  "b\nb\na\n",
+		},
+		{
+			name:  "a random key",
+			stdin: strings.NewReader("1 b\n2 a\n"),
+			args:  []string{"-k", "2,2R"},
+			want:  "1 b\n2 a\n",
+		},
+		{
+			name:  "the sort=random long form",
+			stdin: strings.NewReader("b\na\nd\nc\n"),
+			args:  []string{"--sort=random"},
+			want:  "d\nb\nc\na\n",
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			runCase(t, test)
+		})
+	}
+}
+
 func TestRunDictionary(t *testing.T) {
 	tests := []testCase{
 		{
@@ -532,6 +768,89 @@ func TestRunUnique(t *testing.T) {
 			stdin: strings.NewReader("a\nA\nb\n"),
 			args:  []string{"-u", "-f"},
 			want:  "a\nb\n",
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			runCase(t, test)
+		})
+	}
+}
+
+func TestRunStable(t *testing.T) {
+	tests := []testCase{
+		{
+			name:  "lines with equal keys keep their input order",
+			stdin: strings.NewReader("b 2\na 2\n"),
+			args:  []string{"-s", "-k", "2,2n"},
+			want:  "b 2\na 2\n",
+		},
+		{
+			name:  "without s the last resort comparison applies",
+			stdin: strings.NewReader("b 2\na 2\n"),
+			args:  []string{"-k", "2,2n"},
+			want:  "a 2\nb 2\n",
+		},
+		{
+			name:  "the whole line is still the key without keys",
+			stdin: strings.NewReader("b\na\n"),
+			args:  []string{"-s"},
+			want:  "a\nb\n",
+		},
+		{
+			name:  "the random ordering can be made stable",
+			stdin: strings.NewReader("1 b\n2 a\n1 a\n"),
+			args:  []string{"-R", "-s", "-k", "1,1"},
+			want:  "2 a\n1 b\n1 a\n",
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			runCase(t, test)
+		})
+	}
+}
+
+func TestRunZeroTerminated(t *testing.T) {
+	tests := []testCase{
+		{
+			name:  "items are NUL terminated",
+			stdin: strings.NewReader("b\x00a\x00"),
+			args:  []string{"-z"},
+			want:  "a\x00b\x00",
+		},
+		{
+			name:  "a missing final NUL is added",
+			stdin: strings.NewReader("b\x00a"),
+			args:  []string{"-z"},
+			want:  "a\x00b\x00",
+		},
+		{
+			name:  "items can contain newlines",
+			stdin: strings.NewReader("b x\ny\x00a\x00"),
+			args:  []string{"-z"},
+			want:  "a\x00b x\ny\x00",
+		},
+		{
+			name:  "a sorted input passes the check",
+			stdin: strings.NewReader("a\x00b\x00"),
+			args:  []string{"-z", "-c"},
+		},
+		{
+			name:     "a disordered input fails the check",
+			stdin:    strings.NewReader("b\x00a\x00"),
+			args:     []string{"-z", "-c"},
+			wantErr:  "sort: -:2: disorder: a\n",
+			wantExit: 1,
+		},
+		{
+			name:      "the output goes to a file",
+			stdin:     strings.NewReader("b\x00a\x00"),
+			fsys:      testFS(),
+			args:      []string{"-z", "-o", "out.txt"},
+			wantFiles: map[string]string{"out.txt": "a\x00b\x00"},
 		},
 	}
 
@@ -785,6 +1104,18 @@ func TestRunOptions(t *testing.T) {
 			wantErr:  "sort: invalid key definition: '1,'\n",
 			wantExit: 2,
 		},
+		{
+			name:     "an invalid sort word",
+			args:     []string{"--sort=bogus"},
+			wantErr:  "sort: invalid argument 'bogus' for '--sort'\n",
+			wantExit: 2,
+		},
+		{
+			name:     "a missing sort argument",
+			args:     []string{"--sort"},
+			wantErr:  "sort: option '--sort' requires an argument\n",
+			wantExit: 2,
+		},
 	}
 
 	for _, test := range tests {
@@ -806,6 +1137,12 @@ func TestRunLongOptions(t *testing.T) {
 			name:  "numeric-sort",
 			stdin: strings.NewReader("10\n2\n"),
 			args:  []string{"--numeric-sort"},
+			want:  "2\n10\n",
+		},
+		{
+			name:  "sort word",
+			stdin: strings.NewReader("10\n2\n"),
+			args:  []string{"--sort=numeric"},
 			want:  "2\n10\n",
 		},
 		{
@@ -869,6 +1206,42 @@ func TestRunLongOptions(t *testing.T) {
 			stdin: strings.NewReader("a\tx\nab\n"),
 			args:  []string{"--ignore-nonprinting"},
 			want:  "ab\na\tx\n",
+		},
+		{
+			name:  "human-numeric-sort",
+			stdin: strings.NewReader("10\n2\n"),
+			args:  []string{"--human-numeric-sort"},
+			want:  "2\n10\n",
+		},
+		{
+			name:  "month-sort",
+			stdin: strings.NewReader("MAR\nJAN\n"),
+			args:  []string{"--month-sort"},
+			want:  "JAN\nMAR\n",
+		},
+		{
+			name:  "version-sort",
+			stdin: strings.NewReader("1.10\n1.2\n"),
+			args:  []string{"--version-sort"},
+			want:  "1.2\n1.10\n",
+		},
+		{
+			name:  "random-sort",
+			stdin: strings.NewReader("b\na\nd\nc\n"),
+			args:  []string{"--random-sort"},
+			want:  "d\nb\nc\na\n",
+		},
+		{
+			name:  "zero-terminated",
+			stdin: strings.NewReader("b\x00a\x00"),
+			args:  []string{"--zero-terminated"},
+			want:  "a\x00b\x00",
+		},
+		{
+			name:  "stable",
+			stdin: strings.NewReader("b 2\na 2\n"),
+			args:  []string{"--stable", "-k", "2,2n"},
+			want:  "b 2\na 2\n",
 		},
 	}
 
@@ -986,5 +1359,39 @@ func runCancelled(t *testing.T, ctx context.Context, stdin io.Reader) {
 	}
 	if got := stderr.String(); got != "" {
 		t.Errorf("Run() stderr = %q, want empty", got)
+	}
+}
+
+func TestRunSortTypeLastWins(t *testing.T) {
+	tests := []testCase{
+		{
+			name:  "a later month sort replaces the numeric one",
+			stdin: strings.NewReader("2\n10\n1\n"),
+			args:  []string{"-n", "-M"},
+			want:  "1\n10\n2\n",
+		},
+		{
+			name:  "a later numeric sort replaces the month one",
+			stdin: strings.NewReader("2\n10\n1\n"),
+			args:  []string{"-M", "-n"},
+			want:  "1\n2\n10\n",
+		},
+		{
+			name:  "the long forms replace each other too",
+			stdin: strings.NewReader("2\n10\n1\n"),
+			args:  []string{"--sort=numeric", "--sort=month"},
+			want:  "1\n10\n2\n",
+		},
+		{
+			name:  "a key modifier replaces the global type",
+			stdin: strings.NewReader("2\n10\n1\n"),
+			args:  []string{"-M", "-k1,1n"},
+			want:  "1\n2\n10\n",
+		},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			runCase(t, test)
+		})
 	}
 }
