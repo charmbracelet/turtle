@@ -64,6 +64,7 @@ type testCase struct {
 	fsys      fsx.FS
 	args      []string
 	want      map[string]string
+	wantOut   string
 	wantErr   string
 	wantExit  int
 	wantFiles []string
@@ -103,8 +104,8 @@ func runCase(t *testing.T, test testCase) {
 	if code != test.wantExit {
 		t.Errorf("Run() exit code = %d, want %d (error = %v)", code, test.wantExit, err)
 	}
-	if got := stdout.String(); got != "" {
-		t.Errorf("Run() stdout = %q, want empty", got)
+	if got := stdout.String(); got != test.wantOut {
+		t.Errorf("Run() stdout = %q, want %q", got, test.wantOut)
 	}
 	if got := stderr.String(); got != test.wantErr {
 		t.Errorf("Run() stderr = %q, want %q", got, test.wantErr)
@@ -208,10 +209,10 @@ func TestRunLines(t *testing.T) {
 			wantFiles: []string{"empty.txt"},
 		},
 		{
-			name:  "zero suffix length allows a single piece",
+			name:  "zero suffix length selects the default",
 			stdin: strings.NewReader("a\nb\n"),
 			args:  []string{"-a", "0", "-l", "9"},
-			want:  map[string]string{"x": "a\nb\n"},
+			want:  map[string]string{"xaa": "a\nb\n"},
 		},
 		{
 			name:      "pieces in a subdirectory prefix",
@@ -352,8 +353,8 @@ func TestRunInvalidUsage(t *testing.T) {
 		},
 		{
 			name:     "an unknown multiplier is invalid",
-			args:     []string{"-b", "1g"},
-			wantErr:  "split: invalid number of bytes: '1g'\n",
+			args:     []string{"-b", "1j"},
+			wantErr:  "split: invalid number of bytes: '1j'\n",
 			wantExit: 2,
 		},
 		{
@@ -433,5 +434,237 @@ func TestRunCancellation(t *testing.T) {
 	})
 	if err := prog.Run(ctx, "-l", "1"); !errors.Is(err, context.Canceled) {
 		t.Fatalf("Run() error = %v, want context.Canceled", err)
+	}
+}
+
+func TestRunNumericSuffixes(t *testing.T) {
+	tests := []testCase{
+		{
+			name:  "digits replace letters",
+			stdin: strings.NewReader(lines(1, 3)),
+			args:  []string{"-d", "-l", "1"},
+			want: map[string]string{
+				"x00": lines(1, 1),
+				"x01": lines(2, 2),
+				"x02": lines(3, 3),
+			},
+		},
+		{
+			name:  "the long form works",
+			stdin: strings.NewReader(lines(1, 2)),
+			args:  []string{"--numeric-suffixes", "-l", "1"},
+			want: map[string]string{
+				"x00": lines(1, 1),
+				"x01": lines(2, 2),
+			},
+		},
+		{
+			name:  "a starting number counts from it",
+			stdin: strings.NewReader(lines(1, 2)),
+			args:  []string{"-d", "-l", "1"},
+			want: map[string]string{
+				"x00": lines(1, 1),
+				"x01": lines(2, 2),
+			},
+		},
+		{
+			name:  "an attached starting number counts from it",
+			stdin: strings.NewReader(lines(1, 2)),
+			args:  []string{"--numeric-suffixes=4", "-l", "1"},
+			want: map[string]string{
+				"x04": lines(1, 1),
+				"x05": lines(2, 2),
+			},
+		},
+		{
+			name:  "hexadecimal suffixes",
+			stdin: strings.NewReader(lines(1, 2)),
+			args:  []string{"-x", "-l", "1"},
+			want: map[string]string{
+				"x00": lines(1, 1),
+				"x01": lines(2, 2),
+			},
+		},
+		{
+			name:  "an additional suffix is appended",
+			stdin: strings.NewReader(lines(1, 2)),
+			args:  []string{"-d", "--additional-suffix=.part", "-l", "1"},
+			want: map[string]string{
+				"x00.part": lines(1, 1),
+				"x01.part": lines(2, 2),
+			},
+		},
+		{
+			name:     "numeric and hexadecimal conflict",
+			args:     []string{"-d", "-x", "-l", "1"},
+			wantErr:  "split: cannot combine -d and -x\n",
+			wantExit: 2,
+		},
+		{
+			name:     "an additional suffix with a slash is invalid",
+			args:     []string{"--additional-suffix=a/b", "-l", "1"},
+			wantErr:  "split: additional suffix contains slash: 'a/b'\n",
+			wantExit: 2,
+		},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			runCase(t, test)
+		})
+	}
+}
+
+func TestRunLineBytes(t *testing.T) {
+	tests := []testCase{
+		{
+			name:  "as many whole lines as fit",
+			stdin: strings.NewReader("ab\ncd\nef\n"),
+			args:  []string{"-C", "6"},
+			want: map[string]string{
+				"xaa": "ab\ncd\n",
+				"xab": "ef\n",
+			},
+		},
+		{
+			name:  "a line longer than the size is broken",
+			stdin: strings.NewReader("abcdef\ngh\n"),
+			args:  []string{"-C", "3"},
+			want: map[string]string{
+				"xaa": "abc",
+				"xab": "def",
+				"xac": "\n",
+				"xad": "gh\n",
+			},
+		},
+		{
+			name:  "the long form works",
+			stdin: strings.NewReader("ab\ncd\n"),
+			args:  []string{"--line-bytes=4"},
+			want: map[string]string{
+				"xaa": "ab\n",
+				"xab": "cd\n",
+			},
+		},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			runCase(t, test)
+		})
+	}
+}
+
+func TestRunNumber(t *testing.T) {
+	tests := []testCase{
+		{
+			name:  "byte chunks are equal, early ones longer",
+			stdin: strings.NewReader("abcdefgh"),
+			args:  []string{"-n", "3"},
+			want: map[string]string{
+				"xaa": "abc",
+				"xab": "def",
+				"xac": "gh",
+			},
+		},
+		{
+			name:  "byte chunks with a remainder",
+			stdin: strings.NewReader("abcde"),
+			args:  []string{"-n", "2"},
+			want: map[string]string{
+				"xaa": "abc",
+				"xab": "de",
+			},
+		},
+		{
+			name:    "the kth byte chunk goes to the standard output",
+			stdin:   strings.NewReader("abcdefgh"),
+			args:    []string{"-n", "2/3"},
+			wantOut: "def",
+		},
+		{
+			name:  "line chunks hold the lines which start in them",
+			stdin: strings.NewReader("ab\ncd\nef\ngh\n"),
+			args:  []string{"-n", "l/2"},
+			want: map[string]string{
+				"xaa": "ab\ncd\n",
+				"xab": "ef\ngh\n",
+			},
+		},
+		{
+			name:    "the kth line chunk goes to the standard output",
+			stdin:   strings.NewReader("ab\ncd\nef\ngh\n"),
+			args:    []string{"-n", "l/2/3"},
+			wantOut: "ef\n",
+		},
+		{
+			name:  "a region with no line starting in it is empty",
+			stdin: strings.NewReader("abcdefgh\n"),
+			args:  []string{"-n", "l/3"},
+			want: map[string]string{
+				"xaa": "abcdefgh\n",
+				"xab": "",
+				"xac": "",
+			},
+		},
+		{
+			name:  "-e elides the empty pieces",
+			stdin: strings.NewReader("abcdefgh\n"),
+			args:  []string{"-e", "-n", "l/3"},
+			want: map[string]string{
+				"xaa": "abcdefgh\n",
+			},
+		},
+		{
+			name:  "round robin distributes the lines",
+			stdin: strings.NewReader("a\nb\nc\nd\n"),
+			args:  []string{"-n", "r/2"},
+			want: map[string]string{
+				"xaa": "a\nc\n",
+				"xab": "b\nd\n",
+			},
+		},
+		{
+			name:    "the kth round robin chunk goes to the standard output",
+			stdin:   strings.NewReader("a\nb\nc\nd\n"),
+			args:    []string{"-n", "r/2/4"},
+			wantOut: "b\n",
+		},
+		{
+			name:  "all chunks are created when the input is short",
+			stdin: strings.NewReader("ab"),
+			args:  []string{"-n", "5"},
+			want: map[string]string{
+				"xaa": "a",
+				"xab": "b",
+				"xac": "",
+				"xad": "",
+				"xae": "",
+			},
+		},
+		{
+			name:  "with -e only the non-empty chunks are created",
+			stdin: strings.NewReader("ab"),
+			args:  []string{"-e", "-n", "5"},
+			want: map[string]string{
+				"xaa": "a",
+				"xab": "b",
+			},
+		},
+		{
+			name:     "an invalid chunk count",
+			args:     []string{"-n", "x"},
+			wantErr:  "split: invalid number of chunks: 'x'\n",
+			wantExit: 2,
+		},
+		{
+			name:     "a chunk past the count",
+			args:     []string{"-n", "3/2"},
+			wantErr:  "split: invalid chunk number: '3/2'\n",
+			wantExit: 2,
+		},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			runCase(t, test)
+		})
 	}
 }
