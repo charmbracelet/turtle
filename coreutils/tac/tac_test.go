@@ -602,13 +602,13 @@ func TestRunRegex(t *testing.T) {
 		{
 			name:     "an invalid pattern",
 			args:     []string{"-r", "-s", "["},
-			wantErr:  "tac: invalid separator: error parsing regexp: missing closing ]: `[`\n",
+			wantErr:  "tac: invalid separator: error parsing regexp: missing closing ]: `[`\nTry 'tac --help' for more information.\n",
 			wantExit: 2,
 		},
 		{
 			name:     "an empty separator is invalid with -r",
 			args:     []string{"-r", "-s", ""},
-			wantErr:  "tac: separator cannot be empty with -r\n",
+			wantErr:  "tac: separator cannot be empty with -r\nTry 'tac --help' for more information.\n",
 			wantExit: 2,
 		},
 	}
@@ -665,31 +665,31 @@ func TestRunErrors(t *testing.T) {
 		{
 			name:     "invalid option",
 			args:     []string{"-z"},
-			wantErr:  "tac: invalid option -- 'z'\n",
+			wantErr:  "tac: invalid option -- 'z'\nTry 'tac --help' for more information.\n",
 			wantExit: 2,
 		},
 		{
 			name:     "unrecognized long option",
 			args:     []string{"--bogus"},
-			wantErr:  "tac: unrecognized option '--bogus'\n",
+			wantErr:  "tac: unrecognized option '--bogus'\nTry 'tac --help' for more information.\n",
 			wantExit: 2,
 		},
 		{
 			name:     "long option that doesn't allow an argument",
 			args:     []string{"--before=x"},
-			wantErr:  "tac: option '--before=x' doesn't allow an argument\n",
+			wantErr:  "tac: option '--before=x' doesn't allow an argument\nTry 'tac --help' for more information.\n",
 			wantExit: 2,
 		},
 		{
 			name:     "missing separator argument",
 			args:     []string{"-s"},
-			wantErr:  "tac: option requires an argument -- 's'\n",
+			wantErr:  "tac: option requires an argument -- 's'\nTry 'tac --help' for more information.\n",
 			wantExit: 2,
 		},
 		{
 			name:     "missing long separator argument",
 			args:     []string{"--separator"},
-			wantErr:  "tac: option '--separator' requires an argument\n",
+			wantErr:  "tac: option '--separator' requires an argument\nTry 'tac --help' for more information.\n",
 			wantExit: 2,
 		},
 		{
