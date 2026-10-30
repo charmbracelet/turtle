@@ -49,6 +49,7 @@ func (p *Prog) Run(ctx context.Context, args ...string) error {
 	opts, operands, err := parseFlags(args)
 	if err != nil {
 		p.errorf("%v", err)
+		stdopts.TryHelp(p.Runtime, "uniq")
 		return &coreutils.ExitError{Code: 2}
 	}
 	var inName, outName string
@@ -60,6 +61,7 @@ func (p *Prog) Run(ctx context.Context, args ...string) error {
 		inName, outName = operands[0], operands[1]
 	default:
 		p.errorf("extra operand '%s'", operands[2])
+		stdopts.TryHelp(p.Runtime, "uniq")
 		return &coreutils.ExitError{Code: 2}
 	}
 	if slices.Contains(operands, "") {
