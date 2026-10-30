@@ -24,11 +24,24 @@ type keyRange struct {
 }
 
 // ordering holds the options that alter the comparison of a key.
+// sortKind is the comparison a key uses. The last kind given by an option
+// wins: a later sort-type option replaces the earlier one.
+type sortKind int
+
+const (
+	lexical sortKind = iota
+	numeric
+	humanNumeric
+	month
+	random
+	version
+)
+
 type ordering struct {
 	dictionary     bool
 	foldCase       bool
 	ignoreNonPrint bool
-	numeric        bool
+	kind           sortKind
 	reverse        bool
 }
 
@@ -36,9 +49,18 @@ type ordering struct {
 // zero or positive.
 func (ord ordering) compare(a, b []byte) int {
 	var c int
-	if ord.numeric {
+	switch ord.kind {
+	case numeric:
 		c = compareNumeric(a, b)
-	} else {
+	case humanNumeric:
+		c = compareHumanNumeric(a, b)
+	case month:
+		c = compareMonth(a, b)
+	case random:
+		c = compareRandom(ord.transform(a), ord.transform(b))
+	case version:
+		c = compareVersion(a, b)
+	default:
 		c = bytes.Compare(ord.transform(a), ord.transform(b))
 	}
 	if ord.reverse {
@@ -80,21 +102,26 @@ func (ord ordering) transform(key []byte) []byte {
 	return out
 }
 
-// union returns the combination of two orderings.
+// union returns the combination of two orderings. The kind of the second
+// one, usually a key's own, replaces the first's when it selects one.
 func (ord ordering) union(other ordering) ordering {
-	return ordering{
+	out := ordering{
 		dictionary:     ord.dictionary || other.dictionary,
 		foldCase:       ord.foldCase || other.foldCase,
 		ignoreNonPrint: ord.ignoreNonPrint || other.ignoreNonPrint,
-		numeric:        ord.numeric || other.numeric,
+		kind:           ord.kind,
 		reverse:        ord.reverse || other.reverse,
 	}
+	if other.kind != lexical {
+		out.kind = other.kind
+	}
+	return out
 }
 
 // compareLines compares two lines, returning a negative, zero or positive
 // value as the first orders before, with, or after the second. Lines whose
 // keys compare equal fall back to the comparison of the whole lines, with all
-// bytes significant and only -r in effect, unless -u was given.
+// bytes significant and only -r in effect, unless -u or -s was given.
 func (opts options) compareLines(a, b sortLine) int {
 	if len(opts.keys) == 0 {
 		if c := opts.global.compare(a.data, b.data); c != 0 {
@@ -109,7 +136,7 @@ func (opts options) compareLines(a, b sortLine) int {
 			}
 		}
 	}
-	if opts.unique {
+	if opts.unique || opts.stable {
 		return 0
 	}
 	c := bytes.Compare(a.data, b.data)
@@ -343,12 +370,20 @@ func parseKeyPos(s string, start bool) (keyPos, bool) {
 			pos.ord.dictionary = true
 		case 'f':
 			pos.ord.foldCase = true
+		case 'h':
+			pos.ord.kind = humanNumeric
 		case 'i':
 			pos.ord.ignoreNonPrint = true
+		case 'M':
+			pos.ord.kind = month
 		case 'n':
-			pos.ord.numeric = true
+			pos.ord.kind = numeric
+		case 'R':
+			pos.ord.kind = random
 		case 'r':
 			pos.ord.reverse = true
+		case 'V':
+			pos.ord.kind = version
 		default:
 			return keyPos{}, false
 		}
@@ -447,4 +482,206 @@ func compareNumeric(a, b []byte) int {
 		return -c
 	}
 	return c
+}
+
+// compareHumanNumeric compares the initial numbers of a and b followed by
+// their optional SI suffixes, first by the order of magnitude of the unit
+// and then by numeric value.
+func compareHumanNumeric(a, b []byte) int {
+	if c := cmp.Compare(findUnitOrder(a), findUnitOrder(b)); c != 0 {
+		return c
+	}
+	return compareNumeric(a, b)
+}
+
+// findUnitOrder returns the order of magnitude of the unit following the
+// initial number of b: negative numbers get negative orders, and zero or
+// invalid numbers get zero.
+func findUnitOrder(b []byte) int {
+	i := 0
+	for i < len(b) && textutil.IsBlank(b[i]) {
+		i++
+	}
+	minus := false
+	if i < len(b) && b[i] == '-' {
+		minus = true
+		i++
+	}
+	var maxDigit byte
+	for i < len(b) && isDigit(b[i]) {
+		if b[i] > maxDigit {
+			maxDigit = b[i]
+		}
+		i++
+	}
+	if i < len(b) && b[i] == '.' {
+		i++
+		for i < len(b) && isDigit(b[i]) {
+			if b[i] > maxDigit {
+				maxDigit = b[i]
+			}
+			i++
+		}
+	}
+	order := 0
+	if maxDigit > '0' && i < len(b) {
+		order = humanUnitOrder(b[i])
+	}
+	if minus {
+		return -order
+	}
+	return order
+}
+
+// humanUnitOrder returns the order of magnitude of an SI suffix byte: 1 for
+// k, 2 for M, and so on up to 10 for Q, and 0 for any other byte.
+func humanUnitOrder(c byte) int {
+	switch c {
+	case 'k', 'K':
+		return 1
+	case 'm', 'M':
+		return 2
+	case 'g', 'G':
+		return 3
+	case 't', 'T':
+		return 4
+	case 'p', 'P':
+		return 5
+	case 'e', 'E':
+		return 6
+	case 'z', 'Z':
+		return 7
+	case 'y', 'Y':
+		return 8
+	case 'r', 'R':
+		return 9
+	case 'q', 'Q':
+		return 10
+	}
+	return 0
+}
+
+// compareMonth compares the initial month names of a and b, case folded,
+// with unknown months sorting low to known ones.
+func compareMonth(a, b []byte) int {
+	return cmp.Compare(monthValue(a), monthValue(b))
+}
+
+// monthNames holds the three-letter month abbreviations, from January on.
+var monthNames = [12]string{"JAN", "FEB", "MAR", "APR", "MAY", "JUN", "JUL", "AUG", "SEP", "OCT", "NOV", "DEC"}
+
+// monthValue returns the 1-based month of the initial month name of b, and
+// 0 when the name is unknown. A recognized abbreviation may be followed by
+// any amount of characters, like in JANUARY.
+func monthValue(b []byte) int {
+	i := 0
+	for i < len(b) && textutil.IsBlank(b[i]) {
+		i++
+	}
+	if len(b)-i < 3 {
+		return 0
+	}
+	prefix := strings.ToUpper(string(b[i : i+3]))
+	for m, name := range monthNames {
+		if prefix == name {
+			return m + 1
+		}
+	}
+	return 0
+}
+
+// randomSeed is the fixed seed of the random hash. The --random-source
+// option is not supported, so the permutation is deterministic.
+const randomSeed = 0x1B873593
+
+// compareRandom compares the transformed keys a and b by their hash values,
+// falling back to the key bytes in the unlikely event of a collision.
+func compareRandom(a, b []byte) int {
+	if c := cmp.Compare(hashKey(a), hashKey(b)); c != 0 {
+		return c
+	}
+	return bytes.Compare(a, b)
+}
+
+// hashKey returns the FNV-1a hash of b, seeded by folding randomSeed into
+// the offset basis.
+func hashKey(b []byte) uint64 {
+	h := uint64(14695981039346656037) ^ randomSeed
+	for _, c := range b {
+		h ^= uint64(c)
+		h *= 1099511628211
+	}
+	return h
+}
+
+// compareVersion compares a and b by the version sort ordering rules: from
+// left to right, initial runs of non-digits are compared lexically, with
+// letters before other bytes and tilde before anything, then initial runs
+// of digits are compared by numeric value, until a difference is found or
+// both strings are exhausted.
+func compareVersion(a, b []byte) int {
+	i, j := 0, 0
+	for i < len(a) || j < len(b) {
+		for (i < len(a) && !isDigit(a[i])) || (j < len(b) && !isDigit(b[j])) {
+			ca, cb := versionOrder(a, i), versionOrder(b, j)
+			if ca != cb {
+				return ca - cb
+			}
+			i++
+			j++
+		}
+		for i < len(a) && a[i] == '0' {
+			i++
+		}
+		for j < len(b) && b[j] == '0' {
+			j++
+		}
+		firstDiff := 0
+		for i < len(a) && j < len(b) && isDigit(a[i]) && isDigit(b[j]) {
+			if firstDiff == 0 {
+				firstDiff = int(a[i]) - int(b[j])
+			}
+			i++
+			j++
+		}
+		if i < len(a) && isDigit(a[i]) {
+			return 1
+		}
+		if j < len(b) && isDigit(b[j]) {
+			return -1
+		}
+		if firstDiff != 0 {
+			return firstDiff
+		}
+	}
+	return 0
+}
+
+// versionOrder returns the comparison value of the byte of s at pos, or of
+// the end of the string, as the version sort ordering rules demand.
+func versionOrder(s []byte, pos int) int {
+	if pos == len(s) {
+		return -1
+	}
+	c := s[pos]
+	switch {
+	case isDigit(c):
+		return 0
+	case isASCIILetter(c):
+		return int(c)
+	case c == '~':
+		return -2
+	default:
+		return int(c) + 0x100
+	}
+}
+
+// isDigit reports whether c is an ASCII digit.
+func isDigit(c byte) bool {
+	return c >= '0' && c <= '9'
+}
+
+// isASCIILetter reports whether c is an ASCII letter.
+func isASCIILetter(c byte) bool {
+	return c >= 'a' && c <= 'z' || c >= 'A' && c <= 'Z'
 }
