@@ -6,6 +6,8 @@ import (
 	"errors"
 	"io"
 	"io/fs"
+	"os"
+	"path/filepath"
 	"testing"
 	"time"
 
@@ -30,6 +32,7 @@ type testCase struct {
 	name     string
 	files    fsx.MemFS
 	tz       string
+	clock    time.Time
 	args     []string
 	want     map[string]timePair
 	absent   []string
@@ -51,6 +54,9 @@ func runCase(t *testing.T, test testCase) {
 			}
 			return []string{"TZ=" + test.tz}
 		},
+	}
+	if !test.clock.IsZero() {
+		rt.Clock = func() time.Time { return test.clock }
 	}
 
 	before := time.Now()
@@ -358,6 +364,7 @@ func TestRunTimeOption(t *testing.T) {
 }
 
 func TestRunDateTimeOption(t *testing.T) {
+	clock := time.Date(2024, 3, 15, 12, 30, 45, 0, time.UTC)
 	tests := []testCase{
 		{
 			name:  "date and time",
@@ -388,11 +395,87 @@ func TestRunDateTimeOption(t *testing.T) {
 			want:  map[string]timePair{"file.txt": both(time.Date(2007, 11, 12, 10, 15, 30, 2000000, time.UTC))},
 		},
 		{
+			name:  "a missing seconds field",
+			files: fsx.MemFS{},
+			tz:    "UTC",
+			args:  []string{"-d", "2007-11-12T10:15", "file.txt"},
+			want:  map[string]timePair{"file.txt": both(time.Date(2007, 11, 12, 10, 15, 0, 0, time.UTC))},
+		},
+		{
 			name:  "a fractional second with a comma",
 			files: fsx.MemFS{},
 			tz:    "UTC",
 			args:  []string{"-d", "2007-11-12T10:15:30,002", "file.txt"},
 			want:  map[string]timePair{"file.txt": both(time.Date(2007, 11, 12, 10, 15, 30, 2000000, time.UTC))},
+		},
+		{
+			name:  "yesterday",
+			files: fsx.MemFS{},
+			tz:    "UTC",
+			clock: clock,
+			args:  []string{"-d", "yesterday", "file.txt"},
+			want:  map[string]timePair{"file.txt": both(time.Date(2024, 3, 14, 0, 0, 0, 0, time.UTC))},
+		},
+		{
+			name:  "an epoch time",
+			files: fsx.MemFS{},
+			tz:    "UTC",
+			clock: clock,
+			args:  []string{"-d", "@1700000000", "file.txt"},
+			want:  map[string]timePair{"file.txt": both(time.Unix(1700000000, 0))},
+		},
+		{
+			name:  "a relative time",
+			files: fsx.MemFS{},
+			tz:    "UTC",
+			clock: clock,
+			args:  []string{"-d", "2 hours ago", "file.txt"},
+			want:  map[string]timePair{"file.txt": both(clock.Add(-2 * time.Hour))},
+		},
+		{
+			name:  "month names",
+			files: fsx.MemFS{},
+			tz:    "UTC",
+			clock: clock,
+			args:  []string{"-d", "Jul 21 14:19:13 2020", "file.txt"},
+			want:  map[string]timePair{"file.txt": both(time.Date(2020, 7, 21, 14, 19, 13, 0, time.UTC))},
+		},
+		{
+			name:  "a zone suffix",
+			files: fsx.MemFS{},
+			tz:    "UTC",
+			clock: clock,
+			args:  []string{"-d", "2020-07-21 14:19:13 +0530", "file.txt"},
+			want:  map[string]timePair{"file.txt": both(time.Date(2020, 7, 21, 8, 49, 13, 0, time.UTC))},
+		},
+		{
+			name:  "a named zone",
+			files: fsx.MemFS{},
+			tz:    "UTC",
+			clock: clock,
+			args:  []string{"-d", "2020-07-21 14:19:13 UTC", "file.txt"},
+			want:  map[string]timePair{"file.txt": both(time.Date(2020, 7, 21, 14, 19, 13, 0, time.UTC))},
+		},
+		{
+			name:  "relative to a reference file",
+			files: testFS(),
+			tz:    "UTC",
+			args:  []string{"-r", "ref.txt", "-d", "-5 seconds", "file.txt"},
+			want:  map[string]timePair{"file.txt": {atime: refAtime.Add(-5 * time.Second), mtime: refMtime.Add(-5 * time.Second)}},
+		},
+		{
+			name:  "a reference file given after the date",
+			files: testFS(),
+			tz:    "UTC",
+			args:  []string{"-d", "-5 seconds", "-r", "ref.txt", "file.txt"},
+			want:  map[string]timePair{"file.txt": {atime: refAtime.Add(-5 * time.Second), mtime: refMtime.Add(-5 * time.Second)}},
+		},
+		{
+			name:  "an absolute date ignores the reference file",
+			files: testFS(),
+			tz:    "UTC",
+			args:  []string{"-r", "ref.txt", "-d", "2007-11-12T10:15:30", "file.txt"},
+			want:  map[string]timePair{"file.txt": both(time.Date(2007, 11, 12, 10, 15, 30, 0, time.UTC))},
 		},
 	}
 	for _, test := range tests {
@@ -417,13 +500,6 @@ func TestRunLastTimeSourceWins(t *testing.T) {
 			tz:    "UTC",
 			args:  []string{"-t", "202201020304.05", "-r", "ref.txt", "file.txt"},
 			want:  map[string]timePair{"file.txt": {atime: refAtime, mtime: refMtime}},
-		},
-		{
-			name:  "a date after a reference file",
-			files: testFS(),
-			tz:    "UTC",
-			args:  []string{"-r", "ref.txt", "-d", "2007-11-12T10:15:30", "file.txt"},
-			want:  map[string]timePair{"file.txt": both(time.Date(2007, 11, 12, 10, 15, 30, 0, time.UTC))},
 		},
 	}
 	for _, test := range tests {
@@ -601,9 +677,19 @@ func TestRunInvalidTimes(t *testing.T) {
 			wantErr: "touch: invalid date format \"not-a-date\"\n",
 		},
 		{
-			name:    "d with a missing seconds field",
-			args:    []string{"-d", "2007-11-12T10:15"},
-			wantErr: "touch: invalid date format \"2007-11-12T10:15\"\n",
+			name:    "d with an out of range hour",
+			args:    []string{"-d", "2007-11-12T25:15:30"},
+			wantErr: "touch: invalid date format \"2007-11-12T25:15:30\"\n",
+		},
+		{
+			name:    "d with a bad word",
+			args:    []string{"-d", "one hour ago"},
+			wantErr: "touch: invalid date format \"one hour ago\"\n",
+		},
+		{
+			name:    "d with a bad month day",
+			args:    []string{"-d", "Jul 32"},
+			wantErr: "touch: invalid date format \"Jul 32\"\n",
 		},
 	}
 
@@ -658,6 +744,217 @@ func TestRunNoFilesystem(t *testing.T) {
 	}
 	if got, want := stderr.String(), "touch: no file system available\n"; got != want {
 		t.Errorf("Run() stderr = %q, want %q", got, want)
+	}
+}
+
+func TestRunNoopOption(t *testing.T) {
+	runCase(t, testCase{
+		name:  "f is ignored, for BSD compatibility",
+		files: fsx.MemFS{},
+		tz:    "UTC",
+		args:  []string{"-f", "-t", "202201020304.05", "file.txt"},
+		want:  map[string]timePair{"file.txt": both(time.Date(2022, 1, 2, 3, 4, 5, 0, time.UTC))},
+	})
+}
+
+// linkFS returns a file system with a file, a symbolic link to it, a dangling
+// link, and another file to act on, each with distinct times.
+func linkFS() fsx.MemFS {
+	fsys := fsx.MemFS{
+		"file.txt":     {Data: []byte("hello")},
+		"sym.txt":      {Data: []byte("file.txt"), Mode: fs.ModeSymlink},
+		"dangling.txt": {Data: []byte("missing.txt"), Mode: fs.ModeSymlink},
+		"other.txt":    {Data: []byte("other")},
+	}
+	setTimes := func(name string, t time.Time) {
+		if err := fsys.Chtimes(name, t, t); err != nil {
+			panic(err)
+		}
+	}
+	setTimes("file.txt", time.Date(2010, 10, 10, 10, 10, 10, 0, time.UTC))
+	setTimes("sym.txt", time.Date(2011, 11, 11, 11, 11, 11, 0, time.UTC))
+	setTimes("dangling.txt", time.Date(2012, 12, 12, 12, 12, 12, 0, time.UTC))
+	setTimes("other.txt", time.Date(2013, 1, 13, 13, 13, 13, 0, time.UTC))
+	return fsys
+}
+
+// entryTimes returns the access and modification times of the entry at name,
+// without following a final symbolic link.
+func entryTimes(t *testing.T, fsys fsx.MemFS, name string) timePair {
+	t.Helper()
+	fi, err := fsys.Lstat(name)
+	if err != nil {
+		t.Fatalf("Lstat(%q) error = %v", name, err)
+	}
+	atime, _ := fsx.Atime(fi)
+	return timePair{atime: atime, mtime: fi.ModTime()}
+}
+
+// assertPair checks the exact access and modification times of an entry.
+func assertPair(t *testing.T, fsys fsx.MemFS, name string, want timePair) {
+	t.Helper()
+	got := entryTimes(t, fsys, name)
+	if !got.atime.Equal(want.atime) || !got.mtime.Equal(want.mtime) {
+		t.Errorf("%s times = %v, %v, want %v, %v", name, got.atime, got.mtime, want.atime, want.mtime)
+	}
+}
+
+func TestRunNoDereference(t *testing.T) {
+	target := time.Date(2010, 10, 10, 10, 10, 10, 0, time.UTC)
+	link := time.Date(2011, 11, 11, 11, 11, 11, 0, time.UTC)
+	dangling := time.Date(2012, 12, 12, 12, 12, 12, 0, time.UTC)
+	other := time.Date(2013, 1, 13, 13, 13, 13, 0, time.UTC)
+	set := time.Date(2022, 1, 2, 3, 4, 5, 0, time.UTC)
+
+	tests := []struct {
+		name     string
+		args     []string
+		want     map[string]timePair
+		absent   []string
+		wantErr  string
+		wantExit int
+	}{
+		{
+			name: "h updates the link itself",
+			args: []string{"-h", "-t", "202201020304.05", "sym.txt"},
+			want: map[string]timePair{
+				"sym.txt":      both(set),
+				"file.txt":     both(target),
+				"dangling.txt": both(dangling),
+				"other.txt":    both(other),
+			},
+		},
+		{
+			name: "the long option",
+			args: []string{"--no-dereference", "-t", "202201020304.05", "sym.txt"},
+			want: map[string]timePair{
+				"sym.txt":      both(set),
+				"file.txt":     both(target),
+				"dangling.txt": both(dangling),
+				"other.txt":    both(other),
+			},
+		},
+		{
+			name: "h updates a dangling link",
+			args: []string{"-h", "-t", "202201020304.05", "dangling.txt"},
+			want: map[string]timePair{
+				"sym.txt":      both(link),
+				"file.txt":     both(target),
+				"dangling.txt": both(set),
+				"other.txt":    both(other),
+			},
+			absent: []string{"missing.txt"},
+		},
+		{
+			name: "h takes the reference from the link",
+			args: []string{"-h", "-r", "sym.txt", "other.txt"},
+			want: map[string]timePair{
+				"sym.txt":      both(link),
+				"file.txt":     both(target),
+				"dangling.txt": both(dangling),
+				"other.txt":    both(link),
+			},
+		},
+		{
+			name: "without h the reference follows the link",
+			args: []string{"-r", "sym.txt", "other.txt"},
+			want: map[string]timePair{
+				"sym.txt":      both(link),
+				"file.txt":     both(target),
+				"dangling.txt": both(dangling),
+				"other.txt":    both(target),
+			},
+		},
+		{
+			name:     "h does not create a missing file",
+			args:     []string{"-h", "missing.txt"},
+			want:     map[string]timePair{"sym.txt": both(link)},
+			absent:   []string{"missing.txt"},
+			wantErr:  "touch: missing.txt: file does not exist\n",
+			wantExit: 1,
+		},
+		{
+			name:   "h with c is quiet about a missing file",
+			args:   []string{"-hc", "missing.txt"},
+			want:   map[string]timePair{"sym.txt": both(link)},
+			absent: []string{"missing.txt"},
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			files := linkFS()
+
+			stderr := new(bytes.Buffer)
+			rt := &coreutils.Runtime{
+				Stdout: io.Discard,
+				Stderr: stderr,
+				FS:     files,
+				Environ: func() []string {
+					return []string{"TZ=UTC"}
+				},
+			}
+			err := New(rt).Run(t.Context(), test.args...)
+
+			if code := exitCode(t, err); code != test.wantExit {
+				t.Errorf("Run() exit code = %d, want %d (error = %v)", code, test.wantExit, err)
+			}
+			if got := stderr.String(); got != test.wantErr {
+				t.Errorf("Run() stderr = %q, want %q", got, test.wantErr)
+			}
+			for name, want := range test.want {
+				assertPair(t, files, name, want)
+			}
+			for _, name := range test.absent {
+				if _, err := files.Lstat(name); !errors.Is(err, fs.ErrNotExist) {
+					t.Errorf("Lstat(%q) error = %v, want fs.ErrNotExist", name, err)
+				}
+			}
+		})
+	}
+}
+
+func TestRunNoDereferenceOS(t *testing.T) {
+	dir := t.TempDir()
+	if err := os.WriteFile(filepath.Join(dir, "file.txt"), []byte("hello"), 0o666); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Symlink("file.txt", filepath.Join(dir, "sym.txt")); err != nil {
+		t.Skipf("symbolic links are not supported: %v", err)
+	}
+
+	// The OS file system has no way to change a link's own times, so -h only
+	// checks that the link is still handled without an error.
+	stderr := new(bytes.Buffer)
+	rt := &coreutils.Runtime{
+		Stdout: io.Discard,
+		Stderr: stderr,
+		FS:     fsx.OsFS(dir),
+	}
+	err := New(rt).Run(t.Context(), "-h", "sym.txt")
+
+	if code := exitCode(t, err); code != 0 {
+		t.Errorf("Run() exit code = %d, want 0 (stderr %q)", code, stderr.String())
+	}
+}
+
+func TestFlexFraction(t *testing.T) {
+	tests := []struct {
+		in, want string
+	}{
+		{"2007-11-12T10:15:30,002", "2007-11-12T10:15:30.002"},
+		{"2007-11-12T10:15:30.002", "2007-11-12T10:15:30.002"},
+		{"July 21, 2020", "July 21, 2020"},
+		{"2 hours ago", "2 hours ago"},
+		{"2007-11-12T10:15:30,", "2007-11-12T10:15:30,"},
+	}
+
+	for _, test := range tests {
+		t.Run(test.in, func(t *testing.T) {
+			if got := flexFraction(test.in); got != test.want {
+				t.Errorf("flexFraction(%q) = %q, want %q", test.in, got, test.want)
+			}
+		})
 	}
 }
 
@@ -784,14 +1081,32 @@ func TestParseFlags(t *testing.T) {
 		{
 			name:      "a separate option-argument",
 			args:      []string{"-r", "ref.txt"},
-			wantOpts:  options{access: true, modify: true, source: 'r', value: "ref.txt"},
+			wantOpts:  options{access: true, modify: true, source: 'r', value: "ref.txt", refFile: "ref.txt"},
 			wantFiles: nil,
 		},
 		{
 			name:      "an option-argument glued to a group",
 			args:      []string{"-cd", "2007-11-12T10:15:30"},
-			wantOpts:  options{access: true, modify: true, noCreate: true, source: 'd', value: "2007-11-12T10:15:30"},
+			wantOpts:  options{access: true, modify: true, noCreate: true, source: 'd', value: "2007-11-12T10:15:30", flex: "2007-11-12T10:15:30"},
 			wantFiles: nil,
+		},
+		{
+			name:      "a date before a reference file",
+			args:      []string{"-d", "-5 seconds", "-r", "ref.txt"},
+			wantOpts:  options{access: true, modify: true, source: 'r', value: "ref.txt", flex: "-5 seconds", refFile: "ref.txt"},
+			wantFiles: nil,
+		},
+		{
+			name:      "no dereference",
+			args:      []string{"-h", "file.txt"},
+			wantOpts:  options{access: true, modify: true, noDeref: true},
+			wantFiles: []string{"file.txt"},
+		},
+		{
+			name:      "the f option is ignored",
+			args:      []string{"-f", "file.txt"},
+			wantOpts:  options{access: true, modify: true},
+			wantFiles: []string{"file.txt"},
 		},
 	}
 
