@@ -430,3 +430,21 @@ func TestRunContext(t *testing.T) {
 		t.Errorf("Run() error = %v, want context.Canceled", err)
 	}
 }
+
+func TestHelpVersion(t *testing.T) {
+	t.Run("help", func(t *testing.T) {
+		runCase(t, testCase{
+			name: "help",
+			args: []string{"--help"},
+			want: usage,
+		})
+	})
+
+	t.Run("version", func(t *testing.T) {
+		runCase(t, testCase{
+			name: "version",
+			args: []string{"--version"},
+			want: "dirname (charm.land/snail/coreutils) " + coreutils.Version + "\nhttps://charm.land/snail\n",
+		})
+	})
+}
