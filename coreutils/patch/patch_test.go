@@ -651,3 +651,23 @@ func runCancelled(t *testing.T, ctx context.Context, stdin io.Reader) {
 		t.Errorf("Run() stderr = %q, want empty", got)
 	}
 }
+
+func TestHelpVersion(t *testing.T) {
+	tests := []struct {
+		name string
+		args []string
+		want string
+	}{
+		{"help", []string{"--help"}, usage},
+		{
+			"version",
+			[]string{"--version"},
+			"patch (charm.land/snail/coreutils) " + coreutils.Version + "\nhttps://charm.land/snail\n",
+		},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			runCase(t, testCase{name: test.name, args: test.args, want: test.want})
+		})
+	}
+}
