@@ -13,6 +13,7 @@ import (
 
 	"charm.land/snail/coreutils"
 	"charm.land/snail/coreutils/internal/getopt"
+	"charm.land/snail/coreutils/internal/stdopts"
 	"charm.land/snail/coreutils/internal/zcore"
 )
 
@@ -58,6 +59,9 @@ func newProg(rt *coreutils.Runtime, name string, defaults func(*zcore.Options)) 
 // and the context error when ctx is done. Files which would grow are left
 // alone, as the specification asks, unless -f is given.
 func (p *Prog) Run(ctx context.Context, args ...string) error {
+	if done, err := stdopts.Check(p.Runtime, p.base.Prog, Usage(p.base.Prog), optSet, args); done {
+		return err
+	}
 	set, err := parseFlags(args, p.base)
 	if err != nil {
 		fmt.Fprintf(p.Stderr, "%s: %v\n", p.base.Prog, err)
@@ -74,12 +78,15 @@ type settings struct {
 	bitsSet  bool
 }
 
+// optSet describes the options of the utility.
+var optSet = getopt.Set{Valued: "bm"}
+
 // parseFlags parses args on top of the base options of the program. The -b and
 // -m options take an option-argument, and the last -g or -m given wins. Option
 // parsing stops at the first operand or at "--".
 func parseFlags(args []string, base zcore.Options) (settings, error) {
 	set := settings{Options: base}
-	operands, err := getopt.Set{Valued: "bm"}.Parse(args, func(opt rune, value string) error {
+	operands, err := optSet.Parse(args, func(opt rune, value string) error {
 		switch opt {
 		case 'c', 'd', 'f', 'g', 'v':
 			set.apply(opt)
@@ -160,3 +167,25 @@ var (
 	_ coreutils.NewFunc = New
 	_ coreutils.NewFunc = Uncompress
 )
+
+// Usage describes the options of the utility, as the given program.
+func Usage(prog string) string {
+	synopsis := "[-cfv] [-b bits] [-g | -m algorithm] [file ...]"
+	if prog == "uncompress" {
+		synopsis = "[-cfv] [file ...]"
+	}
+	return `Usage: ` + prog + ` ` + synopsis + `
+Compress or expand files.
+
+  -b bits      set the code size, 9 to 16 bits for LZW, 1 to 9 for gzip
+  -c           write the result on the standard output, keeping the
+               input files unchanged
+  -d           restore the files, like uncompress
+  -f           force compression, even when the files would grow
+  -g           compress with the gzip format instead of LZW
+  -m method    compression method: lzw (default) or gzip
+  -v           write the names and the sizes of the files processed
+      --help     display this help and exit
+      --version  output version information and exit
+`
+}
