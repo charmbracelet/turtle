@@ -30,6 +30,7 @@ import (
 	"charm.land/snail/coreutils/internal/getopt"
 	"charm.land/snail/coreutils/internal/input"
 	"charm.land/snail/coreutils/internal/patherr"
+	"charm.land/snail/coreutils/internal/stdopts"
 )
 
 // chunkSize is how many bytes of an input are read at a time, which is also
@@ -50,6 +51,9 @@ func New(rt *coreutils.Runtime) coreutils.Program {
 // selects and in the output mode the other options choose. Long operations
 // are interrupted when ctx is done, returning the context error as it is.
 func (p *Prog) Run(ctx context.Context, args ...string) error {
+	if done, err := stdopts.Check(p.Runtime, "cksum", usage, optSet, args); done {
+		return err
+	}
 	opts, operands, err := parseFlags(args)
 	if err != nil {
 		p.errorf("%v", err)
@@ -126,11 +130,33 @@ const (
 	optUntagged
 )
 
+// optSet describes the options of the utility.
+var optSet = getopt.Set{Valued: "al", Long: longOptions}
+
+// usage describes the options of the utility.
+const usage = `Usage: cksum [OPTION]... [FILE]...
+Print CRC checksums and byte counts, or the digests the -a option selects.
+
+With no FILE, or when FILE is -, read standard input.
+
+  -a, --algorithm=TYPE  select the checksum type: crc (the default), sysv,
+                        bsd, crc32b, md5, sha1, sha2 or sha3
+      --base64          print base64-encoded digests, not hexadecimal
+  -l, --length=BITS     the digest length in bits, required with the sha2
+                        and sha3 algorithms: 224, 256, 384 or 512
+      --tag             create a tagged checksum (the default)
+      --untagged        create an untagged checksum, as the standalone
+                        digest utilities do
+  -z, --zero            end each output line with NUL, not newline
+      --help     display this help and exit
+      --version  output version information and exit
+`
+
 // parseFlags parses the options and operands. Option parsing stops at the
 // first operand or at "--".
 func parseFlags(args []string) (options, []string, error) {
 	var opts options
-	operands, err := getopt.Set{Valued: "al", Long: longOptions}.Parse(args, func(opt rune, value string) error {
+	operands, err := optSet.Parse(args, func(opt rune, value string) error {
 		switch opt {
 		case 'a':
 			opts.algorithm = value
