@@ -27,20 +27,26 @@ func strftime(format string, t time.Time) string {
 		if j < len(format) && (format[j] == 'E' || format[j] == 'O') {
 			j++
 		}
+		// The colons of the %:z, %::z and %:::z zone forms.
+		cols := 0
+		for j < len(format) && format[j] == ':' && cols < 3 {
+			j++
+			cols++
+		}
 		if j >= len(format) {
 			// A trailing '%' or modifier: copy it as is.
 			b.WriteString(format[i:])
 			break
 		}
-		b.WriteString(convert(format[j], t))
+		b.WriteString(convert(format[j], cols, t))
 		i = j
 	}
 	return b.String()
 }
 
 // convert returns the string the conversion specifier c stands for, as it
-// would be in the POSIX locale.
-func convert(c byte, t time.Time) string {
+// would be in the POSIX locale, with the number of colons of the zone forms.
+func convert(c byte, cols int, t time.Time) string {
 	switch c {
 	case 'a':
 		return t.Format("Mon")
@@ -80,6 +86,8 @@ func convert(c byte, t time.Time) string {
 		return pad2(t.Minute())
 	case 'n':
 		return "\n"
+	case 'N':
+		return fmt.Sprintf("%09d", t.Nanosecond())
 	case 'p':
 		return t.Format("PM")
 	case 'r':
@@ -88,6 +96,8 @@ func convert(c byte, t time.Time) string {
 		return strftime("%H:%M", t)
 	case 'S':
 		return pad2(t.Second())
+	case 's':
+		return strconv.FormatInt(t.Unix(), 10)
 	case 't':
 		return "\t"
 	case 'T':
@@ -112,13 +122,43 @@ func convert(c byte, t time.Time) string {
 	case 'Y':
 		return strconv.Itoa(t.Year())
 	case 'z':
-		return t.Format("-0700")
+		return zoneOffset(t, cols)
 	case 'Z':
 		return t.Format("MST")
 	case '%':
 		return "%"
 	default:
-		return "%" + string(c)
+		return "%" + strings.Repeat(":", cols) + string(c)
+	}
+}
+
+// zoneOffset returns the numeric time zone offset of t, with the number of
+// colons the GNU %:z, %::z and %:::z forms carry: "-0700", "-07:00",
+// "-07:00:00", and with three of them the minimum precision, dropping the
+// parts which are zero.
+func zoneOffset(t time.Time, cols int) string {
+	_, off := t.Zone()
+	sign := "+"
+	if off < 0 {
+		sign, off = "-", -off
+	}
+	h, m, s := off/3600, off%3600/60, off%60
+	switch {
+	case cols == 1:
+		return fmt.Sprintf("%s%02d:%02d", sign, h, m)
+	case cols == 2:
+		return fmt.Sprintf("%s%02d:%02d:%02d", sign, h, m, s)
+	case cols == 3:
+		switch {
+		case m == 0:
+			return fmt.Sprintf("%s%02d", sign, h)
+		case s == 0:
+			return fmt.Sprintf("%s%02d:%02d", sign, h, m)
+		default:
+			return fmt.Sprintf("%s%02d:%02d:%02d", sign, h, m, s)
+		}
+	default:
+		return fmt.Sprintf("%s%02d%02d", sign, h, m)
 	}
 }
 

@@ -21,6 +21,8 @@ func TestStrftime(t *testing.T) {
 		fri2021  = time.Date(2021, 1, 1, 12, 0, 0, 0, time.UTC)
 		mon2024  = time.Date(2024, 1, 1, 12, 0, 0, 0, time.UTC)
 		fri2016  = time.Date(2016, 1, 1, 12, 0, 0, 0, time.UTC)
+		frac     = time.Date(2020, 7, 21, 14, 19, 13, 489392193, time.FixedZone("IST", 5*3600+30*60))
+		odd      = time.Date(1901, 1, 1, 12, 0, 0, 0, time.FixedZone("LMT", -(4*3600+56*60+2)))
 	)
 
 	tests := []struct {
@@ -53,10 +55,14 @@ func TestStrftime(t *testing.T) {
 		{name: "%m", t: june, format: "%m", want: "06"},
 		{name: "%M", t: june, format: "%M", want: "58"},
 		{name: "%n", t: june, format: "a%nb", want: "a\nb"},
+		{name: "%N", t: frac, format: "%N", want: "489392193"},
+		{name: "%N with no nanoseconds", t: june, format: "%N", want: "000000000"},
 		{name: "%p", t: june, format: "%p", want: "AM"},
 		{name: "%r", t: june, format: "%r", want: "09:58:10 AM"},
 		{name: "%R", t: june, format: "%R", want: "09:58"},
 		{name: "%S", t: june, format: "%S", want: "10"},
+		{name: "%s", t: june, format: "%s", want: "646419490"},
+		{name: "%s of a time in another zone", t: frac, format: "%s", want: "1595321353"},
 		{name: "%t", t: june, format: "a%tb", want: "a\tb"},
 		{name: "%T", t: june, format: "%T", want: "09:58:10"},
 		{name: "%u", t: june, format: "%u", want: "2"},
@@ -70,6 +76,18 @@ func TestStrftime(t *testing.T) {
 		{name: "%Y", t: june, format: "%Y", want: "1990"},
 		{name: "%z", t: june, format: "%z", want: "-0700"},
 		{name: "%Z", t: june, format: "%Z", want: "PDT"},
+		{name: "%:z", t: june, format: "%:z", want: "-07:00"},
+		{name: "%::z", t: june, format: "%::z", want: "-07:00:00"},
+		{name: "%:::z drops the zero parts", t: june, format: "%:::z", want: "-07"},
+		{name: "%:z with an offset of half an hour", t: frac, format: "%:z", want: "+05:30"},
+		{name: "%:::z with an offset of minutes", t: frac, format: "%:::z", want: "+05:30"},
+		{name: "%:z with an offset of seconds", t: odd, format: "%:z", want: "-04:56"},
+		{name: "%::z with an offset of seconds", t: odd, format: "%::z", want: "-04:56:02"},
+		{name: "%:::z keeps the seconds", t: odd, format: "%:::z", want: "-04:56:02"},
+		{name: "%:z in UTC", t: nov, format: "%:z", want: "+00:00"},
+		{name: "the O modifier before a zone", t: june, format: "%O:z", want: "-07:00"},
+		{name: "an unknown conversion with colons is copied as is", t: june, format: "%:q", want: "%:q"},
+		{name: "a trailing colon conversion", t: june, format: "%:", want: "%:"},
 		{name: "%z in UTC", t: nov, format: "%z", want: "+0000"},
 		{name: "%Z in UTC", t: nov, format: "%Z", want: "UTC"},
 		{name: "%%", t: june, format: "100%%", want: "100%"},
