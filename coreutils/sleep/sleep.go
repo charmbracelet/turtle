@@ -33,6 +33,7 @@ func (p *Prog) Run(ctx context.Context, args ...string) error {
 	d, err := parseArgs(args)
 	if err != nil {
 		p.errorf("%v", err)
+		stdopts.TryHelp(p.Runtime, "sleep")
 		return &coreutils.ExitError{Code: 2}
 	}
 	if err := ctx.Err(); err != nil {
