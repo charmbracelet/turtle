@@ -314,6 +314,18 @@ func TestCompressContext(t *testing.T) {
 	}
 }
 
+func TestUsageError(t *testing.T) {
+	code, _, stderr, _ := run(t, New, testFS(), "-Z")
+
+	if code != 1 {
+		t.Errorf("exit = %d, want 1", code)
+	}
+	want := "compress: invalid option -- 'Z'\nTry 'compress --help' for more information.\n"
+	if stderr != want {
+		t.Errorf("stderr = %q, want %q", stderr, want)
+	}
+}
+
 func TestHelpVersion(t *testing.T) {
 	for _, test := range []struct {
 		name string
