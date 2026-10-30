@@ -23,6 +23,7 @@ import (
 	"charm.land/snail/coreutils/internal/getopt"
 	"charm.land/snail/coreutils/internal/input"
 	"charm.land/snail/coreutils/internal/patherr"
+	"charm.land/snail/coreutils/internal/stdopts"
 	"charm.land/snail/coreutils/internal/uux"
 )
 
@@ -43,6 +44,9 @@ func New(rt *coreutils.Runtime) coreutils.Program {
 // Reading is interrupted when ctx is done, and the context error is
 // returned.
 func (p *Prog) Run(ctx context.Context, args ...string) error {
+	if done, err := stdopts.Check(p.Runtime, "uudecode", usage, optSet, args); done {
+		return err
+	}
 	outfile, operands, err := parseFlags(args)
 	if err != nil {
 		p.errorf("%v", err)
@@ -274,11 +278,26 @@ var longOptions = map[string]rune{
 	"output-file": 'o',
 }
 
+// optSet describes the options of uudecode.
+var optSet = getopt.Set{Valued: "o", Long: longOptions}
+
+// usage describes the options of uudecode.
+const usage = `Usage: uudecode [-o OUTFILE] [file]
+Scan the input for the output of uuencode and recreate the file it holds,
+on the standard output when the pathname of its header is '-' or
+'/dev/stdout'.
+
+  -o, --output-file=OUTFILE  write the decoded file to OUTFILE, instead of
+                             the pathname of the header
+      --help     display this help and exit
+      --version  output version information and exit
+`
+
 // parseFlags parses the options and operands. The -o option takes a pathname
 // option-argument, either attached or in the next argument, and the last one
 // given wins. Option parsing stops at the first operand or at "--".
 func parseFlags(args []string) (outfile *string, operands []string, err error) {
-	operands, err = getopt.Set{Valued: "o", Long: longOptions}.Parse(args, func(opt rune, value string) error {
+	operands, err = optSet.Parse(args, func(opt rune, value string) error {
 		if opt != 'o' {
 			return getopt.InvalidOption(opt)
 		}
