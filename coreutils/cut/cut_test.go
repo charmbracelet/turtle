@@ -594,6 +594,24 @@ func TestRunOptionErrors(t *testing.T) {
 			wantErr:  "cut: option requires an argument -- 'b'\n",
 			wantExit: 2,
 		},
+		{
+			name:     "missing output delimiter argument",
+			args:     []string{"-b", "1", "-O"},
+			wantErr:  "cut: option requires an argument -- 'O'\n",
+			wantExit: 2,
+		},
+		{
+			name:     "missing long output delimiter argument",
+			args:     []string{"-b", "1", "--output-delimiter"},
+			wantErr:  "cut: option '--output-delimiter' requires an argument\n",
+			wantExit: 2,
+		},
+		{
+			name:     "complement takes no argument",
+			args:     []string{"-b", "1", "--complement=x"},
+			wantErr:  "cut: option '--complement=x' doesn't allow an argument\n",
+			wantExit: 2,
+		},
 	}
 
 	for _, test := range tests {
@@ -630,10 +648,271 @@ func TestRunLongOptions(t *testing.T) {
 			want: "f2\n",
 		},
 		{
+			name:  "complement",
+			stdin: strings.NewReader("abcdefg\n"),
+			args:  []string{"--complement", "-b", "2"},
+			want:  "acdefg\n",
+		},
+		{
 			name:     "unknown long option",
-			args:     []string{"--complement", "-b", "1"},
-			wantErr:  "cut: unrecognized option '--complement'\n",
+			args:     []string{"--partial", "-b", "1"},
+			wantErr:  "cut: unrecognized option '--partial'\n",
 			wantExit: 2,
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			runCase(t, test)
+		})
+	}
+}
+
+func TestRunComplement(t *testing.T) {
+	tests := []testCase{
+		{
+			name:  "a single byte",
+			stdin: strings.NewReader("abcdefg\n"),
+			args:  []string{"-b", "2", "--complement"},
+			want:  "acdefg\n",
+		},
+		{
+			name:  "a range of bytes",
+			stdin: strings.NewReader("abcdefg\n"),
+			args:  []string{"-b", "2-4", "--complement"},
+			want:  "aefg\n",
+		},
+		{
+			name:  "a range from the start",
+			stdin: strings.NewReader("abcdefg\n"),
+			args:  []string{"-b", "-2", "--complement"},
+			want:  "cdefg\n",
+		},
+		{
+			name:  "a range to the end",
+			stdin: strings.NewReader("abcdefg\n"),
+			args:  []string{"-b", "5-", "--complement"},
+			want:  "abcd\n",
+		},
+		{
+			name:  "a list of bytes",
+			stdin: strings.NewReader("abcdef\n"),
+			args:  []string{"-b", "2,4", "--complement"},
+			want:  "acef\n",
+		},
+		{
+			name:  "the whole line leaves nothing",
+			stdin: strings.NewReader("abcdefg\n"),
+			args:  []string{"-b", "1-", "--complement"},
+			want:  "\n",
+		},
+		{
+			name:  "positions past the end of the line are not an error",
+			stdin: strings.NewReader("abc\n"),
+			args:  []string{"-b", "5-10", "--complement"},
+			want:  "abc\n",
+		},
+		{
+			name:  "an empty line stays empty",
+			stdin: strings.NewReader("\n"),
+			args:  []string{"-b", "1", "--complement"},
+			want:  "\n",
+		},
+		{
+			name:  "a multi-byte character",
+			stdin: strings.NewReader("ábçde\n"),
+			args:  []string{"-c", "2", "--complement"},
+			want:  "áçde\n",
+		},
+		{
+			name:  "a range of characters",
+			stdin: strings.NewReader("ábçde\n日本語x\n"),
+			args:  []string{"-c", "2-3", "--complement"},
+			want:  "áde\n日x\n",
+		},
+		{
+			name: "fields",
+			fsys: testFS(),
+			args: []string{"-d:", "-f", "1", "--complement", "passwd.txt"},
+			want: "x:0:0:root:/root:/bin/sh\nx:1:1:daemon:/usr/sbin:/usr/sbin/nologin\n",
+		},
+		{
+			name: "a line without the delimiter is passed through",
+			fsys: testFS(),
+			args: []string{"-f", "2", "--complement", "tabs.txt"},
+			want: "f1\tf3\nplain\n",
+		},
+		{
+			name: "s suppresses lines without the delimiter",
+			fsys: testFS(),
+			args: []string{"-f", "2", "-s", "--complement", "tabs.txt"},
+			want: "f1\tf3\n",
+		},
+		{
+			name:  "a line with all the fields selected comes out empty",
+			stdin: strings.NewReader("a:b\n"),
+			args:  []string{"-d:", "-f", "1-", "--complement"},
+			want:  "\n",
+		},
+		{
+			name:  "a whole character is selected in the complement when its last byte is",
+			stdin: strings.NewReader("aé日\n"),
+			args:  []string{"-b", "3", "-n", "--complement"},
+			want:  "a日\n",
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			runCase(t, test)
+		})
+	}
+}
+
+func TestRunOutputDelimiter(t *testing.T) {
+	tests := []testCase{
+		{
+			name:  "fields are joined by the input delimiter by default",
+			stdin: strings.NewReader("a:b:c\n"),
+			args:  []string{"-d:", "-f", "1,3"},
+			want:  "a:c\n",
+		},
+		{
+			name:  "a custom output delimiter",
+			stdin: strings.NewReader("a:b:c\n"),
+			args:  []string{"-d:", "-f", "1,3", "-O", "/"},
+			want:  "a/c\n",
+		},
+		{
+			name:  "an attached output delimiter",
+			stdin: strings.NewReader("a:b:c\n"),
+			args:  []string{"-d:", "-f", "1,3", "-O/"},
+			want:  "a/c\n",
+		},
+		{
+			name:  "the long option with an attached value",
+			stdin: strings.NewReader("a:b:c\n"),
+			args:  []string{"-d:", "-f", "1,3", "--output-delimiter=/"},
+			want:  "a/c\n",
+		},
+		{
+			name:  "the long option with the value in the next argument",
+			stdin: strings.NewReader("a:b:c\n"),
+			args:  []string{"-d:", "-f", "1,3", "--output-delimiter", "/"},
+			want:  "a/c\n",
+		},
+		{
+			name:  "an empty output delimiter means NUL",
+			stdin: strings.NewReader("a:b:c\n"),
+			args:  []string{"-d:", "-f", "1,3", "-O", ""},
+			want:  "a\x00c\n",
+		},
+		{
+			name:  "the default with fields is the input delimiter",
+			stdin: strings.NewReader("a:b:c\n"),
+			args:  []string{"-d:", "-f", "1,3", "-O", ":"},
+			want:  "a:c\n",
+		},
+		{
+			name:  "bytes are not delimited by default",
+			stdin: strings.NewReader("abcdefg\n"),
+			args:  []string{"-b", "1-2,4-5"},
+			want:  "abde\n",
+		},
+		{
+			name:  "between ranges of bytes",
+			stdin: strings.NewReader("abcdefg\n"),
+			args:  []string{"-b", "1-2,4-5", "-O", "-"},
+			want:  "ab-de\n",
+		},
+		{
+			name:  "adjacent ranges of bytes are merged",
+			stdin: strings.NewReader("abcdefg\n"),
+			args:  []string{"-b", "1-2,3-4", "-O", "-"},
+			want:  "abcd\n",
+		},
+		{
+			name:  "a range past the end of the line writes no delimiter",
+			stdin: strings.NewReader("abc\n"),
+			args:  []string{"-b", "1,4", "-O", "-"},
+			want:  "a\n",
+		},
+		{
+			name:  "between ranges of characters",
+			stdin: strings.NewReader("ábçde\n"),
+			args:  []string{"-c", "1,3", "-O", "-"},
+			want:  "á-ç\n",
+		},
+		{
+			name:  "a range of characters is not delimited inside",
+			stdin: strings.NewReader("ábçde\n"),
+			args:  []string{"-c", "2-3", "-O", "-"},
+			want:  "bç\n",
+		},
+		{
+			name:  "with the complement",
+			stdin: strings.NewReader("abcdef\n"),
+			args:  []string{"-b", "2,4", "--complement", "-O", "-"},
+			want:  "a-c-ef\n",
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			runCase(t, test)
+		})
+	}
+}
+
+func TestRunZeroTerminated(t *testing.T) {
+	tests := []testCase{
+		{
+			name:  "items are NUL-terminated",
+			stdin: strings.NewReader("a\x00b\x00"),
+			args:  []string{"-z", "-b", "1"},
+			want:  "a\x00b\x00",
+		},
+		{
+			name:  "a missing final NUL is added",
+			stdin: strings.NewReader("ab"),
+			args:  []string{"-z", "-b", "1"},
+			want:  "a\x00",
+		},
+		{
+			name:  "newlines are part of the items",
+			stdin: strings.NewReader("a\nb\x00c"),
+			args:  []string{"-z", "-b", "1"},
+			want:  "a\x00c\x00",
+		},
+		{
+			name: "an empty file produces no output",
+			fsys: testFS(),
+			args: []string{"-z", "-b", "1", "empty.txt"},
+			want: "",
+		},
+		{
+			name:  "fields",
+			stdin: strings.NewReader("a:b\x00plain\x00"),
+			args:  []string{"-z", "-d:", "-f", "1"},
+			want:  "a\x00plain\x00",
+		},
+		{
+			name:  "fields with a missing final NUL",
+			stdin: strings.NewReader("a:b"),
+			args:  []string{"-z", "-d:", "-f", "2"},
+			want:  "b\x00",
+		},
+		{
+			name:  "s suppresses items without the delimiter",
+			stdin: strings.NewReader("a:b\x00plain\x00"),
+			args:  []string{"-z", "-d:", "-f", "1", "-s"},
+			want:  "a\x00",
+		},
+		{
+			name:  "the long option",
+			stdin: strings.NewReader("a\x00b\x00"),
+			args:  []string{"--zero-terminated", "-b", "1"},
+			want:  "a\x00b\x00",
 		},
 	}
 
