@@ -24,6 +24,7 @@ type testCase struct {
 	wantSame  map[string]string
 	present   []string
 	absent    []string
+	wantOut   string
 	wantErr   string
 	wantExit  int
 }
@@ -31,10 +32,11 @@ type testCase struct {
 func runCase(t *testing.T, test testCase) {
 	t.Helper()
 
+	stdout := new(bytes.Buffer)
 	stderr := new(bytes.Buffer)
 	rt := &coreutils.Runtime{
 		Stdin:      strings.NewReader(""),
-		Stdout:     io.Discard,
+		Stdout:     stdout,
 		Stderr:     stderr,
 		FS:         test.files,
 		WorkingDir: test.wd,
@@ -42,6 +44,9 @@ func runCase(t *testing.T, test testCase) {
 
 	err := New(rt).Run(t.Context(), test.args...)
 
+	if got := stdout.String(); got != test.wantOut {
+		t.Errorf("Run() stdout = %q, want %q", got, test.wantOut)
+	}
 	if code := exitCode(t, err); code != test.wantExit {
 		t.Errorf("Run() exit code = %d, want %d (error = %v)", code, test.wantExit, err)
 	}
@@ -323,6 +328,322 @@ func TestRunForce(t *testing.T) {
 	}
 }
 
+func TestRunNoTargetDirectory(t *testing.T) {
+	dlink := func() fsx.MemFS {
+		return fsx.MemFS{
+			"a.txt":         {Data: []byte("hello")},
+			"real/keep.txt": {},
+			"dlink":         {Data: []byte("real"), Mode: fs.ModeSymlink},
+		}
+	}
+	tests := []testCase{
+		{
+			name:     "the destination names the new link",
+			files:    fsx.MemFS{"a.txt": {Data: []byte("hello")}},
+			args:     []string{"-T", "a.txt", "b.txt"},
+			want:     map[string]string{"b.txt": "hello"},
+			wantSame: map[string]string{"b.txt": "a.txt"},
+		},
+		{
+			name:     "an existing directory destination is an error",
+			files:    fsx.MemFS{"a.txt": {Data: []byte("hello")}, "d/keep.txt": {}},
+			args:     []string{"-T", "a.txt", "d"},
+			present:  []string{"d/keep.txt"},
+			absent:   []string{"d/a.txt"},
+			wantErr:  "ln: cannot create link 'd': is a directory\n",
+			wantExit: 1,
+		},
+		{
+			name:     "an existing directory destination is an error with -f",
+			files:    fsx.MemFS{"a.txt": {Data: []byte("hello")}, "d/keep.txt": {}},
+			args:     []string{"-fT", "a.txt", "d"},
+			present:  []string{"d/keep.txt"},
+			absent:   []string{"d/a.txt"},
+			wantErr:  "ln: cannot create link 'd': is a directory\n",
+			wantExit: 1,
+		},
+		{
+			name:      "an existing symbolic link to a directory is not linked into",
+			files:     dlink(),
+			args:      []string{"-sT", "a.txt", "dlink"},
+			present:   []string{"real/keep.txt"},
+			wantLinks: map[string]string{"dlink": "real"},
+			wantErr:   "ln: cannot create symbolic link 'dlink': file exists\n",
+			wantExit:  1,
+		},
+		{
+			name:      "-f replaces a symbolic link to a directory",
+			files:     dlink(),
+			args:      []string{"-sfT", "a.txt", "dlink"},
+			present:   []string{"real/keep.txt"},
+			absent:    []string{"real/a.txt"},
+			wantLinks: map[string]string{"dlink": "a.txt"},
+		},
+		{
+			name:     "more than two operands is a usage error",
+			files:    fsx.MemFS{"a.txt": {}, "b.txt": {}, "c.txt": {}},
+			args:     []string{"-T", "a.txt", "b.txt", "c.txt"},
+			wantErr:  "ln: extra operand 'c.txt'\n",
+			wantExit: 2,
+		},
+		{
+			name:     "cannot be combined with -t",
+			files:    fsx.MemFS{"a.txt": {}, "d/keep.txt": {}},
+			args:     []string{"-t", "d", "-T", "a.txt", "b.txt"},
+			present:  []string{"d/keep.txt"},
+			absent:   []string{"b.txt", "d/a.txt"},
+			wantErr:  "ln: cannot combine --target-directory and --no-target-directory\n",
+			wantExit: 2,
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			runCase(t, test)
+		})
+	}
+}
+
+func TestRunNoDereference(t *testing.T) {
+	dlink := func() fsx.MemFS {
+		return fsx.MemFS{
+			"a.txt":         {Data: []byte("hello")},
+			"real/keep.txt": {},
+			"dlink":         {Data: []byte("real"), Mode: fs.ModeSymlink},
+		}
+	}
+	tests := []testCase{
+		{
+			name:      "a symbolic link to a directory is a normal destination",
+			files:     dlink(),
+			args:      []string{"-sn", "a.txt", "dlink"},
+			present:   []string{"real/keep.txt"},
+			wantLinks: map[string]string{"dlink": "real"},
+			wantErr:   "ln: cannot create symbolic link 'dlink': file exists\n",
+			wantExit:  1,
+		},
+		{
+			name:      "-sfn replaces the symbolic link itself",
+			files:     dlink(),
+			args:      []string{"-sfn", "a.txt", "dlink"},
+			present:   []string{"real/keep.txt"},
+			absent:    []string{"real/a.txt"},
+			wantLinks: map[string]string{"dlink": "a.txt"},
+		},
+		{
+			name:      "without -n, -sf links into the directory",
+			files:     dlink(),
+			args:      []string{"-sf", "a.txt", "dlink"},
+			present:   []string{"real/keep.txt"},
+			wantLinks: map[string]string{"dlink": "real", "real/a.txt": "a.txt"},
+		},
+		{
+			name:     "a real directory is still linked into",
+			files:    fsx.MemFS{"a.txt": {Data: []byte("hello")}, "d/keep.txt": {}},
+			args:     []string{"-n", "a.txt", "d"},
+			want:     map[string]string{"d/a.txt": "hello"},
+			wantSame: map[string]string{"d/a.txt": "a.txt"},
+		},
+		{
+			name:     "a file destination is unaffected",
+			files:    fsx.MemFS{"a.txt": {Data: []byte("new")}, "b.txt": {Data: []byte("old")}},
+			args:     []string{"-fn", "a.txt", "b.txt"},
+			want:     map[string]string{"b.txt": "new"},
+			wantSame: map[string]string{"b.txt": "a.txt"},
+		},
+		{
+			name:     "-T wins over -n for a real directory",
+			files:    fsx.MemFS{"a.txt": {Data: []byte("hello")}, "d/keep.txt": {}},
+			args:     []string{"-nT", "a.txt", "d"},
+			present:  []string{"d/keep.txt"},
+			absent:   []string{"d/a.txt"},
+			wantErr:  "ln: cannot create link 'd': is a directory\n",
+			wantExit: 1,
+		},
+		{
+			name:      "-T wins over -n for a symbolic link to a directory",
+			files:     dlink(),
+			args:      []string{"-sfnT", "a.txt", "dlink"},
+			present:   []string{"real/keep.txt"},
+			absent:    []string{"real/a.txt"},
+			wantLinks: map[string]string{"dlink": "a.txt"},
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			runCase(t, test)
+		})
+	}
+}
+
+func TestRunTargetDirectory(t *testing.T) {
+	tests := []testCase{
+		{
+			name:     "links all operands into the directory",
+			files:    fsx.MemFS{"a.txt": {Data: []byte("a")}, "b.txt": {Data: []byte("b")}, "d/keep.txt": {}},
+			args:     []string{"-t", "d", "a.txt", "b.txt"},
+			want:     map[string]string{"d/a.txt": "a", "d/b.txt": "b"},
+			wantSame: map[string]string{"d/a.txt": "a.txt", "d/b.txt": "b.txt"},
+		},
+		{
+			name:     "the argument may be attached to the short option",
+			files:    fsx.MemFS{"a.txt": {Data: []byte("hello")}, "d/keep.txt": {}},
+			args:     []string{"-td", "a.txt"},
+			want:     map[string]string{"d/a.txt": "hello"},
+			wantSame: map[string]string{"d/a.txt": "a.txt"},
+		},
+		{
+			name:     "the long option takes the directory",
+			files:    fsx.MemFS{"a.txt": {Data: []byte("hello")}, "d/keep.txt": {}},
+			args:     []string{"--target-directory=d", "a.txt"},
+			want:     map[string]string{"d/a.txt": "hello"},
+			wantSame: map[string]string{"d/a.txt": "a.txt"},
+		},
+		{
+			name:      "a symbolic link to a directory is followed",
+			files:     fsx.MemFS{"a.txt": {Data: []byte("hello")}, "real/keep.txt": {}, "dlink": {Data: []byte("real"), Mode: fs.ModeSymlink}},
+			args:      []string{"-st", "dlink", "a.txt"},
+			wantLinks: map[string]string{"real/a.txt": "a.txt"},
+		},
+		{
+			name:     "a missing directory is an error",
+			files:    fsx.MemFS{"a.txt": {}},
+			args:     []string{"-t", "nope", "a.txt"},
+			absent:   []string{"nope"},
+			wantErr:  "ln: failed to access 'nope': file does not exist\n",
+			wantExit: 1,
+		},
+		{
+			name:     "a file is not a directory",
+			files:    fsx.MemFS{"a.txt": {}, "b.txt": {Data: []byte("old")}},
+			args:     []string{"-t", "b.txt", "a.txt"},
+			want:     map[string]string{"b.txt": "old"},
+			wantErr:  "ln: target 'b.txt' is not a directory\n",
+			wantExit: 1,
+		},
+		{
+			name:     "a missing operand is still an error",
+			files:    fsx.MemFS{"d/keep.txt": {}},
+			args:     []string{"-t", "d"},
+			present:  []string{"d/keep.txt"},
+			wantErr:  "ln: missing file operand\n",
+			wantExit: 2,
+		},
+		{
+			name:     "the directory cannot be given twice",
+			files:    fsx.MemFS{"a.txt": {}, "d/keep.txt": {}, "d2/keep.txt": {}},
+			args:     []string{"-t", "d", "-t", "d2", "a.txt"},
+			present:  []string{"d/keep.txt", "d2/keep.txt"},
+			absent:   []string{"d/a.txt", "d2/a.txt"},
+			wantErr:  "ln: multiple target directories specified\n",
+			wantExit: 2,
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			runCase(t, test)
+		})
+	}
+}
+
+func TestRunVerbose(t *testing.T) {
+	tests := []testCase{
+		{
+			name:    "a hard link is named with =>",
+			files:   fsx.MemFS{"a.txt": {Data: []byte("hello")}},
+			args:    []string{"-v", "a.txt", "b.txt"},
+			want:    map[string]string{"b.txt": "hello"},
+			wantOut: "'b.txt' => 'a.txt'\n",
+		},
+		{
+			name:      "a symbolic link is named with ->",
+			files:     fsx.MemFS{"a.txt": {Data: []byte("hello")}},
+			args:      []string{"-sv", "a.txt", "b.txt"},
+			wantLinks: map[string]string{"b.txt": "a.txt"},
+			wantOut:   "'b.txt' -> 'a.txt'\n",
+		},
+		{
+			name:    "a replaced destination is named",
+			files:   fsx.MemFS{"a.txt": {Data: []byte("new")}, "b.txt": {Data: []byte("old")}},
+			args:    []string{"-fv", "a.txt", "b.txt"},
+			want:    map[string]string{"b.txt": "new"},
+			wantOut: "'b.txt' => 'a.txt'\n",
+		},
+		{
+			name:    "links into a directory are named with their new paths",
+			files:   fsx.MemFS{"sub/a.txt": {Data: []byte("hello")}, "d/keep.txt": {}},
+			args:    []string{"-v", "sub/a.txt", "d"},
+			want:    map[string]string{"d/a.txt": "hello"},
+			wantOut: "'d/a.txt' => 'sub/a.txt'\n",
+		},
+		{
+			name:    "multiple links are named one per line",
+			files:   fsx.MemFS{"a.txt": {Data: []byte("a")}, "b.txt": {Data: []byte("b")}, "d/keep.txt": {}},
+			args:    []string{"-vt", "d", "a.txt", "b.txt"},
+			want:    map[string]string{"d/a.txt": "a", "d/b.txt": "b"},
+			wantOut: "'d/a.txt' => 'a.txt'\n'd/b.txt' => 'b.txt'\n",
+		},
+		{
+			name:     "nothing is named for a failing link",
+			files:    fsx.MemFS{},
+			args:     []string{"-v", "missing.txt", "b.txt"},
+			absent:   []string{"b.txt"},
+			wantOut:  "",
+			wantErr:  "ln: cannot create link 'b.txt' to 'missing.txt': file does not exist\n",
+			wantExit: 1,
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			runCase(t, test)
+		})
+	}
+}
+
+func TestRunSingleOperand(t *testing.T) {
+	tests := []testCase{
+		{
+			name:     "a lone source is linked into the current directory",
+			files:    fsx.MemFS{"sub/a.txt": {Data: []byte("hello")}},
+			args:     []string{"sub/a.txt"},
+			want:     map[string]string{"a.txt": "hello"},
+			wantSame: map[string]string{"a.txt": "sub/a.txt"},
+			present:  []string{"sub/a.txt"},
+		},
+		{
+			name:      "a lone source is symbolically linked into the current directory",
+			files:     fsx.MemFS{"sub/a.txt": {Data: []byte("hello")}},
+			args:      []string{"-s", "sub/a.txt"},
+			wantLinks: map[string]string{"a.txt": "sub/a.txt"},
+		},
+		{
+			name:     "a source that already exists there is an error",
+			files:    fsx.MemFS{"a.txt": {Data: []byte("hello")}},
+			args:     []string{"a.txt"},
+			want:     map[string]string{"a.txt": "hello"},
+			wantErr:  "ln: 'a.txt' and 'a.txt' are the same file\n",
+			wantExit: 1,
+		},
+		{
+			name:     "the current directory comes from the working directory",
+			files:    fsx.MemFS{"work/a.txt": {Data: []byte("hello")}},
+			wd:       "work",
+			args:     []string{"a.txt", "b.txt"},
+			want:     map[string]string{"work/b.txt": "hello"},
+			wantSame: map[string]string{"work/b.txt": "work/a.txt"},
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			runCase(t, test)
+		})
+	}
+}
+
 func TestRunLogical(t *testing.T) {
 	// sym.txt points at a.txt, so hard linking it either shares the link
 	// itself (the default, -P) or the file it refers to (-L).
@@ -476,6 +797,42 @@ func TestRunLongOptions(t *testing.T) {
 			args:     []string{"--physical", "sym.txt", "hard.txt"},
 			wantSame: map[string]string{"hard.txt": "sym.txt"},
 		},
+		{
+			name:     "no-target-directory names a new link",
+			files:    fsx.MemFS{"a.txt": {Data: []byte("hello")}},
+			args:     []string{"--no-target-directory", "a.txt", "b.txt"},
+			want:     map[string]string{"b.txt": "hello"},
+			wantSame: map[string]string{"b.txt": "a.txt"},
+		},
+		{
+			name:     "target-directory takes the value attached",
+			files:    fsx.MemFS{"a.txt": {Data: []byte("hello")}, "d/keep.txt": {}},
+			args:     []string{"--target-directory=d", "a.txt"},
+			want:     map[string]string{"d/a.txt": "hello"},
+			wantSame: map[string]string{"d/a.txt": "a.txt"},
+		},
+		{
+			name:     "target-directory takes the value in the next argument",
+			files:    fsx.MemFS{"a.txt": {Data: []byte("hello")}, "d/keep.txt": {}},
+			args:     []string{"--target-directory", "d", "a.txt"},
+			want:     map[string]string{"d/a.txt": "hello"},
+			wantSame: map[string]string{"d/a.txt": "a.txt"},
+		},
+		{
+			name:      "no-dereference replaces a symbolic link to a directory",
+			files:     fsx.MemFS{"a.txt": {Data: []byte("hello")}, "real/keep.txt": {}, "dlink": {Data: []byte("real"), Mode: fs.ModeSymlink}},
+			args:      []string{"--symbolic", "--force", "--no-dereference", "a.txt", "dlink"},
+			present:   []string{"real/keep.txt"},
+			absent:    []string{"real/a.txt"},
+			wantLinks: map[string]string{"dlink": "a.txt"},
+		},
+		{
+			name:     "verbose names the link",
+			files:    fsx.MemFS{"a.txt": {Data: []byte("hello")}},
+			args:     []string{"--verbose", "a.txt", "b.txt"},
+			wantSame: map[string]string{"b.txt": "a.txt"},
+			wantOut:  "'b.txt' => 'a.txt'\n",
+		},
 	}
 
 	for _, test := range tests {
@@ -496,7 +853,7 @@ func TestRunErrors(t *testing.T) {
 		{
 			name:     "missing destination operand",
 			files:    fsx.MemFS{"a.txt": {Data: []byte("x")}},
-			args:     []string{"a.txt"},
+			args:     []string{"-T", "a.txt"},
 			wantErr:  "ln: missing destination file operand after 'a.txt'\n",
 			wantExit: 2,
 		},
@@ -556,6 +913,21 @@ func TestRunErrors(t *testing.T) {
 			present:  []string{"a.txt", "b.txt"},
 			wantErr:  "ln: target 'b.txt/' is not a directory\n",
 			wantExit: 1,
+		},
+		{
+			name:     "two target directories are a usage error",
+			files:    fsx.MemFS{"a.txt": {}, "d/keep.txt": {}, "e/keep.txt": {}},
+			args:     []string{"-t", "d", "-t", "e", "a.txt"},
+			present:  []string{"d/keep.txt", "e/keep.txt"},
+			absent:   []string{"d/a.txt", "e/a.txt"},
+			wantErr:  "ln: multiple target directories specified\n",
+			wantExit: 2,
+		},
+		{
+			name:     "a valued -t needs an argument",
+			args:     []string{"-t"},
+			wantErr:  "ln: option requires an argument -- 't'\n",
+			wantExit: 2,
 		},
 	}
 

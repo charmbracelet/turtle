@@ -5,6 +5,10 @@
 // hard link: -P, the default, links the link itself, as on systems whose
 // link(2) doesn't follow symbolic links. On systems whose link(2) does follow
 // them, such as macOS, -P behaves like -L.
+//
+// The GNU options are supported as well: -t and -T control how a directory
+// destination is treated, -n treats a symbolic link to a directory as the
+// link itself, and -v names each created link on standard output.
 package ln
 
 import (
@@ -33,21 +37,29 @@ func New(rt *coreutils.Runtime) coreutils.Program {
 	return &Prog{Runtime: rt}
 }
 
-// Run links each source file to the destination named by the last operand: an
-// existing directory to create the links into, or the new name of the single
-// source.
+// Run links each source file to the destination: the -t directory if given,
+// or an existing directory named by the last operand, or else the new name of
+// the single source. -T makes the last operand always a new name, a lone
+// source is linked into the current directory, and -n keeps a symbolic link
+// destination from being treated as the directory it points to.
 func (p *Prog) Run(ctx context.Context, args ...string) error {
 	opts, operands, err := parseFlags(args)
 	if err != nil {
 		p.errorf("%v", err)
 		return &coreutils.ExitError{Code: 2}
 	}
-	switch len(operands) {
-	case 0:
+	switch {
+	case len(operands) == 0:
 		p.errorf("missing file operand")
 		return &coreutils.ExitError{Code: 2}
-	case 1:
+	case opts.noTarget && opts.targetDir != "":
+		p.errorf("cannot combine --target-directory and --no-target-directory")
+		return &coreutils.ExitError{Code: 2}
+	case opts.noTarget && len(operands) < 2:
 		p.errorf("missing destination file operand after '%s'", operands[0])
+		return &coreutils.ExitError{Code: 2}
+	case opts.noTarget && len(operands) > 2:
+		p.errorf("extra operand '%s'", operands[2])
 		return &coreutils.ExitError{Code: 2}
 	}
 	if p.FS == nil {
@@ -59,15 +71,32 @@ func (p *Prog) Run(ctx context.Context, args ...string) error {
 		return &coreutils.ExitError{Code: 1}
 	}
 
-	sources, target := operands[:len(operands)-1], operands[len(operands)-1]
+	sources, target := destination(opts, operands)
 
 	dst := p.resolve(target)
-	fi, err := fs.Stat(p.FS, dst)
-	if err != nil && !errors.Is(err, fs.ErrNotExist) {
-		p.errorf("cannot stat '%s': %v", target, patherr.Unwrap(err))
-		return &coreutils.ExitError{Code: 1}
+	var targetIsDir bool
+	switch {
+	case opts.noTarget:
+		// The last operand names a new file, whatever it is.
+	case opts.targetDir != "":
+		fi, err := fs.Stat(p.FS, dst)
+		if err != nil {
+			p.errorf("failed to access '%s': %v", target, patherr.Unwrap(err))
+			return &coreutils.ExitError{Code: 1}
+		}
+		if !fi.IsDir() {
+			p.errorf("target '%s' is not a directory", target)
+			return &coreutils.ExitError{Code: 1}
+		}
+		targetIsDir = true
+	default:
+		fi, err := p.targetStat(opts, dst)
+		if err != nil && !errors.Is(err, fs.ErrNotExist) {
+			p.errorf("cannot stat '%s': %v", target, patherr.Unwrap(err))
+			return &coreutils.ExitError{Code: 1}
+		}
+		targetIsDir = err == nil && fi.IsDir()
 	}
-	targetIsDir := err == nil && fi.IsDir()
 	slash := strings.HasSuffix(filepath.ToSlash(target), "/")
 	if !targetIsDir && (len(sources) > 1 || slash) {
 		p.errorf("target '%s' is not a directory", target)
@@ -119,6 +148,7 @@ func (p *Prog) link(e pair, opts options) error {
 		if err := p.FS.Symlink(filepath.ToSlash(e.srcName), e.dst); err != nil {
 			return fmt.Errorf("cannot create symbolic link '%s' to '%s': %v", e.dstName, e.srcName, unwrapLinkError(err))
 		}
+		p.reportLink(e, opts)
 		return nil
 	}
 
@@ -132,7 +162,44 @@ func (p *Prog) link(e pair, opts options) error {
 	if err := p.FS.Link(src, e.dst); err != nil {
 		return fmt.Errorf("cannot create link '%s' to '%s': %v", e.dstName, e.srcName, unwrapLinkError(err))
 	}
+	p.reportLink(e, opts)
 	return nil
+}
+
+// reportLink names the created link on standard output, as -v asks, with ->
+// for a symbolic link and => for a hard link.
+func (p *Prog) reportLink(e pair, opts options) {
+	if !opts.verbose {
+		return
+	}
+	arrow := "=>"
+	if opts.symbolic {
+		arrow = "->"
+	}
+	fmt.Fprintf(p.Stdout, "'%s' %s '%s'\n", e.dstName, arrow, e.srcName)
+}
+
+// destination splits the operands into sources and the destination target:
+// the -t directory if given, the last operand when there is more than one,
+// or the current directory for a lone source, as GNU's ln does.
+func destination(opts options, operands []string) ([]string, string) {
+	switch {
+	case opts.targetDir != "":
+		return operands, opts.targetDir
+	case opts.noTarget || len(operands) > 1:
+		return operands[:len(operands)-1], operands[len(operands)-1]
+	default:
+		return operands, "."
+	}
+}
+
+// targetStat describes the destination, following a final symbolic link
+// unless -n keeps it from being treated as the directory it points to.
+func (p *Prog) targetStat(opts options, dst string) (fs.FileInfo, error) {
+	if opts.noDeref {
+		return p.FS.Lstat(dst)
+	}
+	return fs.Stat(p.FS, dst)
 }
 
 // evalSymlinks resolves name to the file it names, following symbolic links,
@@ -168,11 +235,17 @@ type pair struct {
 }
 
 // options holds the ln flags. logical is the -L option; -P is the default, and
-// the last of the two wins. Both are ignored with -s.
+// the last of the two wins. Both are ignored with -s. -n only keeps the last
+// operand from being followed when it's a symbolic link to a directory, which
+// makes it weaker than -T, which always makes the last operand a new name.
 type options struct {
-	symbolic bool
-	force    bool
-	logical  bool
+	symbolic  bool
+	force     bool
+	logical   bool
+	noDeref   bool
+	noTarget  bool
+	targetDir string
+	verbose   bool
 }
 
 // kind names what the options create, for diagnostics.
@@ -185,17 +258,21 @@ func (o options) kind() string {
 
 // longOptions maps the long options of ln to the short ones they stand for.
 var longOptions = map[string]rune{
-	"force":    'f',
-	"logical":  'L',
-	"physical": 'P',
-	"symbolic": 's',
+	"force":               'f',
+	"logical":             'L',
+	"no-dereference":      'n',
+	"no-target-directory": 'T',
+	"physical":            'P',
+	"symbolic":            's',
+	"target-directory":    't',
+	"verbose":             'v',
 }
 
 // parseFlags parses the options and operands. Option parsing stops at the
 // first operand or at "--".
 func parseFlags(args []string) (options, []string, error) {
 	var opts options
-	operands, err := getopt.Set{Long: longOptions}.Parse(args, func(opt rune, _ string) error {
+	operands, err := getopt.Set{Valued: "t", Long: longOptions}.Parse(args, func(opt rune, value string) error {
 		switch opt {
 		case 'f':
 			opts.force = true
@@ -205,6 +282,17 @@ func parseFlags(args []string) (options, []string, error) {
 			opts.logical = true
 		case 'P':
 			opts.logical = false
+		case 'n':
+			opts.noDeref = true
+		case 'T':
+			opts.noTarget = true
+		case 't':
+			if opts.targetDir != "" {
+				return errors.New("multiple target directories specified")
+			}
+			opts.targetDir = value
+		case 'v':
+			opts.verbose = true
 		default:
 			return getopt.InvalidOption(opt)
 		}
