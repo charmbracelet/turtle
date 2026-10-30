@@ -346,13 +346,183 @@ func TestRunRepeats(t *testing.T) {
 			},
 		},
 		{
-			name:    "a repeat of zero applies the operand once",
-			fsys:    fsx.MemFS{"f": {Data: []byte("a\nb\nc\n")}},
-			args:    []string{"f", "2", "{0}"},
-			wantOut: "2\n4\n",
+			name:     "a repeat of zero is invalid",
+			fsys:     fsx.MemFS{"f": {Data: []byte("a\nb\nc\n")}},
+			args:     []string{"f", "2", "{0}"},
+			wantErr:  "csplit: '{0}': integer required between '{' and '}'\n",
+			wantExit: 1,
+		},
+		{
+			name:    "a repeated pattern with a negative offset moves on",
+			fsys:    fsx.MemFS{"f": {Data: []byte("a\nb\nx\nc\nx\nd\n")}},
+			args:    []string{"f", "/x/-1", "{*}"},
+			wantOut: "2\n4\n6\n",
+			want: map[string]string{
+				"xx00": "a\n",
+				"xx01": "b\nx\n",
+				"xx02": "c\nx\nd\n",
+			},
+		},
+		{
+			name:    "an unbounded repeat splits until the input ends",
+			fsys:    fsx.MemFS{"f": {Data: []byte("01\n02\n03\n04\n05\n06\n07\n08\n09\n10\n11\n12\n13\n14\n")}},
+			args:    []string{"f", "/[05]$/", "{*}"},
+			wantOut: "12\n15\n15\n",
+			want: map[string]string{
+				"xx00": "01\n02\n03\n04\n",
+				"xx01": "05\n06\n07\n08\n09\n",
+				"xx02": "10\n11\n12\n13\n14\n",
+			},
+		},
+		{
+			name:    "an unbounded repeat of a line number splits evenly",
+			fsys:    fsx.MemFS{"f": {Data: []byte("a\nb\nc\nd\n")}},
+			args:    []string{"f", "2", "{*}"},
+			wantOut: "2\n4\n2\n",
 			want: map[string]string{
 				"xx00": "a\n",
 				"xx01": "b\nc\n",
+				"xx02": "d\n",
+			},
+		},
+		{
+			name:    "an unbounded repeat with no match writes the rest",
+			fsys:    fsx.MemFS{"f": {Data: []byte("a\nb\n")}},
+			args:    []string{"f", "/x/", "{*}"},
+			wantOut: "4\n",
+			want: map[string]string{
+				"xx00": "a\nb\n",
+			},
+		},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			runCase(t, test)
+		})
+	}
+}
+
+func TestRunSuffixFormat(t *testing.T) {
+	tests := []testCase{
+		{
+			name:    "a hexadecimal format",
+			fsys:    fsx.MemFS{"f": {Data: []byte("a\nb\n")}},
+			args:    []string{"-b", "%x", "f", "2"},
+			wantOut: "2\n2\n",
+			want: map[string]string{
+				"xx0": "a\n",
+				"xx1": "b\n",
+			},
+		},
+		{
+			name:    "a format with a prefix and width",
+			fsys:    fsx.MemFS{"f": {Data: []byte("a\nb\n")}},
+			args:    []string{"--suffix-format=part-%03d.", "f", "2"},
+			wantOut: "2\n2\n",
+			want: map[string]string{
+				"xxpart-000.": "a\n",
+				"xxpart-001.": "b\n",
+			},
+		},
+		{
+			name:     "a percent literal alone is not a conversion",
+			fsys:     fsx.MemFS{"f": {Data: []byte("a\nb\n")}},
+			args:     []string{"-b", "%%d", "f", "2"},
+			wantErr:  "csplit: '%%d': % conversion missing\n",
+			wantExit: 1,
+		},
+		{
+			name:     "two conversions are rejected",
+			fsys:     fsx.MemFS{"f": {Data: []byte("a\nb\n")}},
+			args:     []string{"-b", "%d%d", "f", "2"},
+			wantErr:  "csplit: '%d%d': too many % conversions\n",
+			wantExit: 1,
+		},
+		{
+			name:     "an invalid verb is rejected",
+			fsys:     fsx.MemFS{"f": {Data: []byte("a\nb\n")}},
+			args:     []string{"-b", "%s", "f", "2"},
+			wantErr:  "csplit: '%s': invalid conversion specifier %s\n",
+			wantExit: 1,
+		},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			runCase(t, test)
+		})
+	}
+}
+
+func TestRunSuppressMatched(t *testing.T) {
+	tests := []testCase{
+		{
+			name:    "the matched line is left out",
+			fsys:    fsx.MemFS{"f": {Data: []byte("a\nb\nc\nd\n")}},
+			args:    []string{"--suppress-matched", "f", "/c/"},
+			wantOut: "4\n2\n",
+			want: map[string]string{
+				"xx00": "a\nb\n",
+				"xx01": "d\n",
+			},
+		},
+		{
+			name:    "a positive offset still leaves the line out",
+			fsys:    fsx.MemFS{"f": {Data: []byte("a\nb\nc\nd\ne\n")}},
+			args:    []string{"--suppress-matched", "f", "/b/+2"},
+			wantOut: "4\n4\n",
+			want: map[string]string{
+				"xx00": "a\nc\n",
+				"xx01": "d\ne\n",
+			},
+		},
+		{
+			name:    "the pieces are renumbered around the skipped lines",
+			fsys:    fsx.MemFS{"f": {Data: []byte("a\nb\nc\nd\ne\n")}},
+			args:    []string{"--suppress-matched", "f", "/b/", "/e/"},
+			wantOut: "2\n4\n0\n",
+			want: map[string]string{
+				"xx00": "a\n",
+				"xx01": "c\nd\n",
+				"xx02": "",
+			},
+		},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			runCase(t, test)
+		})
+	}
+}
+
+func TestRunElideEmptyFiles(t *testing.T) {
+	tests := []testCase{
+		{
+			name:    "empty pieces are removed",
+			fsys:    fsx.MemFS{"f": {Data: []byte("a\nb\n")}},
+			args:    []string{"-z", "f", "1"},
+			wantOut: "4\n",
+			want: map[string]string{
+				"xx01": "a\nb\n",
+			},
+		},
+		{
+			name:    "the long form works",
+			fsys:    fsx.MemFS{"f": {Data: []byte("a\nb\nc\n")}},
+			args:    []string{"--elide-empty-files", "f", "1", "2", "3"},
+			wantOut: "2\n2\n2\n",
+			want: map[string]string{
+				"xx01": "a\n",
+				"xx02": "b\n",
+				"xx03": "c\n",
+			},
+		},
+		{
+			name:    "with a suffix format",
+			fsys:    fsx.MemFS{"f": {Data: []byte("a\nb\n")}},
+			args:    []string{"-z", "-b", "%d", "f", "1"},
+			wantOut: "4\n",
+			want: map[string]string{
+				"xx1": "a\nb\n",
 			},
 		},
 	}
@@ -380,8 +550,8 @@ func TestRunErrors(t *testing.T) {
 		},
 		{
 			name:     "unknown option",
-			args:     []string{"-q", "f", "1"},
-			wantErr:  "csplit: invalid option -- 'q'\n",
+			args:     []string{"-y", "f", "1"},
+			wantErr:  "csplit: invalid option -- 'y'\n",
 			wantExit: 1,
 		},
 		{

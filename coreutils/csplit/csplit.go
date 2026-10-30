@@ -105,6 +105,13 @@ type options struct {
 	silent bool
 	prefix string
 	digits int
+	// suffixFmt is the -b format, which replaces the %0Nd suffix when given.
+	suffixFmt string
+	// suppressMatched leaves the lines which matched a pattern out of every
+	// piece, with --suppress-matched.
+	suppressMatched bool
+	// elide drops the empty pieces, with -z.
+	elide bool
 }
 
 // control is a parsed operand: a line number, a regular expression to
@@ -116,6 +123,9 @@ type control struct {
 	offset int64
 	ignore bool
 	repeat int64
+	// repeatAll is set by the {*} count: the pattern repeats until the
+	// input is exhausted.
+	repeatAll bool
 }
 
 // splitter holds the state of a run in progress.
@@ -130,12 +140,37 @@ type splitter struct {
 	written int64
 	failed  bool // whether writing to out failed
 	regexp  bool // whether a regular expression was already applied
+	// skipLines are the lines which --suppress-matched leaves out of
+	// every piece.
+	skipLines map[int64]bool
+	// lastMatch is the line the last repetition matched, so the next one
+	// searches past it.
+	lastMatch int64
 }
 
-// run processes each control and then the rest of the input.
+// addSkip marks a line to be left out of every piece.
+func (s *splitter) addSkip(line int64) {
+	if s.skipLines == nil {
+		s.skipLines = make(map[int64]bool)
+	}
+	s.skipLines[line] = true
+}
+
+// run processes each control and then the rest of the input. A {*}
+// repetition ends silently when the input is exhausted.
 func (s *splitter) run(ctx context.Context, controls []control) error {
 	for _, c := range controls {
-		for rep := int64(0); rep <= c.repeat; rep++ {
+		s.lastMatch = 0
+		for rep := int64(0); ; rep++ {
+			if !c.repeatAll && rep > c.repeat {
+				break
+			}
+			if c.repeatAll && c.re == nil {
+				// A line number past the end ends a {*} repetition.
+				if rep > math.MaxInt64/c.line || c.line*(rep+1) > int64(len(s.lines)) {
+					break
+				}
+			}
 			var err error
 			if c.re != nil {
 				err = s.processRegexp(ctx, c, rep)
@@ -143,7 +178,13 @@ func (s *splitter) run(ctx context.Context, controls []control) error {
 				err = s.processLineNumber(ctx, c, rep)
 			}
 			if err != nil {
+				if errors.Is(err, errEndRepeat) {
+					break
+				}
 				return s.fail(err)
+			}
+			if rep == math.MaxInt64 {
+				break
 			}
 		}
 	}
@@ -155,6 +196,9 @@ func (s *splitter) run(ctx context.Context, controls []control) error {
 	}
 	return s.closeFile()
 }
+
+// errEndRepeat ends a {*} repetition: the pattern no longer matches.
+var errEndRepeat = errors.New("end of repetition")
 
 // processLineNumber handles a line number operand: it creates a file with
 // the lines from the current line up to, but not including, the target.
@@ -195,6 +239,11 @@ func (s *splitter) processRegexp(ctx context.Context, c control, rep int64) erro
 	if s.current == 1 && !s.regexp {
 		start = 1
 	}
+	// A repetition searches past the line the previous one matched, even
+	// when a negative offset moved the current position back over it.
+	if s.lastMatch >= start {
+		start = s.lastMatch + 1
+	}
 	s.regexp = true
 	found := int64(-1)
 	for line := start; line <= int64(len(s.lines)); line++ {
@@ -207,6 +256,9 @@ func (s *splitter) processRegexp(ctx context.Context, c control, rep int64) erro
 		}
 	}
 	if found < 0 {
+		if c.repeatAll {
+			return errEndRepeat
+		}
 		if !c.ignore {
 			if err := s.createFile(); err != nil {
 				return err
@@ -225,6 +277,10 @@ func (s *splitter) processRegexp(ctx context.Context, c control, rep int64) erro
 		return &controlError{arg: c.arg, rep: rep}
 	}
 	last := int64(len(s.lines))
+	// With --suppress-matched, the matched line belongs to no piece.
+	if s.opts.suppressMatched {
+		s.addSkip(found)
+	}
 	if !c.ignore {
 		if err := s.createFile(); err != nil {
 			return err
@@ -239,16 +295,23 @@ func (s *splitter) processRegexp(ctx context.Context, c control, rep int64) erro
 	if boundary > last+1 {
 		return &controlError{arg: c.arg, rep: rep}
 	}
+	s.lastMatch = found
 	s.current = boundary
 	return nil
 }
 
 // writeTo writes the lines from the current line up to, but not including,
-// the target line to the current output file.
+// the target line to the current output file. The line set for
+// --suppress-matched is left out.
 func (s *splitter) writeTo(ctx context.Context, target int64) error {
 	for s.current < target {
 		if err := ctx.Err(); err != nil {
 			return err
+		}
+		if s.skipLines[s.current] {
+			delete(s.skipLines, s.current)
+			s.current++
+			continue
 		}
 		line := s.lines[s.current-1]
 		if _, err := s.out.Write(line); err != nil {
@@ -263,7 +326,11 @@ func (s *splitter) writeTo(ctx context.Context, target int64) error {
 
 // createFile opens the next output file.
 func (s *splitter) createFile() error {
-	name := s.opts.prefix + fmt.Sprintf("%0*d", s.opts.digits, len(s.created))
+	suffix := fmt.Sprintf("%0*d", s.opts.digits, len(s.created))
+	if s.opts.suffixFmt != "" {
+		suffix = fmt.Sprintf(s.opts.suffixFmt, len(s.created))
+	}
+	name := s.opts.prefix + suffix
 	f, err := s.p.FS.OpenFile(filepath.ToSlash(s.p.ResolvePath(name)), os.O_WRONLY|os.O_CREATE|os.O_TRUNC, 0o666&^s.p.Umask.Perm())
 	if err != nil {
 		return &writeError{name: name, err: err}
@@ -275,7 +342,8 @@ func (s *splitter) createFile() error {
 	return nil
 }
 
-// closeFile closes the current output file, printing its size.
+// closeFile closes the current output file, printing its size. With -z,
+// empty files are removed instead of kept.
 func (s *splitter) closeFile() error {
 	if s.out == nil {
 		return nil
@@ -284,6 +352,11 @@ func (s *splitter) closeFile() error {
 	s.out = nil
 	if err != nil {
 		return &writeError{name: s.outName, err: err}
+	}
+	if s.opts.elide && s.written == 0 && !s.failed {
+		s.p.FS.Remove(filepath.ToSlash(s.p.ResolvePath(s.outName)))
+		s.written = 0
+		return nil
 	}
 	if !s.opts.silent && !s.failed {
 		fmt.Fprintf(s.p.Stdout, "%d\n", s.written)
@@ -374,15 +447,32 @@ func (p *Prog) errorf(format string, args ...any) {
 	fmt.Fprintf(p.Stderr, "csplit: "+format+"\n", args...)
 }
 
+// longOptions maps the long options of csplit to the short ones they stand
+// for.
+var longOptions = map[string]rune{
+	"keep-files":        'k',
+	"silent":            's',
+	"quiet":             'q',
+	"prefix":            'f',
+	"digits":            'n',
+	"suffix-format":     'b',
+	"suppress-matched":  optSuppress,
+	"elide-empty-files": 'z',
+}
+
+// optSuppress is a rune which no short option can reach, so
+// --suppress-matched stays long-only.
+const optSuppress rune = 0x100
+
 // parseFlags parses the command line options. Option parsing stops at the
 // first operand or at "--".
 func parseFlags(args []string) (options, []string, error) {
 	opts := options{prefix: "xx", digits: 2}
-	operands, err := (getopt.Set{Valued: "fn"}).Parse(args, func(opt rune, value string) error {
+	operands, err := getopt.Set{Valued: "fnb", Long: longOptions}.Parse(args, func(opt rune, value string) error {
 		switch opt {
 		case 'k':
 			opts.keep = true
-		case 's':
+		case 's', 'q':
 			opts.silent = true
 		case 'f':
 			opts.prefix = value
@@ -392,6 +482,15 @@ func parseFlags(args []string) (options, []string, error) {
 				return fmt.Errorf("invalid number: '%s'", value)
 			}
 			opts.digits = int(n)
+		case 'b':
+			if err := checkSuffixFormat(value); err != nil {
+				return err
+			}
+			opts.suffixFmt = value
+		case 'z':
+			opts.elide = true
+		case optSuppress:
+			opts.suppressMatched = true
 		default:
 			return getopt.InvalidOption(opt)
 		}
@@ -401,6 +500,43 @@ func parseFlags(args []string) (options, []string, error) {
 		return options{}, nil, err
 	}
 	return opts, operands, nil
+}
+
+// checkSuffixFormat validates a -b format: exactly one conversion specifier,
+
+// one of %d, %i, %u, %o, %x or %X.
+func checkSuffixFormat(format string) error {
+	conversions := 0
+	for i := 0; i < len(format); i++ {
+		if format[i] != '%' {
+			continue
+		}
+		if i+1 < len(format) && format[i+1] == '%' {
+			i++
+			continue
+		}
+		j := i + 1
+		for j < len(format) && strings.IndexByte("-+ #.0123456789", format[j]) >= 0 {
+			j++
+		}
+		if j >= len(format) {
+			return fmt.Errorf("'%s': conversion specifier missing", format)
+		}
+		switch format[j] {
+		case 'd', 'i', 'u', 'o', 'x', 'X':
+			conversions++
+		default:
+			return fmt.Errorf("'%s': invalid conversion specifier %%%c", format, format[j])
+		}
+		i = j
+	}
+	if conversions > 1 {
+		return fmt.Errorf("'%s': too many %% conversions", format)
+	}
+	if conversions == 0 {
+		return fmt.Errorf("'%s': %% conversion missing", format)
+	}
+	return nil
 }
 
 // parseControls parses the operand arguments, each a line number, a
@@ -431,11 +567,11 @@ func parseControls(args []string) ([]control, error) {
 			c = control{arg: arg, line: n}
 		}
 		if i+1 < len(args) && strings.HasPrefix(args[i+1], "{") {
-			repeat, err := parseRepeat(args[i+1])
+			repeat, all, err := parseRepeat(args[i+1])
 			if err != nil {
 				return nil, err
 			}
-			c.repeat = repeat
+			c.repeat, c.repeatAll = repeat, all
 			i++
 		}
 		controls = append(controls, c)
@@ -469,16 +605,20 @@ func parseRegexp(arg string) (control, error) {
 	return c, nil
 }
 
-// parseRepeat parses a {num} repeat count.
-func parseRepeat(arg string) (int64, error) {
+// parseRepeat parses a {num} or {*} repeat count.
+func parseRepeat(arg string) (int64, bool, error) {
 	if !strings.HasSuffix(arg, "}") {
-		return 0, fmt.Errorf("'%s': '}' is required in repeat count", arg)
+		return 0, false, fmt.Errorf("'%s': '}' is required in repeat count", arg)
 	}
-	n, err := strconv.ParseInt(arg[1:len(arg)-1], 10, 64)
-	if err != nil || !isDecimal(arg[1:len(arg)-1]) {
-		return 0, fmt.Errorf("'%s': integer required between '{' and '}'", arg)
+	inner := arg[1 : len(arg)-1]
+	if inner == "*" {
+		return 0, true, nil
 	}
-	return n, nil
+	n, err := strconv.ParseInt(inner, 10, 64)
+	if err != nil || n < 1 || !isDecimal(inner) {
+		return 0, false, fmt.Errorf("'%s': integer required between '{' and '}'", arg)
+	}
+	return n, false, nil
 }
 
 // isDecimal reports whether s holds only decimal digits.
