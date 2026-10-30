@@ -12,6 +12,7 @@ import (
 	"charm.land/snail/coreutils"
 	"charm.land/snail/coreutils/internal/getopt"
 	"charm.land/snail/coreutils/internal/patherr"
+	"charm.land/snail/coreutils/internal/stdopts"
 	"charm.land/snail/fsx"
 )
 
@@ -29,6 +30,9 @@ func New(rt *coreutils.Runtime) coreutils.Program {
 // directories above each operand are removed too, as long as they become
 // empty. Non-empty failures are silently ignored when asked to.
 func (p *Prog) Run(ctx context.Context, args ...string) error {
+	if done, err := stdopts.Check(p.Runtime, "rmdir", usage, optSet, args); done {
+		return err
+	}
 	opts, dirs, err := parseFlags(args)
 	if err != nil {
 		p.errorf("%v", err)
@@ -146,11 +150,28 @@ var longOptions = map[string]rune{
 	"verbose":                  'v',
 }
 
+// optSet describes the options of rmdir.
+var optSet = getopt.Set{Long: longOptions}
+
+// usage describes the options of rmdir.
+const usage = `Usage: rmdir [OPTION]... DIRECTORY...
+Remove empty directories.
+
+      --ignore-fail-on-non-empty
+                          ignore each failure to remove a directory that is
+                          non-empty
+  -p, --parents           remove DIRECTORY, then try to remove each component
+                          of it
+  -v, --verbose           give a diagnostic for each successful removal
+      --help     display this help and exit
+      --version  output version information and exit
+`
+
 // parseFlags parses the options and operands. Option parsing stops at the
 // first operand or at "--".
 func parseFlags(args []string) (options, []string, error) {
 	var opts options
-	dirs, err := getopt.Set{Long: longOptions}.Parse(args, func(opt rune, _ string) error {
+	dirs, err := optSet.Parse(args, func(opt rune, _ string) error {
 		switch opt {
 		case 'p':
 			opts.parents = true
