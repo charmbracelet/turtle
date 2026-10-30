@@ -32,6 +32,8 @@ func (p *Prog) Run(_ context.Context, args ...string) error {
 	}
 	physical, err := parseFlags(args)
 	if err != nil {
+		p.errorf("%v", err)
+		stdopts.TryHelp(p.Runtime, "pwd")
 		return &coreutils.ExitError{Code: 2, Err: err}
 	}
 	dir, err := p.dir(physical)
@@ -62,6 +64,11 @@ Print the full filename of the current working directory.
       --help     display this help and exit
       --version  output version information and exit
 `
+
+// errorf writes a diagnostic message to the standard error.
+func (p *Prog) errorf(format string, args ...any) {
+	fmt.Fprintf(p.Stderr, "pwd: "+format+"\n", args...)
+}
 
 // parseFlags parses the -L and -P options. The last one to appear wins, and -L
 // is assumed when neither is given. Operands are not accepted.
