@@ -52,7 +52,7 @@ func (p *Prog) Run(ctx context.Context, args ...string) error {
 
 	var ins [2]*file
 	for i, name := range operands {
-		in, err := p.openInput(ctx, name)
+		in, err := p.openInput(ctx, name, opts.zero)
 		if err != nil {
 			p.errorf("%s: %v", name, patherr.Unwrap(err))
 			return &coreutils.ExitError{Code: 1}
@@ -147,17 +147,17 @@ func (p *Prog) writeLine(out io.Writer, line string, column int, opts options) e
 			return nil
 		}
 		if !opts.suppress1 {
-			line = "\t" + line
+			line = opts.delimiter + line
 		}
 	case 3:
 		if opts.suppress3 {
 			return nil
 		}
 		if !opts.suppress1 {
-			line = "\t" + line
+			line = opts.delimiter + line
 		}
 		if !opts.suppress2 {
-			line = "\t" + line
+			line = opts.delimiter + line
 		}
 	}
 	if _, err := io.WriteString(out, line); err != nil {
@@ -166,22 +166,26 @@ func (p *Prog) writeLine(out io.Writer, line string, column int, opts options) e
 	return nil
 }
 
-// file is a line-oriented input file with its label for diagnostics.
+// file is an input file read as items terminated by term, with its label for
+// diagnostics.
 type file struct {
 	io.Closer
 	reader *bufio.Reader
 	label  string
+	term   byte
 }
 
-// next reads the next line, keeping its trailing newline when it has one. It
+// next reads the next item, keeping its terminator when it has one. It
 // reports false once the input is exhausted.
 func (in *file) next() (string, bool, error) {
-	line, err := in.reader.ReadString('\n')
+	line, err := in.reader.ReadString(in.term)
 	switch {
 	case err == nil:
 		return line, true, nil
 	case errors.Is(err, io.EOF) && len(line) > 0:
-		return line, true, nil
+		// A final item without its terminator: the output still ends
+		// with one.
+		return line + string(in.term), true, nil
 	case errors.Is(err, io.EOF):
 		return "", false, nil
 	default:
@@ -189,15 +193,20 @@ func (in *file) next() (string, bool, error) {
 	}
 }
 
-// openInput returns an input for the given operand. Reads stop early when ctx
-// is done. The standard input isn't owned by the caller, so it's wrapped on a
-// no-op closer.
-func (p *Prog) openInput(ctx context.Context, name string) (*file, error) {
+// openInput returns an input for the given operand, read as items terminated
+// by NUL when zero is set, or by a newline otherwise. Reads stop early when
+// ctx is done. The standard input isn't owned by the caller, so it's wrapped
+// on a no-op closer.
+func (p *Prog) openInput(ctx context.Context, name string, zero bool) (*file, error) {
 	rc, err := input.Open(p.Runtime, ctx, input.Input{Name: name, Stdin: name == "-"})
 	if err != nil {
 		return nil, err
 	}
-	return &file{Closer: rc, reader: bufio.NewReader(rc), label: name}, nil
+	term := byte('\n')
+	if zero {
+		term = 0
+	}
+	return &file{Closer: rc, reader: bufio.NewReader(rc), label: name, term: term}, nil
 }
 
 // errorf writes a diagnostic message to standard error.
@@ -205,18 +214,35 @@ func (p *Prog) errorf(format string, args ...any) {
 	fmt.Fprintf(p.Stderr, "comm: "+format+"\n", args...)
 }
 
-// options holds the parsed command line options.
+// optOutputDelimiter is the rune the long-only --output-delimiter option maps
+// to. Having no short equivalent, it's kept above the bytes a group of short
+// options can hold.
+const optOutputDelimiter rune = 0x100
+
+// longOptions maps the long options of comm to the short ones they stand for.
+var longOptions = map[string]rune{
+	"output-delimiter": optOutputDelimiter,
+	"zero-terminated":  'z',
+}
+
+// options holds the parsed command line options. delimiter separates the
+// columns, and an empty --output-delimiter value selects NUL.
 type options struct {
 	suppress1 bool
 	suppress2 bool
 	suppress3 bool
+	delimiter string
+	zero      bool
 }
 
 // parseFlags parses the command line options. Option parsing stops at the
 // first operand or at "--".
 func parseFlags(args []string) (options, []string, error) {
-	var opts options
-	operands, err := getopt.Set{}.Parse(args, func(opt rune, _ string) error {
+	opts := options{delimiter: "\t"}
+	operands, err := getopt.Set{
+		Valued: string(optOutputDelimiter),
+		Long:   longOptions,
+	}.Parse(args, func(opt rune, value string) error {
 		switch opt {
 		case '1':
 			opts.suppress1 = true
@@ -224,6 +250,13 @@ func parseFlags(args []string) (options, []string, error) {
 			opts.suppress2 = true
 		case '3':
 			opts.suppress3 = true
+		case 'z':
+			opts.zero = true
+		case optOutputDelimiter:
+			opts.delimiter = value
+			if value == "" {
+				opts.delimiter = "\x00"
+			}
 		default:
 			return getopt.InvalidOption(opt)
 		}
