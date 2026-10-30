@@ -27,6 +27,7 @@ import (
 	"charm.land/snail/coreutils/internal/ctxio"
 	"charm.land/snail/coreutils/internal/getopt"
 	"charm.land/snail/coreutils/internal/patherr"
+	"charm.land/snail/coreutils/internal/stdopts"
 	"charm.land/snail/fsx"
 )
 
@@ -45,6 +46,9 @@ func New(rt *coreutils.Runtime) coreutils.Program {
 // or the file to copy to when there's exactly one source. -T keeps the last
 // operand from ever being taken as a directory.
 func (p *Prog) Run(ctx context.Context, args ...string) error {
+	if done, err := stdopts.Check(p.Runtime, "cp", usage, optSet, args); done {
+		return err
+	}
 	opts, operands, err := parseFlags(args)
 	if err != nil {
 		p.errorf("%v", err)
@@ -607,6 +611,45 @@ var longOptions = map[string]rune{
 	"verbose":             'v',
 }
 
+// optSet describes the options of cp.
+var optSet = getopt.Set{
+	Valued:   "t" + string(optNoPreserve),
+	Optional: string(optPreserve),
+	Long:     longOptions,
+}
+
+// usage describes the options of cp.
+const usage = `Usage: cp [OPTION]... [-T] SOURCE DEST
+  or:  cp [OPTION]... SOURCE... DIRECTORY
+  or:  cp [OPTION]... -t DIRECTORY SOURCE...
+Copy SOURCE to DEST, or multiple SOURCE(s) to DIRECTORY.
+
+  -a, --archive              same as -dR --preserve=all
+  -d                         same as --no-dereference --preserve=links
+  -f, --force                if an existing destination file cannot be
+                             opened, remove it and try again
+  -H                         follow command-line symbolic links in SOURCE
+  -i, --interactive          prompt before overwrite
+  -L, --dereference          always follow symbolic links in SOURCE
+  -n, --no-clobber           do not overwrite an existing file
+  -P, --no-dereference       never follow symbolic links in SOURCE
+  -p                         same as --preserve=mode,ownership,timestamps
+      --no-preserve=ATTR_LIST
+                             don't preserve the specified attributes
+      --preserve[=ATTR_LIST]
+                             preserve the specified attributes (default:
+                             mode,ownership,timestamps)
+  -R, -r, --recursive        copy directories recursively
+  -t, --target-directory=DIRECTORY
+                             copy all SOURCE arguments into DIRECTORY
+  -T, --no-target-directory  treat DEST as a normal file
+  -u, --update               copy only when the SOURCE file is newer than
+                             the destination file or is missing
+  -v, --verbose              explain what is being done
+      --help     display this help and exit
+      --version  output version information and exit
+`
+
 // splitOperands splits the operands into the sources and the target,
 // following the -t and -T options.
 func splitOperands(operands []string, opts options) (sources []string, target string, err error) {
@@ -681,11 +724,7 @@ func (p *Prog) danglingLink(name string) bool {
 // -H, -L, -P, -d and -a, and -t can't be combined with -T.
 func parseFlags(args []string) (options, []string, error) {
 	var opts options
-	operands, err := (getopt.Set{
-		Valued:   "t" + string(optNoPreserve),
-		Optional: string(optPreserve),
-		Long:     longOptions,
-	}).Parse(args, func(opt rune, value string) error {
+	operands, err := optSet.Parse(args, func(opt rune, value string) error {
 		switch opt {
 		case 'a':
 			opts.recursive = true
