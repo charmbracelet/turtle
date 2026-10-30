@@ -40,11 +40,13 @@ func (p *Prog) Run(ctx context.Context, args ...string) error {
 	opts, operands, err := parseFlags(args)
 	if err != nil {
 		p.errorf("%v", err)
+		stdopts.TryHelp(p.Runtime, "chmod")
 		return &coreutils.ExitError{Code: 2}
 	}
 	switch {
 	case len(operands) == 0:
 		p.errorf("missing operand")
+		stdopts.TryHelp(p.Runtime, "chmod")
 		return &coreutils.ExitError{Code: 2}
 	case p.FS == nil:
 		p.errorf("no file system available")
@@ -80,11 +82,13 @@ func (p *Prog) spec(opts options, operands []string) (ModeSpec, []string, error)
 	if opts.reference == nil {
 		if len(operands) == 1 {
 			p.errorf("missing file operand")
+			stdopts.TryHelp(p.Runtime, "chmod")
 			return nil, nil, &coreutils.ExitError{Code: 2}
 		}
 		spec, err := ParseMode(operands[0])
 		if err != nil {
 			p.errorf("%v", err)
+			stdopts.TryHelp(p.Runtime, "chmod")
 			return nil, nil, &coreutils.ExitError{Code: 1}
 		}
 		return spec, operands[1:], nil

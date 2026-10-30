@@ -441,7 +441,7 @@ func TestRunInvalidModes(t *testing.T) {
 	for i := range tests {
 		tests[i].files = fsx.MemFS{"file.txt": {Mode: 0o644}}
 		tests[i].want = map[string]fs.FileMode{"file.txt": 0o644}
-		tests[i].wantErr = "chmod: invalid mode: \"" + tests[i].args[0] + "\"\n"
+		tests[i].wantErr = "chmod: invalid mode: \"" + tests[i].args[0] + "\"\nTry 'chmod --help' for more information.\n"
 		tests[i].wantExit = 1
 	}
 	runTests(t, tests)
@@ -543,7 +543,7 @@ func TestRunGeneral(t *testing.T) {
 			files:    fsx.MemFS{"file.txt": {Mode: 0o644}},
 			args:     nil,
 			want:     map[string]fs.FileMode{"file.txt": 0o644},
-			wantErr:  "chmod: missing operand\n",
+			wantErr:  "chmod: missing operand\nTry 'chmod --help' for more information.\n",
 			wantExit: 2,
 		},
 		{
@@ -551,7 +551,7 @@ func TestRunGeneral(t *testing.T) {
 			files:    fsx.MemFS{"file.txt": {Mode: 0o644}},
 			args:     []string{"755"},
 			want:     map[string]fs.FileMode{"file.txt": 0o644},
-			wantErr:  "chmod: missing file operand\n",
+			wantErr:  "chmod: missing file operand\nTry 'chmod --help' for more information.\n",
 			wantExit: 2,
 		},
 		{
@@ -559,7 +559,7 @@ func TestRunGeneral(t *testing.T) {
 			files:    fsx.MemFS{"file.txt": {Mode: 0o644}},
 			args:     []string{"-x", "755", "file.txt"},
 			want:     map[string]fs.FileMode{"file.txt": 0o644},
-			wantErr:  "chmod: invalid option -- 'x'\n",
+			wantErr:  "chmod: invalid option -- 'x'\nTry 'chmod --help' for more information.\n",
 			wantExit: 2,
 		},
 		{
@@ -567,7 +567,7 @@ func TestRunGeneral(t *testing.T) {
 			files:    fsx.MemFS{"file.txt": {Mode: 0o644}},
 			args:     []string{"--bogus", "755", "file.txt"},
 			want:     map[string]fs.FileMode{"file.txt": 0o644},
-			wantErr:  "chmod: unrecognized option '--bogus'\n",
+			wantErr:  "chmod: unrecognized option '--bogus'\nTry 'chmod --help' for more information.\n",
 			wantExit: 2,
 		},
 		{
@@ -658,7 +658,7 @@ func TestRunReference(t *testing.T) {
 			files:    fsx.MemFS{"ref": {Mode: 0o640}},
 			args:     []string{"--reference=ref"},
 			want:     map[string]fs.FileMode{"ref": 0o640},
-			wantErr:  "chmod: missing operand\n",
+			wantErr:  "chmod: missing operand\nTry 'chmod --help' for more information.\n",
 			wantExit: 2,
 		},
 		{
