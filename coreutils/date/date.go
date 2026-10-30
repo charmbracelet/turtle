@@ -27,6 +27,7 @@ import (
 	"charm.land/snail/coreutils/internal/gnudate"
 	"charm.land/snail/coreutils/internal/input"
 	"charm.land/snail/coreutils/internal/patherr"
+	"charm.land/snail/coreutils/internal/stdopts"
 )
 
 // defaultFormat is the output of date with no format operand, as the POSIX
@@ -48,6 +49,9 @@ func New(rt *coreutils.Runtime) coreutils.Program {
 // modification time of the file given to -r, formatted by the +format operand
 // or by one of the -I, -R and --rfc-3339 options when given.
 func (p *Prog) Run(ctx context.Context, args ...string) error {
+	if done, err := stdopts.Check(p.Runtime, "date", usage, optSet, args); done {
+		return err
+	}
 	if err := ctx.Err(); err != nil {
 		return err
 	}
@@ -340,6 +344,32 @@ var rfc3339Formats = map[string]string{
 // standards RFC 5322, 2822 and 822.
 const rfcEmailFormat = "%a, %d %b %Y %H:%M:%S %z"
 
+// optSet describes the options of date.
+var optSet = getopt.Set{
+	Valued:   "dfr" + string(rfc3339Opt),
+	Optional: "I",
+	Long:     longOptions,
+}
+
+// usage describes the options of date.
+const usage = `Usage: date [OPTION]... [+FORMAT]
+  or:  date [OPTION]... MMDDhhmm[[CC]YY][.ss]
+Print or set the system date and time.
+
+  -d, --date=STRING        display the time described by STRING, not 'now'
+  -f, --file=DATEFILE      like --date, once for each line of DATEFILE
+  -I[FMT], --iso-8601[=FMT]
+                           output an ISO 8601 date, FMT='date' (default),
+                           'hours', 'minutes', 'seconds' or 'ns'
+  -r, --reference=FILE     display the last modification time of FILE
+  -R, --rfc-email          output date and time in RFC 5322 format
+      --rfc-3339=FMT       output date and time in RFC 3339 format,
+                           FMT='date', 'seconds' or 'ns'
+  -u, --utc, --universal   print or set Coordinated Universal Time (UTC)
+      --help     display this help and exit
+      --version  output version information and exit
+`
+
 // parseFlags parses the options and operands. Option parsing stops at the
 // first operand or at "--". The -d, -f and -r options take an
 // option-argument, either glued to the option or in the next argument, and
@@ -348,11 +378,7 @@ func parseFlags(args []string) (options, []string, error) {
 	var opts options
 	// The pseudo option of --rfc-3339 requires an argument too, so it joins
 	// the valued characters, where no short option can ever match it.
-	operands, err := getopt.Set{
-		Valued:   "dfr" + string(rfc3339Opt),
-		Optional: "I",
-		Long:     longOptions,
-	}.Parse(bareISO(args), func(opt rune, value string) error {
+	operands, err := optSet.Parse(bareISO(args), func(opt rune, value string) error {
 		switch opt {
 		case 'd':
 			opts.dateSet = true
