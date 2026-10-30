@@ -37,10 +37,12 @@ func (p *Prog) Run(ctx context.Context, args ...string) error {
 	zero, names, err := parseFlags(args)
 	if err != nil {
 		p.errorf("%v", err)
+		stdopts.TryHelp(p.Runtime, "dirname")
 		return &coreutils.ExitError{Code: 2}
 	}
 	if len(names) == 0 {
 		p.errorf("missing operand")
+		stdopts.TryHelp(p.Runtime, "dirname")
 		return &coreutils.ExitError{Code: 2}
 	}
 
