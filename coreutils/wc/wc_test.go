@@ -113,15 +113,15 @@ func (readerFile) Stat() (fs.FileInfo, error) { return nil, fs.ErrInvalid }
 
 // testFS holds the fixtures used by the tests:
 //
-//	file.txt:    "hello world\nfoo bar\n" (2 lines, 4 words, 20 bytes)
-//	one.txt:     "a b\nc"                  (1 line, 3 words, 5 bytes)
-//	two.txt:     "one\ntwo\n"              (2 lines, 2 words, 8 bytes)
-//	empty.txt:   ""                        (0 lines, 0 words, 0 bytes)
-//	spaces.txt:  "   \t\n"                 (1 line, 0 words, 5 bytes)
-//	utf8.txt:    "héllo wörld\n"           (1 line, 2 words, 14 bytes, 12 chars)
-//	invalid.txt: "\xffa\xfe é\n"           (1 line, 2 words, 7 bytes, 6 chars)
-//	"-l":        "x\n"                     (1 line, 1 word, 2 bytes)
-//	sub/inner.txt: "inner\n"               (1 line, 1 word, 6 bytes)
+//	file.txt:    "hello world\nfoo bar\n"  (2 lines, 4 words, 20 bytes, 11 longest)
+//	one.txt:     "a b\nc"                  (1 line, 3 words, 5 bytes, 3 longest)
+//	two.txt:     "one\ntwo\n"              (2 lines, 2 words, 8 bytes, 3 longest)
+//	empty.txt:   ""                        (0 lines, 0 words, 0 bytes, 0 longest)
+//	spaces.txt:  "   \t\n"                 (1 line, 0 words, 5 bytes, 8 longest)
+//	utf8.txt:    "héllo wörld\n"           (1 line, 2 words, 14 bytes, 12 chars, 9 longest)
+//	invalid.txt: "\xffa\xfe é\n"           (1 line, 2 words, 7 bytes, 6 chars, 2 longest)
+//	"-l":        "x\n"                     (1 line, 1 word, 2 bytes, 1 longest)
+//	sub/inner.txt: "inner\n"               (1 line, 1 word, 6 bytes, 5 longest)
 func testFS() fsx.MemFS {
 	return fsx.MemFS{
 		"file.txt":      {Data: []byte("hello world\nfoo bar\n")},
@@ -331,16 +331,16 @@ func TestRunOptions(t *testing.T) {
 			want: "1 2 12 utf8.txt\n",
 		},
 		{
-			name: "m replaces c when c comes first",
+			name: "c and m together write both counts",
 			fsys: testFS(),
 			args: []string{"-cm", "utf8.txt"},
-			want: "12 utf8.txt\n",
+			want: "12 14 utf8.txt\n",
 		},
 		{
-			name: "m replaces c when m comes first",
+			name: "c and m together in any order",
 			fsys: testFS(),
 			args: []string{"-mc", "utf8.txt"},
-			want: "12 utf8.txt\n",
+			want: "12 14 utf8.txt\n",
 		},
 		{
 			name: "options are not parsed after the first operand",
@@ -482,10 +482,200 @@ func TestRunLongOptions(t *testing.T) {
 			want: "12 utf8.txt\n",
 		},
 		{
+			name: "max-line-length counts the longest line",
+			fsys: testFS(),
+			args: []string{"--max-line-length", "file.txt"},
+			want: "11 file.txt\n",
+		},
+		{
 			name:     "a long option with a value it doesn't take is an error",
 			fsys:     testFS(),
 			args:     []string{"--lines=2", "file.txt"},
 			wantErr:  "wc: option '--lines=2' doesn't allow an argument\n",
+			wantExit: 2,
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			runCase(t, test)
+		})
+	}
+}
+
+func TestRunMaxLineLength(t *testing.T) {
+	tests := []testCase{
+		{
+			name: "the longest line",
+			fsys: testFS(),
+			args: []string{"-L", "file.txt"},
+			want: "11 file.txt\n",
+		},
+		{
+			name:  "empty input",
+			stdin: strings.NewReader(""),
+			args:  []string{"-L"},
+			want:  "0\n",
+		},
+		{
+			name:  "a trailing line without a newline is counted",
+			stdin: strings.NewReader("a\nlonger"),
+			args:  []string{"-L"},
+			want:  "6\n",
+		},
+		{
+			name:  "a tab advances to the next 8th column",
+			stdin: strings.NewReader("a\tb\n"),
+			args:  []string{"-L"},
+			want:  "9\n",
+		},
+		{
+			name:  "a tab at the end of a line rounds up to a multiple of 8",
+			stdin: strings.NewReader("a\t\n"),
+			args:  []string{"-L"},
+			want:  "8\n",
+		},
+		{
+			name:  "a carriage return ends a line",
+			stdin: strings.NewReader("ab\rcd\n"),
+			args:  []string{"-L"},
+			want:  "2\n",
+		},
+		{
+			name:  "a form feed ends a line",
+			stdin: strings.NewReader("ab\fcd\n"),
+			args:  []string{"-L"},
+			want:  "2\n",
+		},
+		{
+			name:  "a vertical tab counts no columns",
+			stdin: strings.NewReader("a\vb\n"),
+			args:  []string{"-L"},
+			want:  "2\n",
+		},
+		{
+			name:  "control bytes count no columns",
+			stdin: strings.NewReader("\x01ab\x7f\n"),
+			args:  []string{"-L"},
+			want:  "2\n",
+		},
+		{
+			name: "multibyte characters count no columns",
+			fsys: testFS(),
+			args: []string{"-L", "utf8.txt"},
+			want: "9 utf8.txt\n",
+		},
+		{
+			name: "characters mode keeps the byte columns",
+			fsys: testFS(),
+			args: []string{"-mL", "utf8.txt"},
+			want: "12 9 utf8.txt\n",
+		},
+		{
+			name: "invalid bytes count no columns",
+			fsys: testFS(),
+			args: []string{"-L", "invalid.txt"},
+			want: "2 invalid.txt\n",
+		},
+		{
+			name: "the longest line is the fourth of the five columns",
+			fsys: testFS(),
+			args: []string{"-lwmL", "utf8.txt"},
+			want: "1 2 12 9 utf8.txt\n",
+		},
+		{
+			name: "all counts in the manual order",
+			fsys: testFS(),
+			args: []string{"-lcwmL", "utf8.txt"},
+			want: "1 2 12 14 9 utf8.txt\n",
+		},
+		{
+			name: "the total is the maximum, not the sum",
+			fsys: testFS(),
+			args: []string{"-L", "file.txt", "one.txt"},
+			want: "11 file.txt\n3 one.txt\n11 total\n",
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			runCase(t, test)
+		})
+	}
+}
+
+func TestRunTotal(t *testing.T) {
+	tests := []testCase{
+		{
+			name: "auto is the default",
+			fsys: testFS(),
+			args: []string{"--total=auto", "file.txt", "one.txt"},
+			want: "2 4 20 file.txt\n1 3 5 one.txt\n3 7 25 total\n",
+		},
+		{
+			name: "auto with a single file writes no total",
+			fsys: testFS(),
+			args: []string{"--total=auto", "file.txt"},
+			want: "2 4 20 file.txt\n",
+		},
+		{
+			name: "always writes a total for a single file",
+			fsys: testFS(),
+			args: []string{"--total=always", "file.txt"},
+			want: "2 4 20 file.txt\n2 4 20 total\n",
+		},
+		{
+			name:  "always writes a total for the standard input",
+			stdin: strings.NewReader("a b\nc"),
+			args:  []string{"--total=always"},
+			want:  "1 3 5\n1 3 5 total\n",
+		},
+		{
+			name: "only writes just the cumulative counts",
+			fsys: testFS(),
+			args: []string{"--total=only", "file.txt", "one.txt"},
+			want: "3 7 25\n",
+		},
+		{
+			name: "only with a single file writes its counts",
+			fsys: testFS(),
+			args: []string{"--total=only", "file.txt"},
+			want: "2 4 20\n",
+		},
+		{
+			name:  "only with the standard input",
+			stdin: strings.NewReader("a b\nc"),
+			args:  []string{"--total=only"},
+			want:  "1 3 5\n",
+		},
+		{
+			name: "never writes no total",
+			fsys: testFS(),
+			args: []string{"--total=never", "file.txt", "one.txt"},
+			want: "2 4 20 file.txt\n1 3 5 one.txt\n",
+		},
+		{
+			name: "the word may be held by the next argument",
+			fsys: testFS(),
+			args: []string{"--total", "never", "file.txt", "one.txt"},
+			want: "2 4 20 file.txt\n1 3 5 one.txt\n",
+		},
+		{
+			name: "the total keeps the selected counts",
+			fsys: testFS(),
+			args: []string{"-L", "--total=always", "file.txt"},
+			want: "11 file.txt\n11 total\n",
+		},
+		{
+			name:     "an invalid word is an error",
+			args:     []string{"--total=bogus"},
+			wantErr:  "wc: invalid argument 'bogus' for '--total'\n",
+			wantExit: 2,
+		},
+		{
+			name:     "a missing word is an error",
+			args:     []string{"--total"},
+			wantErr:  "wc: option '--total' requires an argument\n",
 			wantExit: 2,
 		},
 	}
