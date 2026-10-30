@@ -1,7 +1,8 @@
 // Package link implements the POSIX link utility.
 //
-// The utility takes no options, so every argument is taken as an operand,
-// even one starting with a dash. It calls the link function of the file
+// The utility takes no options of its own, so every argument is taken as an
+// operand, even one starting with a dash, with the common --help and
+// --version as the only exception. It calls the link function of the file
 // system, which fails when the new entry exists or the source is a
 // directory, like link(2).
 package link
@@ -15,7 +16,9 @@ import (
 	"strings"
 
 	"charm.land/snail/coreutils"
+	"charm.land/snail/coreutils/internal/getopt"
 	"charm.land/snail/coreutils/internal/patherr"
+	"charm.land/snail/coreutils/internal/stdopts"
 )
 
 // Prog is the link core utility.
@@ -29,9 +32,12 @@ func New(rt *coreutils.Runtime) coreutils.Program {
 }
 
 // Run creates file2 as a hard link to file1. As the utility takes no
-// options, every argument, including one starting with a dash, is an
-// operand.
+// options of its own, every argument, including one starting with a dash,
+// is an operand, with the common --help and --version as the only exception.
 func (p *Prog) Run(ctx context.Context, args ...string) error {
+	if done, err := stdopts.Check(p.Runtime, "link", usage, getopt.Set{}, args); done {
+		return err
+	}
 	switch len(args) {
 	case 0:
 		p.errorf("missing file operand")
@@ -100,6 +106,14 @@ func unwrapLinkError(err error) error {
 func (p *Prog) errorf(format string, args ...any) {
 	fmt.Fprintf(p.Stderr, "link: "+format+"\n", args...)
 }
+
+// usage describes the options of link.
+const usage = `Usage: link FILE1 FILE2
+Call the link function to create a link named FILE2 to an existing FILE1.
+
+      --help     display this help and exit
+      --version  output version information and exit
+`
 
 var (
 	_ coreutils.Program = (*Prog)(nil)
