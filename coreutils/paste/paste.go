@@ -42,6 +42,9 @@ func (p *Prog) Run(ctx context.Context, args ...string) error {
 	opts, operands, err := parseFlags(args)
 	if err != nil {
 		p.errorf("%v", err)
+		if errors.Is(err, errTrailingBackslash) {
+			return &coreutils.ExitError{Code: 1}
+		}
 		return &coreutils.ExitError{Code: 2}
 	}
 	if len(operands) == 0 {
@@ -82,7 +85,7 @@ func (p *Prog) Run(ctx context.Context, args ...string) error {
 			if i > 0 {
 				line.WriteString(opts.delims[(i-1)%len(opts.delims)])
 			}
-			part, err := in.readLine()
+			part, err := in.readLine(opts.term())
 			switch {
 			case err != nil && ctx.Err() != nil:
 				return ctx.Err()
@@ -97,7 +100,7 @@ func (p *Prog) Run(ctx context.Context, args ...string) error {
 		if !data {
 			break
 		}
-		line.WriteByte('\n')
+		line.WriteByte(opts.term())
 		if err := p.write(line.String()); err != nil {
 			return err
 		}
@@ -125,7 +128,7 @@ func (p *Prog) serial(ctx context.Context, opts options, operands []string) erro
 		var line strings.Builder
 		delim := 0
 		for i := 0; ; i++ {
-			part, err := in.readLine()
+			part, err := in.readLine(opts.term())
 			if err != nil {
 				if ctx.Err() != nil {
 					return ctx.Err()
@@ -144,7 +147,7 @@ func (p *Prog) serial(ctx context.Context, opts options, operands []string) erro
 			line.WriteString(*part)
 		}
 		in.close()
-		line.WriteByte('\n')
+		line.WriteByte(opts.term())
 		if err := p.write(line.String()); err != nil {
 			return err
 		}
@@ -210,14 +213,25 @@ func (p *Prog) errorf(format string, args ...any) {
 // options holds the parsed command line options.
 type options struct {
 	serial bool
+	zero   bool
 	delims []string
+}
+
+// term returns the byte which terminates an item, both when reading the
+// input and when writing the output.
+func (o options) term() byte {
+	if o.zero {
+		return 0
+	}
+	return '\n'
 }
 
 // longOptions maps the long options of paste to the short ones they stand
 // for.
 var longOptions = map[string]rune{
-	"delimiters": 'd',
-	"serial":     's',
+	"delimiters":      'd',
+	"serial":          's',
+	"zero-terminated": 'z',
 }
 
 // parseFlags parses the options and operands. Option parsing stops at the
@@ -227,9 +241,15 @@ func parseFlags(args []string) (options, []string, error) {
 	operands, err := getopt.Set{Valued: "d", Long: longOptions}.Parse(args, func(opt rune, value string) error {
 		switch opt {
 		case 'd':
-			opts.delims = parseDelims(value)
+			var err error
+			opts.delims, err = parseDelims(value)
+			if err != nil {
+				return fmt.Errorf("%w: %s", err, quoteDelims(value))
+			}
 		case 's':
 			opts.serial = true
+		case 'z':
+			opts.zero = true
 		default:
 			return getopt.InvalidOption(opt)
 		}
@@ -238,34 +258,56 @@ func parseFlags(args []string) (options, []string, error) {
 	return opts, operands, err
 }
 
+// errTrailingBackslash marks a delimiter list which ends with an unescaped
+// backslash.
+var errTrailingBackslash = errors.New("delimiter list ends with an unescaped backslash")
+
 // parseDelims parses a -d list into the delimiter elements. A backslash
-// introduces the escapes "\n", "\t", "\\" and "\0" (the empty string); any
-// other character following a backslash stands for itself.
-func parseDelims(list string) []string {
+// introduces the escapes "\b", "\f", "\n", "\r", "\t", "\v", "\\" and "\0"
+// (the empty string); any other character following a backslash stands for
+// itself. A list ending with an unescaped backslash is an error.
+func parseDelims(list string) ([]string, error) {
 	var delims []string
 	for i := 0; i < len(list); i++ {
-		if list[i] != '\\' || i+1 == len(list) {
+		if list[i] != '\\' {
 			delims = append(delims, list[i:i+1])
 			continue
 		}
+		if i+1 == len(list) {
+			return nil, errTrailingBackslash
+		}
 		i++
 		switch list[i] {
-		case 'n':
-			delims = append(delims, "\n")
-		case 't':
-			delims = append(delims, "\t")
-		case '\\':
-			delims = append(delims, "\\")
 		case '0':
 			delims = append(delims, "")
+		case 'b':
+			delims = append(delims, "\b")
+		case 'f':
+			delims = append(delims, "\f")
+		case 'n':
+			delims = append(delims, "\n")
+		case 'r':
+			delims = append(delims, "\r")
+		case 't':
+			delims = append(delims, "\t")
+		case 'v':
+			delims = append(delims, "\v")
+		case '\\':
+			delims = append(delims, "\\")
 		default:
 			delims = append(delims, list[i:i+1])
 		}
 	}
 	if len(delims) == 0 {
-		return []string{""}
+		return []string{""}, nil
 	}
-	return delims
+	return delims, nil
+}
+
+// quoteDelims quotes a delimiter list for a diagnostic, in the C quoting
+// style used by GNU paste.
+func quoteDelims(list string) string {
+	return "'" + strings.ReplaceAll(list, "'", `'\''`) + "'"
 }
 
 // input is a line source: an open file or the standard input.
@@ -285,15 +327,15 @@ func (in *input) label() string {
 	return in.operand
 }
 
-// readLine returns the next line without its trailing newline, or nil when
-// the input is exhausted. An exhausted input keeps returning nil.
-func (in *input) readLine() (*string, error) {
+// readLine returns the next item without its trailing line delimiter, or nil
+// when the input is exhausted. An exhausted input keeps returning nil.
+func (in *input) readLine(sep byte) (*string, error) {
 	if in.eof {
 		return nil, nil
 	}
-	line, err := in.r.ReadString('\n')
+	line, err := in.r.ReadString(sep)
 	if err == nil {
-		line = strings.TrimSuffix(line, "\n")
+		line = strings.TrimSuffix(line, string(sep))
 		return &line, nil
 	}
 	if errors.Is(err, io.EOF) {
