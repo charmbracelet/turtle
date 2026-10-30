@@ -48,6 +48,7 @@ func (p *Prog) Run(ctx context.Context, args ...string) error {
 	opts, operands, err := parseFlags(args)
 	if err != nil {
 		p.errorf("%v", err)
+		stdopts.TryHelp(p.Runtime, "sed")
 		return &coreutils.ExitError{Code: 2}
 	}
 
@@ -55,6 +56,7 @@ func (p *Prog) Run(ctx context.Context, args ...string) error {
 	if err != nil {
 		p.errorf("%v", err)
 		if errors.Is(err, errMissingScript) {
+			stdopts.TryHelp(p.Runtime, "sed")
 			return &coreutils.ExitError{Code: 2}
 		}
 		return &coreutils.ExitError{Code: 1}
@@ -70,6 +72,7 @@ func (p *Prog) Run(ctx context.Context, args ...string) error {
 	if opts.inPlace {
 		if len(files) == 0 || slices.Contains(files, "-") {
 			p.errorf("-i may not be used with stdin")
+			stdopts.TryHelp(p.Runtime, "sed")
 			return &coreutils.ExitError{Code: 2}
 		}
 		if err := p.runInPlace(ctx, script, opts.extended, files, quiet, opts.suffix); err != nil {

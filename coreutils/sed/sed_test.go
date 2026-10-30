@@ -1026,14 +1026,14 @@ func TestRunInPlace(t *testing.T) {
 			name:     "stdin with -i is a usage error",
 			stdin:    strings.NewReader("a\n"),
 			args:     []string{"-i", "s/a/b/"},
-			wantErr:  "sed: -i may not be used with stdin\n",
+			wantErr:  "sed: -i may not be used with stdin\nTry 'sed --help' for more information.\n",
 			wantExit: 2,
 		},
 		{
 			name:     "a - operand with -i is a usage error",
 			stdin:    strings.NewReader("a\n"),
 			args:     []string{"-i", "s/a/b/", "-"},
-			wantErr:  "sed: -i may not be used with stdin\n",
+			wantErr:  "sed: -i may not be used with stdin\nTry 'sed --help' for more information.\n",
 			wantExit: 2,
 		},
 		{
