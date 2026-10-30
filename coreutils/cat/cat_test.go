@@ -617,25 +617,25 @@ func TestRunErrors(t *testing.T) {
 		{
 			name:     "invalid option",
 			args:     []string{"-x"},
-			wantErr:  "cat: invalid option -- 'x'\n",
+			wantErr:  "cat: invalid option -- 'x'\nTry 'cat --help' for more information.\n",
 			wantExit: 2,
 		},
 		{
 			name:     "invalid option in a group",
 			args:     []string{"-ux"},
-			wantErr:  "cat: invalid option -- 'x'\n",
+			wantErr:  "cat: invalid option -- 'x'\nTry 'cat --help' for more information.\n",
 			wantExit: 2,
 		},
 		{
 			name:     "unknown long option",
 			args:     []string{"--partial"},
-			wantErr:  "cat: unrecognized option '--partial'\n",
+			wantErr:  "cat: unrecognized option '--partial'\nTry 'cat --help' for more information.\n",
 			wantExit: 2,
 		},
 		{
 			name:     "invalid option before operands",
 			args:     []string{"-x", "a.txt"},
-			wantErr:  "cat: invalid option -- 'x'\n",
+			wantErr:  "cat: invalid option -- 'x'\nTry 'cat --help' for more information.\n",
 			wantExit: 2,
 		},
 		{
