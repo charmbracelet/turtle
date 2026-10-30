@@ -9,6 +9,7 @@ import (
 
 	"charm.land/snail/coreutils"
 	"charm.land/snail/coreutils/internal/getopt"
+	"charm.land/snail/coreutils/internal/stdopts"
 )
 
 // Prog is the nproc core utility.
@@ -30,6 +31,9 @@ func New(rt *coreutils.Runtime) coreutils.Program {
 // unless --all is given, and reduced by --ignore. The result is guaranteed
 // to be greater than zero.
 func (p *Prog) Run(ctx context.Context, args ...string) error {
+	if done, err := stdopts.Check(p.Runtime, "nproc", usage, optSet, args); done {
+		return err
+	}
 	if err := ctx.Err(); err != nil {
 		return err
 	}
@@ -92,11 +96,11 @@ func (p *Prog) envInt(key string) (int, bool) {
 // parseFlags parses the options. Any operand is a usage error.
 func parseFlags(args []string) (options, error) {
 	var opts options
-	operands, err := getopt.Set{Valued: "i", Long: longOptions}.Parse(args, func(opt rune, value string) error {
+	operands, err := optSet.Parse(args, func(opt rune, value string) error {
 		switch opt {
-		case 'a':
+		case optAll:
 			opts.all = true
-		case 'i':
+		case optIgnore:
 			n, err := strconv.ParseUint(value, 10, 64)
 			if err != nil {
 				return fmt.Errorf("invalid --ignore argument '%s'", value)
@@ -127,12 +131,37 @@ type options struct {
 	ignore uint64
 }
 
-// longOptions maps the long options of nproc to the characters they stand
-// for.
+// The long options of nproc map to runes above the range a single-byte short
+// option can reach, so --all and --ignore stay long-only, as in the GNU
+// utility.
+const (
+	optAll rune = 0x100 + iota
+	optIgnore
+)
+
+// longOptions maps the long options of nproc to the runes they stand for.
 var longOptions = map[string]rune{
-	"all":    'a',
-	"ignore": 'i',
+	"all":    optAll,
+	"ignore": optIgnore,
 }
+
+// optSet describes the options of nproc.
+var optSet = getopt.Set{Valued: string(optIgnore), Long: longOptions}
+
+// usage describes the options of nproc.
+const usage = `Usage: nproc [OPTION]...
+Print the number of processing units available to the current process,
+which may be less than the number of online processors.  If this information
+is not accessible, then print the number of processors installed.  If the
+OMP_NUM_THREADS or OMP_THREAD_LIMIT environment variables are set, then they
+will determine the minimum and maximum returned value respectively.  The
+result is guaranteed to be greater than zero.
+
+      --all          print the number of installed processors
+      --ignore=N     ignore up to N processors
+      --help     display this help and exit
+      --version  output version information and exit
+`
 
 var (
 	_ coreutils.Program = (*Prog)(nil)
