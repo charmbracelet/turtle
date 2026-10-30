@@ -14,6 +14,7 @@ import (
 
 	"charm.land/snail/coreutils"
 	"charm.land/snail/coreutils/internal/getopt"
+	"charm.land/snail/coreutils/internal/gnudate"
 	"charm.land/snail/coreutils/internal/patherr"
 	"charm.land/snail/fsx"
 )
@@ -29,7 +30,9 @@ func New(rt *coreutils.Runtime) coreutils.Program {
 }
 
 // Run sets the access and modification times of the given files, creating any
-// that does not exist, unless -c is given.
+// that does not exist, unless -c or -h is given. The -d, -r and -t options
+// choose the times to set, and -h makes symbolic links themselves be acted
+// on instead of the files they refer to.
 func (p *Prog) Run(ctx context.Context, args ...string) error {
 	opts, files, err := parseFlags(args)
 	if err != nil {
@@ -67,28 +70,33 @@ func (p *Prog) Run(ctx context.Context, args ...string) error {
 }
 
 // referenceTime resolves the access and modification times to use, from the -d
-// or -t time, from the -r ref_file times, or the current time.
+// or -t time, from the -r ref_file times, or the current time. A -d value
+// relative to a -r reference is resolved against its own times.
 func (p *Prog) referenceTime(opts options) (time.Time, time.Time, error) {
 	loc := p.location()
-	now := time.Now().In(loc)
-	switch opts.source {
-	case 'd':
-		t, err := parseDateTime(opts.value, loc)
-		if err != nil {
+	now := p.Now().In(loc)
+
+	var refAtime, refMtime time.Time
+	if opts.refFile != "" {
+		var err error
+		if refAtime, refMtime, err = p.fileTimes(opts.refFile, opts.noDeref); err != nil {
 			return time.Time{}, time.Time{}, err
 		}
-		return t, t, nil
+	}
+
+	switch opts.source {
+	case 'd':
+		atime, mtime := now, now
+		if opts.refFile != "" {
+			atime, mtime = refAtime, refMtime
+		}
+		return flexTimes(opts.flex, opts, atime, mtime, loc)
 	case 'r':
-		fi, err := fs.Stat(p.FS, filepath.ToSlash(p.ResolvePath(opts.value)))
-		if err != nil {
-			return time.Time{}, time.Time{}, fmt.Errorf("%s: %v", opts.value, patherr.Unwrap(err))
+		// A -d value given before -r is still relative to the reference times.
+		if opts.flex != "" {
+			return flexTimes(opts.flex, opts, refAtime, refMtime, loc)
 		}
-		mtime := fi.ModTime()
-		atime := mtime
-		if t, ok := fsx.Atime(fi); ok {
-			atime = t
-		}
-		return atime, mtime, nil
+		return refAtime, refMtime, nil
 	case 't':
 		t, err := parseTime(opts.value, loc, now)
 		if err != nil {
@@ -98,6 +106,56 @@ func (p *Prog) referenceTime(opts options) (time.Time, time.Time, error) {
 	default:
 		return now, now, nil
 	}
+}
+
+// flexTimes resolves a -d value against the base times: the access and
+// modification times each get their own origin, as GNU does with -r.
+func flexTimes(s string, opts options, atime, mtime time.Time, loc *time.Location) (time.Time, time.Time, error) {
+	s = flexFraction(s)
+	if opts.access {
+		t, err := gnudate.Parse(s, atime, loc)
+		if err != nil {
+			return time.Time{}, time.Time{}, err
+		}
+		atime = t
+	}
+	if opts.modify {
+		t, err := gnudate.Parse(s, mtime, loc)
+		if err != nil {
+			return time.Time{}, time.Time{}, err
+		}
+		mtime = t
+	}
+	return atime, mtime, nil
+}
+
+// flexFraction rewrites the standard format's "ss,frac" second fraction as
+// "ss.frac", the form gnudate parses.
+func flexFraction(s string) string {
+	i := strings.LastIndex(s, ",")
+	if i < 2 || s[i+1:] == "" || !allDigits(s[i+1:]) || !allDigits(s[i-2:i]) {
+		return s
+	}
+	return s[:i] + "." + s[i+1:]
+}
+
+// fileTimes returns the access and modification times of a file, following
+// or not following its final symbolic link as noDeref says.
+func (p *Prog) fileTimes(name string, noDeref bool) (time.Time, time.Time, error) {
+	path := filepath.ToSlash(p.ResolvePath(name))
+	fi, err := fs.Stat(p.FS, path)
+	if noDeref {
+		fi, err = p.FS.Lstat(path)
+	}
+	if err != nil {
+		return time.Time{}, time.Time{}, fmt.Errorf("%s: %v", name, patherr.Unwrap(err))
+	}
+	mtime := fi.ModTime()
+	atime := mtime
+	if t, ok := fsx.Atime(fi); ok {
+		atime = t
+	}
+	return atime, mtime, nil
 }
 
 // location returns the time zone to interpret times with, honoring TZ.
@@ -111,11 +169,21 @@ func (p *Prog) location() *time.Location {
 }
 
 // touch updates the times of a single file. Files that don't exist are created
-// unless -c was given, and only the times selected by -a and -m are changed.
+// unless -c or -h was given, and only the times selected by -a and -m are
+// changed. With -h the final symbolic link itself is the target; on a file
+// system whose Chtimes follows links, like the OS one, it still acts on the
+// file the link refers to.
 func (p *Prog) touch(name string, opts options, atime, mtime time.Time) error {
 	path := filepath.ToSlash(p.ResolvePath(name))
 	fi, err := fs.Stat(p.FS, path)
+	if opts.noDeref {
+		// Lstat describes the link itself, so a dangling one is not an error.
+		fi, err = p.FS.Lstat(path)
+	}
 	switch {
+	case errors.Is(err, fs.ErrNotExist) && opts.noDeref && !opts.noCreate:
+		// -h never creates the missing file, but without -c it's still an error.
+		return err
 	case errors.Is(err, fs.ErrNotExist) && opts.noCreate:
 		return nil
 	case errors.Is(err, fs.ErrNotExist):
@@ -158,24 +226,30 @@ func (p *Prog) errorf(format string, args ...any) {
 	fmt.Fprintf(p.Stderr, "touch: "+format+"\n", args...)
 }
 
-// options holds the -a, -c and -m flags, plus the option-argument of the last
-// -d, -r or -t option given.
+// options holds the -a, -c, -f, -h and -m flags, plus the option-argument of
+// the last -d, -r or -t option given. The -d value is also kept when -r or -t
+// follows it, as the origin for relative times, with refFile holding the -r
+// reference file whenever it's given.
 type options struct {
 	access   bool
 	modify   bool
 	noCreate bool
+	noDeref  bool
 	source   rune
 	value    string
+	flex     string
+	refFile  string
 }
 
 // longOptions maps the long options of touch to the short ones they stand
 // for. The -a and -m options have no long form of their own: --time stands
 // for them, taking the word which selects the time to change.
 var longOptions = map[string]rune{
-	"date":      'd',
-	"no-create": 'c',
-	"reference": 'r',
-	"time":      optTime,
+	"date":           'd',
+	"no-create":      'c',
+	"no-dereference": 'h',
+	"reference":      'r',
+	"time":           optTime,
 }
 
 // optTime is the rune --time maps to. Having no short equivalent, it's kept
@@ -186,7 +260,7 @@ const optTime rune = 0x100
 // first operand or at "--". The -d, -r and -t options take an option-argument,
 // either glued to the option or in the next argument, and the last one given
 // is the one used. The --time option takes the word which -a and -m each
-// stand for.
+// stand for. The -f option is accepted and ignored, for BSD compatibility.
 func parseFlags(args []string) (options, []string, error) {
 	var opts options
 	files, err := getopt.Set{Valued: "drt" + string(optTime), Long: longOptions}.Parse(args, func(opt rune, value string) error {
@@ -195,9 +269,16 @@ func parseFlags(args []string) (options, []string, error) {
 			opts.access = true
 		case 'c':
 			opts.noCreate = true
+		case 'f':
+		case 'h':
+			opts.noDeref = true
 		case 'm':
 			opts.modify = true
-		case 'd', 'r', 't':
+		case 'd':
+			opts.source, opts.value, opts.flex = opt, value, value
+		case 'r':
+			opts.source, opts.value, opts.refFile = opt, value, value
+		case 't':
 			opts.source, opts.value = opt, value
 		case optTime:
 			switch value {
@@ -269,23 +350,6 @@ func parseTime(s string, loc *time.Location, now time.Time) (time.Time, error) {
 		}
 	}
 	return time.Date(year, time.Month(month), day, hour, minute, sec, 0, loc), nil
-}
-
-// parseDateTime parses a -d date_time of the form
-// YYYY-MM-DDThh:mm:SS[.frac][tz], where T can also be a space.
-func parseDateTime(s string, loc *time.Location) (time.Time, error) {
-	if strings.HasSuffix(s, "Z") {
-		s, loc = s[:len(s)-1], time.UTC
-	}
-	for _, layout := range []string{
-		"2006-01-02T15:04:05",
-		"2006-01-02 15:04:05",
-	} {
-		if t, err := time.ParseInLocation(layout, s, loc); err == nil {
-			return t, nil
-		}
-	}
-	return time.Time{}, fmt.Errorf("invalid date format %q", s)
 }
 
 // twoDigits parses the decimal value of a two digit string.
