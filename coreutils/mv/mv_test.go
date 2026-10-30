@@ -16,6 +16,7 @@ import (
 
 var (
 	oldTime   = time.Date(2001, 2, 3, 4, 5, 6, 0, time.UTC)
+	newTime   = time.Date(2005, 6, 7, 8, 9, 10, 0, time.UTC)
 	otherTime = time.Date(1999, 12, 31, 23, 59, 58, 0, time.UTC)
 )
 
@@ -31,6 +32,7 @@ type testCase struct {
 	wantTime map[string]time.Time
 	present  []string
 	absent   []string
+	wantOut  string
 	wantErr  string
 	wantExit int
 }
@@ -43,9 +45,10 @@ func runCase(t *testing.T, test testCase) {
 		fsys = test.files
 	}
 	stderr := new(bytes.Buffer)
+	stdout := new(bytes.Buffer)
 	rt := &coreutils.Runtime{
 		Stdin:      strings.NewReader(test.stdin),
-		Stdout:     io.Discard,
+		Stdout:     stdout,
 		Stderr:     stderr,
 		FS:         fsys,
 		WorkingDir: test.wd,
@@ -55,6 +58,9 @@ func runCase(t *testing.T, test testCase) {
 
 	if code := exitCode(t, err); code != test.wantExit {
 		t.Errorf("Run() exit code = %d, want %d (error = %v)", code, test.wantExit, err)
+	}
+	if got := stdout.String(); got != test.wantOut {
+		t.Errorf("Run() stdout = %q, want %q", got, test.wantOut)
 	}
 	if got := stderr.String(); got != test.wantErr {
 		t.Errorf("Run() stderr = %q, want %q", got, test.wantErr)
@@ -511,6 +517,328 @@ func TestRunInteractiveWithoutStdin(t *testing.T) {
 	}
 }
 
+func TestRunNoClobber(t *testing.T) {
+	tests := []testCase{
+		{
+			name:    "skips an existing destination silently",
+			files:   fsx.MemFS{"a.txt": {Data: []byte("new")}, "b.txt": {Data: []byte("old")}},
+			args:    []string{"-n", "a.txt", "b.txt"},
+			want:    map[string]string{"b.txt": "old"},
+			present: []string{"a.txt"},
+		},
+		{
+			name:   "moves when the destination is missing",
+			files:  fsx.MemFS{"a.txt": {Data: []byte("new")}},
+			args:   []string{"-n", "a.txt", "b.txt"},
+			want:   map[string]string{"b.txt": "new"},
+			absent: []string{"a.txt"},
+		},
+		{
+			name:    "skips only the existing destinations",
+			files:   fsx.MemFS{"a1": {Data: []byte("1")}, "a2": {Data: []byte("2")}, "d/a1": {Data: []byte("old1")}},
+			args:    []string{"-n", "a1", "a2", "d"},
+			want:    map[string]string{"d/a2": "2"},
+			absent:  []string{"a2"},
+			present: []string{"a1", "d/a1"},
+		},
+		{
+			name:    "n wins over an earlier i",
+			files:   fsx.MemFS{"a.txt": {Data: []byte("new")}, "b.txt": {Data: []byte("old")}},
+			stdin:   "y\n",
+			args:    []string{"-in", "a.txt", "b.txt"},
+			want:    map[string]string{"b.txt": "old"},
+			present: []string{"a.txt"},
+		},
+		{
+			name:    "i wins over an earlier n",
+			files:   fsx.MemFS{"a.txt": {Data: []byte("new")}, "b.txt": {Data: []byte("old")}},
+			stdin:   "y\n",
+			args:    []string{"-ni", "a.txt", "b.txt"},
+			want:    map[string]string{"b.txt": "new"},
+			absent:  []string{"a.txt"},
+			wantErr: "mv: overwrite 'b.txt'? ",
+		},
+		{
+			name:   "f wins over an earlier n",
+			files:  fsx.MemFS{"a.txt": {Data: []byte("new")}, "b.txt": {Data: []byte("old")}},
+			args:   []string{"-nf", "a.txt", "b.txt"},
+			want:   map[string]string{"b.txt": "new"},
+			absent: []string{"a.txt"},
+		},
+		{
+			name:    "the long form skips an existing destination",
+			files:   fsx.MemFS{"a.txt": {Data: []byte("new")}, "b.txt": {Data: []byte("old")}},
+			args:    []string{"--no-clobber", "a.txt", "b.txt"},
+			want:    map[string]string{"b.txt": "old"},
+			present: []string{"a.txt"},
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			runCase(t, test)
+		})
+	}
+}
+
+func TestRunUpdate(t *testing.T) {
+	tests := []testCase{
+		{
+			name:   "moves when the destination is missing",
+			files:  fsx.MemFS{"a.txt": {Data: []byte("new"), ModTime: newTime}},
+			args:   []string{"-u", "a.txt", "b.txt"},
+			want:   map[string]string{"b.txt": "new"},
+			absent: []string{"a.txt"},
+		},
+		{
+			name:   "moves when the source is newer",
+			files:  fsx.MemFS{"a.txt": {Data: []byte("new"), ModTime: newTime}, "b.txt": {Data: []byte("old"), ModTime: oldTime}},
+			args:   []string{"-u", "a.txt", "b.txt"},
+			want:   map[string]string{"b.txt": "new"},
+			absent: []string{"a.txt"},
+		},
+		{
+			name:    "skips when the destination is newer",
+			files:   fsx.MemFS{"a.txt": {Data: []byte("old"), ModTime: oldTime}, "b.txt": {Data: []byte("new"), ModTime: newTime}},
+			args:    []string{"-u", "a.txt", "b.txt"},
+			want:    map[string]string{"b.txt": "new"},
+			present: []string{"a.txt"},
+		},
+		{
+			name:    "skips when the times are equal",
+			files:   fsx.MemFS{"a.txt": {Data: []byte("new"), ModTime: oldTime}, "b.txt": {Data: []byte("old"), ModTime: oldTime}},
+			args:    []string{"-u", "a.txt", "b.txt"},
+			want:    map[string]string{"b.txt": "old"},
+			present: []string{"a.txt"},
+		},
+		{
+			name:   "a directory source moves regardless",
+			files:  fsx.MemFS{"d": {Mode: fs.ModeDir, ModTime: oldTime}, "d/f.txt": {Data: []byte("f")}, "e/d": {Mode: fs.ModeDir, ModTime: newTime}},
+			args:   []string{"-u", "d", "e"},
+			want:   map[string]string{"e/d/f.txt": "f"},
+			absent: []string{"d"},
+		},
+		{
+			name:    "n makes u irrelevant",
+			files:   fsx.MemFS{"a.txt": {Data: []byte("new"), ModTime: newTime}, "b.txt": {Data: []byte("old"), ModTime: oldTime}},
+			args:    []string{"-nu", "a.txt", "b.txt"},
+			want:    map[string]string{"b.txt": "old"},
+			present: []string{"a.txt"},
+		},
+		{
+			name:    "a newer destination is skipped without prompting",
+			files:   fsx.MemFS{"a.txt": {Data: []byte("old"), ModTime: oldTime}, "b.txt": {Data: []byte("new"), ModTime: newTime}},
+			stdin:   "y\n",
+			args:    []string{"-u", "-i", "a.txt", "b.txt"},
+			want:    map[string]string{"b.txt": "new"},
+			present: []string{"a.txt"},
+		},
+		{
+			name:   "the long form moves when the source is newer",
+			files:  fsx.MemFS{"a.txt": {Data: []byte("new"), ModTime: newTime}, "b.txt": {Data: []byte("old"), ModTime: oldTime}},
+			args:   []string{"--update", "a.txt", "b.txt"},
+			want:   map[string]string{"b.txt": "new"},
+			absent: []string{"a.txt"},
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			runCase(t, test)
+		})
+	}
+}
+
+func TestRunVerbose(t *testing.T) {
+	tests := []testCase{
+		{
+			name:    "reports a rename",
+			files:   fsx.MemFS{"a.txt": {Data: []byte("x")}},
+			args:    []string{"-v", "a.txt", "b.txt"},
+			want:    map[string]string{"b.txt": "x"},
+			absent:  []string{"a.txt"},
+			wantOut: "renamed 'a.txt' -> 'b.txt'\n",
+		},
+		{
+			name:    "reports each move into a directory",
+			files:   fsx.MemFS{"a.txt": {Data: []byte("a")}, "b.txt": {Data: []byte("b")}, "d/keep.txt": {}},
+			args:    []string{"-v", "a.txt", "b.txt", "d"},
+			want:    map[string]string{"d/a.txt": "a", "d/b.txt": "b"},
+			absent:  []string{"a.txt", "b.txt"},
+			wantOut: "renamed 'a.txt' -> 'd/a.txt'\nrenamed 'b.txt' -> 'd/b.txt'\n",
+		},
+		{
+			name:    "the long form reports a rename",
+			files:   fsx.MemFS{"a.txt": {Data: []byte("x")}},
+			args:    []string{"--verbose", "a.txt", "b.txt"},
+			want:    map[string]string{"b.txt": "x"},
+			absent:  []string{"a.txt"},
+			wantOut: "renamed 'a.txt' -> 'b.txt'\n",
+		},
+		{
+			name:    "a declined overwrite isn't reported",
+			files:   fsx.MemFS{"a.txt": {Data: []byte("new")}, "b.txt": {Data: []byte("old")}},
+			stdin:   "n\n",
+			args:    []string{"-v", "-i", "a.txt", "b.txt"},
+			want:    map[string]string{"b.txt": "old"},
+			present: []string{"a.txt"},
+			wantErr: "mv: overwrite 'b.txt'? ",
+		},
+		{
+			name:     "a failing move isn't reported",
+			files:    fsx.MemFS{"a.txt": {Data: []byte("x")}},
+			args:     []string{"-v", "a.txt", "nodir/b.txt"},
+			present:  []string{"a.txt"},
+			wantErr:  "mv: cannot move 'a.txt' to 'nodir/b.txt': file does not exist\n",
+			wantExit: 1,
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			runCase(t, test)
+		})
+	}
+}
+
+func TestRunTargetDirectory(t *testing.T) {
+	tests := []testCase{
+		{
+			name:   "moves every source into the directory",
+			files:  fsx.MemFS{"a.txt": {Data: []byte("a")}, "b.txt": {Data: []byte("b")}, "d/keep.txt": {}},
+			args:   []string{"-t", "d", "a.txt", "b.txt"},
+			want:   map[string]string{"d/a.txt": "a", "d/b.txt": "b"},
+			absent: []string{"a.txt", "b.txt"},
+		},
+		{
+			name:   "an attached value works in a group",
+			files:  fsx.MemFS{"a.txt": {Data: []byte("a")}, "d/keep.txt": {}},
+			args:   []string{"-td", "a.txt"},
+			want:   map[string]string{"d/a.txt": "a"},
+			absent: []string{"a.txt"},
+		},
+		{
+			name:   "the long form takes an attached value",
+			files:  fsx.MemFS{"a.txt": {Data: []byte("a")}, "d/keep.txt": {}},
+			args:   []string{"--target-directory=d", "a.txt"},
+			want:   map[string]string{"d/a.txt": "a"},
+			absent: []string{"a.txt"},
+		},
+		{
+			name:    "overwrites inside the directory with -i",
+			files:   fsx.MemFS{"a.txt": {Data: []byte("new")}, "d/a.txt": {Data: []byte("old")}},
+			stdin:   "y\n",
+			args:    []string{"-t", "d", "-i", "a.txt"},
+			want:    map[string]string{"d/a.txt": "new"},
+			absent:  []string{"a.txt"},
+			wantErr: "mv: overwrite 'd/a.txt'? ",
+		},
+		{
+			name:     "a missing target directory is an error",
+			files:    fsx.MemFS{"a.txt": {Data: []byte("a")}},
+			args:     []string{"-t", "nodir", "a.txt"},
+			present:  []string{"a.txt"},
+			absent:   []string{"nodir"},
+			wantErr:  "mv: target 'nodir' is not a directory\n",
+			wantExit: 1,
+		},
+		{
+			name:     "a file as target directory is an error",
+			files:    fsx.MemFS{"a.txt": {Data: []byte("a")}, "f.txt": {Data: []byte("f")}},
+			args:     []string{"-t", "f.txt", "a.txt"},
+			present:  []string{"a.txt", "f.txt"},
+			wantErr:  "mv: target 'f.txt' is not a directory\n",
+			wantExit: 1,
+		},
+		{
+			name:     "without sources it is an error",
+			files:    fsx.MemFS{"d": {Mode: fs.ModeDir}},
+			args:     []string{"-t", "d"},
+			wantErr:  "mv: missing file operand\n",
+			wantExit: 2,
+		},
+		{
+			name:     "t and T cannot be combined",
+			files:    fsx.MemFS{"a.txt": {Data: []byte("a")}, "d": {Mode: fs.ModeDir}},
+			args:     []string{"-t", "d", "-T", "a.txt"},
+			absent:   []string{"d/a.txt"},
+			wantErr:  "mv: cannot combine --target-directory (-t) and --no-target-directory (-T)\n",
+			wantExit: 2,
+		},
+		{
+			name:    "reports the destination inside the directory",
+			files:   fsx.MemFS{"a.txt": {Data: []byte("a")}, "d/keep.txt": {}},
+			args:    []string{"-t", "d", "-v", "a.txt"},
+			want:    map[string]string{"d/a.txt": "a"},
+			absent:  []string{"a.txt"},
+			wantOut: "renamed 'a.txt' -> 'd/a.txt'\n",
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			runCase(t, test)
+		})
+	}
+}
+
+func TestRunNoTargetDirectory(t *testing.T) {
+	tests := []testCase{
+		{
+			name:   "overwrites the destination as a plain file",
+			files:  fsx.MemFS{"a.txt": {Data: []byte("new")}, "b.txt": {Data: []byte("old")}},
+			args:   []string{"-T", "a.txt", "b.txt"},
+			want:   map[string]string{"b.txt": "new"},
+			absent: []string{"a.txt"},
+		},
+		{
+			name:   "moves a directory over an empty destination directory",
+			files:  fsx.MemFS{"d/f.txt": {Data: []byte("f")}, "e": {Mode: fs.ModeDir}},
+			args:   []string{"-T", "d", "e"},
+			want:   map[string]string{"e/f.txt": "f"},
+			absent: []string{"d"},
+		},
+		{
+			name:     "a directory destination is an error",
+			files:    fsx.MemFS{"a.txt": {Data: []byte("a")}, "e": {Mode: fs.ModeDir}},
+			args:     []string{"-T", "a.txt", "e"},
+			present:  []string{"a.txt", "e"},
+			wantErr:  "mv: cannot overwrite directory 'e' with non-directory 'a.txt'\n",
+			wantExit: 1,
+		},
+		{
+			name:     "more than one source is an error",
+			files:    fsx.MemFS{"a.txt": {Data: []byte("a")}, "b.txt": {Data: []byte("b")}, "c.txt": {Data: []byte("c")}},
+			args:     []string{"-T", "a.txt", "b.txt", "c.txt"},
+			present:  []string{"a.txt", "b.txt", "c.txt"},
+			wantErr:  "mv: extra operand 'c.txt'\n",
+			wantExit: 2,
+		},
+		{
+			name:     "a trailing slash on the destination is an error",
+			files:    fsx.MemFS{"a.txt": {Data: []byte("a")}},
+			args:     []string{"-T", "a.txt", "nodir/"},
+			present:  []string{"a.txt"},
+			absent:   []string{"nodir"},
+			wantErr:  "mv: target 'nodir/' is not a directory\n",
+			wantExit: 1,
+		},
+		{
+			name:   "the long form overwrites the destination",
+			files:  fsx.MemFS{"a.txt": {Data: []byte("new")}, "b.txt": {Data: []byte("old")}},
+			args:   []string{"--no-target-directory", "a.txt", "b.txt"},
+			want:   map[string]string{"b.txt": "new"},
+			absent: []string{"a.txt"},
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			runCase(t, test)
+		})
+	}
+}
+
 // crossFS wraps a MemFS whose renames always fail as cross-device moves, so
 // mv falls back to duplicating the file and removing the source.
 type crossFS struct {
@@ -608,6 +936,34 @@ func TestRunCrossDevice(t *testing.T) {
 			want:    map[string]string{"b.txt": "new"},
 			absent:  []string{"a.txt"},
 			wantErr: "mv: overwrite 'b.txt'? ",
+		}))
+	})
+
+	t.Run("skips an existing destination with n", func(t *testing.T) {
+		files := fsx.MemFS{"a.txt": {Data: []byte("new")}, "b.txt": {Data: []byte("old")}}
+		runCase(t, newCase(files, testCase{
+			args:    []string{"-n", "a.txt", "b.txt"},
+			want:    map[string]string{"b.txt": "old"},
+			present: []string{"a.txt"},
+		}))
+	})
+
+	t.Run("skips an older source with u", func(t *testing.T) {
+		files := fsx.MemFS{"a.txt": {Data: []byte("old"), ModTime: oldTime}, "b.txt": {Data: []byte("new"), ModTime: newTime}}
+		runCase(t, newCase(files, testCase{
+			args:    []string{"-u", "a.txt", "b.txt"},
+			want:    map[string]string{"b.txt": "new"},
+			present: []string{"a.txt"},
+		}))
+	})
+
+	t.Run("reports a cross-device move with v", func(t *testing.T) {
+		files := fsx.MemFS{"a.txt": {Data: []byte("hello")}}
+		runCase(t, newCase(files, testCase{
+			args:    []string{"-v", "a.txt", "b.txt"},
+			want:    map[string]string{"b.txt": "hello"},
+			absent:  []string{"a.txt"},
+			wantOut: "renamed 'a.txt' -> 'b.txt'\n",
 		}))
 	})
 }
@@ -727,6 +1083,14 @@ func TestRunErrors(t *testing.T) {
 			present:  []string{"a.txt", "b.txt"},
 			wantErr:  "mv: target 'b.txt/' is not a directory\n",
 			wantExit: 1,
+		},
+		{
+			name:     "the WHEN form of update is out of scope",
+			files:    fsx.MemFS{"a.txt": {Data: []byte("x")}},
+			args:     []string{"--update=older", "a.txt", "b.txt"},
+			absent:   []string{"b.txt"},
+			wantErr:  "mv: option '--update=older' doesn't allow an argument\n",
+			wantExit: 2,
 		},
 	}
 
