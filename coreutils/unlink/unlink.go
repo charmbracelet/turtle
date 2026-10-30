@@ -40,10 +40,12 @@ func (p *Prog) Run(ctx context.Context, args ...string) error {
 	switch len(args) {
 	case 0:
 		p.errorf("missing operand")
+		stdopts.TryHelp(p.Runtime, "unlink")
 		return &coreutils.ExitError{Code: 2}
 	case 1:
 	default:
 		p.errorf("extra operand '%s'", args[1])
+		stdopts.TryHelp(p.Runtime, "unlink")
 		return &coreutils.ExitError{Code: 2}
 	}
 	if p.FS == nil {

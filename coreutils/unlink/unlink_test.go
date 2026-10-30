@@ -190,7 +190,7 @@ func TestRun(t *testing.T) {
 				name:     "no operand is an error",
 				files:    fsx.MemFS{},
 				args:     nil,
-				wantErr:  "unlink: missing operand\n",
+				wantErr:  "unlink: missing operand\nTry 'unlink --help' for more information.\n",
 				wantExit: 2,
 			},
 			{
@@ -198,7 +198,7 @@ func TestRun(t *testing.T) {
 				files:    fsx.MemFS{"a.txt": {Data: []byte("a")}, "b.txt": {Data: []byte("b")}},
 				args:     []string{"a.txt", "b.txt"},
 				present:  []string{"a.txt", "b.txt"},
-				wantErr:  "unlink: extra operand 'b.txt'\n",
+				wantErr:  "unlink: extra operand 'b.txt'\nTry 'unlink --help' for more information.\n",
 				wantExit: 2,
 			},
 			{
@@ -206,7 +206,7 @@ func TestRun(t *testing.T) {
 				files:    fsx.MemFS{"a.txt": {Data: []byte("a")}},
 				args:     []string{"--", "a.txt"},
 				present:  []string{"a.txt"},
-				wantErr:  "unlink: extra operand 'a.txt'\n",
+				wantErr:  "unlink: extra operand 'a.txt'\nTry 'unlink --help' for more information.\n",
 				wantExit: 2,
 			},
 		}
