@@ -14,6 +14,10 @@ import (
 	"charm.land/snail/coreutils/internal/patherr"
 )
 
+// chmodModeBits holds the bits a mode operand may change: the permissions and
+// the special bits, without the file type bits.
+const chmodModeBits = fs.ModePerm | fs.ModeSetuid | fs.ModeSetgid | fs.ModeSticky
+
 // Prog is the chmod core utility.
 type Prog struct {
 	*coreutils.Runtime
@@ -25,10 +29,11 @@ func New(rt *coreutils.Runtime) coreutils.Program {
 }
 
 // Run changes the file mode bits of the given files, as specified by the mode
-// operand, which is either an octal number or a symbolic mode expression. With
-// -R, directories have their whole hierarchy changed.
+// operand, which is either an octal number or a symbolic mode expression, or
+// by the mode of a reference file. With -R, directories have their whole
+// hierarchy changed.
 func (p *Prog) Run(ctx context.Context, args ...string) error {
-	recursive, operands, err := parseFlags(args)
+	opts, operands, err := parseFlags(args)
 	if err != nil {
 		p.errorf("%v", err)
 		return &coreutils.ExitError{Code: 2}
@@ -37,25 +42,22 @@ func (p *Prog) Run(ctx context.Context, args ...string) error {
 	case len(operands) == 0:
 		p.errorf("missing operand")
 		return &coreutils.ExitError{Code: 2}
-	case len(operands) == 1:
-		p.errorf("missing file operand")
-		return &coreutils.ExitError{Code: 2}
 	case p.FS == nil:
 		p.errorf("no file system available")
 		return &coreutils.ExitError{Code: 1}
 	}
-	spec, err := ParseMode(operands[0])
+
+	spec, files, err := p.spec(opts, operands)
 	if err != nil {
-		p.errorf("%v", err)
-		return &coreutils.ExitError{Code: 1}
+		return err
 	}
 
 	ok := true
-	for _, file := range operands[1:] {
+	for _, file := range files {
 		if err := ctx.Err(); err != nil {
 			return err
 		}
-		failed, err := p.chmod(ctx, file, spec, recursive)
+		failed, err := p.chmod(ctx, file, spec, opts)
 		if err != nil {
 			return err
 		}
@@ -67,11 +69,48 @@ func (p *Prog) Run(ctx context.Context, args ...string) error {
 	return nil
 }
 
+// spec builds the mode specification of a run, and returns the files it
+// applies to. Without --reference, the first operand is the mode; with it,
+// every operand is a file, and a mode operand is rejected as a usage error.
+func (p *Prog) spec(opts options, operands []string) (ModeSpec, []string, error) {
+	if opts.reference == nil {
+		if len(operands) == 1 {
+			p.errorf("missing file operand")
+			return nil, nil, &coreutils.ExitError{Code: 2}
+		}
+		spec, err := ParseMode(operands[0])
+		if err != nil {
+			p.errorf("%v", err)
+			return nil, nil, &coreutils.ExitError{Code: 1}
+		}
+		return spec, operands[1:], nil
+	}
+	// With --reference, every operand is a file.
+	spec, err := p.referenceSpec(*opts.reference)
+	if err != nil {
+		p.errorf("failed to get attributes of %s: %v", *opts.reference, patherr.Unwrap(err))
+		return nil, nil, &coreutils.ExitError{Code: 1}
+	}
+	return spec, operands, nil
+}
+
+// referenceSpec returns a specification which uses the mode of the reference
+// file. A symbolic link reference is followed.
+func (p *Prog) referenceSpec(name string) (ModeSpec, error) {
+	resolved := path.Clean(filepath.ToSlash(p.ResolvePath(name)))
+	fi, err := fs.Stat(p.FS, resolved)
+	if err != nil {
+		return nil, err
+	}
+	mode := fi.Mode() & chmodModeBits
+	return func(fs.FileMode, bool, fs.FileMode) fs.FileMode { return mode }, nil
+}
+
 // chmod changes the mode of a single operand, reporting a diagnostic for every
 // file it fails to change. It reports whether any file failed, and only
 // returns an error when the run must be aborted.
-func (p *Prog) chmod(ctx context.Context, name string, spec ModeSpec, recursive bool) (bool, error) {
-	resolved := filepath.ToSlash(p.ResolvePath(name))
+func (p *Prog) chmod(ctx context.Context, name string, spec ModeSpec, opts options) (bool, error) {
+	resolved := path.Clean(filepath.ToSlash(p.ResolvePath(name)))
 	umask := p.Umask.Perm()
 	failed := false
 
@@ -80,10 +119,10 @@ func (p *Prog) chmod(ctx context.Context, name string, spec ModeSpec, recursive 
 		failed = true
 	}
 
-	if !recursive {
+	if !opts.recursive {
 		fi, err := fs.Stat(p.FS, resolved)
 		if err == nil {
-			err = p.apply(resolved, spec, umask, fi)
+			err = p.apply(resolved, name, spec, umask, fi, opts.verbosity)
 		}
 		if err != nil {
 			report(resolved, err)
@@ -91,7 +130,11 @@ func (p *Prog) chmod(ctx context.Context, name string, spec ModeSpec, recursive 
 		return failed, nil
 	}
 
-	err := fs.WalkDir(p.FS, resolved, func(walked string, d fs.DirEntry, err error) error {
+	// The operand itself is followed, like -H does: a symbolic link to a
+	// directory walks the tree it points at.
+	root := p.resolveLink(resolved)
+
+	err := fs.WalkDir(p.FS, root, func(walked string, d fs.DirEntry, err error) error {
 		if err := ctx.Err(); err != nil {
 			return err
 		}
@@ -102,9 +145,13 @@ func (p *Prog) chmod(ctx context.Context, name string, spec ModeSpec, recursive 
 			}
 			return nil
 		}
+		// The symbolic links found below the operand are ignored.
+		if walked != root && p.link(walked, d) {
+			return nil
+		}
 		fi, err := d.Info()
 		if err == nil {
-			err = p.apply(walked, spec, umask, fi)
+			err = p.apply(walked, display(name, root, walked), spec, umask, fi, opts.verbosity)
 		}
 		if err != nil {
 			report(walked, err)
@@ -117,9 +164,68 @@ func (p *Prog) chmod(ctx context.Context, name string, spec ModeSpec, recursive 
 	return failed, nil
 }
 
-// apply changes the mode of a single file.
-func (p *Prog) apply(name string, spec ModeSpec, umask fs.FileMode, fi fs.FileInfo) error {
-	return p.FS.Chmod(name, spec(fi.Mode(), fi.IsDir(), umask))
+// lstatFS is the Lstat subset that the fsx file systems implement, which
+// describes a name without following a final symbolic link.
+type lstatFS interface {
+	Lstat(name string) (fs.FileInfo, error)
+}
+
+// resolveLink follows the symbolic links at name, returning the path the
+// last one points at. A name which is not a symbolic link, or a broken or
+// looping chain, is returned as it is.
+func (p *Prog) resolveLink(name string) string {
+	lfs, ok := p.FS.(lstatFS)
+	if !ok {
+		return name
+	}
+	for range 40 {
+		fi, err := lfs.Lstat(name)
+		if err != nil || fi.Mode()&fs.ModeSymlink == 0 {
+			return name
+		}
+		target, err := p.FS.ReadLink(name)
+		if err != nil {
+			return name
+		}
+		name = path.Join(path.Dir(name), target)
+	}
+	return name
+}
+
+// link reports whether name is a symbolic link, without following it.
+func (p *Prog) link(name string, d fs.DirEntry) bool {
+	if fsys, ok := p.FS.(lstatFS); ok {
+		if fi, err := fsys.Lstat(name); err == nil {
+			return fi.Mode()&fs.ModeSymlink != 0
+		}
+	}
+	return d.Type()&fs.ModeSymlink != 0
+}
+
+// apply changes the mode of the file at name, shown as given in diagnostics,
+// and reports the change when the verbosity asks for it.
+func (p *Prog) apply(name, shown string, spec ModeSpec, umask fs.FileMode, fi fs.FileInfo, verbosity int) error {
+	old := fi.Mode() & chmodModeBits
+	mode := spec(fi.Mode(), fi.IsDir(), umask)
+	if err := p.FS.Chmod(name, mode); err != nil {
+		return err
+	}
+	p.describe(shown, old, mode&chmodModeBits, verbosity)
+	return nil
+}
+
+// describe reports how the mode of a file changed, or was retained.
+func (p *Prog) describe(name string, old, mode fs.FileMode, verbosity int) {
+	if verbosity == quiet || (verbosity == changesOnly && old == mode) {
+		return
+	}
+	if old != mode {
+		fmt.Fprintf(p.Stdout, "mode of '%s' changed from %04o (%s) to %04o (%s)\n",
+			name, modeOctal(old), modeString(old), modeOctal(mode), modeString(mode))
+		return
+	}
+	fmt.Fprintf(p.Stdout, "mode of '%s' retained as %04o (%s)\n",
+		name, modeOctal(mode), modeString(mode))
 }
 
 // errorf writes a diagnostic message to standard error.
@@ -130,29 +236,66 @@ func (p *Prog) errorf(format string, args ...any) {
 // display returns the path to show in diagnostics: the operand as given, with
 // any sub-path walked below it appended.
 func display(operand, resolved, walked string) string {
+	if walked == resolved {
+		return operand
+	}
 	if rel, ok := strings.CutPrefix(walked, resolved+"/"); ok {
 		return path.Join(operand, rel)
 	}
-	return operand
+	return path.Join(operand, walked)
 }
 
-// longOptions maps the long options of chmod to the short ones they stand
+// The verbosity levels of a run, selected by -c and -v.
+const (
+	quiet = iota
+	changesOnly
+	noisy
+)
+
+// longOptions maps the long options of chmod to the characters they stand
 // for.
 var longOptions = map[string]rune{
 	"recursive": 'R',
+	"changes":   'c',
+	"verbose":   'v',
+	"reference": optReference,
+}
+
+// optReference is a rune which no short option can reach, so --reference
+// stays long-only.
+const optReference rune = 0x100 + iota
+
+// options holds what a run of chmod selects.
+type options struct {
+	recursive bool
+	// verbosity is one of quiet, changesOnly and noisy; the last of -c and
+	// -v given wins.
+	verbosity int
+	// reference names the file whose mode is used instead of a mode operand,
+	// or is nil without --reference.
+	reference *string
 }
 
 // parseFlags parses the options and operands. Option parsing stops at the
 // first operand or at "--".
-func parseFlags(args []string) (recursive bool, operands []string, err error) {
-	operands, err = getopt.Set{Long: longOptions}.Parse(args, func(opt rune, _ string) error {
-		if opt != 'R' {
+func parseFlags(args []string) (options, []string, error) {
+	var opts options
+	operands, err := getopt.Set{Valued: string(optReference), Long: longOptions}.Parse(args, func(opt rune, value string) error {
+		switch opt {
+		case 'R':
+			opts.recursive = true
+		case 'c':
+			opts.verbosity = changesOnly
+		case 'v':
+			opts.verbosity = noisy
+		case optReference:
+			opts.reference = &value
+		default:
 			return getopt.InvalidOption(opt)
 		}
-		recursive = true
 		return nil
 	})
-	return recursive, operands, err
+	return opts, operands, err
 }
 
 var (
