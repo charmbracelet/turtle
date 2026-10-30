@@ -21,6 +21,7 @@ import (
 	"charm.land/snail/coreutils/internal/getopt"
 	"charm.land/snail/coreutils/internal/input"
 	"charm.land/snail/coreutils/internal/patherr"
+	"charm.land/snail/coreutils/internal/stdopts"
 	"charm.land/snail/fsx"
 )
 
@@ -43,6 +44,9 @@ func New(rt *coreutils.Runtime) coreutils.Program {
 // The exit status is 1 when -c detects disorder and 2 on errors. Reading is
 // interrupted when ctx is done, and the context error is returned.
 func (p *Prog) Run(ctx context.Context, args ...string) error {
+	if done, err := stdopts.Check(p.Runtime, "sort", usage, optSet, args); done {
+		return err
+	}
 	opts, operands, err := parseFlags(args)
 	if err != nil {
 		p.errorf("%v", err)
@@ -270,6 +274,42 @@ var longOptions = map[string]rune{
 	"sort":                  sortOpt,
 }
 
+// optSet describes the options of sort.
+var optSet = getopt.Set{Valued: "kot" + string(sortOpt), Long: longOptions}
+
+// usage describes the options of sort.
+const usage = `Usage: sort [OPTION]... [FILE]...
+Sort, merge, or compare all the lines from the given files.
+
+With no FILE, or when FILE is -, read standard input.
+
+  -b, --ignore-leading-blanks   ignore leading blanks when finding sort keys
+  -c, --check                   check whether the input is sorted
+  -C                            like -c, but without printing a diagnostic
+  -d, --dictionary-order        consider only letters, digits and blanks
+  -f, --ignore-case             fold lowercase characters into uppercase
+  -h, --human-numeric-sort      compare human-numeric values, like 2K and 1G
+  -i, --ignore-nonprinting      ignore nonprinting characters
+  -k, --key=KEYDEF              sort by a key; KEYDEF gives the field and
+                                character positions, with the modifiers
+                                b, d, f, h, i, M, n, r, R and V
+  -m, --merge                   merge the given sorted files as a group
+  -M, --month-sort              compare (unknown) < 'JAN' < ... < 'DEC'
+  -n, --numeric-sort            compare according to string numerical value
+  -o, --output=FILE             write the result to FILE instead of stdout
+  -r, --reverse                 reverse the result of comparison
+  -R, --random-sort             sort by a hash of the input keys
+  -s, --stable                  disable the last-resort comparison
+  -t, --field-separator=SEP     use SEP as the field separator
+  -u, --unique                  output only the first of equal lines
+  -V, --version-sort            sort by version name and number
+  -z, --zero-terminated         delimit items with a zero byte, not a newline
+      --sort=WORD               sort by WORD: human-numeric, month,
+                                numeric, random, or version
+      --help     display this help and exit
+      --version  output version information and exit
+`
+
 // delimiter returns the byte that terminates an item: a zero byte with -z,
 // and a newline otherwise.
 func (opts options) delimiter() byte {
@@ -284,7 +324,7 @@ func (opts options) delimiter() byte {
 // modifiers inherit the global ordering options.
 func parseFlags(args []string) (options, []string, error) {
 	opts := options{sep: -1}
-	operands, err := getopt.Set{Valued: "kot" + string(sortOpt), Long: longOptions}.Parse(args, func(opt rune, value string) error {
+	operands, err := optSet.Parse(args, func(opt rune, value string) error {
 		switch opt {
 		case 'b':
 			opts.leadingBlanks = true
