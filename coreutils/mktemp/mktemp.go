@@ -15,6 +15,7 @@ import (
 	"charm.land/snail/coreutils"
 	"charm.land/snail/coreutils/internal/getopt"
 	"charm.land/snail/coreutils/internal/patherr"
+	"charm.land/snail/coreutils/internal/stdopts"
 )
 
 // Prog is the mktemp core utility.
@@ -32,6 +33,9 @@ func New(rt *coreutils.Runtime) coreutils.Program {
 // component, which are replaced by random characters, and without one,
 // tmp.XXXXXXXXXX is used in the temporary directory.
 func (p *Prog) Run(ctx context.Context, args ...string) error {
+	if done, err := stdopts.Check(p.Runtime, "mktemp", usage, optSet, args); done {
+		return err
+	}
 	opts, operands, err := parseFlags(args)
 	if err != nil {
 		p.errorf("%v", err)
@@ -258,6 +262,34 @@ var longOptions = map[string]rune{
 	"suffix":    optSuffix,
 }
 
+// optSet describes the options of mktemp.
+var optSet = getopt.Set{
+	Valued:   string(optSuffix),
+	Optional: "p",
+	Long:     longOptions,
+}
+
+// usage describes the options of mktemp.
+const usage = `Usage: mktemp [OPTION]... [TEMPLATE]
+Safely create a temporary file or directory based on TEMPLATE, and print
+its name. If given, TEMPLATE must include at least three consecutive 'X's
+in its last component. If omitted, the template 'tmp.XXXXXXXXXX' is used,
+and --tmpdir is implied.
+
+  -d, --directory        create a directory, not a file
+  -u, --dry-run          do not create anything, merely print a name
+  -q, --quiet            suppress diagnostics about failure to create
+  -p, --tmpdir[=DIR]     interpret TEMPLATE relative to DIR; if DIR is not
+                        specified, use $TMPDIR if set, else /tmp; with this
+                        option, TEMPLATE must not be an absolute name
+      --suffix=SUFFIX    append SUFFIX to TEMPLATE; SUFFIX must not contain
+                        a slash, and TEMPLATE must end in X
+  -t                     treat TEMPLATE as a single path component relative
+                        to TMPDIR (deprecated)
+      --help     display this help and exit
+      --version  output version information and exit
+`
+
 // parseFlags parses the options and operands. Option parsing stops at the
 // first operand or at "--". The -p and --suffix options take their
 // option-argument glued to the option or in the next argument, and the last
@@ -265,11 +297,7 @@ var longOptions = map[string]rune{
 // an argument, meaning the default directory.
 func parseFlags(args []string) (options, []string, error) {
 	var opts options
-	operands, err := getopt.Set{
-		Valued:   string(optSuffix),
-		Optional: "p",
-		Long:     longOptions,
-	}.Parse(args, func(opt rune, value string) error {
+	operands, err := optSet.Parse(args, func(opt rune, value string) error {
 		switch opt {
 		case 'd':
 			opts.directory = true
