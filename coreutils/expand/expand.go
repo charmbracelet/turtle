@@ -3,6 +3,7 @@
 // It converts the tabs of the given files to the spaces needed to reach the
 // next tab stop, writing the result to the standard output. The standard
 // input is used when no operands are given, and also when an operand is "-".
+// With -i, the tabs after the leading blanks of a line are kept as tabs.
 package expand
 
 import (
@@ -39,7 +40,7 @@ func New(rt *coreutils.Runtime) coreutils.Program {
 //
 // Reading is interrupted when ctx is done, and the context error is returned.
 func (p *Prog) Run(ctx context.Context, args ...string) error {
-	stops, operands, err := parseFlags(args)
+	opts, operands, err := parseFlags(args)
 	if err != nil {
 		p.errorf("%v", err)
 		return &coreutils.ExitError{Code: 2}
@@ -63,7 +64,7 @@ func (p *Prog) Run(ctx context.Context, args ...string) error {
 			ok = false
 			continue
 		}
-		if err := p.expand(ctx, in, stops); err != nil {
+		if err := p.expand(ctx, in, opts); err != nil {
 			var writeErr *writeError
 			switch {
 			case errors.As(err, &writeErr):
@@ -84,7 +85,7 @@ func (p *Prog) Run(ctx context.Context, args ...string) error {
 }
 
 // expand converts the tabs of a single input to spaces.
-func (p *Prog) expand(ctx context.Context, in input.Input, stops tabutil.Stops) error {
+func (p *Prog) expand(ctx context.Context, in input.Input, opts options) error {
 	r, err := input.Open(p.Runtime, ctx, in)
 	if err != nil {
 		return err
@@ -99,7 +100,7 @@ func (p *Prog) expand(ctx context.Context, in input.Input, stops tabutil.Stops) 
 		line, err := br.ReadString('\n')
 		if len(line) > 0 {
 			terminated := strings.HasSuffix(line, "\n")
-			if cerr := p.expandLine([]byte(strings.TrimSuffix(line, "\n")), stops, terminated); cerr != nil {
+			if cerr := p.expandLine([]byte(strings.TrimSuffix(line, "\n")), opts, terminated); cerr != nil {
 				return cerr
 			}
 		}
@@ -114,29 +115,37 @@ func (p *Prog) expand(ctx context.Context, in input.Input, stops tabutil.Stops) 
 
 // expandLine writes a line with its tabs replaced by the spaces needed to
 // reach the next tab stop. A tab past the last stop of a list becomes a
-// single space.
-func (p *Prog) expandLine(line []byte, stops tabutil.Stops, terminated bool) error {
+// single space. With opts.initial, only the tabs of the leading blanks of
+// the line are converted: the first character which is neither a space nor
+// a tab, a backspace included, keeps the remaining tabs of the line as tabs.
+func (p *Prog) expandLine(line []byte, opts options, terminated bool) error {
 	out := make([]byte, 0, len(line))
 	col := 0
+	convert := true
 	for i := 0; i < len(line); {
 		r, size := utf8.DecodeRune(line[i:])
-		switch r {
-		case '\t':
-			next, ok := stops.Next(col)
+		if opts.initial {
+			convert = convert && (r == ' ' || r == '\t')
+		}
+		if r == '\t' && convert {
+			next, ok := opts.stops.Next(col)
 			if !ok {
 				next = col + 1
 			}
 			for ; col < next; col++ {
 				out = append(out, ' ')
 			}
-		case '\b':
-			out = append(out, '\b')
-			if col > 0 {
-				col--
-			}
-		default:
+		} else {
 			out = append(out, line[i:i+size]...)
-			col++
+			if convert {
+				if r == '\b' {
+					if col > 0 {
+						col--
+					}
+				} else {
+					col++
+				}
+			}
 		}
 		i += size
 	}
@@ -154,30 +163,39 @@ func (p *Prog) errorf(format string, args ...any) {
 	fmt.Fprintf(p.Stderr, "expand: "+format+"\n", args...)
 }
 
+// options holds the parsed command line options.
+type options struct {
+	stops   tabutil.Stops
+	initial bool
+}
+
 // longOptions maps the long options of expand to the short ones they stand
 // for.
 var longOptions = map[string]rune{
-	"tabs": 't',
+	"initial": 'i',
+	"tabs":    't',
 }
 
 // parseFlags parses the command line options. Option parsing stops at the
 // first operand or at "--".
-func parseFlags(args []string) (tabutil.Stops, []string, error) {
-	stops := tabutil.Default
+func parseFlags(args []string) (options, []string, error) {
+	opts := options{stops: tabutil.Default}
 	operands, err := getopt.Set{Valued: "t", Long: longOptions}.Parse(args, func(opt rune, value string) error {
 		switch opt {
+		case 'i':
+			opts.initial = true
 		case 't':
 			parsed, err := tabutil.Parse(value)
 			if err != nil {
 				return err
 			}
-			stops = parsed
+			opts.stops = parsed
 		default:
 			return getopt.InvalidOption(opt)
 		}
 		return nil
 	})
-	return stops, operands, err
+	return opts, operands, err
 }
 
 // writeError marks an error as coming from writing to the standard output.
