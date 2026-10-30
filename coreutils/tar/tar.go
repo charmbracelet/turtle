@@ -87,6 +87,7 @@ func (p *Prog) Run(ctx context.Context, args ...string) error {
 	opts, operands, err := parseFlags(args)
 	if err != nil {
 		a.errorf("%v", err)
+		stdopts.TryHelp(p.Runtime, "tar")
 		return &coreutils.ExitError{Code: 2, Err: err}
 	}
 	a.opts = opts
