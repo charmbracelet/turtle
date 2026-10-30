@@ -1,9 +1,10 @@
 // Package unlink implements the POSIX unlink utility.
 //
-// The utility takes no options, so every argument is taken as an operand,
-// even one starting with a dash. The file is removed with the file system's
-// Remove operation, which removes a final symbolic link itself, like
-// unlink(2), and directories are refused.
+// The utility takes no options of its own, so every argument is taken as an
+// operand, even one starting with a dash, with the common --help and
+// --version as the only exception. The file is removed with the file
+// system's Remove operation, which removes a final symbolic link itself,
+// like unlink(2), and directories are refused.
 package unlink
 
 import (
@@ -14,7 +15,9 @@ import (
 	"strings"
 
 	"charm.land/snail/coreutils"
+	"charm.land/snail/coreutils/internal/getopt"
 	"charm.land/snail/coreutils/internal/patherr"
+	"charm.land/snail/coreutils/internal/stdopts"
 )
 
 // Prog is the unlink core utility.
@@ -28,8 +31,12 @@ func New(rt *coreutils.Runtime) coreutils.Program {
 }
 
 // Run unlinks the file named by the single operand. As the utility takes no
-// options, every argument, including one starting with a dash, is an operand.
+// options of its own, every argument, including one starting with a dash,
+// is an operand, with the common --help and --version as the only exception.
 func (p *Prog) Run(ctx context.Context, args ...string) error {
+	if done, err := stdopts.Check(p.Runtime, "unlink", usage, getopt.Set{}, args); done {
+		return err
+	}
 	switch len(args) {
 	case 0:
 		p.errorf("missing operand")
@@ -98,6 +105,14 @@ var errIsDir = errors.New("is a directory")
 func (p *Prog) errorf(format string, args ...any) {
 	fmt.Fprintf(p.Stderr, "unlink: "+format+"\n", args...)
 }
+
+// usage describes the options of unlink.
+const usage = `Usage: unlink FILE
+Call the unlink function to remove the specified FILE.
+
+      --help     display this help and exit
+      --version  output version information and exit
+`
 
 var (
 	_ coreutils.Program = (*Prog)(nil)
