@@ -68,6 +68,11 @@ type Runtime struct {
 	// terminal check.
 	IsTerminal func(fd int) bool
 
+	// ProcessAlive reports whether the process with the given ID exists.
+	// It's used by utilities that watch other processes, like tail --pid.
+	// If nil, such watching is unsupported.
+	ProcessAlive func(pid int) bool
+
 	// Exec runs a utility, waiting for its completion. It's used by
 	// utilities that invoke other programs, like xargs. If nil, such
 	// utilities fail instead of running anything.
@@ -95,6 +100,7 @@ func OsRuntime() *Runtime {
 	rt.Exec = func(ctx context.Context, name string, args, env []string) (int, error) {
 		return osExec(ctx, rt, name, args, env)
 	}
+	rt.ProcessAlive = osProcessAlive
 	return rt
 }
 

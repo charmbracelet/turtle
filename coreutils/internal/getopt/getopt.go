@@ -23,6 +23,12 @@ type Set struct {
 	// an empty value is allowed, as in "--tmpdir=" or "--tmpdir".
 	Optional string
 
+	// Attached holds the option characters which take an argument only when
+	// attached to their long form with "=", as in "--follow=name". The short
+	// form takes none, as in "-f", and the bare long form doesn't either, as
+	// in "--follow".
+	Attached string
+
 	// Long maps the long options of a program to the characters they stand
 	// for. When nil, every argument starting with "--" is rejected.
 	Long map[string]rune
@@ -94,6 +100,11 @@ func (s Set) parseLong(arg string, args []string, i *int, visit Visit) error {
 		return fmt.Errorf("unrecognized option '%s'", arg)
 	}
 	switch {
+	case s.attached(opt):
+		if !given {
+			return visit(opt, "")
+		}
+		return visit(opt, value)
 	case s.optional(opt):
 		if !given {
 			return visit(opt, "")
@@ -121,6 +132,10 @@ func (s Set) valued(opt rune) bool {
 
 func (s Set) optional(opt rune) bool {
 	return strings.ContainsRune(s.Optional, opt)
+}
+
+func (s Set) attached(opt rune) bool {
+	return strings.ContainsRune(s.Attached, opt)
 }
 
 // InvalidOption builds the error of an option which a program doesn't take.
