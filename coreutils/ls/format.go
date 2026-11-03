@@ -5,6 +5,7 @@ import (
 	"strconv"
 
 	"charm.land/snail/coreutils/internal/getopt"
+	"charm.land/snail/coreutils/internal/sizefmt"
 )
 
 // followMode is how symbolic links are followed.
@@ -102,7 +103,7 @@ type options struct {
 	quotingSet bool
 	hideCtrl   howControlChars
 
-	blockSize    sizeSpec // --block-size, -h and --si
+	blockSize    sizefmt.Spec // --block-size, -h and --si
 	blockSizeSet bool
 	timeStyle    string // the word --time-style stands for, empty when none
 	tabsize      int    // -T, negative when unset
@@ -150,7 +151,7 @@ func (o *options) set(opt rune, value string) error {
 	case 'g':
 		o.long, o.owner = true, false
 	case 'h':
-		o.blockSize, o.blockSizeSet = humanSpec(false), true
+		o.blockSize, o.blockSizeSet = sizefmt.HumanSpec(false), true
 	case 'i':
 		o.inode = true
 	case 'k':
@@ -191,7 +192,7 @@ func (o *options) set(opt rune, value string) error {
 	case optAuthor:
 		o.author = true
 	case optBlockSize:
-		spec, err := parseBlockSize(value)
+		spec, err := sizefmt.Parse(value)
 		if err != nil {
 			return err
 		}
@@ -215,7 +216,7 @@ func (o *options) set(opt rune, value string) error {
 	case optShowCtrl:
 		o.hideCtrl = showAlways
 	case optSi:
-		o.blockSize, o.blockSizeSet = humanSpec(true), true
+		o.blockSize, o.blockSizeSet = sizefmt.HumanSpec(true), true
 	case optSort:
 		return o.setSort(value)
 	case optTime:

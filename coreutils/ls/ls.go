@@ -38,6 +38,7 @@ import (
 
 	"charm.land/snail/coreutils"
 	"charm.land/snail/coreutils/internal/patherr"
+	"charm.land/snail/coreutils/internal/sizefmt"
 	"charm.land/snail/coreutils/internal/stdopts"
 )
 
@@ -141,13 +142,13 @@ type lister struct {
 	printed     bool // whether anything was written yet
 	visits      map[string]bool
 	failed      bool
-	eol         string    // how a line of output ends, NUL with --zero
-	tabsize     int       // the distance between the tab stops used to align
-	hideControl bool      // write nongraphic characters as question marks
-	timeStyle   timeStyle // how the long format writes a timestamp
-	timeWidth   int       // the width a timestamp without one takes
-	blocksSpec  sizeSpec  // how the block counts are written
-	sizeSpec    sizeSpec  // how the sizes of the long format are written
+	eol         string       // how a line of output ends, NUL with --zero
+	tabsize     int          // the distance between the tab stops used to align
+	hideControl bool         // write nongraphic characters as question marks
+	timeStyle   timeStyle    // how the long format writes a timestamp
+	timeWidth   int          // the width a timestamp without one takes
+	blocksSpec  sizefmt.Spec // how the block counts are written
+	sizeSpec    sizefmt.Spec // how the sizes of the long format are written
 }
 
 // newLister builds the lister of a run, filling the options the
@@ -239,11 +240,11 @@ func (p *Prog) lcTime() string {
 // format are written with: the one --block-size, -h or --si set, else the
 // one -k resets the block counts to, else the one the environment gives,
 // which BLOCKSIZE gives the block counts only.
-func (p *Prog) blockSpecs(opts options) (blocks, sizes sizeSpec, err error) {
+func (p *Prog) blockSpecs(opts options) (blocks, sizes sizefmt.Spec, err error) {
 	if opts.blockSizeSet {
 		return opts.blockSize, opts.blockSize, nil
 	}
-	blocks, sizes = kibibyteSpec, byteSpec
+	blocks, sizes = sizefmt.KibibyteSpec, sizefmt.ByteSpec
 	spec, ok, err := p.envSize("LS_BLOCK_SIZE")
 	if err != nil {
 		return blocks, sizes, err
@@ -261,24 +262,24 @@ func (p *Prog) blockSpecs(opts options) (blocks, sizes sizeSpec, err error) {
 	} else if ok {
 		blocks = spec
 	} else if p.Getenv("POSIXLY_CORRECT") != "" {
-		blocks = sizeSpec{unit: 512}
+		blocks = sizefmt.Fixed(512)
 	}
 	if opts.kilo {
-		blocks = kibibyteSpec
+		blocks = sizefmt.KibibyteSpec
 	}
 	return blocks, sizes, nil
 }
 
 // envSize returns the block size a variable of the environment gives,
 // reporting whether it's set.
-func (p *Prog) envSize(name string) (sizeSpec, bool, error) {
+func (p *Prog) envSize(name string) (sizefmt.Spec, bool, error) {
 	word, ok := p.LookupEnv(name)
 	if !ok {
-		return sizeSpec{}, false, nil
+		return sizefmt.Spec{}, false, nil
 	}
-	spec, err := parseBlockSize(word)
+	spec, err := sizefmt.Parse(word)
 	if err != nil {
-		return sizeSpec{}, false, fmt.Errorf("invalid suffix in %s: '%s'", name, word)
+		return sizefmt.Spec{}, false, fmt.Errorf("invalid suffix in %s: '%s'", name, word)
 	}
 	return spec, true, nil
 }
