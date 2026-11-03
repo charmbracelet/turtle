@@ -84,7 +84,7 @@ section below.
 | Filesystem | `mv` | Move or rename files | [✅](spec/markdown/posix/mv.md) | [✅](spec/markdown/gnu/mv-invocation.md) |
 | Filesystem | `rm` | Remove files and directories | [✅](spec/markdown/posix/rm.md) | [✅](spec/markdown/gnu/rm-invocation.md) |
 | Filesystem | `ln` | Create links between files | [✅](spec/markdown/posix/ln.md) | [✅](spec/markdown/gnu/ln-invocation.md) |
-| Filesystem | `ls` | List directory contents | [✅](spec/markdown/posix/ls.md) | [❌](spec/markdown/gnu/ls-invocation.md) |
+| Filesystem | `ls`* | List directory contents | [✅](spec/markdown/posix/ls.md) | [✅](spec/markdown/gnu/ls-invocation.md) |
 | Filesystem | `chgrp` | Change file group ownership | [❌](spec/markdown/posix/chgrp.md) | [❌](spec/markdown/gnu/chgrp-invocation.md) |
 | Filesystem | `chown` | Change file ownership | [❌](spec/markdown/posix/chown.md) | [❌](spec/markdown/gnu/chown-invocation.md) |
 | Filesystem | `link` | Create a hard link to a file | [✅](spec/markdown/posix/link.md) | [✅](spec/markdown/gnu/link-invocation.md) |
@@ -174,6 +174,23 @@ section below.
 | GNU | `yes` | Print a string repeatedly | — | [✅](spec/markdown/gnu/yes-invocation.md) |
 
 ## Deviations
+
+**`ls`** doesn't implement the color output (`--color`, with the
+`LS_COLORS` setup of `dircolors`), the hyperlinks (`--hyperlink`), the
+Emacs dired mode (`-D`), nor the security contexts (`-Z`). It also works
+the way GNU does in a UTF-8 locale, since it doesn't implement the other
+locales: names are sorted in the bytewise collating sequence of the C
+locale, quoted and timestamped as GNU quotes and timestamps them in a
+UTF-8 one, and `LC_TIME` only picks between the POSIX locale and the rest.
+The terminal width isn't detected either, so the columns fill the width of
+`COLUMNS` or 80. The runtime file system carries no owners or access
+control lists, so a file whose system information isn't available, like in
+a memory file system, is written with the numeric identifiers zero and no
+alternate access method character; character and block special files are
+written with their size instead of their device numbers; and a birth time
+only the system reports is available on the usual systems. Following the
+GNU defaults rather than the POSIX ones, the block counts are written in
+units of 1024 bytes, with `POSIXLY_CORRECT` turning back to 512.
 
 **`cp`** doesn't implement the backup options (`-b`, `-S`), `-l`, `-s`,
 `-x` or `--parents`, and `--update=WHEN` takes only the plain `-u` form.

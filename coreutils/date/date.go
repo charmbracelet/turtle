@@ -28,6 +28,7 @@ import (
 	"charm.land/snail/coreutils/internal/input"
 	"charm.land/snail/coreutils/internal/patherr"
 	"charm.land/snail/coreutils/internal/stdopts"
+	"charm.land/snail/coreutils/internal/strftime"
 )
 
 // defaultFormat is the output of date with no format operand, as the POSIX
@@ -125,7 +126,7 @@ func (p *Prog) Run(ctx context.Context, args ...string) error {
 			return &coreutils.ExitError{Code: 1}
 		}
 	}
-	return p.write(strftime(format, t.In(loc)))
+	return p.write(strftime.Format(format, t.In(loc)))
 }
 
 // setClock handles the XSI settime operand, mmddhhmm[[cc]yy]. It parses the
@@ -172,7 +173,7 @@ func (p *Prog) datesFromFile(ctx context.Context, name, format string, loc *time
 			if err != nil {
 				p.errorf("invalid date '%s'", line)
 				ok = false
-			} else if werr := p.write(strftime(format, t.In(loc))); werr != nil {
+			} else if werr := p.write(strftime.Format(format, t.In(loc))); werr != nil {
 				return werr
 			}
 		}

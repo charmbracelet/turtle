@@ -1,24 +1,28 @@
-// Package ls implements the POSIX ls utility.
+// Package ls implements the ls core utility, following the GNU manual.
 //
-// It writes the name of every file given, and the names of the files contained
-// in every directory given, defaulting to the working directory. The default
-// output is one entry per line, as specified for output that isn't written to
-// a terminal, which isn't detected here.
+// It writes the name of every file given, and the names of the files
+// contained in every directory given, defaulting to the working directory.
+// The default output is one entry per line, as specified for output that
+// isn't written to a terminal; on a terminal the entries fill the columns
+// instead, their nongraphic characters are hidden, and their names are
+// quoted the way the shell reads them.
 //
 // Names are compared byte by byte, which is the collating sequence of the
-// POSIX locale, and the fields of the long format are separated by a single
-// space, exactly as the specification writes them, rather than padded to line
-// up like GNU and BSD do.
+// C locale, the only one here: no utility of this project implements the
+// collating sequences of other locales. The fields of the long format are
+// aligned the way GNU aligns them, and the timestamps and the quoted
+// names are written as the C locale writes them.
 //
-// The file system abstraction used here doesn't carry owners, so a file whose
-// system information isn't available, like in a memory file system, is written
-// with the numeric identifier zero for its owner and group, a link count of
-// one, and no file serial number, and has its blocks measured by its size.
-// Character and block special files are written with their size, as no device
-// information is available either. Directory entries dot and dot-dot aren't
-// reported by the Go file systems, so -A and -a are equivalent, and -f keeps
-// the order the file system reports when it can, which a memory file system
-// never can.
+// The file system abstraction used here doesn't carry owners, so a file
+// whose system information isn't available, like in a memory file system,
+// is written with the numeric identifier zero for its owner and group, a
+// link count of one, and no file serial number, and has its blocks
+// measured by its size. Character and block special files are written
+// with their size, as no device numbers are available either, and the
+// birth time a system doesn't report is written as a question mark.
+// Directory entries dot and dot-dot aren't reported by the Go file
+// systems, so -A and -a are equivalent, and -f keeps the order the file
+// system reports when it can, which a memory file system never can.
 package ls
 
 import (
@@ -47,9 +51,9 @@ func New(rt *coreutils.Runtime) coreutils.Program {
 	return &Prog{Runtime: rt}
 }
 
-// Run lists the given files and the contents of the given directories, or the
-// working directory when no operand is given. Listing stops when ctx is done,
-// and the context error is returned.
+// Run lists the given files and the contents of the given directories, or
+// the working directory when no operand is given. Listing stops when ctx
+// is done, and the context error is returned.
 func (p *Prog) Run(ctx context.Context, args ...string) error {
 	if done, err := stdopts.Check(p.Runtime, "ls", usage, optSet, args); done {
 		return err
@@ -68,12 +72,17 @@ func (p *Prog) Run(ctx context.Context, args ...string) error {
 		opts.sort = sortNone
 		opts.reverse = false
 	}
-	l := &lister{prog: p, opts: opts, width: p.displayWidth(), now: time.Now()}
-	// The listing of an implicit dot operand is written without a header.
+	l, err := p.newLister(opts)
+	if err != nil {
+		p.errorf("%v", err)
+		stdopts.TryHelp(p.Runtime, "ls")
+		return &coreutils.ExitError{Code: 2}
+	}
+	// The listing of an implicit dot operand is written without a header,
+	// unless the listing is recursive.
 	header := len(operands) > 1 || opts.recursive
 	if len(operands) == 0 {
 		operands = []string{"."}
-		header = false
 	}
 
 	var files, dirs []entry
@@ -120,20 +129,162 @@ func (p *Prog) Run(ctx context.Context, args ...string) error {
 	return nil
 }
 
-// lister holds the state of a single run.
+// lister holds the state of a single run, with the options resolved from
+// the environment of the runtime.
 type lister struct {
-	prog    *Prog
-	opts    options
-	width   int       // the width the column formats write within
-	now     time.Time // the time the long format measures a file against
-	names   names
-	printed bool // whether anything was written yet
-	visits  map[string]bool
-	failed  bool
+	prog *Prog
+	opts options
+
+	width       int       // the width the column formats write within
+	now         time.Time // the time the long format measures a file against
+	names       names
+	printed     bool // whether anything was written yet
+	visits      map[string]bool
+	failed      bool
+	eol         string    // how a line of output ends, NUL with --zero
+	tabsize     int       // the distance between the tab stops used to align
+	hideControl bool      // write nongraphic characters as question marks
+	timeStyle   timeStyle // how the long format writes a timestamp
+	timeWidth   int       // the width a timestamp without one takes
+	blocksSpec  sizeSpec  // how the block counts are written
+	sizeSpec    sizeSpec  // how the sizes of the long format are written
 }
 
-// entry is a file to be written: the name it's written with, the path it was
-// read from, and the information chosen for the requested options.
+// newLister builds the lister of a run, filling the options the
+// environment and the terminal the standard output is give the defaults
+// of. An environment variable with an invalid value is an error, except
+// the ones GNU only warns about.
+func (p *Prog) newLister(opts options) (*lister, error) {
+	tty := p.Terminal(1)
+	l := &lister{
+		prog:  p,
+		opts:  opts,
+		width: p.displayWidth(opts),
+		now:   p.Now(),
+		eol:   "\n",
+	}
+	if opts.zero {
+		l.eol = "\x00"
+	}
+	if !opts.quotingSet {
+		if word, ok := p.LookupEnv("QUOTING_STYLE"); ok {
+			if style, found := quotingStyles[word]; found {
+				opts.quoting = style
+			} else {
+				p.errorf("ignoring invalid value of environment variable QUOTING_STYLE: %s", word)
+			}
+		} else if tty {
+			opts.quoting = quoteShellEscape
+		}
+	}
+	switch opts.hideCtrl {
+	case hideAlways:
+		l.hideControl = true
+	case showAlways:
+		l.hideControl = false
+	default:
+		l.hideControl = tty
+	}
+	if !opts.layoutSet && !opts.long && !opts.zero && tty {
+		opts.layout = layoutColumns
+	}
+	l.tabsize = opts.tabsize
+	if l.tabsize < 0 {
+		l.tabsize = 8
+		if word, ok := p.LookupEnv("TABSIZE"); ok {
+			if size, err := strconv.Atoi(strings.TrimSpace(word)); err == nil && size >= 0 {
+				l.tabsize = size
+			} else {
+				p.errorf("ignoring invalid tab size in environment variable TABSIZE: %s", word)
+			}
+		}
+	}
+	blocks, sizes, err := p.blockSpecs(opts)
+	if err != nil {
+		return nil, err
+	}
+	l.blocksSpec, l.sizeSpec = blocks, sizes
+	word := opts.timeStyle
+	if word == "" {
+		word = p.Getenv("TIME_STYLE")
+	}
+	if word == "" {
+		word = "locale"
+	}
+	style, err := resolveTimeStyle(word, p.lcTime())
+	if err != nil {
+		return nil, fmt.Errorf("invalid --time-style argument '%s'", word)
+	}
+	l.timeStyle = style
+	// The width a timestamp which can't be shown takes: the one the recent
+	// form of the style writes for a sample time.
+	sample := time.Date(2005, 7, 1, 12, 0, 0, 0, time.Local)
+	l.timeWidth = len(style.format(sample, sample))
+	l.opts = opts
+	return l, nil
+}
+
+// lcTime returns the value the LC_TIME category resolves to: the one
+// LC_ALL gives, else LC_TIME, else LANG, empty when none is set.
+func (p *Prog) lcTime() string {
+	for _, name := range []string{"LC_ALL", "LC_TIME", "LANG"} {
+		if v, ok := p.LookupEnv(name); ok {
+			return v
+		}
+	}
+	return ""
+}
+
+// blockSpecs returns the specs the block counts and the sizes of the long
+// format are written with: the one --block-size, -h or --si set, else the
+// one -k resets the block counts to, else the one the environment gives,
+// which BLOCKSIZE gives the block counts only.
+func (p *Prog) blockSpecs(opts options) (blocks, sizes sizeSpec, err error) {
+	if opts.blockSizeSet {
+		return opts.blockSize, opts.blockSize, nil
+	}
+	blocks, sizes = kibibyteSpec, byteSpec
+	spec, ok, err := p.envSize("LS_BLOCK_SIZE")
+	if err != nil {
+		return blocks, sizes, err
+	}
+	if !ok {
+		spec, ok, err = p.envSize("BLOCK_SIZE")
+		if err != nil {
+			return blocks, sizes, err
+		}
+	}
+	if ok {
+		blocks, sizes = spec, spec
+	} else if spec, ok, err = p.envSize("BLOCKSIZE"); err != nil {
+		return blocks, sizes, err
+	} else if ok {
+		blocks = spec
+	} else if p.Getenv("POSIXLY_CORRECT") != "" {
+		blocks = sizeSpec{unit: 512}
+	}
+	if opts.kilo {
+		blocks = kibibyteSpec
+	}
+	return blocks, sizes, nil
+}
+
+// envSize returns the block size a variable of the environment gives,
+// reporting whether it's set.
+func (p *Prog) envSize(name string) (sizeSpec, bool, error) {
+	word, ok := p.LookupEnv(name)
+	if !ok {
+		return sizeSpec{}, false, nil
+	}
+	spec, err := parseBlockSize(word)
+	if err != nil {
+		return sizeSpec{}, false, fmt.Errorf("invalid suffix in %s: '%s'", name, word)
+	}
+	return spec, true, nil
+}
+
+// entry is a file to be written: the name it's written with, the path it
+// was read from, and the information chosen for the requested options.
 type entry struct {
 	path     string      // the path used with the file system
 	name     string      // the name as written
@@ -141,6 +292,7 @@ type entry struct {
 	link     fs.FileInfo // the information of the link itself, when it's one
 	followed bool        // whether fi is that of the file a link refers to
 	target   string      // the contents of the link, when it's one
+	dirLike  bool        // whether --group-directories-first counts it as a directory
 }
 
 // compareNames sorts entries by the name they are written with.
@@ -186,8 +338,8 @@ func (l *lister) entryFor(path, name string, isOperand bool) (entry, error) {
 	return e, nil
 }
 
-// follows reports whether the information of a symbolic link must be that of
-// the file it refers to.
+// follows reports whether the information of a symbolic link must be that
+// of the file it refers to.
 func (l *lister) follows(isOperand bool) bool {
 	switch l.opts.follow {
 	case followAlways:
@@ -195,13 +347,16 @@ func (l *lister) follows(isOperand bool) bool {
 	case followOperands:
 		return isOperand
 	}
-	// By default only an operand naming a symbolic link is followed, and only
-	// when no option asks for the link itself to be written.
+	// By default only an operand naming a symbolic link is followed, and
+	// only when no option asks for the link itself to be written.
+	if l.opts.followArgDirs {
+		return isOperand
+	}
 	return isOperand && !l.opts.dirs && !l.opts.long && l.opts.classify < classifyFile
 }
 
-// listDir writes the entries of a directory, and with -R the listings of the
-// directories they contain.
+// listDir writes the entries of a directory, and with -R the listings of
+// the directories they contain.
 func (l *lister) listDir(ctx context.Context, e entry, header bool) error {
 	if id := dirID(e.fi); id != "" {
 		if l.visits[id] {
@@ -247,8 +402,9 @@ func (l *lister) listDir(ctx context.Context, e entry, header bool) error {
 	return nil
 }
 
-// readEntries returns the entries of the directory at dir, written below the
-// display name, dropping the hidden ones unless they were asked for.
+// readEntries returns the entries of the directory at dir, written below
+// the display name, dropping the hidden ones and the ones the ignore
+// patterns match, unless they were asked for.
 func (l *lister) readEntries(dir, display string) ([]entry, error) {
 	raw, err := l.readDir(dir)
 	if err != nil {
@@ -258,6 +414,9 @@ func (l *lister) readEntries(dir, display string) ([]entry, error) {
 	for _, de := range raw {
 		name := de.Name()
 		if !l.opts.all && strings.HasPrefix(name, ".") {
+			continue
+		}
+		if l.ignores(name) {
 			continue
 		}
 		e, err := l.entryFor(path.Join(dir, name), name, false)
@@ -271,8 +430,40 @@ func (l *lister) readEntries(dir, display string) ([]entry, error) {
 	return entries, nil
 }
 
-// readDir reads the entries of a directory. With -f it asks the file system
-// for them in the order it keeps them, which only a real directory can give.
+// ignores reports whether a directory entry is dropped: one matching an
+// ignore pattern always is, and one matching a hide pattern is unless -a
+// or -A was given.
+func (l *lister) ignores(name string) bool {
+	for _, pattern := range l.opts.ignore {
+		if matchName(pattern, name) {
+			return true
+		}
+	}
+	if l.opts.all {
+		return false
+	}
+	for _, pattern := range l.opts.hide {
+		if matchName(pattern, name) {
+			return true
+		}
+	}
+	return false
+}
+
+// matchName reports whether a name matches a shell pattern, the way the
+// ignore options of ls match: an initial dot in the name isn't matched by
+// a wildcard at the start of the pattern.
+func matchName(pattern, name string) bool {
+	if len(name) > 0 && name[0] == '.' && (len(pattern) == 0 || pattern[0] != '.') {
+		return false
+	}
+	matched, err := path.Match(pattern, name)
+	return err == nil && matched
+}
+
+// readDir reads the entries of a directory. With -f it asks the file
+// system for them in the order it keeps them, which only a real directory
+// can give.
 func (l *lister) readDir(dir string) ([]fs.DirEntry, error) {
 	if l.opts.sort == sortNone {
 		if f, err := l.prog.FS.Open(dir); err == nil {
@@ -287,12 +478,27 @@ func (l *lister) readDir(dir string) ([]fs.DirEntry, error) {
 	return fs.ReadDir(l.prog.FS, dir)
 }
 
-// sortEntries orders a listing by the requested key, and the reverse of it.
+// sortEntries orders a listing by the requested key, and the reverse of
+// it, with the directories first when the option asks for them.
 func (l *lister) sortEntries(entries []entry) {
 	if l.opts.sort == sortNone {
 		return
 	}
+	groupDirs := l.opts.groupDirs
+	if groupDirs {
+		for i := range entries {
+			entries[i].dirLike = l.isDirLike(entries[i])
+		}
+	}
 	slices.SortFunc(entries, func(a, b entry) int {
+		if groupDirs {
+			if a.dirLike != b.dirLike {
+				if a.dirLike {
+					return -1
+				}
+				return 1
+			}
+		}
 		var order int
 		switch l.opts.sort {
 		case sortSize:
@@ -314,6 +520,19 @@ func (l *lister) sortEntries(entries []entry) {
 		}
 		return order
 	})
+}
+
+// isDirLike reports whether an entry counts as a directory for
+// --group-directories-first, which a symbolic link to a directory does.
+func (l *lister) isDirLike(e entry) bool {
+	if e.fi.IsDir() {
+		return true
+	}
+	if e.link == nil || e.followed {
+		return false
+	}
+	fi, err := fs.Stat(l.prog.FS, e.path)
+	return err == nil && fi.IsDir()
 }
 
 // sizeOrder sorts the largest file first.
@@ -491,12 +710,14 @@ func widthOrder(a, b entry) int {
 }
 
 // writeHeader writes the name of a directory before its listing, with the
-// blank line that separates it from what came before.
+// blank line that separates it from what came before, quoted with its
+// colon so it isn't taken for the header of another listing.
 func (l *lister) writeHeader(name string) {
 	if l.printed {
 		fmt.Fprint(l.prog.Stdout, "\n")
 	}
-	fmt.Fprintf(l.prog.Stdout, "%s:\n", name)
+	quoted, _ := quoteName(name, l.opts.quoting, l.hideControl, ":")
+	fmt.Fprintf(l.prog.Stdout, "%s:\n", quoted)
 	l.printed = true
 }
 
@@ -505,9 +726,12 @@ func (p *Prog) resolve(name string) string {
 	return path.Clean(filepath.ToSlash(p.ResolvePath(name)))
 }
 
-// displayWidth returns the width the column formats write within, which the
-// COLUMNS variable overrides.
-func (p *Prog) displayWidth() int {
+// displayWidth returns the width the column formats write within: the one
+// -w sets, else the COLUMNS variable, else 80. A zero -w means no limit.
+func (p *Prog) displayWidth(opts options) int {
+	if opts.width >= 0 {
+		return opts.width
+	}
 	const defaultWidth = 80
 	v, ok := p.LookupEnv("COLUMNS")
 	if !ok {
