@@ -56,6 +56,10 @@ hint. The exceptions are `echo`, `printf` and `test`, whose specifications
 forbid options, and `false`, which always exits with status 1, even when
 invoked with them.
 
+A `*` on a program marks limitations and deviations from the
+specifications, which are described in the [Deviations](#deviations)
+section below.
+
 | Category | Program | Description | POSIX | GNU |
 | --- | --- | --- | --- | --- |
 | Foundational | `true` | Return a zero exit status | [✅](spec/markdown/posix/true.md) | [✅](spec/markdown/gnu/true-invocation.md) |
@@ -76,7 +80,7 @@ invoked with them.
 | Filesystem | `tail` | Print the last part of files | [✅](spec/markdown/posix/tail.md) | [❌](spec/markdown/gnu/tail-invocation.md) |
 | Filesystem | `mkdir` | Create directories | [✅](spec/markdown/posix/mkdir.md) | [✅](spec/markdown/gnu/mkdir-invocation.md) |
 | Filesystem | `rmdir` | Remove empty directories | [✅](spec/markdown/posix/rmdir.md) | [✅](spec/markdown/gnu/rmdir-invocation.md) |
-| Filesystem | `cp`*********** | Copy files and directories | [✅](spec/markdown/posix/cp.md) | [✅](spec/markdown/gnu/cp-invocation.md) |
+| Filesystem | `cp`* | Copy files and directories | [✅](spec/markdown/posix/cp.md) | [✅](spec/markdown/gnu/cp-invocation.md) |
 | Filesystem | `mv` | Move or rename files | [✅](spec/markdown/posix/mv.md) | [✅](spec/markdown/gnu/mv-invocation.md) |
 | Filesystem | `rm` | Remove files and directories | [✅](spec/markdown/posix/rm.md) | [✅](spec/markdown/gnu/rm-invocation.md) |
 | Filesystem | `ln` | Create links between files | [✅](spec/markdown/posix/ln.md) | [✅](spec/markdown/gnu/ln-invocation.md) |
@@ -94,7 +98,7 @@ invoked with them.
 | Filesystem | `pathchk` | Check pathnames for validity | [❌](spec/markdown/posix/pathchk.md) | [❌](spec/markdown/gnu/pathchk-invocation.md) |
 | Filesystem | `pax` | Read and write file archives | [❌](spec/markdown/posix/pax.md) | ❌ |
 | Text | `cut` | Cut out fields from input lines | [✅](spec/markdown/posix/cut.md) | [✅](spec/markdown/gnu/cut-invocation.md) |
-| Text | `join`**** | Join lines of two files on a common field | [✅](spec/markdown/posix/join.md) | [✅](spec/markdown/gnu/join-invocation.md) |
+| Text | `join`* | Join lines of two files on a common field | [✅](spec/markdown/posix/join.md) | [✅](spec/markdown/gnu/join-invocation.md) |
 | Text | `sort` | Sort lines of text | [✅](spec/markdown/posix/sort.md) | [✅](spec/markdown/gnu/sort-invocation.md) |
 | Text | `paste` | Merge lines of files | [✅](spec/markdown/posix/paste.md) | [✅](spec/markdown/gnu/paste-invocation.md) |
 | Text | `tee` | Duplicate standard input | [✅](spec/markdown/posix/tee.md) | [❌](spec/markdown/gnu/tee-invocation.md) |
@@ -109,16 +113,16 @@ invoked with them.
 | Text | `nl` | Number lines of files | [✅](spec/markdown/posix/nl.md) | [✅](spec/markdown/gnu/nl-invocation.md) |
 | Text | `od` | Dump files in octal and other formats | [✅](spec/markdown/posix/od.md) | [❌](spec/markdown/gnu/od-invocation.md) |
 | Text | `pr` | Paginate files for printing | [✅](spec/markdown/posix/pr.md) | [❌](spec/markdown/gnu/pr-invocation.md) |
-| Text | `sed`****** | Filter and transform text | [✅](spec/markdown/posix/sed.md) | [❌](https://web.archive.org/web/https://www.gnu.org/software/sed/manual/sed.html) |
+| Text | `sed`* | Filter and transform text | [✅](spec/markdown/posix/sed.md) | [❌](https://web.archive.org/web/https://www.gnu.org/software/sed/manual/sed.html) |
 | Text | `split` | Split a file into pieces | [✅](spec/markdown/posix/split.md) | [✅](spec/markdown/gnu/split-invocation.md) |
 | Text | `strings` | Print printable strings in files | [✅](spec/markdown/posix/strings.md) | [✅](https://web.archive.org/web/https://sourceware.org/binutils/docs/binutils/strings.html) |
 | Text | `unexpand` | Convert spaces to tabs | [✅](spec/markdown/posix/unexpand.md) | [✅](spec/markdown/gnu/unexpand-invocation.md) |
-| Text | `cksum`********** | Compute CRC checksums for files | [✅](spec/markdown/posix/cksum.md) | [✅](spec/markdown/gnu/cksum-invocation.md) |
-| Text | `patch`** | Apply a diff file to an original | [✅](spec/markdown/posix/patch.md) | ✅ |
+| Text | `cksum`* | Compute CRC checksums for files | [✅](spec/markdown/posix/cksum.md) | [✅](spec/markdown/gnu/cksum-invocation.md) |
+| Text | `patch`* | Apply a diff file to an original | [✅](spec/markdown/posix/patch.md) | ✅ |
 | Search / Filtering | `find` | Find files matching given criteria | [❌](spec/markdown/posix/find.md) | [❌](https://web.archive.org/web/https://www.gnu.org/software/findutils/manual/html_node/find_html/Invoking-find.html) |
 | Search / Filtering | `grep` | Print lines matching a pattern | [❌](spec/markdown/posix/grep.md) | [❌](https://web.archive.org/web/https://www.gnu.org/software/grep/manual/grep.html) |
 | Search / Filtering | `xargs` | Build and execute command lines | [✅](spec/markdown/posix/xargs.md) | [❌](https://web.archive.org/web/https://www.gnu.org/software/findutils/manual/html_node/find_html/Invoking-xargs.html) |
-| System / Process | `date`******* | Print or set the date and time | [✅](spec/markdown/posix/date.md) | [✅](spec/markdown/gnu/date-invocation.md) |
+| System / Process | `date`* | Print or set the date and time | [✅](spec/markdown/posix/date.md) | [✅](spec/markdown/gnu/date-invocation.md) |
 | System / Process | `env` | Run a command in a modified environment | [✅](spec/markdown/posix/env.md) | [✅](spec/markdown/gnu/env-invocation.md) |
 | System / Process | `id` | Print user and group IDs | [❌](spec/markdown/posix/id.md) | [❌](spec/markdown/gnu/id-invocation.md) |
 | System / Process | `kill` | Send a signal to processes | [❌](spec/markdown/posix/kill.md) | ❌ |
@@ -158,75 +162,74 @@ invoked with them.
 | GNU | `sha256sum` | Compute SHA-256 checksums | — | [✅](spec/markdown/gnu/sha2-utilities.md) |
 | GNU | `sha384sum` | Compute SHA-384 checksums | — | [✅](spec/markdown/gnu/sha2-utilities.md) |
 | GNU | `sha512sum` | Compute SHA-512 checksums | — | [✅](spec/markdown/gnu/sha2-utilities.md) |
-| GNU | `shasum`*** | Print or check SHA checksums | — | [✅](https://perldoc.perl.org/shasum) |
+| GNU | `shasum`* | Print or check SHA checksums | — | [✅](https://perldoc.perl.org/shasum) |
 | GNU | `shuf` | Generate random permutations | — | [❌](spec/markdown/gnu/shuf-invocation.md) |
 | GNU | `stat` | Print file and file system status | — | [❌](spec/markdown/gnu/stat-invocation.md) |
-| GNU | `sync`******** | Flush file system buffers | — | [✅](spec/markdown/gnu/sync-invocation.md) |
+| GNU | `sync`* | Flush file system buffers | — | [✅](spec/markdown/gnu/sync-invocation.md) |
 | GNU | `tac` | Concatenate and print files in reverse | — | [✅](spec/markdown/gnu/tac-invocation.md) |
-| GNU | `tar`***** | Create and extract file archives | — | [✅](https://web.archive.org/web/https://www.gnu.org/software/tar/manual/tar.html) |
+| GNU | `tar`* | Create and extract file archives | — | [✅](https://web.archive.org/web/https://www.gnu.org/software/tar/manual/tar.html) |
 | GNU | `truncate` | Shrink or extend the size of files | — | [✅](spec/markdown/gnu/truncate-invocation.md) |
 | GNU | `which` | Locate a command in the search path | — | ❌ |
-| GNU | `whoami`********* | Print the effective user name | — | [✅](spec/markdown/gnu/whoami-invocation.md) |
+| GNU | `whoami`* | Print the effective user name | — | [✅](spec/markdown/gnu/whoami-invocation.md) |
 | GNU | `yes` | Print a string repeatedly | — | [✅](spec/markdown/gnu/yes-invocation.md) |
 
-> [!NOTE]
-> `*` The LZW algorithm (the POSIX default, with its `.Z` suffix) is not yet
-> implemented for `compress`. Compression with `-g` or `-m gzip`/`-m deflate`
-> works. `uncompress` and `zcat` can restore `.gz` files, but `.Z` input is
-> unsupported until the LZW decoder is implemented. LZW compression returns the
-> specification's unsupported-algorithm exit status (>2). This implementation
-> also does not prompt before overwriting on a terminal or check for multiple
-> hard links.
->
-> `**` `patch` applies unified and context diffs with all the POSIX options
-> except `-D`, `-e` and `-n`, which wait for `#ifdef` marks and the ed and
-> normal diff formats. It also deviates from GNU and BSD in two ways POSIX
-> allows: informative messages go to standard error instead of standard
-> output, and already applied hunks are ignored instead of saved to the
-> reject file.
->
-> `***` `shasum` follows the Perl script of the `Digest::SHA` distribution, but it
-> doesn't take its `-U` (Universal Newlines) and `-0` (BITS) modes. When
-> verifying, it hashes with the algorithm `-a` selects, instead of the one
-> each checksum line implies.
->
-> `****` `join` compares its join fields in the bytewise collating sequence of
-> the C locale, the one the `sort` and `comm` of this project use: no
-> utility here implements the collating sequences of other locales, so
-> keys which only another `LC_COLLATE` makes equal stay different.
->
-> `*****` `tar` supports the `-c`, `-r`, `-t`, `-u` and `-x` operations and the `-b`,
-> `-e`, `-f`, `-h`, `-m`, `-o`, `-p`, `-v` and `-w` options, in both the dashed
-> and the old option styles. Member operands of `-t` and `-x` are literal names
-> or directory prefixes, not glob patterns; ownership is never changed, making
-> `-o` a no-op; `-e` only ignores files which can't be read while an archive is
-> created; extraction refuses to write through symbolic links; and the archive
-> is the standard input or output (or the name in the `TAPE` environment
-> variable) when `-f` is not given.
->
-> `******` `sed` supports BRE and ERE (`-E`) patterns, but not backreferences
-> (`\1` to `\9`) in patterns, nor the collating symbols and equivalence
-> classes of bracket expressions. Backreferences in the replacement of `s`
-> work as specified.
->
-> `*******` `date` can't set the system date: its settime operand
-> (`mmddhhmm[[cc]yy]`) is parsed to diagnose invalid dates, but setting the
-> clock fails, since the runtime exposes a clock to read but none to set.
-> The GNU `-r` (`--reference`) option, which displays the modification time
-> of a file, is also supported.
->
-> `********` `sync` flushes through the runtime file system, so the whole
-> system is only flushed when the FS maps the real one, and the `-d` and
-> `-f` flags degrade to the closest operation the platform offers.
->
-> `*********` `whoami` takes the name from the `USER` or `LOGNAME`
-> environment variables, since the isolated runtime exposes no user
-> database.
->
-> `**********` `cksum` takes its algorithms from the standard library, so
-> `blake2b` and `sm3` are missing, and it doesn't verify checksums with
-> `-c`.
->
-> `***********` `cp` doesn't implement the backup options (`-b`, `-S`),
-> `-l`, `-s`, `-x` or `--parents`, and `--update=WHEN` takes only the plain
-> `-u` form.
+## Deviations
+
+**`cp`** doesn't implement the backup options (`-b`, `-S`), `-l`, `-s`,
+`-x` or `--parents`, and `--update=WHEN` takes only the plain `-u` form.
+
+**`patch`** applies unified and context diffs with all the POSIX options
+except `-D`, `-e` and `-n`, which wait for `#ifdef` marks and the ed and
+normal diff formats. It also deviates from GNU and BSD in two ways POSIX
+allows: informative messages go to standard error instead of standard
+output, and already applied hunks are ignored instead of saved to the
+reject file.
+
+**`join`** compares its join fields in the bytewise collating sequence of
+the C locale, the one the `sort` and `comm` of this project use: no
+utility here implements the collating sequences of other locales, so
+keys which only another `LC_COLLATE` makes equal stay different.
+
+**`sed`** supports BRE and ERE (`-E`) patterns, but not backreferences
+(`\1` to `\9`) in patterns, nor the collating symbols and equivalence
+classes of bracket expressions. Backreferences in the replacement of `s`
+work as specified.
+
+**`cksum`** takes its algorithms from the standard library, so
+`blake2b` and `sm3` are missing, and it doesn't verify checksums with
+`-c`.
+
+**`date`** can't set the system date: its settime operand
+(`mmddhhmm[[cc]yy]`) is parsed to diagnose invalid dates, but setting the
+clock fails, since the runtime exposes a clock to read but none to set.
+The GNU `-r` (`--reference`) option, which displays the modification time
+of a file, is also supported.
+
+**`shasum`** follows the Perl script of the `Digest::SHA` distribution,
+but it doesn't take its `-U` (Universal Newlines) and `-0` (BITS) modes.
+When verifying, it hashes with the algorithm `-a` selects, instead of
+the one each checksum line implies.
+
+**`tar`** supports the `-c`, `-r`, `-t`, `-u` and `-x` operations and the
+`-b`, `-e`, `-f`, `-h`, `-m`, `-o`, `-p`, `-v` and `-w` options, in both
+the dashed and the old option styles. Member operands of `-t` and `-x`
+are literal names or directory prefixes, not glob patterns; ownership is
+never changed, making `-o` a no-op; `-e` only ignores files which can't
+be read while an archive is created; extraction refuses to write through
+symbolic links; and the archive is the standard input or output (or the
+name in the `TAPE` environment variable) when `-f` is not given.
+
+**`sync`** flushes through the runtime file system, so the whole system
+is only flushed when the FS maps the real one, and the `-d` and `-f`
+flags degrade to the closest operation the platform offers.
+
+**`whoami`** takes the name from the `USER` or `LOGNAME` environment
+variables, since the isolated runtime exposes no user database.
+
+**`compress`** doesn't implement the LZW algorithm (the POSIX default,
+with its `.Z` suffix) yet. Compression with `-g` or `-m gzip`/
+`-m deflate` works. `uncompress` and `zcat` can restore `.gz` files, but
+`.Z` input is unsupported until the LZW decoder is implemented. LZW
+compression returns the specification's unsupported-algorithm exit
+status (>2). This implementation also does not prompt before overwriting
+on a terminal or check for multiple hard links.
