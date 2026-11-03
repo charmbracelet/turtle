@@ -1,4 +1,4 @@
-package date
+package strftime
 
 import (
 	"fmt"
@@ -7,16 +7,16 @@ import (
 	"time"
 )
 
-// dTimeFmt is the date and time format of the POSIX locale, the one the %c
-// conversion stands for.
-const dTimeFmt = "%a %b %e %H:%M:%S %Y"
+// posixTimeFmt is the date and time format of the POSIX locale, the one the
+// %c conversion stands for.
+const posixTimeFmt = "%a %b %e %H:%M:%S %Y"
 
-// strftime formats t as the strftime function of the C standard would in the
+// Format formats t as the strftime function of the C standard would in the
 // POSIX locale, with the conversions of the +format operand of date.
 //
 // The E and O modifiers are accepted and ignored, like in any locale without
 // alternative representations, and an unknown conversion is copied as is.
-func strftime(format string, t time.Time) string {
+func Format(format string, t time.Time) string {
 	var b strings.Builder
 	for i := 0; i < len(format); i++ {
 		if format[i] != '%' {
@@ -57,17 +57,17 @@ func convert(c byte, cols int, t time.Time) string {
 	case 'B':
 		return t.Format("January")
 	case 'c':
-		return strftime(dTimeFmt, t)
+		return Format(posixTimeFmt, t)
 	case 'C':
 		return pad2(t.Year() / 100)
 	case 'd':
 		return pad2(t.Day())
 	case 'D':
-		return strftime("%m/%d/%y", t)
+		return Format("%m/%d/%y", t)
 	case 'e':
 		return fmt.Sprintf("%2d", t.Day())
 	case 'F':
-		return strftime("%Y-%m-%d", t)
+		return Format("%Y-%m-%d", t)
 	case 'g':
 		year, _ := t.ISOWeek()
 		return pad2(year % 100)
@@ -91,9 +91,9 @@ func convert(c byte, cols int, t time.Time) string {
 	case 'p':
 		return t.Format("PM")
 	case 'r':
-		return strftime("%I:%M:%S %p", t)
+		return Format("%I:%M:%S %p", t)
 	case 'R':
-		return strftime("%H:%M", t)
+		return Format("%H:%M", t)
 	case 'S':
 		return pad2(t.Second())
 	case 's':
@@ -101,7 +101,7 @@ func convert(c byte, cols int, t time.Time) string {
 	case 't':
 		return "\t"
 	case 'T':
-		return strftime("%H:%M:%S", t)
+		return Format("%H:%M:%S", t)
 	case 'u':
 		return strconv.Itoa(isoWeekday(t))
 	case 'U':
@@ -114,9 +114,9 @@ func convert(c byte, cols int, t time.Time) string {
 	case 'W':
 		return week(t, time.Monday)
 	case 'x':
-		return strftime("%m/%d/%y", t)
+		return Format("%m/%d/%y", t)
 	case 'X':
-		return strftime("%H:%M:%S", t)
+		return Format("%H:%M:%S", t)
 	case 'y':
 		return pad2(t.Year() % 100)
 	case 'Y':

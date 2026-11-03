@@ -1,4 +1,4 @@
-package date
+package strftime
 
 import (
 	"testing"
@@ -118,8 +118,8 @@ func TestStrftime(t *testing.T) {
 
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			if got := strftime(test.format, test.t); got != test.want {
-				t.Errorf("strftime(%q, %v) = %q, want %q", test.format, test.t, got, test.want)
+			if got := Format(test.format, test.t); got != test.want {
+				t.Errorf("Format(%q, %v) = %q, want %q", test.format, test.t, got, test.want)
 			}
 		})
 	}

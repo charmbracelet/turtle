@@ -4,8 +4,10 @@ import (
 	"bytes"
 	"context"
 	"errors"
+	"fmt"
 	"io"
 	"io/fs"
+	"math"
 	"os"
 	"runtime"
 	"strings"
@@ -69,6 +71,7 @@ type testCase struct {
 	sys      fsx.FS
 	wd       string
 	env      map[string]string
+	terminal bool
 	args     []string
 	wantOut  string
 	wantErr  string
@@ -85,6 +88,7 @@ func runCase(t *testing.T, test testCase) {
 		Stderr:     stderr,
 		WorkingDir: test.wd,
 		Environ:    func() []string { return environ(test.env) },
+		IsTerminal: func(fd int) bool { return test.terminal && fd == 1 },
 	}
 	switch {
 	case test.sys != nil:
@@ -270,17 +274,17 @@ func TestRunLong(t *testing.T) {
 				"-rw-r--r-- 1 0 0 5 " + now.day(now.recent) + " f.txt\n",
 		},
 		{
-			name: "-l separates the fields with a single space",
+			name: "-l aligns the fields of the listing",
 			files: fsx.MemFS{
 				"one":   {Data: []byte("x"), Mode: 0o644, ModTime: now.recent},
 				"three": {Data: []byte(strings.Repeat("x", 10000)), Mode: 0o444, ModTime: now.recent},
 				"two":   {Data: []byte(strings.Repeat("x", 1000)), Mode: 0o644, ModTime: now.recent},
 			},
 			args: []string{"-l"},
-			wantOut: "total 23\n" +
-				"-rw-r--r-- 1 0 0 1 " + now.day(now.recent) + " one\n" +
+			wantOut: "total 12\n" +
+				"-rw-r--r-- 1 0 0     1 " + now.day(now.recent) + " one\n" +
 				"-r--r--r-- 1 0 0 10000 " + now.day(now.recent) + " three\n" +
-				"-rw-r--r-- 1 0 0 1000 " + now.day(now.recent) + " two\n",
+				"-rw-r--r-- 1 0 0  1000 " + now.day(now.recent) + " two\n",
 		},
 		{
 			name:    "-l writes the year for an old modification time",
@@ -448,7 +452,7 @@ func TestRunBlocks(t *testing.T) {
 			name:    "-s writes the blocks and their total",
 			files:   fsx.MemFS{"a.txt": {Data: []byte("x")}, "b.txt": {Data: []byte(strings.Repeat("x", 512))}},
 			args:    []string{"-s", "-1"},
-			wantOut: "total 2\n1 a.txt\n1 b.txt\n",
+			wantOut: "total 1\n1 a.txt\n1 b.txt\n",
 		},
 		{
 			name:    "-s writes no block for an empty file",
@@ -460,7 +464,7 @@ func TestRunBlocks(t *testing.T) {
 			name:    "-k counts blocks in kibibytes",
 			files:   fsx.MemFS{"a.txt": {Data: []byte("x")}, "b.txt": {Data: []byte(strings.Repeat("x", 512))}},
 			args:    []string{"-s", "-k", "-1"},
-			wantOut: "total 2\n1 a.txt\n1 b.txt\n",
+			wantOut: "total 1\n1 a.txt\n1 b.txt\n",
 		},
 		{
 			name:    "-s writes the blocks of a file operand without a total",
@@ -472,7 +476,7 @@ func TestRunBlocks(t *testing.T) {
 			name:    "-s writes the numbers of listings of different widths",
 			files:   fsx.MemFS{"a.txt": {}, "b.txt": {Data: []byte(strings.Repeat("x", 5120))}},
 			args:    []string{"-s", "-1"},
-			wantOut: "total 10\n0 a.txt\n10 b.txt\n",
+			wantOut: "total 5\n0 a.txt\n5 b.txt\n",
 		},
 	})
 }
@@ -487,11 +491,11 @@ func TestRunFormat(t *testing.T) {
 			wantOut: "a  d  g\nb  e\nc  f\n",
 		},
 		{
-			name:    "-C pads to the width of the longest name",
+			name:    "-C pads to the width of the column",
 			files:   fsx.MemFS{"a": {}, "bbbb": {}},
 			env:     map[string]string{"COLUMNS": "20"},
 			args:    []string{"-C"},
-			wantOut: "a     bbbb\n",
+			wantOut: "a  bbbb\n",
 		},
 		{
 			name:    "-C writes as many columns as the width fits",
@@ -512,20 +516,20 @@ func TestRunFormat(t *testing.T) {
 			files:   fsx.MemFS{"a": {}, "\u00e9\u00e9": {}},
 			env:     map[string]string{"COLUMNS": "20"},
 			args:    []string{"-C"},
-			wantOut: "a   \u00e9\u00e9\n",
+			wantOut: "a  \u00e9\u00e9\n",
 		},
 		{
 			name:    "-C writes the file operands in the same columns",
 			files:   fsx.MemFS{"a.txt": {}, "bb.txt": {}},
 			args:    []string{"-C", "bb.txt", "a.txt"},
-			wantOut: "a.txt   bb.txt\n",
+			wantOut: "a.txt  bb.txt\n",
 		},
 		{
 			name:    "-C pads the names by their characters",
 			files:   fsx.MemFS{"a": {}, "\u00e9\u00e9": {}},
 			env:     map[string]string{"COLUMNS": "20"},
 			args:    []string{"-C"},
-			wantOut: "a   \u00e9\u00e9\n",
+			wantOut: "a  \u00e9\u00e9\n",
 		},
 		{
 			name:    "-C writes one column when a name is too wide",
@@ -566,11 +570,11 @@ func TestRunFormat(t *testing.T) {
 			wantOut: "a  b\n",
 		},
 		{
-			name:    "-C pads every column to the width of the longest name",
+			name:    "-C pads every column to its own width",
 			files:   fsx.MemFS{"a": {}, "bb": {}, "cccc": {}},
 			env:     map[string]string{"COLUMNS": "20"},
 			args:    []string{"-C"},
-			wantOut: "a     bb    cccc\n",
+			wantOut: "a  bb  cccc\n",
 		},
 		{
 			name:    "-C writes one column when a name is wider than the width",
@@ -1134,10 +1138,10 @@ func TestRunDirectories(t *testing.T) {
 			wantOut: "./dir:\nb.txt\nsub\n\n./dir/sub:\nc.txt\n",
 		},
 		{
-			name:    "-R without operands writes no header for the working directory",
+			name:    "-R without operands writes the header of the working directory",
 			files:   files,
 			args:    []string{"-1", "-R"},
-			wantOut: "a.txt\ndir\nother\n\n./dir:\nb.txt\nsub\n\n./dir/sub:\nc.txt\n\n./other:\nd.txt\n",
+			wantOut: ".:\na.txt\ndir\nother\n\n./dir:\nb.txt\nsub\n\n./dir/sub:\nc.txt\n\n./other:\nd.txt\n",
 		},
 		{
 			name:    "-R doesn't recurse into a directory that wasn't listed",
@@ -1155,13 +1159,13 @@ func TestRunDirectories(t *testing.T) {
 			name:    "-R doesn't recurse into a link to a directory",
 			files:   fsx.MemFS{"dir": {Mode: dirMode(0o755)}, "dir/a.txt": {}, "link": link("dir")},
 			args:    []string{"-1", "-R"},
-			wantOut: "dir\nlink\n\n./dir:\na.txt\n",
+			wantOut: ".:\ndir\nlink\n\n./dir:\na.txt\n",
 		},
 		{
 			name:    "-LR recurses into a link to a directory",
 			files:   fsx.MemFS{"dir/a.txt": {}, "link": link("dir")},
 			args:    []string{"-1", "-L", "-R"},
-			wantOut: "dir\nlink\n\n./dir:\na.txt\n\n./link:\na.txt\n",
+			wantOut: ".:\ndir\nlink\n\n./dir:\na.txt\n\n./link:\na.txt\n",
 		},
 		{
 			name:    "multiple operands write the files first",
@@ -1738,7 +1742,7 @@ func TestRunHiddenRecursion(t *testing.T) {
 			name:    "-aR enters the hidden directories it listed",
 			files:   fsx.MemFS{"dir/sub/a.txt": {}, "dir/.hidden/b.txt": {}},
 			args:    []string{"-1", "-aR"},
-			wantOut: "dir\n\n./dir:\n.hidden\nsub\n\n./dir/.hidden:\nb.txt\n\n./dir/sub:\na.txt\n",
+			wantOut: ".:\ndir\n\n./dir:\n.hidden\nsub\n\n./dir/.hidden:\nb.txt\n\n./dir/sub:\na.txt\n",
 		},
 		{
 			name:    "-R enters a directory named as an operand",
@@ -1864,5 +1868,890 @@ func TestRunContext(t *testing.T) {
 	}
 	if err := New(rt).Run(ctx, "a.txt"); !errors.Is(err, context.Canceled) {
 		t.Errorf("Run() error = %v, want context.Canceled", err)
+	}
+}
+
+// TestRunIgnore checks the options that drop entries from a listing.
+func TestRunIgnore(t *testing.T) {
+	files := fsx.MemFS{"a.txt": {}, "b.txt": {}, "bak.txt~": {}, ".bak~": {}, "f1": {}, "f10": {}}
+
+	runCases(t, []testCase{
+		{
+			name:    "-B drops the entries ending with a tilde",
+			files:   files,
+			args:    []string{"-B"},
+			wantOut: "a.txt\nb.txt\nf1\nf10\n",
+		},
+		{
+			name:    "-B drops the hidden backups too with -a",
+			files:   files,
+			args:    []string{"-a", "-B"},
+			wantOut: "a.txt\nb.txt\nf1\nf10\n",
+		},
+		{
+			name:    "--ignore drops the names matching a pattern",
+			files:   files,
+			args:    []string{"--ignore", "b*"},
+			wantOut: "a.txt\nf1\nf10\n",
+		},
+		{
+			name:    "an initial dot isn't matched by a leading wildcard",
+			files:   fsx.MemFS{".b": {}, "b.txt": {}},
+			args:    []string{"-a", "--ignore", "b*"},
+			wantOut: ".b\n",
+		},
+		{
+			name:    "--ignore works with -a",
+			files:   fsx.MemFS{".b": {}, "b.txt": {}},
+			args:    []string{"-a", "--ignore", ".b"},
+			wantOut: "b.txt\n",
+		},
+		{
+			name:    "--ignore may be given several patterns",
+			files:   files,
+			args:    []string{"--ignore", "b*", "--ignore", "*.txt"},
+			wantOut: "f1\nf10\n",
+		},
+		{
+			name:    "--hide drops like --ignore",
+			files:   files,
+			args:    []string{"--hide", "b*"},
+			wantOut: "a.txt\nf1\nf10\n",
+		},
+		{
+			name:    "--hide is overridden by -a",
+			files:   files,
+			args:    []string{"-a", "--hide", "b*"},
+			wantOut: ".bak~\na.txt\nb.txt\nbak.txt~\nf1\nf10\n",
+		},
+		{
+			name:    "a command line operand isn't ignored",
+			files:   files,
+			args:    []string{"--ignore", "b*", "b.txt"},
+			wantOut: "b.txt\n",
+		},
+		{
+			name:    "the pattern of a valued short option is attached",
+			files:   files,
+			args:    []string{"-Ib*"},
+			wantOut: "a.txt\nf1\nf10\n",
+		},
+	})
+}
+
+// TestRunQuoting checks the options that quote a name.
+func TestRunQuoting(t *testing.T) {
+	now := newTimes()
+
+	runCases(t, []testCase{
+		{
+			name:    "-b escapes the control characters and the space",
+			files:   fsx.MemFS{"a\nb": {}, "a b": {}, "plain": {}},
+			args:    []string{"-b"},
+			wantOut: "a\\nb\na\\ b\nplain\n",
+		},
+		{
+			name:    "-b escapes the space of a name",
+			files:   fsx.MemFS{"a b": {}},
+			args:    []string{"-b", "-F"},
+			wantOut: "a\\ b\n",
+		},
+		{
+			name:    "-Q quotes a name the C way",
+			files:   fsx.MemFS{"a\nb": {}, "plain": {}},
+			args:    []string{"-Q"},
+			wantOut: "\"a\\nb\"\n\"plain\"\n",
+		},
+		{
+			name:    "-N writes the names as they are",
+			files:   fsx.MemFS{"a b": {}},
+			args:    []string{"-N"},
+			wantOut: "a b\n",
+		},
+		{
+			name:    "--quoting-style=shell quotes what the shell needs",
+			files:   fsx.MemFS{"a b": {}, "plain": {}},
+			args:    []string{"--quoting-style=shell"},
+			wantOut: "'a b'\nplain\n",
+		},
+		{
+			name:    "--quoting-style=shell-escape quotes an apostrophe the C way",
+			files:   fsx.MemFS{"a'b": {}},
+			args:    []string{"--quoting-style=shell-escape"},
+			wantOut: "\"a'b\"\n",
+		},
+		{
+			name:    "--quoting-style=shell-escape escapes a control character",
+			files:   fsx.MemFS{"a\nb": {}},
+			args:    []string{"--quoting-style=shell-escape"},
+			wantOut: "'a'$'\\n''b'\n",
+		},
+		{
+			name:    "--quoting-style=c-maybe quotes only what needs it",
+			files:   fsx.MemFS{"a\nb": {}, "plain": {}},
+			args:    []string{"--quoting-style=c-maybe"},
+			wantOut: "\"a\\nb\"\nplain\n",
+		},
+		{
+			name:  "an unquoted name is padded for a quoted one in the long format",
+			files: fsx.MemFS{"a b": {Mode: 0o644, ModTime: now.recent}, "plain": {Mode: 0o644, ModTime: now.recent}},
+			args:  []string{"-l", "-n", "--quoting-style=shell"},
+			wantOut: "total 0\n" +
+				"-rw-r--r-- 1 0 0 0 " + now.day(now.recent) + " 'a b'\n" +
+				"-rw-r--r-- 1 0 0 0 " + now.day(now.recent) + "  plain\n",
+		},
+		{
+			name:    "--show-control-chars writes a nongraphic character as it is",
+			files:   fsx.MemFS{"a\nb": {}},
+			args:    []string{"-q", "--show-control-chars"},
+			wantOut: "a\nb\n",
+		},
+		{
+			name:    "-q wins over an earlier --show-control-chars",
+			files:   fsx.MemFS{"a\nb": {}},
+			args:    []string{"--show-control-chars", "-q"},
+			wantOut: "a?b\n",
+		},
+		{
+			name:     "an unknown quoting style is an error",
+			args:     []string{"--quoting-style=bogus"},
+			files:    fsx.MemFS{"a": {}},
+			wantErr:  "ls: invalid argument 'bogus' for '--quoting-style'\nTry 'ls --help' for more information.\n",
+			wantExit: 2,
+		},
+		{
+			name:    "QUOTING_STYLE sets the default style",
+			files:   fsx.MemFS{"a b": {}},
+			env:     map[string]string{"QUOTING_STYLE": "shell"},
+			args:    []string{},
+			wantOut: "'a b'\n",
+		},
+		{
+			name:    "an option overrides QUOTING_STYLE",
+			files:   fsx.MemFS{"a b": {}},
+			env:     map[string]string{"QUOTING_STYLE": "shell"},
+			args:    []string{"-N"},
+			wantOut: "a b\n",
+		},
+		{
+			name:    "an invalid QUOTING_STYLE is ignored with a warning",
+			files:   fsx.MemFS{"a": {}},
+			env:     map[string]string{"QUOTING_STYLE": "bogus"},
+			args:    []string{},
+			wantOut: "a\n",
+			wantErr: "ls: ignoring invalid value of environment variable QUOTING_STYLE: bogus\n",
+		},
+	})
+}
+
+// TestQuotingStyles checks the quoting engine against the output of GNU
+// coreutils 9.6 for the same names, in a locale with UTF-8.
+func TestQuotingStyles(t *testing.T) {
+	tests := []struct {
+		name  string
+		style quotingStyle
+		want  string
+	}{
+		{"plain", quoteLiteral, "plain"},
+		{"plain", quoteShell, "plain"},
+		{"plain", quoteC, `"plain"`},
+		{"plain", quoteEscape, "plain"},
+		{"a b", quoteLiteral, "a b"},
+		{"a b", quoteShell, "'a b'"},
+		{"a b", quoteShellAlways, "'a b'"},
+		{"a b", quoteC, `"a b"`},
+		{"a b", quoteEscape, "a b"},
+		{"a b", quoteShellEscape, "'a b'"},
+		{"a b", quoteShellEscapeAlways, "'a b'"},
+		{"a b", quoteCMaybe, "a b"},
+		{"a b", quoteLocale, "‘a b’"},
+		{"a b", quoteCLocale, "‘a b’"},
+		{"a'b", quoteShell, `"a'b"`},
+		{"a'b", quoteShellEscapeAlways, `"a'b"`},
+		{"a'b", quoteShellEscape, `"a'b"`},
+		{"a'b", quoteC, `"a'b"`},
+		{"a'b", quoteLocale, "‘a'b’"},
+		{"a\nb", quoteShell, "'a\nb'"},
+		{"a\nb", quoteShellEscape, `'a'$'\n''b'`},
+		{"a\nb", quoteShellEscapeAlways, `'a'$'\n''b'`},
+		{"a\nb", quoteC, `"a\nb"`},
+		{"a\nb", quoteEscape, "a\\nb"},
+		{"a\nb", quoteCMaybe, `"a\nb"`},
+		{"a\tb", quoteEscape, "a\\tb"},
+		{"a\x01b", quoteEscape, "a\\001b"},
+		{"a\x01b", quoteShellEscape, `'a'$'\001''b'`},
+		{"a?b", quoteShell, "'a?b'"},
+		{"a?b", quoteC, `"a?b"`},
+		{"café", quoteLiteral, "café"},
+		{"café", quoteShell, "café"},
+		{"café", quoteShellEscape, "café"},
+		{"café", quoteC, `"café"`},
+		{`a"b`, quoteC, `"a\"b"`},
+		{`a"b`, quoteShell, `'a"b'`},
+		{`a"b`, quoteCMaybe, `"a\"b"`},
+		{`a\b`, quoteShell, `'a\b'`},
+		{`a\b`, quoteC, `"a\\b"`},
+		{`a\b`, quoteEscape, `a\\b`},
+		{"a#b", quoteShell, "a#b"},
+		{"a#b", quoteLiteral, "a#b"},
+		{"", quoteShell, "''"},
+		{"", quoteLiteral, ""},
+		{"", quoteC, `""`},
+	}
+	for _, test := range tests {
+		t.Run(fmt.Sprintf("%s/%d", test.name, test.style), func(t *testing.T) {
+			got, _ := quoteName(test.name, test.style, false, "")
+			if got != test.want {
+				t.Errorf("quoteName(%q, style %d) = %q, want %q", test.name, test.style, got, test.want)
+			}
+		})
+	}
+}
+
+// TestHideControl checks the writing of nongraphic characters as question
+// marks.
+func TestHideControl(t *testing.T) {
+	for _, test := range []struct{ in, want string }{
+		{"plain", "plain"},
+		{"a\nb", "a?b"},
+		{"a\x01b", "a?b"},
+		{"café", "café"},
+		{"a\nb\n", "a?b?"},
+		{"'\n'", "'?'"},
+	} {
+		if got := hideControl(test.in); got != test.want {
+			t.Errorf("hideControl(%q) = %q, want %q", test.in, got, test.want)
+		}
+	}
+}
+
+// TestHumanize checks the human readable sizes against the output of GNU
+// coreutils 9.6.
+func TestHumanize(t *testing.T) {
+	for _, test := range []struct {
+		n    int64
+		si   bool
+		want string
+	}{
+		{0, false, "0"},
+		{500, false, "500"},
+		{512, false, "512"},
+		{1000, true, "1.0k"},
+		{1023, false, "1023"},
+		{1023, true, "1.1k"},
+		{1024, false, "1.0K"},
+		{1025, false, "1.1K"},
+		{1050, false, "1.1K"},
+		{1500, true, "1.5k"},
+		{1536, false, "1.5K"},
+		{10240, false, "10K"},
+		{11264, false, "11K"},
+		{100000, true, "100k"},
+		{1048575, false, "1.0M"},
+		{1048576, false, "1.0M"},
+		{1048576, true, "1.1M"},
+		{3145728, false, "3.0M"},
+		{11264, true, "12k"},
+	} {
+		base := int64(1024)
+		if test.si {
+			base = 1000
+		}
+		if got := humanize(test.n, base); got != test.want {
+			t.Errorf("humanize(%d, base %d) = %q, want %q", test.n, base, got, test.want)
+		}
+	}
+}
+
+// TestSizeSpecFormat checks the sizes a block size spec writes.
+func TestSizeSpecFormat(t *testing.T) {
+	for _, test := range []struct {
+		spec sizeSpec
+		n    int64
+		want string
+	}{
+		{byteSpec, 1500, "1500"},
+		{kibibyteSpec, 1500, "2"},
+		{sizeSpec{unit: 1024}, 1024, "1"},
+		{sizeSpec{unit: 1024}, 1023, "1"},
+		{sizeSpec{unit: 1000000}, 1500, "1"},
+		{sizeSpec{unit: 1024, suffix: "KiB"}, 3000000, "2930KiB"},
+		{sizeSpec{unit: 1000, suffix: "kB"}, 3000000, "3000kB"},
+		{sizeSpec{unit: 1024, suffix: "K"}, 2048, "2K"},
+		{humanSpec(false), 2048, "2.0K"},
+		{humanSpec(true), 2048, "2.1k"},
+	} {
+		if got := test.spec.format(test.n); got != test.want {
+			t.Errorf("spec %+v format(%d) = %q, want %q", test.spec, test.n, got, test.want)
+		}
+	}
+}
+
+// TestParseBlockSize checks the block size words.
+func TestParseBlockSize(t *testing.T) {
+	for _, test := range []struct {
+		word string
+		want sizeSpec
+	}{
+		{"human-readable", humanSpec(false)},
+		{"si", humanSpec(true)},
+		{"1", sizeSpec{unit: 1}},
+		{"512", sizeSpec{unit: 512}},
+		{"10K", sizeSpec{unit: 10240}},
+		{"1MB", sizeSpec{unit: 1000000}},
+		{"1KiB", sizeSpec{unit: 1024}},
+		{"K", sizeSpec{unit: 1024, suffix: "K"}},
+		{"kB", sizeSpec{unit: 1000, suffix: "kB"}},
+		{"KiB", sizeSpec{unit: 1024, suffix: "KiB"}},
+		{"'10K", sizeSpec{unit: 10240}},
+	} {
+		got, err := parseBlockSize(test.word)
+		if err != nil {
+			t.Errorf("parseBlockSize(%q) error = %v", test.word, err)
+			continue
+		}
+		if got != test.want {
+			t.Errorf("parseBlockSize(%q) = %+v, want %+v", test.word, got, test.want)
+		}
+	}
+	for _, word := range []string{"", "0", "banana", "10Q1", "'"} {
+		if _, err := parseBlockSize(word); err == nil {
+			t.Errorf("parseBlockSize(%q) succeeded, want an error", word)
+		}
+	}
+}
+
+// TestRunHumanSizes checks the options that scale the sizes of the long
+// format.
+func TestRunHumanSizes(t *testing.T) {
+	now := newTimes()
+	files := fsx.MemFS{
+		"a": {Data: bytes.Repeat([]byte("x"), 1024), Mode: 0o644, ModTime: now.recent},
+		"b": {Data: bytes.Repeat([]byte("x"), 10240), Mode: 0o644, ModTime: now.recent},
+	}
+
+	runCases(t, []testCase{
+		{
+			name:    "-h writes the sizes with a size letter",
+			files:   files,
+			args:    []string{"-lh", "-n"},
+			wantOut: "total 11K\n-rw-r--r-- 1 0 0 1.0K " + now.day(now.recent) + " a\n-rw-r--r-- 1 0 0  10K " + now.day(now.recent) + " b\n",
+		},
+		{
+			name:    "--si writes the sizes in the powers of 1000",
+			files:   files,
+			args:    []string{"-l", "--si", "-n"},
+			wantOut: "total 12k\n-rw-r--r-- 1 0 0 1.1k " + now.day(now.recent) + " a\n-rw-r--r-- 1 0 0  11k " + now.day(now.recent) + " b\n",
+		},
+		{
+			name:    "--block-size scales the sizes by a fixed unit",
+			files:   files,
+			args:    []string{"-l", "--block-size=K", "-n"},
+			wantOut: "total 11K\n-rw-r--r-- 1 0 0  1K " + now.day(now.recent) + " a\n-rw-r--r-- 1 0 0 10K " + now.day(now.recent) + " b\n",
+		},
+		{
+			name:    "--block-size=kB scales by a thousand and appends kB",
+			files:   files,
+			args:    []string{"-l", "--block-size=kB", "-n"},
+			wantOut: "total 12kB\n-rw-r--r-- 1 0 0  2kB " + now.day(now.recent) + " a\n-rw-r--r-- 1 0 0 11kB " + now.day(now.recent) + " b\n",
+		},
+		{
+			name:    "-k doesn't scale the sizes of the long format",
+			files:   files,
+			args:    []string{"-l", "-k", "-n"},
+			wantOut: "total 11\n-rw-r--r-- 1 0 0  1024 " + now.day(now.recent) + " a\n-rw-r--r-- 1 0 0 10240 " + now.day(now.recent) + " b\n",
+		},
+		{
+			name:    "-h wins over -k wherever it's given",
+			files:   files,
+			args:    []string{"-k", "-lh", "-n"},
+			wantOut: "total 11K\n-rw-r--r-- 1 0 0 1.0K " + now.day(now.recent) + " a\n-rw-r--r-- 1 0 0  10K " + now.day(now.recent) + " b\n",
+		},
+		{
+			name:    "LS_BLOCK_SIZE scales the block counts and the sizes",
+			files:   files,
+			env:     map[string]string{"LS_BLOCK_SIZE": "1M"},
+			args:    []string{"-ln"},
+			wantOut: "total 1\n-rw-r--r-- 1 0 0 1 " + now.day(now.recent) + " a\n-rw-r--r-- 1 0 0 1 " + now.day(now.recent) + " b\n",
+		},
+		{
+			name:    "-k overrides the block size of the environment",
+			files:   files,
+			env:     map[string]string{"BLOCK_SIZE": "1M"},
+			args:    []string{"-s", "-k", "-1"},
+			wantOut: "total 11\n 1 a\n10 b\n",
+		},
+		{
+			name:    "BLOCKSIZE scales the block counts only",
+			files:   fsx.MemFS{"a": {Data: bytes.Repeat([]byte("x"), 1024), Mode: 0o644, ModTime: now.recent}},
+			env:     map[string]string{"BLOCKSIZE": "1M"},
+			args:    []string{"-sln"},
+			wantOut: "total 1\n1 -rw-r--r-- 1 0 0 1024 " + now.day(now.recent) + " a\n",
+		},
+		{
+			name:    "POSIXLY_CORRECT counts the blocks in units of 512",
+			files:   fsx.MemFS{"a": {Data: bytes.Repeat([]byte("x"), 1024)}},
+			env:     map[string]string{"POSIXLY_CORRECT": "1"},
+			args:    []string{"-s", "-1"},
+			wantOut: "total 2\n2 a\n",
+		},
+		{
+			name:     "a zero block size is an error",
+			files:    files,
+			args:     []string{"--block-size=0"},
+			wantErr:  "ls: invalid --block-size argument '0'\nTry 'ls --help' for more information.\n",
+			wantExit: 2,
+		},
+		{
+			name:     "an invalid block size is an error",
+			files:    files,
+			args:     []string{"--block-size=banana"},
+			wantErr:  "ls: invalid --block-size argument 'banana'\nTry 'ls --help' for more information.\n",
+			wantExit: 2,
+		},
+		{
+			name:     "an invalid LS_BLOCK_SIZE is an error",
+			files:    files,
+			env:      map[string]string{"LS_BLOCK_SIZE": "banana"},
+			args:     []string{"-1"},
+			wantErr:  "ls: invalid suffix in LS_BLOCK_SIZE: 'banana'\nTry 'ls --help' for more information.\n",
+			wantExit: 2,
+		},
+	})
+}
+
+// TestRunTimeStyle checks the options that change the timestamps of the
+// long format.
+func TestRunTimeStyle(t *testing.T) {
+	now := newTimes()
+	files := fsx.MemFS{"new": {Mode: 0o644, ModTime: now.recent}, "old": {Mode: 0o644, ModTime: now.old}}
+
+	runCases(t, []testCase{
+		{
+			name:  "long-iso writes the date and the minute",
+			files: files,
+			args:  []string{"-l", "--time-style=long-iso", "-n"},
+			wantOut: "total 0\n" +
+				"-rw-r--r-- 1 0 0 0 " + now.recent.Format("2006-01-02 15:04") + " new\n" +
+				"-rw-r--r-- 1 0 0 0 " + now.old.Format("2006-01-02 15:04") + " old\n",
+		},
+		{
+			name:  "iso writes the year for the old ones",
+			files: files,
+			args:  []string{"-l", "--time-style=iso", "-n"},
+			wantOut: "total 0\n" +
+				"-rw-r--r-- 1 0 0 0 " + now.recent.Format("01-02 15:04") + " new\n" +
+				"-rw-r--r-- 1 0 0 0 " + now.old.Format("2006-01-02") + "  old\n",
+		},
+		{
+			name:  "full-iso writes the nanoseconds and the zone",
+			files: files,
+			args:  []string{"-l", "--time-style=full-iso", "-n"},
+			wantOut: "total 0\n" +
+				"-rw-r--r-- 1 0 0 0 " + now.recent.Format("2006-01-02 15:04:05.000000000 -0700") + " new\n" +
+				"-rw-r--r-- 1 0 0 0 " + now.old.Format("2006-01-02 15:04:05.000000000 -0700") + " old\n",
+		},
+		{
+			name:  "--full-time is -l with full-iso",
+			files: files,
+			args:  []string{"--full-time", "-n"},
+			wantOut: "total 0\n" +
+				"-rw-r--r-- 1 0 0 0 " + now.recent.Format("2006-01-02 15:04:05.000000000 -0700") + " new\n" +
+				"-rw-r--r-- 1 0 0 0 " + now.old.Format("2006-01-02 15:04:05.000000000 -0700") + " old\n",
+		},
+		{
+			name:  "a format with a newline splits the recent and the old ones",
+			files: files,
+			args:  []string{"-l", "--time-style=+%Y-%m-%d\n%Y-%m-%d %H:%M", "-n"},
+			wantOut: "total 0\n" +
+				"-rw-r--r-- 1 0 0 0 " + now.recent.Format("2006-01-02 15:04") + " new\n" +
+				"-rw-r--r-- 1 0 0 0 " + now.old.Format("2006-01-02") + " old\n",
+		},
+		{
+			name:  "TIME_STYLE sets the default style",
+			files: files,
+			env:   map[string]string{"TIME_STYLE": "long-iso"},
+			args:  []string{"-ln"},
+			wantOut: "total 0\n" +
+				"-rw-r--r-- 1 0 0 0 " + now.recent.Format("2006-01-02 15:04") + " new\n" +
+				"-rw-r--r-- 1 0 0 0 " + now.old.Format("2006-01-02 15:04") + " old\n",
+		},
+		{
+			name:  "posix-long-iso uses the locale form in the C locale",
+			files: files,
+			env:   map[string]string{"LC_ALL": "C"},
+			args:  []string{"-ln", "--time-style=posix-long-iso"},
+			wantOut: "total 0\n" +
+				"-rw-r--r-- 1 0 0 0 " + now.day(now.recent) + " new\n" +
+				"-rw-r--r-- 1 0 0 0 " + now.year(now.old) + " old\n",
+		},
+		{
+			name:  "posix-long-iso uses the style outside the C locale",
+			files: files,
+			env:   map[string]string{"LC_ALL": "C.UTF-8"},
+			args:  []string{"-ln", "--time-style=posix-long-iso"},
+			wantOut: "total 0\n" +
+				"-rw-r--r-- 1 0 0 0 " + now.recent.Format("2006-01-02 15:04") + " new\n" +
+				"-rw-r--r-- 1 0 0 0 " + now.old.Format("2006-01-02 15:04") + " old\n",
+		},
+		{
+			name:     "an invalid time style is an error",
+			files:    files,
+			args:     []string{"-l", "--time-style=bogus"},
+			wantErr:  "ls: invalid --time-style argument 'bogus'\nTry 'ls --help' for more information.\n",
+			wantExit: 2,
+		},
+		{
+			name:     "an invalid TIME_STYLE is an error",
+			files:    files,
+			env:      map[string]string{"TIME_STYLE": "bogus"},
+			args:     []string{"-l"},
+			wantErr:  "ls: invalid --time-style argument 'bogus'\nTry 'ls --help' for more information.\n",
+			wantExit: 2,
+		},
+	})
+}
+
+// TestRunBirthTime checks --time=birth.
+func TestRunBirthTime(t *testing.T) {
+	now := newTimes()
+	runCases(t, []testCase{
+		{
+			name:    "a birth time a memory file system doesn't have is a question mark",
+			files:   fsx.MemFS{"a.txt": {Mode: 0o644, ModTime: now.recent}},
+			args:    []string{"-l", "--time=birth", "-n"},
+			wantOut: "total 0\n-rw-r--r-- 1 0 0 0            ? a.txt\n",
+		},
+		{
+			name:    "sorting by birth falls back to the modification time",
+			files:   fsx.MemFS{"a.txt": {ModTime: now.old}, "b.txt": {ModTime: now.recent}},
+			args:    []string{"-t", "--time=birth"},
+			wantOut: "b.txt\na.txt\n",
+		},
+	})
+}
+
+// TestRunGroupDirectories checks --group-directories-first.
+func TestRunGroupDirectories(t *testing.T) {
+	files := fsx.MemFS{
+		"a":     {},
+		"b":     {},
+		"dir":   {Mode: dirMode(0o755)},
+		"zdir":  {Mode: dirMode(0o755)},
+		"link":  link("dir"),
+		"blink": link("missing"),
+	}
+
+	runCases(t, []testCase{
+		{
+			name:    "the directories and their links are written first",
+			files:   files,
+			args:    []string{"-1", "--group-directories-first"},
+			wantOut: "dir\nlink\nzdir\na\nb\nblink\n",
+		},
+		{
+			name:    "the sort order stays within each group",
+			files:   files,
+			args:    []string{"-1", "-r", "--group-directories-first"},
+			wantOut: "zdir\nlink\ndir\nblink\nb\na\n",
+		},
+		{
+			name:    "-U disables the grouping",
+			files:   files,
+			args:    []string{"-1", "-U", "--group-directories-first"},
+			wantOut: "a\nb\nblink\ndir\nlink\nzdir\n",
+		},
+		{
+			name:    "-f disables the grouping",
+			files:   files,
+			args:    []string{"-f", "--group-directories-first"},
+			wantOut: "a\nb\nblink\ndir\nlink\nzdir\n",
+		},
+	})
+}
+
+// TestRunWidthTabsize checks -w and -T.
+func TestRunWidthTabsize(t *testing.T) {
+	runCases(t, []testCase{
+		{
+			name:    "-w sets the width the columns fill",
+			files:   fsx.MemFS{"aaaa": {}, "bb": {}, "cc": {}},
+			args:    []string{"-C", "-w", "10"},
+			wantOut: "aaaa  cc\nbb\n",
+		},
+		{
+			name:    "-w 0 writes the entries on one line",
+			files:   fsx.MemFS{"aaaa": {}, "bb": {}},
+			args:    []string{"-C", "-w", "0"},
+			wantOut: "aaaa  bb\n",
+		},
+		{
+			name:    "-w 0 fills the -m line without wrapping",
+			files:   fsx.MemFS{"aaaa": {}, "bb": {}},
+			args:    []string{"-m", "-w", "0"},
+			wantOut: "aaaa, bb\n",
+		},
+		{
+			name:    "the width of -w overrides COLUMNS",
+			files:   fsx.MemFS{"aaaa": {}, "bb": {}, "cc": {}},
+			env:     map[string]string{"COLUMNS": "80"},
+			args:    []string{"-C", "-w", "10"},
+			wantOut: "aaaa  cc\nbb\n",
+		},
+		{
+			name:    "a padding that spans a tab stop is written with a tab",
+			files:   fsx.MemFS{"aaaaaa": {}, "b": {}},
+			env:     map[string]string{"COLUMNS": "20"},
+			args:    []string{"-C"},
+			wantOut: "aaaaaa\tb\n",
+		},
+		{
+			name:    "-T 0 writes only spaces",
+			files:   fsx.MemFS{"aaaaaa": {}, "b": {}},
+			env:     map[string]string{"COLUMNS": "20"},
+			args:    []string{"-C", "-T", "0"},
+			wantOut: "aaaaaa  b\n",
+		},
+		{
+			name:    "TABSIZE sets the distance between the stops",
+			files:   fsx.MemFS{"aaaaaa": {}, "b": {}},
+			env:     map[string]string{"COLUMNS": "20", "TABSIZE": "0"},
+			args:    []string{"-C"},
+			wantOut: "aaaaaa  b\n",
+		},
+		{
+			name:    "an invalid TABSIZE is ignored with a warning",
+			files:   fsx.MemFS{"a": {}},
+			env:     map[string]string{"TABSIZE": "banana"},
+			args:    []string{"-1"},
+			wantOut: "a\n",
+			wantErr: "ls: ignoring invalid tab size in environment variable TABSIZE: banana\n",
+		},
+		{
+			name:     "an invalid tab size is an error",
+			files:    fsx.MemFS{"a": {}},
+			args:     []string{"-T", "banana"},
+			wantErr:  "ls: invalid tab size 'banana'\nTry 'ls --help' for more information.\n",
+			wantExit: 2,
+		},
+		{
+			name:     "an invalid width is an error",
+			files:    fsx.MemFS{"a": {}},
+			args:     []string{"-w", "banana"},
+			wantErr:  "ls: invalid line width 'banana'\nTry 'ls --help' for more information.\n",
+			wantExit: 2,
+		},
+	})
+}
+
+// TestRunZero checks --zero.
+func TestRunZero(t *testing.T) {
+	now := newTimes()
+
+	runCases(t, []testCase{
+		{
+			name:    "--zero ends the lines with NUL",
+			files:   fsx.MemFS{"a": {}, "b": {}},
+			args:    []string{"--zero"},
+			wantOut: "a\x00b\x00",
+		},
+		{
+			name:    "--zero ends the long lines with NUL",
+			files:   fsx.MemFS{"a": {Mode: 0o644, ModTime: now.recent}},
+			args:    []string{"--zero", "-ln"},
+			wantOut: "total 0\x00-rw-r--r-- 1 0 0 0 " + now.day(now.recent) + " a\x00",
+		},
+		{
+			name:    "--zero keeps the newline of the headers",
+			files:   fsx.MemFS{"dir/a": {}},
+			args:    []string{"--zero", "-R"},
+			wantOut: ".:\ndir\x00\n./dir:\na\x00",
+		},
+		{
+			name:    "--zero implies the literal quoting",
+			files:   fsx.MemFS{"a b": {}},
+			args:    []string{"--zero"},
+			wantOut: "a b\x00",
+		},
+		{
+			name:    "a later quoting option overrides --zero",
+			files:   fsx.MemFS{"a b": {}},
+			args:    []string{"--zero", "--quoting-style=shell"},
+			wantOut: "'a b'\x00",
+		},
+		{
+			name:    "a later -C overrides the single column of --zero",
+			files:   fsx.MemFS{"a": {}, "b": {}},
+			args:    []string{"--zero", "-C"},
+			wantOut: "a  b\x00",
+		},
+		{
+			name:    "a later -l keeps the long format with --zero",
+			files:   fsx.MemFS{"a": {Mode: 0o644, ModTime: now.recent}},
+			args:    []string{"-1", "--zero", "-ln"},
+			wantOut: "total 0\x00-rw-r--r-- 1 0 0 0 " + now.day(now.recent) + " a\x00",
+		},
+		{
+			name:    "-m writes the frills without padding",
+			files:   fsx.MemFS{"a": {Data: []byte("x")}, "bb": {}},
+			args:    []string{"-m", "-i", "-s"},
+			wantOut: "total 1\n0 1 a, 0 0 bb\n",
+		},
+		{
+			name:    "--zero writes the -m list on one line",
+			files:   fsx.MemFS{"a": {}, "b": {}},
+			args:    []string{"--zero", "-m"},
+			wantOut: "a, b\x00",
+		},
+	})
+}
+
+// TestRunTerminal checks the defaults of a listing written to a terminal.
+func TestRunTerminal(t *testing.T) {
+	now := newTimes()
+	files := fsx.MemFS{"a b": {}, "a\nb": {}, "plain": {Mode: 0o644, ModTime: now.recent}}
+	for _, test := range []testCase{
+		{
+			name:    "the entries fill the columns and escape the control characters",
+			files:   files,
+			args:    []string{},
+			wantOut: "'a'$'\\n''b'   plain\n'a b'\n",
+		},
+		{
+			name:    "an explicit -1 keeps one entry per line",
+			files:   files,
+			args:    []string{"-1"},
+			wantOut: "'a'$'\\n''b'\n'a b'\nplain\n",
+		},
+		{
+			name:    "an explicit quoting option overrides the default",
+			files:   fsx.MemFS{"a b": {}},
+			args:    []string{"-N"},
+			wantOut: "a b\n",
+		},
+		{
+			name:    "--show-control-chars keeps the characters of a literal name as they are",
+			files:   fsx.MemFS{"a\nb": {}},
+			args:    []string{"-N", "--show-control-chars"},
+			wantOut: "a\nb\n",
+		},
+		{
+			name:    "the long format stays one entry per line",
+			files:   fsx.MemFS{"plain": {Mode: 0o644, ModTime: now.recent}},
+			args:    []string{"-ln"},
+			wantOut: "total 0\n-rw-r--r-- 1 0 0 0 " + now.day(now.recent) + " plain\n",
+		},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			test.env = map[string]string{"COLUMNS": "20"}
+			test.terminal = true
+			runCase(t, test)
+		})
+	}
+}
+
+// TestRunDerefArgDirs checks --dereference-command-line-symlink-to-dir.
+func TestRunDerefArgDirs(t *testing.T) {
+	now := newTimes()
+	linked := fsx.MemFS{
+		"dir":    {Mode: dirMode(0o755)},
+		"dir/in": {Mode: 0o644, ModTime: now.recent},
+		"to-dir": linkAt("dir", now.recent),
+	}
+
+	runCases(t, []testCase{
+		{
+			name:    "the contents of an operand link to a directory are listed",
+			files:   linked,
+			args:    []string{"--dereference-command-line-symlink-to-dir", "to-dir"},
+			wantOut: "in\n",
+		},
+		{
+			name:    "-d keeps the link itself with the option",
+			files:   linked,
+			args:    []string{"-d", "--dereference-command-line-symlink-to-dir", "to-dir"},
+			wantOut: "to-dir\n",
+		},
+		{
+			name:    "-l lists the contents of the link with the option",
+			files:   linked,
+			args:    []string{"-l", "--dereference-command-line-symlink-to-dir", "to-dir"},
+			wantOut: "total 0\n-rw-r--r-- 1 0 0 0 " + now.day(now.recent) + " in\n",
+		},
+		{
+			name:    "-F lists the contents of the link with the option",
+			files:   linked,
+			args:    []string{"-F", "--dereference-command-line-symlink-to-dir", "to-dir"},
+			wantOut: "in\n",
+		},
+	})
+}
+
+// TestRunAuthorGroup checks --author and -G.
+func TestRunAuthorGroup(t *testing.T) {
+	now := newTimes()
+	files := fsx.MemFS{"a": {Mode: 0o644, ModTime: now.recent}}
+
+	runCases(t, []testCase{
+		{
+			name:    "--author writes the owner again as the author",
+			files:   files,
+			args:    []string{"-l", "--author", "-n"},
+			wantOut: "total 0\n-rw-r--r-- 1 0 0 0 0 " + now.day(now.recent) + " a\n",
+		},
+		{
+			name:    "-G drops the group without turning the format long",
+			files:   fsx.MemFS{"a": {}},
+			args:    []string{"-G"},
+			wantOut: "a\n",
+		},
+		{
+			name:    "-G drops the group of the long format",
+			files:   files,
+			args:    []string{"-lG", "-n"},
+			wantOut: "total 0\n-rw-r--r-- 1 0 0 " + now.day(now.recent) + " a\n",
+		},
+		{
+			name:    "-o is -l with -G",
+			files:   files,
+			args:    []string{"-o"},
+			wantOut: "total 0\n-rw-r--r-- 1 0 0 " + now.day(now.recent) + " a\n",
+		},
+	})
+}
+
+// fakeInfo is a file info with a chosen size, for the block accounting of
+// files a file system measures by their size.
+type fakeInfo struct {
+	name string
+	size int64
+}
+
+func (f fakeInfo) Name() string       { return f.name }
+func (f fakeInfo) Size() int64        { return f.size }
+func (f fakeInfo) Mode() fs.FileMode  { return 0o644 }
+func (f fakeInfo) ModTime() time.Time { return time.Time{} }
+func (f fakeInfo) IsDir() bool        { return false }
+func (f fakeInfo) Sys() any           { return nil }
+
+// TestBlocksOfSaturates checks that a file too large to count keeps a
+// count that fits instead of overflowing.
+func TestBlocksOfSaturates(t *testing.T) {
+	for _, test := range []struct {
+		size int64
+		want uint64
+	}{
+		{0, 0},
+		{1, 512},
+		{511, 512},
+		{512, 512},
+		{513, 1024},
+		{1 << 40, 1 << 40},
+		{1<<62 - 1, 1 << 62},
+		{math.MaxInt64, math.MaxInt64},
+	} {
+		if got := blocksOf(fakeInfo{size: test.size}); got != test.want {
+			t.Errorf("blocksOf(size %d) = %d, want %d", test.size, got, test.want)
+		}
 	}
 }
