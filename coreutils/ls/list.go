@@ -130,7 +130,7 @@ func (l *lister) lineOf(e entry) line {
 		ln.inode = strconv.FormatUint(inodeOf(e.fi), 10)
 	}
 	if l.opts.blocks {
-		ln.blocks = l.blocksSpec.format(int64(blocksOf(e.fi)))
+		ln.blocks = l.blocksSpec.Format(int64(blocksOf(e.fi)))
 	}
 	ln.name, ln.quoted = l.nameOf(e)
 	if !l.opts.long {
@@ -146,7 +146,7 @@ func (l *lister) lineOf(e entry) line {
 	if l.opts.author {
 		ln.author = l.ownerOf(e.fi)
 	}
-	ln.size = l.sizeSpec.format(e.fi.Size())
+	ln.size = l.sizeSpec.Format(e.fi.Size())
 	ln.time = l.timeString(e)
 	return ln
 }
@@ -297,6 +297,14 @@ func (l *lister) writeColumns(names []string, byColumns bool) {
 		fmt.Fprint(l.prog.Stdout, name)
 	}
 	fmt.Fprint(l.prog.Stdout, l.eol)
+}
+
+// boolInt gives a boolean as the zero or one an arithmetic needs.
+func boolInt(b bool) int {
+	if b {
+		return 1
+	}
+	return 0
 }
 
 // columnWidths returns the widths of the columns a listing fits in the
@@ -559,7 +567,7 @@ func (l *lister) blocksTotal(entries []entry) string {
 		}
 		total += int64(blocks)
 	}
-	return l.blocksSpec.format(total)
+	return l.blocksSpec.Format(total)
 }
 
 // blocksOf returns the number of file system bytes a file allocates,

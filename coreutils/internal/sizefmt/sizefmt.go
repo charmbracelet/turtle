@@ -1,4 +1,7 @@
-package ls
+// Package sizefmt formats sizes the GNU way: as the spec the --block-size
+// argument of the utilities which take one stands for, and as the human
+// readable notation of their -h.
+package sizefmt
 
 import (
 	"fmt"
@@ -8,47 +11,56 @@ import (
 	"charm.land/snail/coreutils/internal/sizeparse"
 )
 
-// sizeSpec describes how a size is written: as the count of the units of a
+// Spec describes how a size is written: as the count of the units of a
 // fixed number of bytes, with the size letters a suffix-only spec stands
 // for appended to every number, or scaled to the largest unit of a base it
-// reads well in.
-type sizeSpec struct {
+// reads well in. The zero value counts bytes.
+type Spec struct {
 	unit      int64  // bytes each written number counts, one when scaling
 	suffix    string // what a suffix-only spec appends to every number
 	autoscale bool   // scale to the largest unit of base
 	base      int64  // the base autoscale divides by, 1024 or 1000
 }
 
-// byteSpec writes sizes in bytes, and kibibyteSpec in kibibytes, the units
-// the sizes of the long format and the block counts default to.
+// ByteSpec writes sizes in bytes, and KibibyteSpec in kibibytes, the
+// units the block counts and the sizes of the long formats default to.
 var (
-	byteSpec     = sizeSpec{unit: 1}
-	kibibyteSpec = sizeSpec{unit: 1024}
+	ByteSpec     = Spec{unit: 1}
+	KibibyteSpec = Spec{unit: 1024}
 )
 
-// humanSpec returns the spec of -h, which scales in the powers of 1024,
+// Fixed returns the spec which writes sizes as the count of the bytes a
+// plain unit has, a unit below one counting bytes.
+func Fixed(unit int64) Spec {
+	if unit < 1 {
+		unit = 1
+	}
+	return Spec{unit: unit}
+}
+
+// HumanSpec returns the spec of -h, which scales in the powers of 1024,
 // or the one of --si, which uses the powers of 1000.
-func humanSpec(si bool) sizeSpec {
+func HumanSpec(si bool) Spec {
 	base := int64(1024)
 	if si {
 		base = 1000
 	}
-	return sizeSpec{unit: 1, autoscale: true, base: base}
+	return Spec{unit: 1, autoscale: true, base: base}
 }
 
-// parseBlockSize parses the argument of --block-size and of the block
-// size environment variables: the words "human-readable" and "si", a size
+// Parse parses the argument of --block-size and of the block size
+// environment variables: the words "human-readable" and "si", a size
 // with an optional multiplicative suffix, or a bare suffix, which scales
 // by it and appends what it stands for to every number. A leading
 // apostrophe, which asks for the thousands separators no locale here has,
 // is accepted and ignored.
-func parseBlockSize(word string) (sizeSpec, error) {
+func Parse(word string) (Spec, error) {
 	word = strings.TrimPrefix(word, "'")
 	switch word {
 	case "human-readable":
-		return humanSpec(false), nil
+		return HumanSpec(false), nil
 	case "si":
-		return humanSpec(true), nil
+		return HumanSpec(true), nil
 	}
 	digits, suffix := splitDigits(word)
 	if suffix == "" {
@@ -63,21 +75,21 @@ func parseBlockSize(word string) (sizeSpec, error) {
 			return fixedSpec(unit, word)
 		}
 	}
-	return sizeSpec{}, fmt.Errorf("invalid --block-size argument '%s'", word)
+	return Spec{}, fmt.Errorf("invalid --block-size argument '%s'", word)
 }
 
 // fixedSpec returns the spec of a plain unit, which a zero isn't.
-func fixedSpec(unit int64, word string) (sizeSpec, error) {
+func fixedSpec(unit int64, word string) (Spec, error) {
 	if unit <= 0 {
-		return sizeSpec{}, fmt.Errorf("invalid --block-size argument '%s'", word)
+		return Spec{}, fmt.Errorf("invalid --block-size argument '%s'", word)
 	}
-	return sizeSpec{unit: unit}, nil
+	return Spec{unit: unit}, nil
 }
 
 // suffixSpec returns the spec of a bare suffix: a fixed unit of the bytes
 // it multiplies, with the size letters it stands for appended to every
 // number.
-func suffixSpec(suffix string) sizeSpec {
+func suffixSpec(suffix string) Spec {
 	mult, _ := sizeparse.Parse("1" + suffix)
 	base, withB := int64(1024), false
 	if strings.HasSuffix(suffix, "iB") {
@@ -97,7 +109,7 @@ func suffixSpec(suffix string) sizeSpec {
 			letters += "B"
 		}
 	}
-	return sizeSpec{unit: mult, suffix: letters}
+	return Spec{unit: mult, suffix: letters}
 }
 
 // splitDigits splits a word into its leading decimal digits and the rest.
@@ -126,11 +138,15 @@ func sizeLetter(exponent int, base int64) string {
 	return letter
 }
 
-// format writes n bytes as the spec describes, rounding a count that
-// doesn't divide by the unit up, the way the GNU tools do.
-func (s sizeSpec) format(n int64) string {
+// Format writes n bytes as the spec describes, rounding a count that
+// doesn't divide by the unit up, the way the GNU tools do. A spec without
+// a unit counts bytes.
+func (s Spec) Format(n int64) string {
 	if n < 0 {
 		n = 0
+	}
+	if s.unit < 1 {
+		s.unit = 1
 	}
 	if s.autoscale {
 		return humanize(n, s.base)
@@ -186,6 +202,7 @@ func humanize(n int64, base int64) string {
 	return strconv.FormatInt(amt, 10) + sizeLetter(exponent, base)
 }
 
+// boolInt gives a boolean as the zero or one an arithmetic needs.
 func boolInt(b bool) int {
 	if b {
 		return 1
