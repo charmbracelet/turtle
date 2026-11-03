@@ -1,16 +1,20 @@
-// Package tail implements the POSIX tail utility.
+// Package tail implements the tail utility.
 //
 // It copies the last part of each given file to the standard output, starting
 // at the point given by the -n or -c options, defaulting to the last 10
 // lines. When more than one operand is given, a "==> name <==" header
 // precedes the output of each file; -q and -v make the headers never or
 // always printed. The standard input is used when no operand is given, and
-// also when the operand is "-". With -f, the input is monitored for further
-// data after the designated part is copied. The obsolete first-operand forms
-// tail -NUM and tail +NUM, with an optional b, c or l size letter and a
-// trailing f, are accepted too. The --follow=name, -F, --retry, --pid and -s
-// options of the GNU manual are not implemented, and -f follows a single
-// file operand only.
+// also when the operand is "-". With -f, or --follow=name with --retry, as
+// with -F, the inputs keep being copied as further data becomes available:
+// by descriptor, which keeps reading the open files, or by name, which also
+// reopens them when replaced or removed, reporting truncations and printing
+// a header whenever the output comes from a different file. The --pid, -s
+// and --max-unchanged-stats options tune the waiting: tail exits once all
+// the given processes no longer exist, waits a given number of seconds
+// between iterations, and rechecks a name after a given number of unchanged
+// ones. The obsolete first-operand forms tail -NUM and tail +NUM, with an
+// optional b, c or l size letter and a trailing f, are accepted too.
 package tail
 
 import (
@@ -19,10 +23,14 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"io/fs"
 	"math"
+	"os"
 	"path/filepath"
 	"slices"
+	"strconv"
 	"strings"
+	"sync"
 	"time"
 
 	"charm.land/snail/coreutils"
@@ -36,9 +44,13 @@ import (
 	"charm.land/snail/fsx"
 )
 
-// followInterval is how long -f waits between checks for further data, like
+// defaultSleep is how long the follow modes wait between iterations, like
 // the loop described on the POSIX rationale.
-const followInterval = time.Second
+const defaultSleep = time.Second
+
+// defaultMaxUnchanged is how many iterations without a size change happen
+// before a followed name is checked again.
+const defaultMaxUnchanged = 5
 
 // Prog is the tail core utility.
 type Prog struct {
@@ -52,9 +64,11 @@ func New(rt *coreutils.Runtime) coreutils.Program {
 
 // Run writes the designated part of the given files to the standard output,
 // in the same order the operands are given. The standard input is used when
-// no operands are given, and also when an operand is "-". With -f, the input
-// keeps being copied as further data becomes available, and Run only returns
-// once ctx is done. A failing file doesn't stop the others.
+// no operands are given, and also when an operand is "-". With -f, the
+// inputs keep being copied as further data becomes available, and Run only
+// returns once ctx is done, all the writers given with --pid no longer
+// exist, or every followed name is given up. A failing file doesn't stop
+// the others.
 //
 // Reading is interrupted when ctx is done, and the context error is returned.
 func (p *Prog) Run(ctx context.Context, args ...string) error {
@@ -67,13 +81,23 @@ func (p *Prog) Run(ctx context.Context, args ...string) error {
 		stdopts.TryHelp(p.Runtime, "tail")
 		return &coreutils.ExitError{Code: 2}
 	}
-	if opts.follow && len(operands) > 1 {
-		p.errorf("cannot follow more than one file")
-		stdopts.TryHelp(p.Runtime, "tail")
-		return &coreutils.ExitError{Code: 2}
-	}
-
 	inputs := input.List(operands)
+	if opts.follow {
+		return p.runFollow(ctx, inputs, opts)
+	}
+	if opts.retry {
+		p.errorf("warning: --retry ignored; --retry is useful only when following")
+	}
+	if len(opts.pids) > 0 {
+		p.errorf("warning: PID ignored; --pid=PID is useful only when following")
+	}
+	return p.copyInputs(ctx, inputs, opts)
+}
+
+// copyInputs writes the designated part of each input to the standard
+// output, in the order the operands were given. A failing input doesn't
+// stop the others.
+func (p *Prog) copyInputs(ctx context.Context, inputs []input.Input, opts options) error {
 	headers := opts.headers == headerAlways ||
 		(opts.headers == headerAuto && len(inputs) > 1)
 
@@ -98,7 +122,7 @@ func (p *Prog) Run(ctx context.Context, args ...string) error {
 			p.writeHeader(in, !first)
 			first = false
 		}
-		err = p.tail(ctx, rc, f, opts)
+		err = p.copyPortion(ctxio.NewReader(ctx, rc), f, opts)
 		rc.Close()
 		if err == nil {
 			continue
@@ -121,16 +145,571 @@ func (p *Prog) Run(ctx context.Context, args ...string) error {
 	return nil
 }
 
-// tail copies the designated part of the open input and follows it with -f.
-func (p *Prog) tail(ctx context.Context, rc io.ReadCloser, f fsx.SeekFile, opts options) error {
-	r := ctxio.NewReader(ctx, rc)
-	if err := p.copyPortion(r, f, opts); err != nil {
-		return err
+// runFollow writes the designated part of each input, and then keeps
+// copying further data from the followed ones as it becomes available.
+func (p *Prog) runFollow(ctx context.Context, inputs []input.Input, opts options) error {
+	// The standard input of a FIFO or a pipe can't be followed: -f is
+	// ignored when no file operand is given, and a "-" operand isn't
+	// followed likewise.
+	stdinPipe := stdinIsPipe(p.Runtime)
+	if stdinPipe && len(inputs) == 1 && inputs[0].Stdin && inputs[0].Name == "" {
+		return p.copyInputs(ctx, inputs, opts)
 	}
-	if opts.follow {
-		return p.follow(ctx, r)
+	if opts.retry && !opts.byName {
+		p.errorf("warning: --retry only effective for the initial open")
+	}
+	if len(opts.pids) > 0 && p.ProcessAlive == nil {
+		p.errorf("warning: --pid=PID is not supported on this system")
+		opts.pids = nil
+	}
+
+	headers := opts.headers == headerAlways ||
+		(opts.headers == headerAuto && len(inputs) > 1)
+
+	ok := true
+	following := false
+	out := &output{p: p, headers: headers}
+	var fls []*follower
+	for _, in := range inputs {
+		if err := ctx.Err(); err != nil {
+			return err
+		}
+		if !in.Stdin && in.Name == "" {
+			p.errorf("invalid zero-length file name")
+			ok = false
+			continue
+		}
+		follow := !in.Stdin || !stdinPipe
+		if in.Stdin && in.Name == "-" && follow && opts.byName {
+			p.errorf("cannot follow '-' by name")
+			return &coreutils.ExitError{Code: 1}
+		}
+		following = following || follow
+
+		rc, f, err := p.openRetry(ctx, in, opts)
+		if err != nil {
+			if ctx.Err() != nil {
+				return ctx.Err()
+			}
+			ok = false
+			continue
+		}
+		fl := &follower{
+			p:            p,
+			in:           in,
+			ctx:          ctx,
+			rc:           ctxio.ReadCloser{Ctx: ctx, RC: rc},
+			f:            f,
+			out:          out,
+			path:         p.path(in),
+			byName:       opts.byName && !in.Stdin,
+			retry:        opts.retry,
+			sleep:        opts.sleep,
+			maxUnchanged: opts.maxUnchanged,
+		}
+		if headers {
+			if follow {
+				out.header(fl)
+			} else {
+				out.headerIn(in)
+			}
+		}
+		if err := p.copyPortion(fl.rc, f, opts); err != nil {
+			fl.close()
+			var writeErr *writeError
+			switch {
+			case errors.As(err, &writeErr):
+				p.errorf("write error: %v", writeErr.err)
+				return &coreutils.ExitError{Code: 1, Err: writeErr.err}
+			case ctx.Err() != nil:
+				return ctx.Err()
+			default:
+				p.errorf("%s: %v", in.Label(), patherr.Unwrap(err))
+				ok = false
+			}
+			continue
+		}
+		if f != nil {
+			if pos, err := f.Seek(0, io.SeekCurrent); err == nil {
+				fl.offset = pos
+			}
+			if fi, err := f.Stat(); err == nil {
+				fl.stat, fl.lastSize = fi, fi.Size()
+			}
+		}
+		if follow {
+			fls = append(fls, fl)
+		} else {
+			fl.close()
+		}
+	}
+	if len(fls) == 0 {
+		if following {
+			p.errorf("no files remaining")
+			return &coreutils.ExitError{Code: 1}
+		}
+		if !ok {
+			return &coreutils.ExitError{Code: 1}
+		}
+		return nil
+	}
+	if opts.debug {
+		// There is no notification support, so the follow always polls.
+		p.errorf("using polling mode")
+	}
+	return p.followAll(ctx, fls, opts, ok)
+}
+
+// followAll keeps copying further data from every follower, until ctx is
+// done, all the writers given with --pid no longer exist, or every followed
+// name is given up. ok tells whether errors were already reported.
+func (p *Prog) followAll(ctx context.Context, fls []*follower, opts options, ok bool) error {
+	stop := make(chan struct{})
+	halt := sync.OnceFunc(func() { close(stop) })
+	results := make(chan followResult, 2)
+
+	var files, pipes []*follower
+	for _, fl := range fls {
+		if fl.in.Stdin {
+			pipes = append(pipes, fl)
+		} else {
+			files = append(files, fl)
+		}
+	}
+
+	// The files are polled once per iteration, in the order their operands
+	// were given. The standard input is followed on its own, as reading it
+	// blocks until data arrives.
+	var loops, watchers sync.WaitGroup
+	loops.Add(2)
+	go func() {
+		defer loops.Done()
+		results <- p.pollLoop(ctx, files, opts, stop, halt)
+	}()
+	go func() {
+		defer loops.Done()
+		results <- p.followPipes(ctx, pipes, opts, stop, halt)
+	}()
+	if len(opts.pids) > 0 {
+		watchers.Go(func() {
+			p.watchPids(ctx, opts, stop, halt)
+		})
+	}
+	// Once nothing is followed anymore, the writer watcher is stopped too.
+	go func() {
+		loops.Wait()
+		halt()
+	}()
+	watchers.Wait()
+	loops.Wait()
+	halt()
+
+	var (
+		writeErr *writeError
+		gaveUp   bool
+	)
+	for range 2 {
+		res := <-results
+		gaveUp = gaveUp || res.gaveUp
+		if res.err != nil {
+			errors.As(res.err, &writeErr)
+		}
+	}
+	switch {
+	case ctx.Err() != nil:
+		return ctx.Err()
+	case writeErr != nil:
+		p.errorf("write error: %v", writeErr.err)
+		return &coreutils.ExitError{Code: 1, Err: writeErr.err}
+	case gaveUp:
+		p.errorf("no files remaining")
+		return &coreutils.ExitError{Code: 1}
+	case !ok:
+		return &coreutils.ExitError{Code: 1}
 	}
 	return nil
+}
+
+// followResult is how a follow loop ended: whether a followed name was
+// given up, and the error which makes the whole run stop, if any.
+type followResult struct {
+	gaveUp bool
+	err    error
+}
+
+// pollLoop polls the followed files once per iteration, in the order their
+// operands were given, until they are all given up, stop is closed, or ctx
+// is done.
+func (p *Prog) pollLoop(ctx context.Context, files []*follower, opts options, stop <-chan struct{}, halt func()) followResult {
+	gaveUp := false
+	for len(files) > 0 {
+		select {
+		case <-stop:
+			return followResult{}
+		default:
+		}
+		if err := ctx.Err(); err != nil {
+			return followResult{err: err}
+		}
+		var next []*follower
+		for _, fl := range files {
+			ended, err := fl.poll(ctx)
+			if err != nil {
+				halt()
+				return followResult{err: err}
+			}
+			if ended {
+				gaveUp = true
+				fl.close()
+				continue
+			}
+			next = append(next, fl)
+		}
+		files = next
+		if len(files) == 0 {
+			break
+		}
+		if err := p.Wait(ctx, opts.sleep); err != nil {
+			return followResult{err: err}
+		}
+	}
+	return followResult{gaveUp: gaveUp}
+}
+
+// followPipes follows the standard-input operands, whose reads block until
+// data arrives.
+func (p *Prog) followPipes(ctx context.Context, pipes []*follower, opts options, stop <-chan struct{}, halt func()) followResult {
+	if len(pipes) == 0 {
+		return followResult{}
+	}
+	gaveUp := false
+	for len(pipes) > 0 {
+		select {
+		case <-stop:
+			return followResult{}
+		default:
+		}
+		if err := ctx.Err(); err != nil {
+			return followResult{err: err}
+		}
+		var next []*follower
+		for _, fl := range pipes {
+			ended, err := fl.poll(ctx)
+			if err != nil {
+				halt()
+				return followResult{err: err, gaveUp: gaveUp}
+			}
+			if ended {
+				gaveUp = true
+				fl.close()
+				continue
+			}
+			next = append(next, fl)
+		}
+		pipes = next
+		if len(pipes) == 0 {
+			break
+		}
+		if err := p.Wait(ctx, opts.sleep); err != nil {
+			return followResult{err: err, gaveUp: gaveUp}
+		}
+	}
+	return followResult{gaveUp: gaveUp}
+}
+
+// watchPids watches the processes given with --pid, stopping the follow once
+// none of them exists anymore.
+func (p *Prog) watchPids(ctx context.Context, opts options, stop <-chan struct{}, halt func()) {
+	for {
+		select {
+		case <-stop:
+			return
+		default:
+		}
+		if p.pidsDead(opts.pids) {
+			halt()
+			return
+		}
+		if err := p.Wait(ctx, opts.sleep); err != nil {
+			return
+		}
+	}
+}
+
+// pidsDead reports whether none of the given processes exists anymore.
+func (p *Prog) pidsDead(pids []int) bool {
+	return !slices.ContainsFunc(pids, p.ProcessAlive)
+}
+
+// follower is one input being followed after its designated part was copied.
+type follower struct {
+	p    *Prog
+	in   input.Input
+	ctx  context.Context
+	rc   ctxio.ReadCloser // the open input, nil while the name is inaccessible
+	f    fsx.SeekFile     // the open file when it can be seeked, nil otherwise
+	out  *output
+	path string // the resolved name to reopen, empty for the standard input
+
+	byName       bool  // --follow=name: track the name instead of the descriptor
+	retry        bool  // --retry: keep waiting for an inaccessible name
+	offset       int64 // position already written for the current file
+	lastSize     int64 // size seen on the previous iteration
+	unchanged    int   // iterations without a size change since then
+	maxUnchanged int   // iterations before the name is checked again
+	stat         fs.FileInfo
+	sleep        time.Duration
+	buf          []byte
+}
+
+// poll copies the data available on the followed input, and checks whether
+// the file was truncated or, when following by name, replaced or removed. It
+// reports whether the input is still being followed; a non-nil error is
+// fatal for the whole run.
+func (fl *follower) poll(ctx context.Context) (ended bool, err error) {
+	if fl.rc.RC == nil && !fl.reappeared() {
+		return false, nil
+	}
+	for {
+		ended, err := fl.drain(ctx)
+		if ended || err != nil {
+			return ended, err
+		}
+		if again, ended := fl.recheck(); ended {
+			return true, nil
+		} else if !again {
+			return false, nil
+		}
+	}
+}
+
+// reappeared reopens an inaccessible name which exists again, reporting
+// whether it did. A file which is a new one is followed from its beginning.
+func (fl *follower) reappeared() bool {
+	fi, err := fs.Stat(fl.p.FS, fl.path)
+	if err != nil {
+		return false
+	}
+	fresh := !sameFile(fi, fl.stat)
+	if fresh {
+		fl.p.errorf("'%s' has appeared;  following new file", fl.in.Label())
+	}
+	if err := fl.reopen(fresh); err != nil {
+		return fl.inaccessible(err)
+	}
+	return true
+}
+
+// drain copies the data available on the open input, reporting read errors,
+// which end the following of this input.
+func (fl *follower) drain(ctx context.Context) (bool, error) {
+	if fl.buf == nil {
+		fl.buf = make([]byte, 32*1024)
+	}
+	for {
+		n, err := fl.rc.Read(fl.buf)
+		if n > 0 {
+			if werr := fl.out.data(fl, fl.buf[:n]); werr != nil {
+				return false, werr
+			}
+			fl.offset += int64(n)
+		}
+		if err != nil {
+			if errors.Is(err, io.EOF) {
+				return false, nil
+			}
+			if ctx.Err() != nil {
+				return false, ctx.Err()
+			}
+			fl.p.errorf("%s: %v", fl.in.Label(), patherr.Unwrap(err))
+			return true, nil
+		}
+	}
+}
+
+// recheck looks for a truncation, and, when following by name, for a
+// replacement of the followed file. It reports whether the input must be
+// drained again, and whether the name was given up.
+func (fl *follower) recheck() (drainAgain, ended bool) {
+	if fl.f == nil {
+		return false, false
+	}
+	fi, err := fl.f.Stat()
+	if err != nil {
+		fl.p.errorf("%s: %v", fl.in.Label(), patherr.Unwrap(err))
+		return false, true
+	}
+	if fi.Size() < fl.offset {
+		fl.p.errorf("%s: file truncated", fl.in.Label())
+		if _, err := fl.f.Seek(0, io.SeekStart); err != nil {
+			fl.p.errorf("%s: %v", fl.in.Label(), patherr.Unwrap(err))
+			return false, true
+		}
+		fl.offset = 0
+		fl.stat = fi
+		return true, false
+	}
+	if !fl.byName {
+		return false, false
+	}
+	if fi.Size() != fl.lastSize {
+		fl.lastSize = fi.Size()
+		fl.unchanged = 0
+		return false, false
+	}
+	fl.unchanged++
+	if fl.unchanged < fl.maxUnchanged {
+		return false, false
+	}
+	fl.unchanged = 0
+	return fl.recheckName()
+}
+
+// recheckName checks whether the followed name still designates the file
+// being read, as the GNU manual describes for --max-unchanged-stats.
+func (fl *follower) recheckName() (drainAgain, ended bool) {
+	fi, err := fs.Stat(fl.p.FS, fl.path)
+	switch {
+	case err != nil:
+		if !fl.retry {
+			fl.p.errorf("'%s' has become inaccessible: %v; giving up on this name", fl.in.Label(), patherr.Unwrap(err))
+			fl.close()
+			return false, true
+		}
+		fl.p.errorf("'%s' has become inaccessible: %v", fl.in.Label(), patherr.Unwrap(err))
+		fl.close()
+		return false, false
+	case sameFile(fi, fl.stat):
+		return false, false
+	}
+	fl.p.errorf("'%s' has been replaced;  following new file", fl.in.Label())
+	if err := fl.reopen(true); err != nil {
+		return false, fl.inaccessible(err)
+	}
+	return true, false
+}
+
+// reopen replaces the open input with a fresh open of the name, starting
+// over from its beginning when the file is a new one.
+func (fl *follower) reopen(fresh bool) error {
+	fl.close()
+	f, err := fl.p.FS.Open(fl.path)
+	if err != nil {
+		return err
+	}
+	fl.rc = ctxio.ReadCloser{Ctx: fl.ctx, RC: f}
+	if s, ok := f.(fsx.SeekFile); ok {
+		fl.f = s
+		if fi, err := s.Stat(); err == nil {
+			fl.stat, fl.lastSize = fi, fi.Size()
+		}
+		if fresh {
+			fl.offset = 0
+		}
+		if _, err := s.Seek(fl.offset, io.SeekStart); err != nil {
+			return err
+		}
+	} else {
+		fl.f = nil
+	}
+	fl.unchanged = 0
+	return nil
+}
+
+// inaccessible reports the failure to reach the followed name, giving up on
+// it without --retry.
+func (fl *follower) inaccessible(err error) bool {
+	if !fl.retry {
+		fl.p.errorf("'%s' has become inaccessible: %v; giving up on this name", fl.in.Label(), patherr.Unwrap(err))
+		return true
+	}
+	fl.p.errorf("'%s' has become inaccessible: %v", fl.in.Label(), patherr.Unwrap(err))
+	return false
+}
+
+// close closes the open input, if any.
+func (fl *follower) close() {
+	if fl.rc.RC != nil {
+		fl.rc.Close()
+	}
+	fl.rc = ctxio.ReadCloser{}
+	fl.f = nil
+}
+
+// openRetry opens an input, retrying while --retry is given. Only the first
+// failure is reported, and a file which appears is announced as a new one.
+func (p *Prog) openRetry(ctx context.Context, in input.Input, opts options) (io.ReadCloser, fsx.SeekFile, error) {
+	rc, f, err := p.open(in)
+	if err == nil {
+		return rc, f, nil
+	}
+	p.errorf("%s: %v", in.Label(), patherr.Unwrap(err))
+	if !opts.retry {
+		return nil, nil, err
+	}
+	for {
+		if werr := p.Wait(ctx, opts.sleep); werr != nil {
+			return nil, nil, werr
+		}
+		if rc, f, err = p.open(in); err == nil {
+			p.errorf("'%s' has appeared;  following new file", in.Label())
+			return rc, f, nil
+		}
+	}
+}
+
+// output writes to the standard output of a follow run, printing a file
+// header whenever the output switches from one input to another.
+type output struct {
+	p       *Prog
+	mu      sync.Mutex
+	headers bool
+	printed bool
+	last    *follower
+}
+
+// header writes the header of the input of fl, and records it as the last
+// one written.
+func (o *output) header(fl *follower) {
+	o.mu.Lock()
+	defer o.mu.Unlock()
+	o.headerLocked(fl.in)
+	o.last = fl
+}
+
+// headerIn writes the header of an input which won't produce further output.
+func (o *output) headerIn(in input.Input) {
+	o.mu.Lock()
+	defer o.mu.Unlock()
+	o.headerLocked(in)
+	o.last = nil
+}
+
+// data writes data produced by fl, with its header when the output switches
+// to it.
+func (o *output) data(fl *follower, data []byte) error {
+	o.mu.Lock()
+	defer o.mu.Unlock()
+	if o.headers && o.last != fl {
+		o.headerLocked(fl.in)
+	}
+	o.last = fl
+	return o.p.writeBytes(data)
+}
+
+// headerLocked writes the "==> name <==" header which precedes the output
+// of each file, with a leading blank line after the first one. The caller
+// must hold mu.
+func (o *output) headerLocked(in input.Input) {
+	if o.printed {
+		fmt.Fprint(o.p.Stdout, "\n")
+	}
+	o.printed = true
+	name := in.Label()
+	if in.Stdin {
+		name = "standard input"
+	}
+	fmt.Fprintf(o.p.Stdout, "==> %s <==\n", name)
 }
 
 // copyPortion copies the part of the input selected by the options.
@@ -275,29 +854,6 @@ func (p *Prog) copyAll(r io.Reader) error {
 	}
 }
 
-// follow keeps copying further data as it becomes available, waiting between
-// checks for growth, like the loop the POSIX rationale describes.
-func (p *Prog) follow(ctx context.Context, r io.Reader) error {
-	buf := make([]byte, 32*1024)
-	for {
-		n, err := r.Read(buf)
-		if n > 0 {
-			if werr := p.writeBytes(buf[:n]); werr != nil {
-				return werr
-			}
-		}
-		if err == nil {
-			continue
-		}
-		if !errors.Is(err, io.EOF) {
-			return err
-		}
-		if err := p.Wait(ctx, followInterval); err != nil {
-			return err
-		}
-	}
-}
-
 // writeBytes writes data to the standard output, wrapping write errors.
 func (p *Prog) writeBytes(data []byte) error {
 	if len(data) == 0 {
@@ -331,7 +887,7 @@ func (p *Prog) open(in input.Input) (io.ReadCloser, fsx.SeekFile, error) {
 	if p.FS == nil {
 		return nil, nil, errors.New("no file system available")
 	}
-	f, err := p.FS.Open(filepath.ToSlash(p.ResolvePath(in.Name)))
+	f, err := p.FS.Open(p.path(in))
 	if err != nil {
 		return nil, nil, err
 	}
@@ -342,31 +898,75 @@ func (p *Prog) open(in input.Input) (io.ReadCloser, fsx.SeekFile, error) {
 	return f, seek, nil
 }
 
+// path returns the resolved, slash form of the name of an input.
+func (p *Prog) path(in input.Input) string {
+	return filepath.ToSlash(p.ResolvePath(in.Name))
+}
+
+// stdinIsPipe reports whether the standard input is a FIFO or a pipe, which
+// the follow modes can't read further data from.
+func stdinIsPipe(rt *coreutils.Runtime) bool {
+	s, ok := rt.Stdin.(interface{ Stat() (fs.FileInfo, error) })
+	if !ok {
+		return false
+	}
+	fi, err := s.Stat()
+	return err == nil && fi.Mode()&fs.ModeNamedPipe != 0
+}
+
+// sameFile reports whether two file informations describe the same file,
+// comparing the device and inode numbers of the real file systems, and the
+// entries of the memory one. Files without identity information always
+// compare as the same one.
+func sameFile(a, b fs.FileInfo) bool {
+	if a == nil || b == nil {
+		return false
+	}
+	if os.SameFile(a, b) {
+		return true
+	}
+	ma, aok := a.Sys().(*fsx.MemFile)
+	mb, bok := b.Sys().(*fsx.MemFile)
+	return aok && bok && ma == mb
+}
+
 // errorf writes a diagnostic message to standard error.
 func (p *Prog) errorf(format string, args ...any) {
 	fmt.Fprintf(p.Stderr, "tail: "+format+"\n", args...)
 }
 
-// parseFlags parses the options and operands. The obsolete first-operand
-// forms are recognized first, when they don't conflict with the standard
-// syntax. Then the -c and -n options take a decimal number, optionally
-// signed and with a multiplicative suffix: a '+' makes copying start
-// relative to the beginning of the input instead of the end. The last of the
-// two given wins. Option parsing stops at the first operand or at "--".
+// The pseudo-options stand for the long options of tail which have no short
+// form, as a short argument can't hold their control characters.
+const (
+	retryOpt        rune = 0
+	pidOpt          rune = 1
+	maxUnchangedOpt rune = 2
+	debugOpt        rune = 3
+)
+
 // longOptions maps the long options of tail to the short ones they stand
 // for. The -r option has no long form in GNU.
 var longOptions = map[string]rune{
-	"bytes":           'c',
-	"follow":          'f',
-	"lines":           'n',
-	"quiet":           'q',
-	"silent":          'q',
-	"verbose":         'v',
-	"zero-terminated": 'z',
+	"bytes":               'c',
+	"debug":               debugOpt,
+	"follow":              'f',
+	"lines":               'n',
+	"max-unchanged-stats": maxUnchangedOpt,
+	"pid":                 pidOpt,
+	"quiet":               'q',
+	"retry":               retryOpt,
+	"silent":              'q',
+	"sleep-interval":      's',
+	"verbose":             'v',
+	"zero-terminated":     'z',
 }
 
 // optSet describes the options of tail.
-var optSet = getopt.Set{Valued: "cn", Long: longOptions}
+var optSet = getopt.Set{
+	Valued:   "cns" + string(pidOpt) + string(maxUnchangedOpt),
+	Attached: "f",
+	Long:     longOptions,
+}
 
 // usage describes the options of tail.
 const usage = `Usage: tail [OPTION]... [FILE]...
@@ -376,17 +976,32 @@ With more than one FILE, precede each with a header giving the file name.
 With no FILE, or when FILE is -, read standard input.
 
   -c, --bytes=[+]NUM
-         output the last NUM bytes; or use -c +NUM to output starting with byte
-         NUM of each file
-  -f, --follow
-         output appended data as the file grows; a single file operand only
+         output the last NUM bytes; or use -c +NUM to output starting with
+         byte NUM of each file
+  -f, --follow[={name|descriptor}]
+         output appended data as the file grows; an absent option argument
+         means 'descriptor'
+  -F
+         same as --follow=name --retry
+      --max-unchanged-stats=N
+         with --follow=name, reopen a FILE which has not changed size after
+         N (default 5) iterations to see if it has been unlinked or renamed
+         (this is a common workaround for log rotation)
   -n, --lines=[+]NUM
-         output the last NUM lines, instead of the last 10; or use -n +NUM to
-         output starting with line NUM
+         output the last NUM lines, instead of the last 10; or use -n +NUM
+         to output starting with line NUM
+      --pid=PID
+         with -f, terminate after process ID, PID dies
   -q, --quiet, --silent
          never print headers giving file names
+      --retry
+         keep trying to open a file if it is inaccessible
   -r
          output the lines in reverse, starting from the end
+  -s, --sleep-interval=N
+         with -f, sleep for approximately N seconds (default 1.0) between
+         iterations; with --pid=P, check process P at least once every N
+         seconds
   -v, --verbose
          always print headers giving file names
   -z, --zero-terminated
@@ -404,10 +1019,23 @@ func parseFlags(args []string) (options, []string, error) {
 			opts, args = obsolete, rest
 		}
 	}
+	opts.sleep = defaultSleep
+	opts.maxUnchanged = defaultMaxUnchanged
 	operands, err := optSet.Parse(args, func(opt rune, value string) error {
 		switch opt {
 		case 'f':
 			opts.follow = true
+			switch value {
+			case "", "descriptor":
+			case "name":
+				opts.byName = true
+			default:
+				return fmt.Errorf("invalid argument '%s' for '--follow'", value)
+			}
+		case 'F':
+			opts.follow = true
+			opts.byName = true
+			opts.retry = true
 		case 'r':
 			opts.reverse = true
 		case 'q':
@@ -416,6 +1044,12 @@ func parseFlags(args []string) (options, []string, error) {
 			opts.headers = headerAlways
 		case 'z':
 			opts.zero = true
+		case 's':
+			d, err := parseSeconds(value)
+			if err != nil {
+				return err
+			}
+			opts.sleep = d
 		case 'c', 'n':
 			count, fromStart, err := parseCount(value)
 			if err != nil {
@@ -425,6 +1059,22 @@ func parseFlags(args []string) (options, []string, error) {
 			opts.countSet = true
 			opts.fromStart = fromStart
 			opts.count = count
+		case retryOpt:
+			opts.retry = true
+		case debugOpt:
+			opts.debug = true
+		case pidOpt:
+			pid, err := parsePID(value)
+			if err != nil {
+				return err
+			}
+			opts.pids = append(opts.pids, pid)
+		case maxUnchangedOpt:
+			n, err := strconv.Atoi(value)
+			if err != nil || n < 0 {
+				return fmt.Errorf("invalid number: '%s'", value)
+			}
+			opts.maxUnchanged = n
 		default:
 			// A digit can only be left when the obsolete form didn't
 			// apply, like on "tail -n 2 -5".
@@ -452,6 +1102,29 @@ func parseFlags(args []string) (options, []string, error) {
 		opts.count = 10
 	}
 	return opts, operands, nil
+}
+
+// parseSeconds parses the number of seconds to wait between iterations: a
+// non-negative decimal number, with either a period or a comma as its
+// decimal separator, as the GNU manual allows.
+func parseSeconds(value string) (time.Duration, error) {
+	s, err := strconv.ParseFloat(strings.Replace(value, ",", ".", 1), 64)
+	if err != nil || math.IsNaN(s) || math.IsInf(s, 0) || s < 0 {
+		return 0, fmt.Errorf("invalid number of seconds: '%s'", value)
+	}
+	if s > math.MaxInt64/float64(time.Second) {
+		s = math.MaxInt64 / float64(time.Second)
+	}
+	return time.Duration(s * float64(time.Second)), nil
+}
+
+// parsePID parses the process ID given with --pid.
+func parsePID(value string) (int, error) {
+	pid, err := strconv.Atoi(value)
+	if err != nil || pid <= 0 {
+		return 0, fmt.Errorf("invalid process id: '%s'", value)
+	}
+	return pid, nil
 }
 
 // parseCount parses the number option-argument of -c and -n: a decimal
@@ -693,14 +1366,20 @@ func readAllLines(r io.Reader, delim byte) ([][]byte, error) {
 
 // options holds the part of the input to copy.
 type options struct {
-	follow    bool // -f: keep copying as further data becomes available
-	reverse   bool // -r: write the lines in reverse order
-	lines     bool // -n instead of -c
-	countSet  bool // -c or -n given
-	fromStart bool // '+' sign: count from the beginning
-	count     int
-	headers   headerMode // -q and -v: when the file headers are printed
-	zero      bool       // -z: items end with NUL instead of <newline>
+	follow       bool // -f: keep copying as data becomes available
+	byName       bool // --follow=name: track the name, not the descriptor
+	retry        bool // --retry: keep trying to open the files
+	reverse      bool // -r: write the lines in reverse order
+	lines        bool // -n instead of -c
+	countSet     bool // -c or -n given
+	fromStart    bool // '+' sign: count from the beginning
+	count        int
+	headers      headerMode    // -q and -v: when the file headers are printed
+	zero         bool          // -z: items end with NUL instead of <newline>
+	pids         []int         // --pid: writers to watch
+	sleep        time.Duration // -s: wait between iterations
+	maxUnchanged int           // --max-unchanged-stats
+	debug        bool          // --debug
 }
 
 // headerMode tells when the file headers are printed.

@@ -633,13 +633,79 @@ func TestRunHeaders(t *testing.T) {
 	}
 }
 
-func TestRunFollowMultipleOperands(t *testing.T) {
-	runCase(t, testCase{
-		fsys:     testFS(),
-		args:     []string{"-f", "a.txt", "lines.txt"},
-		wantErr:  "tail: cannot follow more than one file\nTry 'tail --help' for more information.\n",
-		wantExit: 2,
+func TestRunFollowMultipleFiles(t *testing.T) {
+	t.Run("the followed files get a header when the output switches", func(t *testing.T) {
+		fsys := fsx.MemFS{
+			"a.txt":     {Data: []byte("a\n")},
+			"lines.txt": {Data: []byte("l1\n")},
+		}
+		steps := []func(){
+			func() { fsys["a.txt"].Data = append(fsys["a.txt"].Data, "a2\n"...) },
+			func() { fsys["lines.txt"].Data = append(fsys["lines.txt"].Data, "l2\n"...) },
+			func() { fsys["a.txt"].Data = append(fsys["a.txt"].Data, "a3\n"...) },
+		}
+		got, stderr, err := runFollowSteps(t, fsys, []string{"-f", "a.txt", "lines.txt"}, steps)
+		if !errors.Is(err, context.Canceled) {
+			t.Errorf("Run() error = %v, want context.Canceled", err)
+		}
+		want := "==> a.txt <==\na\n" +
+			"\n==> lines.txt <==\nl1\n" +
+			"\n==> a.txt <==\na2\n" +
+			"\n==> lines.txt <==\nl2\n" +
+			"\n==> a.txt <==\na3\n"
+		if got != want {
+			t.Errorf("Run() stdout = %q, want %q", got, want)
+		}
+		if stderr != "" {
+			t.Errorf("Run() stderr = %q, want %q", stderr, "")
+		}
 	})
+
+	t.Run("-q never prints the headers", func(t *testing.T) {
+		fsys := fsx.MemFS{
+			"a.txt":     {Data: []byte("a\n")},
+			"lines.txt": {Data: []byte("l1\n")},
+		}
+		steps := []func(){
+			func() { fsys["lines.txt"].Data = append(fsys["lines.txt"].Data, "l2\n"...) },
+		}
+		got, _, err := runFollowSteps(t, fsys, []string{"-fq", "a.txt", "lines.txt"}, steps)
+		if !errors.Is(err, context.Canceled) {
+			t.Errorf("Run() error = %v, want context.Canceled", err)
+		}
+		if want := "a\nl1\nl2\n"; got != want {
+			t.Errorf("Run() stdout = %q, want %q", got, want)
+		}
+	})
+}
+
+// runFollowSteps runs tail with args on fsys, running each step on a wait,
+// and cancelling the context once the steps run out.
+func runFollowSteps(t *testing.T, fsys fsx.MemFS, args []string, steps []func()) (string, string, error) {
+	t.Helper()
+
+	stdout := new(bytes.Buffer)
+	stderr := new(bytes.Buffer)
+	ctx, cancel := context.WithCancel(t.Context())
+	defer cancel()
+
+	i := 0
+	rt := &coreutils.Runtime{
+		Stdout: stdout,
+		Stderr: stderr,
+		FS:     fsys,
+		Sleep: func(ctx context.Context, d time.Duration) error {
+			if i >= len(steps) {
+				cancel()
+				return ctx.Err()
+			}
+			steps[i]()
+			i++
+			return nil
+		},
+	}
+	err := New(rt).Run(ctx, args...)
+	return stdout.String(), stderr.String(), err
 }
 
 func TestRunReverse(t *testing.T) {
@@ -916,9 +982,433 @@ func TestRunFollowErrors(t *testing.T) {
 		runCase(t, testCase{
 			fsys:     testFS(),
 			args:     []string{"-f", "missing.txt"},
-			wantErr:  "tail: missing.txt: file does not exist\n",
+			wantErr:  "tail: missing.txt: file does not exist\ntail: no files remaining\n",
 			wantExit: 1,
 		})
+	})
+
+	t.Run("a removed name is given up without --retry", func(t *testing.T) {
+		fsys := fsx.MemFS{"f.txt": {Data: []byte("one\n")}}
+		steps := []func(){
+			func() { delete(fsys, "f.txt") },
+		}
+		got, stderr, err := runFollowSteps(t, fsys, []string{"--follow=name", "--max-unchanged-stats=1", "f.txt"}, steps)
+		if code := exitCode(t, err); code != 1 {
+			t.Errorf("Run() exit code = %d, want 1 (error = %v)", code, err)
+		}
+		if want := "one\n"; got != want {
+			t.Errorf("Run() stdout = %q, want %q", got, want)
+		}
+		wantErr := "tail: 'f.txt' has become inaccessible: file does not exist; giving up on this name\n" +
+			"tail: no files remaining\n"
+		if stderr != wantErr {
+			t.Errorf("Run() stderr = %q, want %q", stderr, wantErr)
+		}
+	})
+	t.Run("a read error on the followed standard input", func(t *testing.T) {
+		stdout := new(bytes.Buffer)
+		stderr := new(bytes.Buffer)
+		rt := &coreutils.Runtime{
+			Stdin:  errorReader{err: errors.New("boom")},
+			Stdout: stdout,
+			Stderr: stderr,
+			Sleep: func(ctx context.Context, d time.Duration) error {
+				return nil
+			},
+		}
+		err := New(rt).Run(t.Context(), "-f")
+		if code := exitCode(t, err); code != 1 {
+			t.Errorf("Run() exit code = %d, want 1 (error = %v)", code, err)
+		}
+		if stdout.String() != "" {
+			t.Errorf("Run() stdout = %q, want %q", stdout.String(), "")
+		}
+		wantErr := "tail: standard input: boom\ntail: no files remaining\n"
+		if stderr.String() != wantErr {
+			t.Errorf("Run() stderr = %q, want %q", stderr.String(), wantErr)
+		}
+	})
+}
+
+func TestRunFollowTruncate(t *testing.T) {
+	fsys := fsx.MemFS{"f.txt": {Data: []byte("one\ntwo\nthree\n")}}
+	steps := []func(){
+		func() { fsys["f.txt"].Data = fsys["f.txt"].Data[:4] },
+	}
+	got, stderr, err := runFollowSteps(t, fsys, []string{"-f", "f.txt"}, steps)
+	if !errors.Is(err, context.Canceled) {
+		t.Errorf("Run() error = %v, want context.Canceled", err)
+	}
+	if want := "one\ntwo\nthree\none\n"; got != want {
+		t.Errorf("Run() stdout = %q, want %q", got, want)
+	}
+	if want := "tail: f.txt: file truncated\n"; stderr != want {
+		t.Errorf("Run() stderr = %q, want %q", stderr, want)
+	}
+}
+
+func TestRunFollowName(t *testing.T) {
+	t.Run("a replaced file is followed from its beginning", func(t *testing.T) {
+		fsys := fsx.MemFS{"f.txt": {Data: []byte("old\n")}}
+		steps := []func(){
+			func() { fsys["f.txt"] = &fsx.MemFile{Data: []byte("new\n")} },
+		}
+		got, stderr, err := runFollowSteps(t, fsys, []string{"--follow=name", "--max-unchanged-stats=1", "f.txt"}, steps)
+		if !errors.Is(err, context.Canceled) {
+			t.Errorf("Run() error = %v, want context.Canceled", err)
+		}
+		if want := "old\nnew\n"; got != want {
+			t.Errorf("Run() stdout = %q, want %q", got, want)
+		}
+		if want := "tail: 'f.txt' has been replaced;  following new file\n"; stderr != want {
+			t.Errorf("Run() stderr = %q, want %q", stderr, want)
+		}
+	})
+
+	t.Run("a reappeared file is followed from its beginning with --retry", func(t *testing.T) {
+		fsys := fsx.MemFS{"f.txt": {Data: []byte("old\n")}}
+		steps := []func(){
+			func() { delete(fsys, "f.txt") },
+			func() { fsys["f.txt"] = &fsx.MemFile{Data: []byte("new\n")} },
+		}
+		got, stderr, err := runFollowSteps(t, fsys, []string{"--follow=name", "--retry", "--max-unchanged-stats=1", "f.txt"}, steps)
+		if !errors.Is(err, context.Canceled) {
+			t.Errorf("Run() error = %v, want context.Canceled", err)
+		}
+		if want := "old\nnew\n"; got != want {
+			t.Errorf("Run() stdout = %q, want %q", got, want)
+		}
+		wantErr := "tail: 'f.txt' has become inaccessible: file does not exist\n" +
+			"tail: 'f.txt' has appeared;  following new file\n"
+		if stderr != wantErr {
+			t.Errorf("Run() stderr = %q, want %q", stderr, wantErr)
+		}
+	})
+
+	t.Run("-F follows a missing file once it appears", func(t *testing.T) {
+		fsys := fsx.MemFS{}
+		steps := []func(){
+			func() { fsys["f.txt"] = &fsx.MemFile{Data: []byte("hello\n")} },
+		}
+		got, stderr, err := runFollowSteps(t, fsys, []string{"-F", "f.txt"}, steps)
+		if !errors.Is(err, context.Canceled) {
+			t.Errorf("Run() error = %v, want context.Canceled", err)
+		}
+		if want := "hello\n"; got != want {
+			t.Errorf("Run() stdout = %q, want %q", got, want)
+		}
+		wantErr := "tail: f.txt: file does not exist\n" +
+			"tail: 'f.txt' has appeared;  following new file\n"
+		if stderr != wantErr {
+			t.Errorf("Run() stderr = %q, want %q", stderr, wantErr)
+		}
+	})
+
+	t.Run("a stdin operand can't be followed by name", func(t *testing.T) {
+		rt := &coreutils.Runtime{
+			Stdin:  strings.NewReader("one\n"),
+			Stdout: io.Discard,
+			Stderr: io.Discard,
+			FS:     testFS(),
+		}
+		err := New(rt).Run(t.Context(), "--follow=name", "-")
+		if code := exitCode(t, err); code != 1 {
+			t.Errorf("Run() exit code = %d, want 1 (error = %v)", code, err)
+		}
+	})
+
+	t.Run("the standard input is followed by descriptor by name", func(t *testing.T) {
+		stdout := new(bytes.Buffer)
+		ctx, cancel := context.WithCancel(t.Context())
+		rt := &coreutils.Runtime{
+			Stdin:  strings.NewReader("one\ntwo\n"),
+			Stdout: stdout,
+			Stderr: io.Discard,
+			Sleep: func(ctx context.Context, d time.Duration) error {
+				cancel()
+				return ctx.Err()
+			},
+		}
+		err := New(rt).Run(ctx, "--follow=name")
+		if !errors.Is(err, context.Canceled) {
+			t.Errorf("Run() error = %v, want context.Canceled", err)
+		}
+		if want := "one\ntwo\n"; stdout.String() != want {
+			t.Errorf("Run() stdout = %q, want %q", stdout.String(), want)
+		}
+	})
+}
+
+func TestRunFollowPID(t *testing.T) {
+	t.Run("the follow stops when all the writers exit", func(t *testing.T) {
+		stdout := new(bytes.Buffer)
+		rt := &coreutils.Runtime{
+			Stdout: stdout,
+			Stderr: io.Discard,
+			FS:     fsx.MemFS{"f.txt": {Data: []byte("one\n")}},
+			ProcessAlive: func(pid int) bool {
+				return false
+			},
+			Sleep: func(ctx context.Context, d time.Duration) error {
+				return nil
+			},
+		}
+		err := New(rt).Run(t.Context(), "-f", "--pid=1234", "f.txt")
+		if err != nil {
+			t.Errorf("Run() error = %v, want nil", err)
+		}
+		if want := "one\n"; stdout.String() != want {
+			t.Errorf("Run() stdout = %q, want %q", stdout.String(), want)
+		}
+	})
+
+	t.Run("--pid is not supported on this system", func(t *testing.T) {
+		fsys := fsx.MemFS{"f.txt": {Data: []byte("one\n")}}
+		steps := []func(){}
+		got, stderr, err := runFollowSteps(t, fsys, []string{"-f", "--pid=1234", "f.txt"}, steps)
+		if !errors.Is(err, context.Canceled) {
+			t.Errorf("Run() error = %v, want context.Canceled", err)
+		}
+		if want := "one\n"; got != want {
+			t.Errorf("Run() stdout = %q, want %q", got, want)
+		}
+		wantErr := "tail: warning: --pid=PID is not supported on this system\n"
+		if stderr != wantErr {
+			t.Errorf("Run() stderr = %q, want %q", stderr, wantErr)
+		}
+	})
+
+	t.Run("--pid is ignored without following", func(t *testing.T) {
+		runCase(t, testCase{
+			fsys:     testFS(),
+			args:     []string{"--pid=1", "a.txt"},
+			want:     "a\nb\nc\nd\ne\n",
+			wantErr:  "tail: warning: PID ignored; --pid=PID is useful only when following\n",
+			wantExit: 0,
+		})
+	})
+}
+
+func TestRunFollowWarnings(t *testing.T) {
+	t.Run("--retry is useless without following", func(t *testing.T) {
+		runCase(t, testCase{
+			fsys:     testFS(),
+			args:     []string{"--retry", "a.txt"},
+			want:     "a\nb\nc\nd\ne\n",
+			wantErr:  "tail: warning: --retry ignored; --retry is useful only when following\n",
+			wantExit: 0,
+		})
+	})
+
+	t.Run("--retry only affects the initial open by descriptor", func(t *testing.T) {
+		fsys := fsx.MemFS{"f.txt": {Data: []byte("one\n")}}
+		steps := []func(){}
+		_, stderr, err := runFollowSteps(t, fsys, []string{"-f", "--retry", "f.txt"}, steps)
+		if !errors.Is(err, context.Canceled) {
+			t.Errorf("Run() error = %v, want context.Canceled", err)
+		}
+		if want := "tail: warning: --retry only effective for the initial open\n"; stderr != want {
+			t.Errorf("Run() stderr = %q, want %q", stderr, want)
+		}
+	})
+}
+
+func TestRunFollowSleepInterval(t *testing.T) {
+	t.Run("the default is one second", func(t *testing.T) {
+		var got time.Duration
+		fsys := fsx.MemFS{"f.txt": {Data: []byte("one\n")}}
+		stdout := new(bytes.Buffer)
+		ctx, cancel := context.WithCancel(t.Context())
+		defer cancel()
+		rt := &coreutils.Runtime{
+			Stdout: stdout,
+			Stderr: io.Discard,
+			FS:     fsys,
+			Sleep: func(ctx context.Context, d time.Duration) error {
+				got = d
+				cancel()
+				return ctx.Err()
+			},
+		}
+		err := New(rt).Run(ctx, "-f", "f.txt")
+		if !errors.Is(err, context.Canceled) {
+			t.Errorf("Run() error = %v, want context.Canceled", err)
+		}
+		if want := time.Second; got != want {
+			t.Errorf("sleep interval = %v, want %v", got, want)
+		}
+	})
+
+	for name, value := range map[string]string{
+		"a decimal number":  "0.5",
+		"a comma separator": "0,5",
+		"zero seconds":      "0",
+	} {
+		t.Run(name, func(t *testing.T) {
+			var got time.Duration
+			fsys := fsx.MemFS{"f.txt": {Data: []byte("one\n")}}
+			stdout := new(bytes.Buffer)
+			ctx, cancel := context.WithCancel(t.Context())
+			defer cancel()
+			rt := &coreutils.Runtime{
+				Stdout: stdout,
+				Stderr: io.Discard,
+				FS:     fsys,
+				Sleep: func(ctx context.Context, d time.Duration) error {
+					got = d
+					cancel()
+					return ctx.Err()
+				},
+			}
+			err := New(rt).Run(ctx, "-f", "-s", value, "f.txt")
+			if !errors.Is(err, context.Canceled) {
+				t.Errorf("Run() error = %v, want context.Canceled", err)
+			}
+			want := time.Duration(0)
+			if value != "0" {
+				want = 500 * time.Millisecond
+			}
+			if got != want {
+				t.Errorf("sleep interval = %v, want %v", got, want)
+			}
+		})
+	}
+}
+
+func TestRunFollowDebug(t *testing.T) {
+	tests := []struct {
+		name    string
+		args    []string
+		wantErr string
+	}{
+		{
+			name:    "following by descriptor polls",
+			args:    []string{"--debug", "-f", "f.txt"},
+			wantErr: "tail: using polling mode\n",
+		},
+		{
+			name:    "following by name polls",
+			args:    []string{"--debug", "-F", "f.txt"},
+			wantErr: "tail: using polling mode\n",
+		},
+		{
+			name:    "several files poll",
+			args:    []string{"--debug", "-f", "f.txt", "g.txt"},
+			wantErr: "tail: using polling mode\n",
+		},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			fsys := fsx.MemFS{"f.txt": {Data: []byte("one\n")}, "g.txt": {Data: []byte("1\n")}}
+			_, stderr, err := runFollowSteps(t, fsys, test.args, nil)
+			if !errors.Is(err, context.Canceled) {
+				t.Errorf("Run() error = %v, want context.Canceled", err)
+			}
+			if stderr != test.wantErr {
+				t.Errorf("Run() stderr = %q, want %q", stderr, test.wantErr)
+			}
+		})
+	}
+}
+
+// pipeStdin is a standard input which stats as a FIFO or a pipe.
+type pipeStdin struct{ io.Reader }
+
+func (pipeStdin) Stat() (fs.FileInfo, error) { return pipeInfo{}, nil }
+
+// pipeInfo describes a FIFO.
+type pipeInfo struct{}
+
+func (pipeInfo) Name() string       { return "stdin" }
+func (pipeInfo) Size() int64        { return 0 }
+func (pipeInfo) Mode() fs.FileMode  { return fs.ModeNamedPipe | 0o600 }
+func (pipeInfo) ModTime() time.Time { return time.Time{} }
+func (pipeInfo) IsDir() bool        { return false }
+func (pipeInfo) Sys() any           { return nil }
+
+func TestRunFollowStdinPipe(t *testing.T) {
+	t.Run("-f is ignored with no file operand", func(t *testing.T) {
+		stdout := new(bytes.Buffer)
+		rt := &coreutils.Runtime{
+			Stdin:  pipeStdin{strings.NewReader("hi\n")},
+			Stdout: stdout,
+			Stderr: io.Discard,
+			Sleep: func(ctx context.Context, d time.Duration) error {
+				t.Error("the follow waited")
+				return nil
+			},
+		}
+		err := New(rt).Run(t.Context(), "-f")
+		if err != nil {
+			t.Errorf("Run() error = %v, want nil", err)
+		}
+		if want := "hi\n"; stdout.String() != want {
+			t.Errorf("Run() stdout = %q, want %q", stdout.String(), want)
+		}
+	})
+
+	t.Run("a stdin operand isn't followed", func(t *testing.T) {
+		stdout := new(bytes.Buffer)
+		ctx, cancel := context.WithCancel(t.Context())
+		defer cancel()
+		rt := &coreutils.Runtime{
+			Stdin:  pipeStdin{strings.NewReader("hi\n")},
+			Stdout: stdout,
+			Stderr: io.Discard,
+			FS:     fsx.MemFS{"a.txt": {Data: []byte("a\n")}},
+			Sleep: func(ctx context.Context, d time.Duration) error {
+				cancel()
+				return ctx.Err()
+			},
+		}
+		err := New(rt).Run(ctx, "-f", "-", "a.txt")
+		if !errors.Is(err, context.Canceled) {
+			t.Errorf("Run() error = %v, want context.Canceled", err)
+		}
+		want := "==> standard input <==\nhi\n\n==> a.txt <==\na\n"
+		if stdout.String() != want {
+			t.Errorf("Run() stdout = %q, want %q", stdout.String(), want)
+		}
+	})
+
+	t.Run("a stdin operand alone returns after copying", func(t *testing.T) {
+		stdout := new(bytes.Buffer)
+		rt := &coreutils.Runtime{
+			Stdin:  pipeStdin{strings.NewReader("hi\n")},
+			Stdout: stdout,
+			Stderr: io.Discard,
+			Sleep: func(ctx context.Context, d time.Duration) error {
+				t.Error("the follow waited")
+				return nil
+			},
+		}
+		err := New(rt).Run(t.Context(), "-f", "-")
+		if err != nil {
+			t.Errorf("Run() error = %v, want nil", err)
+		}
+		if want := "hi\n"; stdout.String() != want {
+			t.Errorf("Run() stdout = %q, want %q", stdout.String(), want)
+		}
+	})
+
+	t.Run("a stdin operand with a pipe isn't followed by name", func(t *testing.T) {
+		stdout := new(bytes.Buffer)
+		rt := &coreutils.Runtime{
+			Stdin:  pipeStdin{strings.NewReader("hi\n")},
+			Stdout: stdout,
+			Stderr: io.Discard,
+			Sleep: func(ctx context.Context, d time.Duration) error {
+				t.Error("the follow waited")
+				return nil
+			},
+		}
+		err := New(rt).Run(t.Context(), "--follow=name", "-")
+		if err != nil {
+			t.Errorf("Run() error = %v, want nil", err)
+		}
+		if want := "hi\n"; stdout.String() != want {
+			t.Errorf("Run() stdout = %q, want %q", stdout.String(), want)
+		}
 	})
 }
 
@@ -1091,6 +1581,55 @@ func TestRunInvalidUsage(t *testing.T) {
 			fsys:     testFS(),
 			args:     []string{"-r", "-n", "+2", "a.txt"},
 			wantErr:  "tail: invalid number: '+2'\nTry 'tail --help' for more information.\n",
+			wantExit: 2,
+		},
+		{
+			name:     "a NaN number of seconds",
+			fsys:     testFS(),
+			args:     []string{"-s", "nan", "-f", "a.txt"},
+			wantErr:  "tail: invalid number of seconds: 'nan'\nTry 'tail --help' for more information.\n",
+			wantExit: 2,
+		},
+		{
+			name:     "an invalid follow method",
+			fsys:     testFS(),
+			args:     []string{"--follow=bogus", "a.txt"},
+			wantErr:  "tail: invalid argument 'bogus' for '--follow'\nTry 'tail --help' for more information.\n",
+			wantExit: 2,
+		},
+		{
+			name:     "an invalid number of seconds",
+			fsys:     testFS(),
+			args:     []string{"-s", "x", "-f", "a.txt"},
+			wantErr:  "tail: invalid number of seconds: 'x'\nTry 'tail --help' for more information.\n",
+			wantExit: 2,
+		},
+		{
+			name:     "a negative number of seconds",
+			fsys:     testFS(),
+			args:     []string{"-s", "-1", "-f", "a.txt"},
+			wantErr:  "tail: invalid number of seconds: '-1'\nTry 'tail --help' for more information.\n",
+			wantExit: 2,
+		},
+		{
+			name:     "an invalid process id",
+			fsys:     testFS(),
+			args:     []string{"--pid=x", "-f", "a.txt"},
+			wantErr:  "tail: invalid process id: 'x'\nTry 'tail --help' for more information.\n",
+			wantExit: 2,
+		},
+		{
+			name:     "a non-positive process id",
+			fsys:     testFS(),
+			args:     []string{"--pid=0", "-f", "a.txt"},
+			wantErr:  "tail: invalid process id: '0'\nTry 'tail --help' for more information.\n",
+			wantExit: 2,
+		},
+		{
+			name:     "an invalid max-unchanged-stats",
+			fsys:     testFS(),
+			args:     []string{"--max-unchanged-stats=x", "-F", "a.txt"},
+			wantErr:  "tail: invalid number: 'x'\nTry 'tail --help' for more information.\n",
 			wantExit: 2,
 		},
 	}

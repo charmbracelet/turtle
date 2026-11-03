@@ -202,6 +202,38 @@ func TestParse(t *testing.T) {
 			args:    []string{"-p"},
 			wantErr: "option requires an argument -- 'p'",
 		},
+		{
+			name:         "an attached long option without an argument",
+			set:          Set{Attached: "f", Long: map[string]rune{"follow": 'f'}},
+			args:         []string{"--follow", "x"},
+			want:         []option{{'f', ""}},
+			wantOperands: []string{"x"},
+		},
+		{
+			name: "an attached long option with an argument",
+			set:  Set{Attached: "f", Long: map[string]rune{"follow": 'f'}},
+			args: []string{"--follow=name"},
+			want: []option{{'f', "name"}},
+		},
+		{
+			name: "an attached long option with an empty argument",
+			set:  Set{Attached: "f", Long: map[string]rune{"follow": 'f'}},
+			args: []string{"--follow="},
+			want: []option{{'f', ""}},
+		},
+		{
+			name:         "an attached short option takes no argument",
+			set:          Set{Attached: "f", Long: map[string]rune{"follow": 'f'}},
+			args:         []string{"-f", "name"},
+			want:         []option{{'f', ""}},
+			wantOperands: []string{"name"},
+		},
+		{
+			name: "an attached short option in a group takes no argument",
+			set:  Set{Attached: "f", Long: map[string]rune{"follow": 'f'}},
+			args: []string{"-qf"},
+			want: []option{{'q', ""}, {'f', ""}},
+		},
 	}
 
 	for _, test := range tests {

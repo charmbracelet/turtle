@@ -77,7 +77,7 @@ section below.
 | Filesystem | `chmod` | Change file permission modes | [✅](spec/markdown/posix/chmod.md) | [✅](spec/markdown/gnu/chmod-invocation.md) |
 | Filesystem | `cat` | Concatenate and print files | [✅](spec/markdown/posix/cat.md) | [✅](spec/markdown/gnu/cat-invocation.md) |
 | Filesystem | `head` | Print the first part of files | [✅](spec/markdown/posix/head.md) | [✅](spec/markdown/gnu/head-invocation.md) |
-| Filesystem | `tail` | Print the last part of files | [✅](spec/markdown/posix/tail.md) | [❌](spec/markdown/gnu/tail-invocation.md) |
+| Filesystem | `tail` | Print the last part of files | [✅](spec/markdown/posix/tail.md) | [✅](spec/markdown/gnu/tail-invocation.md) |
 | Filesystem | `mkdir` | Create directories | [✅](spec/markdown/posix/mkdir.md) | [✅](spec/markdown/gnu/mkdir-invocation.md) |
 | Filesystem | `rmdir` | Remove empty directories | [✅](spec/markdown/posix/rmdir.md) | [✅](spec/markdown/gnu/rmdir-invocation.md) |
 | Filesystem | `cp`* | Copy files and directories | [✅](spec/markdown/posix/cp.md) | [✅](spec/markdown/gnu/cp-invocation.md) |
