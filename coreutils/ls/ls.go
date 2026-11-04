@@ -37,6 +37,7 @@ import (
 	"time"
 
 	"charm.land/snail/coreutils"
+	"charm.land/snail/coreutils/internal/fileinfo"
 	"charm.land/snail/coreutils/internal/patherr"
 	"charm.land/snail/coreutils/internal/sizefmt"
 	"charm.land/snail/coreutils/internal/stdopts"
@@ -756,11 +757,11 @@ func joinName(dir, name string) string {
 // dirID returns what identifies a directory for loop detection, or an empty
 // string when the file system reports nothing to identify it with.
 func dirID(fi fs.FileInfo) string {
-	st, ok := statOf(fi)
+	st, ok := fileinfo.Stat(fi)
 	if !ok {
 		return ""
 	}
-	return strconv.FormatUint(st.dev, 10) + ":" + strconv.FormatUint(st.ino, 10)
+	return strconv.FormatUint(st.Dev, 10) + ":" + strconv.FormatUint(st.Ino, 10)
 }
 
 // errorf writes a diagnostic message to standard error.

@@ -11,6 +11,7 @@ import (
 	"time"
 	"unicode"
 
+	"charm.land/snail/coreutils/internal/fileinfo"
 	"charm.land/snail/fsx"
 )
 
@@ -531,7 +532,7 @@ func (l *lister) timeString(e entry) string {
 func (l *lister) timeOf(e entry) time.Time {
 	switch l.opts.time {
 	case timeStatus:
-		if t, ok := sysCtime(e.fi.Sys()); ok {
+		if t, ok := fileinfo.Ctime(e.fi); ok {
 			return t
 		}
 	case timeAccessed:
@@ -578,11 +579,11 @@ func blocksOf(fi fs.FileInfo) uint64 {
 	alloc := func(bytes uint64) uint64 {
 		return min(bytes, 1<<63-1)
 	}
-	if st, ok := statOf(fi); ok {
-		if st.blocks > (1<<63-1)/512 {
+	if st, ok := fileinfo.Stat(fi); ok {
+		if st.Blocks > (1<<63-1)/512 {
 			return alloc(^uint64(0))
 		}
-		return alloc(st.blocks * 512)
+		return alloc(st.Blocks * 512)
 	}
 	size := max(fi.Size(), 0)
 	return alloc(uint64((size + 511) / 512 * 512))
@@ -591,44 +592,44 @@ func blocksOf(fi fs.FileInfo) uint64 {
 // inodeOf returns the file serial number of a file, or zero when its file
 // system doesn't report one.
 func inodeOf(fi fs.FileInfo) uint64 {
-	st, _ := statOf(fi)
-	return st.ino
+	st, _ := fileinfo.Stat(fi)
+	return st.Ino
 }
 
 // nlinkOf returns the number of links a file has, defaulting to one when its
 // file system doesn't report it.
 func nlinkOf(fi fs.FileInfo) uint64 {
-	st, ok := statOf(fi)
-	if !ok || st.nlink == 0 {
+	st, ok := fileinfo.Stat(fi)
+	if !ok || st.Nlink == 0 {
 		return 1
 	}
-	return st.nlink
+	return st.Nlink
 }
 
 // ownerOf returns the owner of a file: its name, or the identifier that
 // stands for it when -n was given or the name can't be determined.
 func (l *lister) ownerOf(fi fs.FileInfo) string {
-	st, ok := statOf(fi)
+	st, ok := fileinfo.Stat(fi)
 	if !ok {
 		return "0"
 	}
 	if l.opts.numeric {
-		return strconv.FormatUint(st.uid, 10)
+		return strconv.FormatUint(st.Uid, 10)
 	}
-	return l.names.user(st.uid)
+	return l.names.user(st.Uid)
 }
 
 // groupOf returns the group of a file: its name, or the identifier that
 // stands for it when -n was given or the name can't be determined.
 func (l *lister) groupOf(fi fs.FileInfo) string {
-	st, ok := statOf(fi)
+	st, ok := fileinfo.Stat(fi)
 	if !ok {
 		return "0"
 	}
 	if l.opts.numeric {
-		return strconv.FormatUint(st.gid, 10)
+		return strconv.FormatUint(st.Gid, 10)
 	}
-	return l.names.group(st.gid)
+	return l.names.group(st.Gid)
 }
 
 // padLeft right-justifies a string within the given width.
