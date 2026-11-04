@@ -73,17 +73,12 @@ type Runtime struct {
 	// If nil, such watching is unsupported.
 	ProcessAlive func(pid int) bool
 
-	// Exec runs a utility, waiting for its completion. It's used by
-	// utilities that invoke other programs, like xargs. If nil, such
-	// utilities fail instead of running anything.
+	// Exec runs a utility in the given directory, waiting for its
+	// completion. It's used by utilities that invoke other programs, like
+	// xargs, env and find's -exec and -execdir primaries. An empty dir
+	// stands for the working directory. If nil, such utilities fail instead
+	// of running anything.
 	Exec ExecFunc
-
-	// ExecDir runs a utility like Exec does, but in the given directory
-	// instead of the working directory. It's used by utilities that run
-	// programs next to the files they handle, like find's -execdir. If nil,
-	// such actions fail instead of running anything. An empty dir means the
-	// working directory.
-	ExecDir ExecDirFunc
 }
 
 // OsRuntime returns a Runtime wired to the real operating system.
@@ -104,10 +99,7 @@ func OsRuntime() *Runtime {
 		Environ:    os.Environ,
 		Clock:      time.Now,
 	}
-	rt.Exec = func(ctx context.Context, name string, args, env []string) (int, error) {
-		return osExec(ctx, rt, "", name, args, env)
-	}
-	rt.ExecDir = func(ctx context.Context, dir, name string, args, env []string) (int, error) {
+	rt.Exec = func(ctx context.Context, dir, name string, args, env []string) (int, error) {
 		return osExec(ctx, rt, dir, name, args, env)
 	}
 	rt.ProcessAlive = osProcessAlive
@@ -214,18 +206,14 @@ type ClockFunc func() time.Time
 type SleepFunc func(ctx context.Context, d time.Duration) error
 
 // ExecFunc is a function signature for the Runtime.Exec function. It runs
-// the named utility with the given arguments and waits for its completion,
-// returning its exit status. The env parameter is the exact environment the
+// the named utility in the given directory, with the given arguments, and
+// waits for its completion, returning its exit status. An empty dir stands
+// for the working directory. The env parameter is the exact environment the
 // utility runs with, as "KEY=VALUE" strings; nil means an empty environment,
 // never the process one. When the utility cannot be found, cannot be
 // invoked, or is terminated by a signal, it returns an error along with the
 // status the caller should exit with: 127, 126 or 125, respectively.
-type ExecFunc func(ctx context.Context, name string, args []string, env []string) (status int, err error)
-
-// ExecDirFunc is a function signature for the Runtime.ExecDir function. It
-// works like ExecFunc, but the utility runs in the given directory instead
-// of the working directory, which an empty dir stands for.
-type ExecDirFunc func(ctx context.Context, dir, name string, args, env []string) (status int, err error)
+type ExecFunc func(ctx context.Context, dir, name string, args []string, env []string) (status int, err error)
 
 // osExec runs a utility, wiring it to the runtime outputs and to the null
 // device as its standard input, since the results of the utility reading

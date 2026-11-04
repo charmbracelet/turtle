@@ -10,21 +10,12 @@ import (
 // runExec runs one utility invocation, reporting its exit status. A failure
 // to run it at all sets the failure flag of the traversal.
 func (s *state) runExec(dir string, args []string) int {
-	if dir == "" {
-		if s.p.Exec == nil {
-			s.p.errorf("no command execution available")
-			s.failed = true
-			return 1
-		}
-		status, err := s.p.Exec(s.ctx, args[0], args[1:], s.p.EnvList())
-		return execResult(s, args[0], status, err)
-	}
-	if s.p.ExecDir == nil {
+	if s.p.Exec == nil {
 		s.p.errorf("no command execution available")
 		s.failed = true
 		return 1
 	}
-	status, err := s.p.ExecDir(s.ctx, dir, args[0], args[1:], s.p.EnvList())
+	status, err := s.p.Exec(s.ctx, dir, args[0], args[1:], s.p.EnvList())
 	return execResult(s, args[0], status, err)
 }
 

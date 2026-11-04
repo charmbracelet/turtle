@@ -21,7 +21,7 @@ type execRecorder struct {
 	errorStatus int
 }
 
-func (e *execRecorder) exec(_ context.Context, name string, args, env []string) (int, error) {
+func (e *execRecorder) exec(_ context.Context, dir, name string, args, env []string) (int, error) {
 	e.commands = append(e.commands, strings.Join(append([]string{name}, args...), " "))
 	if e.err != nil && len(e.commands) > len(e.statuses) {
 		status := e.errorStatus
@@ -1304,7 +1304,7 @@ func TestRunErrors(t *testing.T) {
 		p := New(&coreutils.Runtime{
 			Stdin:  strings.NewReader("a b\n"),
 			Stderr: io.Discard,
-			Exec: func(context.Context, string, []string, []string) (int, error) {
+			Exec: func(context.Context, string, string, []string, []string) (int, error) {
 				cancel()
 				return 125, errors.New("terminated by signal")
 			},

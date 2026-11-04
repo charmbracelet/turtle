@@ -647,7 +647,7 @@ func TestRunExec(t *testing.T) {
 	t.Run("one invocation per file", func(t *testing.T) {
 		var calls []string
 		files := fsx.MemFS{"a": {}, "b": {}}
-		exec := func(ctx context.Context, name string, args, env []string) (int, error) {
+		exec := func(ctx context.Context, dir, name string, args, env []string) (int, error) {
 			calls = append(calls, name+" "+strings.Join(args, " "))
 			return 0, nil
 		}
@@ -661,7 +661,7 @@ func TestRunExec(t *testing.T) {
 	t.Run("embedded braces are replaced", func(t *testing.T) {
 		var calls []string
 		files := fsx.MemFS{"a": {}}
-		exec := func(ctx context.Context, name string, args, env []string) (int, error) {
+		exec := func(ctx context.Context, dir, name string, args, env []string) (int, error) {
 			calls = append(calls, name+" "+strings.Join(args, " "))
 			return 0, nil
 		}
@@ -673,7 +673,7 @@ func TestRunExec(t *testing.T) {
 
 	t.Run("a nonzero status makes the primary false", func(t *testing.T) {
 		files := fsx.MemFS{"a": {}}
-		exec := func(ctx context.Context, name string, args, env []string) (int, error) {
+		exec := func(ctx context.Context, dir, name string, args, env []string) (int, error) {
 			return 1, nil
 		}
 		runTest(t, []string{".", "-exec", "false", "{}", ";"}, files, nil, exec, "", "", 0)
@@ -682,7 +682,7 @@ func TestRunExec(t *testing.T) {
 	t.Run("aggregating form", func(t *testing.T) {
 		var calls []string
 		files := fsx.MemFS{"a": {}, "b": {}}
-		exec := func(ctx context.Context, name string, args, env []string) (int, error) {
+		exec := func(ctx context.Context, dir, name string, args, env []string) (int, error) {
 			calls = append(calls, name+" "+strings.Join(args, " "))
 			return 0, nil
 		}
@@ -694,7 +694,7 @@ func TestRunExec(t *testing.T) {
 
 	t.Run("aggregating form failure exits nonzero", func(t *testing.T) {
 		files := fsx.MemFS{"a": {}}
-		exec := func(ctx context.Context, name string, args, env []string) (int, error) {
+		exec := func(ctx context.Context, dir, name string, args, env []string) (int, error) {
 			return 1, nil
 		}
 		runTest(t, []string{".", "-exec", "false", "{}", "+"}, files, nil, exec, "", "", 1)
@@ -717,7 +717,7 @@ func TestRunOk(t *testing.T) {
 
 	t.Run("affirmative response runs the utility", func(t *testing.T) {
 		var calls []string
-		exec := func(ctx context.Context, name string, args, env []string) (int, error) {
+		exec := func(ctx context.Context, dir, name string, args, env []string) (int, error) {
 			calls = append(calls, name+" "+strings.Join(args, " "))
 			return 0, nil
 		}
