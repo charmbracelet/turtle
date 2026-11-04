@@ -1,15 +1,16 @@
 // Package bre compiles POSIX basic regular expressions.
 //
 // It translates a BRE pattern to the syntax understood by Go's regexp
-// package, which is then compiled. Backreferences (\1 through \9) and the
-// collating symbols and equivalence classes of bracket expressions are not
-// supported.
+// package, which is then compiled. Backreferences (\1 through \9) and
+// multi-character collating symbols are not supported.
 package bre
 
 import (
 	"fmt"
 	"regexp"
 	"strings"
+
+	"charm.land/snail/coreutils/internal/bracket"
 )
 
 // Compile parses pattern as a POSIX basic regular expression and returns the
@@ -24,6 +25,11 @@ func Compile(pattern string) (*regexp.Regexp, error) {
 		return nil, fmt.Errorf("invalid regular expression: %v", err)
 	}
 	return re, nil
+}
+
+// Translate converts pattern into the syntax of Go's regexp package.
+func Translate(pattern string) (string, error) {
+	return translate(pattern)
 }
 
 // translate converts a BRE pattern to Go regexp syntax.
@@ -41,11 +47,15 @@ func translate(pattern string) (string, error) {
 		c := pattern[i]
 		switch c {
 		case '[':
-			end := bracketEnd(pattern, i)
+			end := bracket.End(pattern, i)
 			if end < 0 {
 				return "", fmt.Errorf("unmatched [")
 			}
-			out.WriteString(translateBracket(pattern[i : end+1]))
+			translated, err := bracket.Translate(pattern[i : end+1])
+			if err != nil {
+				return "", err
+			}
+			out.WriteString(translated)
 			i = end + 1
 			atom = true
 			anchor = false
@@ -175,58 +185,6 @@ func isRegexpMeta(c byte) bool {
 		return true
 	}
 	return false
-}
-
-// bracketEnd returns the index of the ] closing the bracket expression
-// starting at i, or -1 when there's none. A ] right after the opening [ or a
-// leading ^ is a member of the expression, and the ] closing a [:...:],
-// [.x.] or [=x=] subexpression doesn't close the expression.
-func bracketEnd(pattern string, i int) int {
-	j := i + 1
-	if j < len(pattern) && pattern[j] == '^' {
-		j++
-	}
-	if j < len(pattern) && pattern[j] == ']' {
-		j++
-	}
-	for ; j < len(pattern); j++ {
-		if pattern[j] == ']' {
-			return j
-		}
-		if end := subEnd(pattern, j); end >= 0 {
-			j = end
-		}
-	}
-	return -1
-}
-
-// subEnd returns the index of the ] closing the [:...:], [.x.] or [=x=]
-// subexpression starting at j, or -1 when the bracket at j doesn't open one.
-func subEnd(pattern string, j int) int {
-	if j+1 >= len(pattern) {
-		return -1
-	}
-	var marker byte
-	switch pattern[j+1] {
-	case ':', '.', '=':
-		marker = pattern[j+1]
-	default:
-		return -1
-	}
-	for k := j + 2; k+1 < len(pattern); k++ {
-		if pattern[k] == marker && pattern[k+1] == ']' {
-			return k + 1
-		}
-	}
-	return -1
-}
-
-// translateBracket copies a bracket expression, escaping the backslashes it
-// holds, since they're ordinary characters in a POSIX bracket expression.
-// Collating symbols ([. .]) and equivalence classes ([= =]) are left alone;
-// Go's regexp package rejects them.
-func translateBracket(expr string) string {
-	return strings.ReplaceAll(expr, `\`, `\\`)
 }
 
 // interval parses a \{m\}, \{m,\} or \{m,n\} interval expression starting at

@@ -120,7 +120,7 @@ section below.
 | Text | `cksum`* | Compute CRC checksums for files | [✅](spec/markdown/posix/cksum.md) | [✅](spec/markdown/gnu/cksum-invocation.md) |
 | Text | `patch`* | Apply a diff file to an original | [✅](spec/markdown/posix/patch.md) | ✅ |
 | Search / Filtering | `find` | Find files matching given criteria | [❌](spec/markdown/posix/find.md) | [❌](https://web.archive.org/web/https://www.gnu.org/software/findutils/manual/html_node/find_html/Invoking-find.html) |
-| Search / Filtering | `grep` | Print lines matching a pattern | [❌](spec/markdown/posix/grep.md) | [❌](https://web.archive.org/web/https://www.gnu.org/software/grep/manual/grep.html) |
+| Search / Filtering | `grep`* | Print lines matching a pattern | [✅](spec/markdown/posix/grep.md) | [❌](https://web.archive.org/web/https://www.gnu.org/software/grep/manual/grep.html) |
 | Search / Filtering | `xargs` | Build and execute command lines | [✅](spec/markdown/posix/xargs.md) | [❌](https://web.archive.org/web/https://www.gnu.org/software/findutils/manual/html_node/find_html/Invoking-xargs.html) |
 | System / Process | `date`* | Print or set the date and time | [✅](spec/markdown/posix/date.md) | [✅](spec/markdown/gnu/date-invocation.md) |
 | System / Process | `env` | Run a command in a modified environment | [✅](spec/markdown/posix/env.md) | [✅](spec/markdown/gnu/env-invocation.md) |
@@ -208,9 +208,17 @@ utility here implements the collating sequences of other locales, so
 keys which only another `LC_COLLATE` makes equal stay different.
 
 **`sed`** supports BRE and ERE (`-E`) patterns, but not backreferences
-(`\1` to `\9`) in patterns, nor the collating symbols and equivalence
-classes of bracket expressions. Backreferences in the replacement of `s`
-work as specified.
+(`\1` to `\9`) in patterns, nor the multi-character collating symbols of
+bracket expressions: a collating symbol or equivalence class of a single
+character stands for that character, as the C locale orders them.
+Backreferences in the replacement of `s` work as specified.
+
+**`grep`** doesn't implement backreferences in BREs, nor the GNU
+extensions: `-P`, the context options (`-A`, `-B`, `-C`, `--context`),
+`-o`, `-R` and the binary-file options are missing. Like `sed`, its
+bracket expressions take a collating symbol or equivalence class of a
+single character for that character, and no other locale than the C one
+orders them. The case-insensitive matching uses Go's simple case folding.
 
 **`cksum`** takes its algorithms from the standard library, so
 `blake2b` and `sm3` are missing, and it doesn't verify checksums with

@@ -315,13 +315,12 @@ func TestRunSubstitute(t *testing.T) {
 			want:  "aXb\n",
 		},
 		{
-			// The whole [[.a.]] is one bracket expression; Go's regexp
-			// doesn't implement collating symbols, so matching it is left
-			// to the class it parses to.
+			// The whole [[.a.]] is one bracket expression, matching the
+			// collating element a.
 			name:  "a collating symbol scans as one bracket expression",
 			stdin: strings.NewReader("a\n"),
 			args:  []string{"s/[[.a.]]/X/"},
-			want:  "a\n",
+			want:  "X\n",
 		},
 	}
 	for _, test := range tests {
