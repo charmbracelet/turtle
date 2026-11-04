@@ -615,8 +615,8 @@ func TestRunInvalidUsage(t *testing.T) {
 	tests := []runTestArgs{
 		{
 			name:    "invalid option",
-			args:    []string{"-z", "foo"},
-			wantErr: "grep: invalid option -- 'z'\nTry 'grep --help' for more information.\n",
+			args:    []string{"-j", "foo"},
+			wantErr: "grep: invalid option -- 'j'\nTry 'grep --help' for more information.\n",
 		},
 		{
 			name:    "unrecognized long option",
