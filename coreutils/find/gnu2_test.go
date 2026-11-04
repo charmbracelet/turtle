@@ -378,7 +378,7 @@ func TestRunExecdir(t *testing.T) {
 		Stderr: io.Discard,
 		FS:     fsx.MemFS{"d/a": {}, "d/b": {}, "d/sub/c": {}},
 		Clock:  func() time.Time { return testNow },
-		ExecDir: func(ctx context.Context, dir, name string, args, env []string) (int, error) {
+		Exec: func(ctx context.Context, dir, name string, args, env []string) (int, error) {
 			invocations = append(invocations, invocation{dir: dir, args: append([]string{name}, args...)})
 			return 0, nil
 		},
@@ -409,7 +409,7 @@ func TestRunExecdirAggregating(t *testing.T) {
 		Stderr: io.Discard,
 		FS:     fsx.MemFS{"d/a": {}, "d/b": {}, "d/sub/c": {}},
 		Clock:  func() time.Time { return testNow },
-		ExecDir: func(ctx context.Context, dir, name string, args, env []string) (int, error) {
+		Exec: func(ctx context.Context, dir, name string, args, env []string) (int, error) {
 			dirs = append(dirs, dir)
 			groups = append(groups, args)
 			return 0, nil
@@ -438,7 +438,7 @@ func TestRunOkdir(t *testing.T) {
 		Stderr: new(bytes.Buffer),
 		FS:     fsx.MemFS{"d/a": {}},
 		Clock:  func() time.Time { return testNow },
-		ExecDir: func(ctx context.Context, dir, name string, a, env []string) (int, error) {
+		Exec: func(ctx context.Context, dir, name string, a, env []string) (int, error) {
 			args = append([]string{name}, a...)
 			return 0, nil
 		},
