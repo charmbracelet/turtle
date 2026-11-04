@@ -119,8 +119,8 @@ section below.
 | Text | `unexpand` | Convert spaces to tabs | [✅](spec/markdown/posix/unexpand.md) | [✅](spec/markdown/gnu/unexpand-invocation.md) |
 | Text | `cksum`* | Compute CRC checksums for files | [✅](spec/markdown/posix/cksum.md) | [✅](spec/markdown/gnu/cksum-invocation.md) |
 | Text | `patch`* | Apply a diff file to an original | [✅](spec/markdown/posix/patch.md) | ✅ |
-| Search / Filtering | `find`* | Find files matching given criteria | [✅](spec/markdown/posix/find.md) | [❌](https://web.archive.org/web/https://www.gnu.org/software/findutils/manual/html_node/find_html/Invoking-find.html) |
-| Search / Filtering | `grep`* | Print lines matching a pattern | [✅](spec/markdown/posix/grep.md) | [❌](https://web.archive.org/web/https://www.gnu.org/software/grep/manual/grep.html) |
+| Search / Filtering | `find`* | Find files matching given criteria | [✅](spec/markdown/posix/find.md) | [✅](https://web.archive.org/web/https://www.gnu.org/software/findutils/manual/html_node/find_html/Invoking-find.html) |
+| Search / Filtering | `grep`* | Print lines matching a pattern | [✅](spec/markdown/posix/grep.md) | [✅](https://www.gnu.org/software/grep/manual/grep.html) |
 | Search / Filtering | `xargs` | Build and execute command lines | [✅](spec/markdown/posix/xargs.md) | [❌](https://web.archive.org/web/https://www.gnu.org/software/findutils/manual/html_node/find_html/Invoking-xargs.html) |
 | System / Process | `date`* | Print or set the date and time | [✅](spec/markdown/posix/date.md) | [✅](spec/markdown/gnu/date-invocation.md) |
 | System / Process | `env` | Run a command in a modified environment | [✅](spec/markdown/posix/env.md) | [✅](spec/markdown/gnu/env-invocation.md) |
@@ -213,21 +213,37 @@ bracket expressions: a collating symbol or equivalence class of a single
 character stands for that character, as the C locale orders them.
 Backreferences in the replacement of `s` work as specified.
 
-**`grep`** doesn't implement backreferences in BREs, nor the GNU
-extensions: `-P`, the context options (`-A`, `-B`, `-C`, `--context`),
-`-o`, `-R` and the binary-file options are missing. Like `sed`, its
+**`grep`** doesn't implement backreferences in BREs, nor `-P`, which
+would need an engine beyond the one of the standard library. The `\<` and
+`\>` anchors stand for the word boundary of either edge. Like `sed`, its
 bracket expressions take a collating symbol or equivalence class of a
 single character for that character, and no other locale than the C one
 orders them. The case-insensitive matching uses Go's simple case folding.
+A binary input is detected one line at a time, so the lines before the one
+holding a null byte are still output, which the GNU manual allows; the
+message about a matching binary file goes to the standard output, as the
+GNU implementation does, although its manual says error. The colors of `--color` follow the `GREP_COLORS`
+capabilities of the manual, closing every span with a reset and a clear to
+the end of line, which the `ne` capability omits.
 
-**`find`** doesn't implement the GNU primaries, like `-maxdepth`,
-`-newerXY`, `-inum`, `-printf` or `-delete`. The `-mount` and `-xdev`
-primaries compare device IDs, which a runtime file system may not report,
-like a memory one, where they never prune anything; the loop detection
-needs the device and inode numbers as well. The sets of the aggregating
-`-exec` form are flushed at 128 KB of pathnames instead of the system's
-`ARG_MAX` limit, and `-nouser` and `-nogroup` consult the user and group
-databases of the host system.
+**`find`** doesn't implement `-fstype` and `-context`, which need file
+system knowledge no runtime reports, and no birth time, which makes
+`-newerXY` with a `B` fail like GNU does when the reference has none.
+The `-readable`, `-writable` and `-executable` primaries approximate the
+access checks from the permission bits, with no access control list.
+The `-follow`, `-daystart` and `-regextype` options apply to the whole
+traversal, not only to the primaries after them, and the regular
+expressions of `-regex` are POSIX extended ones by default, with the types
+of `-regextype` reduced to basic and extended. The `-O` and `-D` options
+are accepted and change nothing. The `-ls` action follows the GNU layout,
+with the block counts of a file system which reports none taken from the
+file size, and the fractional seconds of the `-printf` time formats are
+always nine digits. The `-mount` and `-xdev` primaries compare device IDs,
+which a runtime file system may not report, like a memory one, where they
+never prune anything; the loop detection needs the device and inode
+numbers as well. The sets of the aggregating `-exec` form are flushed at
+128 KB of pathnames instead of the system's `ARG_MAX` limit, and `-nouser`
+and `-nogroup` consult the user and group databases of the host system.
 
 **`cksum`** takes its algorithms from the standard library, so
 `blake2b` and `sm3` are missing, and it doesn't verify checksums with
