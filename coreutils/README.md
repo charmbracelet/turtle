@@ -119,7 +119,7 @@ section below.
 | Text | `unexpand` | Convert spaces to tabs | [✅](spec/markdown/posix/unexpand.md) | [✅](spec/markdown/gnu/unexpand-invocation.md) |
 | Text | `cksum`* | Compute CRC checksums for files | [✅](spec/markdown/posix/cksum.md) | [✅](spec/markdown/gnu/cksum-invocation.md) |
 | Text | `patch`* | Apply a diff file to an original | [✅](spec/markdown/posix/patch.md) | ✅ |
-| Search / Filtering | `find` | Find files matching given criteria | [❌](spec/markdown/posix/find.md) | [❌](https://web.archive.org/web/https://www.gnu.org/software/findutils/manual/html_node/find_html/Invoking-find.html) |
+| Search / Filtering | `find`* | Find files matching given criteria | [✅](spec/markdown/posix/find.md) | [❌](https://web.archive.org/web/https://www.gnu.org/software/findutils/manual/html_node/find_html/Invoking-find.html) |
 | Search / Filtering | `grep`* | Print lines matching a pattern | [✅](spec/markdown/posix/grep.md) | [❌](https://web.archive.org/web/https://www.gnu.org/software/grep/manual/grep.html) |
 | Search / Filtering | `xargs` | Build and execute command lines | [✅](spec/markdown/posix/xargs.md) | [❌](https://web.archive.org/web/https://www.gnu.org/software/findutils/manual/html_node/find_html/Invoking-xargs.html) |
 | System / Process | `date`* | Print or set the date and time | [✅](spec/markdown/posix/date.md) | [✅](spec/markdown/gnu/date-invocation.md) |
@@ -219,6 +219,15 @@ extensions: `-P`, the context options (`-A`, `-B`, `-C`, `--context`),
 bracket expressions take a collating symbol or equivalence class of a
 single character for that character, and no other locale than the C one
 orders them. The case-insensitive matching uses Go's simple case folding.
+
+**`find`** doesn't implement the GNU primaries, like `-maxdepth`,
+`-newerXY`, `-inum`, `-printf` or `-delete`. The `-mount` and `-xdev`
+primaries compare device IDs, which a runtime file system may not report,
+like a memory one, where they never prune anything; the loop detection
+needs the device and inode numbers as well. The sets of the aggregating
+`-exec` form are flushed at 128 KB of pathnames instead of the system's
+`ARG_MAX` limit, and `-nouser` and `-nogroup` consult the user and group
+databases of the host system.
 
 **`cksum`** takes its algorithms from the standard library, so
 `blake2b` and `sm3` are missing, and it doesn't verify checksums with
