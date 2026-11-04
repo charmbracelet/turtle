@@ -77,6 +77,13 @@ type Runtime struct {
 	// utilities that invoke other programs, like xargs. If nil, such
 	// utilities fail instead of running anything.
 	Exec ExecFunc
+
+	// ExecDir runs a utility like Exec does, but in the given directory
+	// instead of the working directory. It's used by utilities that run
+	// programs next to the files they handle, like find's -execdir. If nil,
+	// such actions fail instead of running anything. An empty dir means the
+	// working directory.
+	ExecDir ExecDirFunc
 }
 
 // OsRuntime returns a Runtime wired to the real operating system.
@@ -98,7 +105,10 @@ func OsRuntime() *Runtime {
 		Clock:      time.Now,
 	}
 	rt.Exec = func(ctx context.Context, name string, args, env []string) (int, error) {
-		return osExec(ctx, rt, name, args, env)
+		return osExec(ctx, rt, "", name, args, env)
+	}
+	rt.ExecDir = func(ctx context.Context, dir, name string, args, env []string) (int, error) {
+		return osExec(ctx, rt, dir, name, args, env)
 	}
 	rt.ProcessAlive = osProcessAlive
 	return rt
@@ -212,10 +222,15 @@ type SleepFunc func(ctx context.Context, d time.Duration) error
 // status the caller should exit with: 127, 126 or 125, respectively.
 type ExecFunc func(ctx context.Context, name string, args []string, env []string) (status int, err error)
 
+// ExecDirFunc is a function signature for the Runtime.ExecDir function. It
+// works like ExecFunc, but the utility runs in the given directory instead
+// of the working directory, which an empty dir stands for.
+type ExecDirFunc func(ctx context.Context, dir, name string, args, env []string) (status int, err error)
+
 // osExec runs a utility, wiring it to the runtime outputs and to the null
 // device as its standard input, since the results of the utility reading
 // the same input as xargs are unspecified.
-func osExec(ctx context.Context, rt *Runtime, name string, args, env []string) (int, error) {
+func osExec(ctx context.Context, rt *Runtime, dir, name string, args, env []string) (int, error) {
 	path, err := lookup(rt, env, name)
 	if err != nil {
 		if errors.Is(err, exec.ErrNotFound) {
@@ -223,20 +238,24 @@ func osExec(ctx context.Context, rt *Runtime, name string, args, env []string) (
 		}
 		return 126, err
 	}
-	status, err := run(ctx, rt, path, args, env)
+	status, err := run(ctx, rt, dir, path, args, env)
 	if err != nil && errors.Is(err, syscall.ENOEXEC) && runtime.GOOS != "windows" {
 		// An executable file with no executable format runs through the
 		// command interpreter, as execvp does.
-		return run(ctx, rt, "/bin/sh", append([]string{path}, args...), env)
+		return run(ctx, rt, dir, "/bin/sh", append([]string{path}, args...), env)
 	}
 	return status, err
 }
 
 // run starts the utility and waits for its completion, wiring it to the
-// runtime outputs and to the null device as its standard input.
-func run(ctx context.Context, rt *Runtime, path string, args, env []string) (int, error) {
+// runtime outputs and to the null device as its standard input. An empty
+// dir makes it run in the working directory.
+func run(ctx context.Context, rt *Runtime, dir, path string, args, env []string) (int, error) {
 	cmd := exec.CommandContext(ctx, path, args...)
-	cmd.Dir = rt.WorkingDir
+	cmd.Dir = dir
+	if cmd.Dir == "" {
+		cmd.Dir = rt.WorkingDir
+	}
 	cmd.Env = env
 	if cmd.Env == nil {
 		// A nil Env would make the process environment be inherited.
