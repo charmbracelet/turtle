@@ -1,4 +1,4 @@
-// Package find implements the POSIX find utility.
+// Package find implements the POSIX find utility with its GNU extensions.
 package find
 
 import (
@@ -6,9 +6,14 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"io"
 	"io/fs"
+	"os"
+	"os/user"
 	"path"
 	"path/filepath"
+	"slices"
+	"strconv"
 	"strings"
 	"time"
 
@@ -18,8 +23,7 @@ import (
 	"charm.land/snail/coreutils/internal/getopt"
 	"charm.land/snail/coreutils/internal/patherr"
 	"charm.land/snail/coreutils/internal/stdopts"
-
-	"charm.land/snail/fsx"
+	"charm.land/snail/coreutils/internal/walk"
 )
 
 // Prog is the find core utility.
@@ -44,7 +48,16 @@ func (p *Prog) Run(ctx context.Context, args ...string) error {
 		stdopts.TryHelp(p.Runtime, "find")
 		return &coreutils.ExitError{Code: 1}
 	}
-	if len(paths) == 0 {
+	if opts.files0From != "" {
+		paths, err = p.readPaths0(ctx, opts.files0From)
+		if err != nil {
+			if ctx.Err() != nil {
+				return err
+			}
+			p.errorf("%v", err)
+			return &coreutils.ExitError{Code: 1}
+		}
+	} else if len(paths) == 0 {
 		if len(tokens) > 0 {
 			p.errorf("paths must precede expression: '%s'", tokens[0])
 			stdopts.TryHelp(p.Runtime, "find")
@@ -58,36 +71,87 @@ func (p *Prog) Run(ctx context.Context, args ...string) error {
 	var expr expr = printExpr{}
 	if len(tokens) > 0 {
 		var err error
-		expr, err = parseExpr(p.Runtime, tokens)
+		expr, err = parseExpr(p.Runtime, p.Now(), tokens, opts.follow)
 		if err != nil {
 			p.errorf("%v", err)
 			stdopts.TryHelp(p.Runtime, "find")
 			return &coreutils.ExitError{Code: 1}
 		}
 	}
-	action, execs := scanExpr(expr, &opts)
+	action, execs, outFiles := scanExpr(expr, &opts)
 	if !action {
 		expr = andExpr{expr, printExpr{}}
 	}
 
-	s := &state{p: p, ctx: ctx, opts: opts, now: p.Now(), loops: map[string]string{}, execs: execs}
+	s := &state{
+		p: p, ctx: ctx, opts: opts, now: p.Now(),
+		execs: execs, outFiles: map[string]io.Writer{},
+		names: map[int]string{}, groups: map[int]string{},
+	}
+	if err := s.openOutFiles(outFiles); err != nil {
+		return &coreutils.ExitError{Code: 1}
+	}
+	// An early return, like a canceled context, still closes the files.
+	defer s.closeOutFiles()
+
+	quit := false
 	for _, root := range paths {
 		if err := ctx.Err(); err != nil {
 			return err
 		}
-		fsName := path.Clean(filepath.ToSlash(p.ResolvePath(root)))
-		fi, err := p.stat(s, fsName, true)
-		if err != nil {
-			p.errorf("'%s': %v", root, patherr.Unwrap(err))
-			s.failed = true
-			continue
+		if quit {
+			break
 		}
-		st, _ := fileinfo.Stat(fi)
-		if err := p.walk(ctx, s, expr, root, fsName, fi, st.Dev); err != nil {
+		fsName := path.Clean(filepath.ToSlash(p.ResolvePath(root)))
+		err := walk.Walk(ctx, p.FS, walk.Options{
+			Follow:   opts.follow,
+			Depth:    opts.depth,
+			MaxDepth: opts.maxDepth,
+			MinDepth: opts.minDepth,
+			XDev:     opts.xdev,
+			Mount:    opts.mount,
+			OnError: func(name string, err error) error {
+				if ctx.Err() != nil {
+					return ctx.Err()
+				}
+				if opts.ignoreRace && errors.Is(err, fs.ErrNotExist) {
+					return nil
+				}
+				if perr, ok := errors.AsType[*fs.PathError](err); ok {
+					if perr.Op == "readdirent" || perr.Op == "readdir" {
+						p.errorf("cannot read directory '%s': %v", name, perr.Err)
+					} else {
+						p.errorf("'%s': %v", name, perr.Err)
+					}
+				} else {
+					p.errorf("%v", err)
+				}
+				s.failed = true
+				return nil
+			},
+		}, root, fsName, func(name, fsName string, fi fs.FileInfo, depth int) (bool, error) {
+			if err := ctx.Err(); err != nil {
+				return false, err
+			}
+			s.pruned = false
+			e := file{root: root, name: name, fsName: fsName, fi: fi, depth: depth}
+			expr.eval(s, e)
+			if s.quit {
+				quit = true
+				return false, errQuit
+			}
+			return !s.pruned, nil
+		})
+		if errors.Is(err, errQuit) {
+			break
+		}
+		if err != nil {
 			return err
 		}
 	}
 	s.flush()
+	s.flushOutFiles()
+	s.closeOutFiles()
 	if err := ctx.Err(); err != nil {
 		return err
 	}
@@ -97,118 +161,103 @@ func (p *Prog) Run(ctx context.Context, args ...string) error {
 	return nil
 }
 
-// walk evaluates the expression on one file and, when it's a directory
-// that isn't pruned, on the files below it. The name is the pathname as
-// given, while fsName is what the file system is asked for, since it takes
-// only cleaned, slash-separated paths resolved against the working
-// directory.
-func (p *Prog) walk(ctx context.Context, s *state, e expr, name, fsName string, fi fs.FileInfo, rootDev uint64) error {
-	if err := ctx.Err(); err != nil {
-		return err
-	}
-	st, stOK := fileinfo.Stat(fi)
-	offRoot := stOK && st.Dev != rootDev
-	// -mount doesn't act on the files of another file system, and with -xdev
-	// it still applies, as the spec says both together behave like -mount
-	// alone.
-	if s.opts.mount && offRoot {
-		return nil
-	}
-	descend := func() error {
-		if s.pruned || !fi.IsDir() || (s.opts.xdev && offRoot) {
-			return nil
+// errQuit stops the traversal when -quit was evaluated.
+var errQuit = errors.New("quit")
+
+// readPaths0 reads the starting points of -files0-from, which are separated
+// by null bytes. A name of "-" reads them from the standard input.
+func (p *Prog) readPaths0(ctx context.Context, name string) ([]string, error) {
+	var data []byte
+	if name == "-" {
+		if p.Stdin == nil {
+			return nil, errors.New("no standard input available")
 		}
-		return p.descend(ctx, s, e, name, fsName, fi, rootDev)
+		var err error
+		data, err = io.ReadAll(p.Stdin)
+		if err != nil {
+			if ctx.Err() != nil {
+				return nil, ctx.Err()
+			}
+			return nil, fmt.Errorf("cannot read the standard input: %v", err)
+		}
+	} else {
+		fsName := path.Clean(filepath.ToSlash(p.ResolvePath(name)))
+		f, err := p.FS.Open(fsName)
+		if err != nil {
+			return nil, fmt.Errorf("cannot open '%s': %v", name, patherr.Unwrap(err))
+		}
+		data, err = io.ReadAll(f)
+		f.Close()
+		if err != nil {
+			return nil, fmt.Errorf("cannot read '%s': %v", name, patherr.Unwrap(err))
+		}
 	}
-	s.pruned = false
-	if !s.opts.depth {
-		e.eval(s, name, fi)
-		return descend()
+	if len(data) == 0 {
+		return nil, nil
 	}
-	if err := descend(); err != nil {
-		return err
+	paths := strings.Split(string(data), "\x00")
+	if paths[len(paths)-1] == "" {
+		paths = paths[:len(paths)-1]
 	}
-	e.eval(s, name, fi)
-	return nil
+	if slices.Contains(paths, "") {
+		return nil, errors.New("zero-length file name in -files0-from input")
+	}
+	return paths, nil
 }
 
-// descend evaluates the expression on the entries of one directory.
-func (p *Prog) descend(ctx context.Context, s *state, e expr, dir, fsDir string, fi fs.FileInfo, rootDev uint64) error {
-	if s.opts.follow == 'L' {
-		// Only the directories of the current chain of ancestors count: a
-		// directory met again once its ancestor is left is a revisit, not a
-		// loop.
-		if id, ok := dirID(fi); ok {
-			if first, seen := s.loops[id]; seen {
-				p.errorf("file system loop detected; '%s' is part of the same file system loop as '%s'", dir, first)
-				s.failed = true
-				return nil
-			}
-			s.loops[id] = dir
-			defer delete(s.loops, id)
-		}
-	}
-	entries, err := fs.ReadDir(p.FS, fsDir)
-	if err != nil {
-		p.errorf("cannot read directory '%s': %v", dir, patherr.Unwrap(err))
-		s.failed = true
-		return nil
-	}
-	for _, entry := range entries {
-		if err := ctx.Err(); err != nil {
-			return err
-		}
-		child := joinPath(dir, entry.Name())
-		fsChild := path.Join(fsDir, entry.Name())
-		cfi, err := p.stat(s, fsChild, false)
-		if err != nil {
-			p.errorf("'%s': %v", child, patherr.Unwrap(err))
-			s.failed = true
+// openOutFiles opens the files the -fprint family writes to, truncating
+// them, as they are created even when nothing is written to them.
+func (s *state) openOutFiles(names []string) error {
+	for _, name := range names {
+		if _, ok := s.outFiles[name]; ok {
 			continue
 		}
-		if err := p.walk(ctx, s, e, child, fsChild, cfi, rootDev); err != nil {
+		switch name {
+		case "/dev/stdout":
+			s.outFiles[name] = s.p.Stdout
+			continue
+		case "/dev/stderr":
+			s.outFiles[name] = s.p.Stderr
+			continue
+		}
+		fsName := path.Clean(filepath.ToSlash(s.p.ResolvePath(name)))
+		f, err := s.p.FS.OpenFile(fsName, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, 0o666)
+		if err != nil {
+			s.p.errorf("cannot open '%s' for writing: %v", name, patherr.Unwrap(err))
+			s.failed = true
 			return err
 		}
+		s.outFiles[name] = f
+		s.outClosers = append(s.outClosers, f)
 	}
 	return nil
 }
 
-// stat describes one file, following symbolic links as the options ask for.
-// A link whose target doesn't exist is described as itself, while any other
-// failure to reach the target, like a symlink loop, is reported.
-func (p *Prog) stat(s *state, name string, operand bool) (fs.FileInfo, error) {
-	if s.opts.follow == 'L' || (operand && s.opts.follow == 'H') {
-		fi, err := fs.Stat(p.FS, name)
-		if err == nil {
-			return fi, nil
+// closeOutFiles closes the files the -fprint family opened, but never the
+// standard output and error it may also write to. Run calls it before
+// deciding the exit status, so its failures count, and again, without
+// effect, on an early return.
+func (s *state) closeOutFiles() {
+	closers := s.outClosers
+	s.outClosers = nil
+	for _, f := range closers {
+		if err := f.Close(); err != nil {
+			s.p.errorf("close failed: %v", err)
+			s.failed = true
 		}
-		if errors.Is(err, fs.ErrNotExist) {
-			if lfi, lerr := fs.Lstat(p.FS, name); lerr == nil {
-				return lfi, nil
+	}
+}
+
+// flushOutFiles flushes the files the -fprint family wrote to.
+func (s *state) flushOutFiles() {
+	for _, f := range s.outClosers {
+		if flusher, ok := f.(interface{ Flush() error }); ok {
+			if err := flusher.Flush(); err != nil {
+				s.p.errorf("write error: %v", err)
+				s.failed = true
 			}
 		}
-		return nil, err
 	}
-	return fs.Lstat(p.FS, name)
-}
-
-// joinPath concatenates a directory and an entry name, keeping a single
-// slash between them no matter how the directory was given.
-func joinPath(dir, name string) string {
-	if strings.HasSuffix(dir, "/") {
-		return dir + name
-	}
-	return dir + "/" + name
-}
-
-// dirID returns what identifies a directory for loop detection, reporting
-// false when the file system reports nothing to identify it with.
-func dirID(fi fs.FileInfo) (string, bool) {
-	st, ok := fileinfo.Stat(fi)
-	if !ok || st.Dev == 0 && st.Ino == 0 {
-		return "", false
-	}
-	return fmt.Sprintf("%d:%d", st.Dev, st.Ino), true
 }
 
 // state is the evaluation state shared by the whole traversal.
@@ -220,25 +269,71 @@ type state struct {
 	pruned     bool // the last -prune seen
 	failed     bool // an error was seen
 	execFailed bool // a -exec {} + invocation exited nonzero
-	loops      map[string]string
+	quit       bool // -quit was evaluated
 	execs      []*execExpr
 	stdin      *bufio.Reader
+	outFiles   map[string]io.Writer
+	outClosers []io.Closer    // the output files that were opened
+	names      map[int]string // cached user names
+	groups     map[int]string // cached group names
 }
 
-// timeOf returns the file time a -atime, -ctime or -mtime primary checks,
-// falling back to the modification time, which a file system always reports.
-func (s *state) timeOf(fi fs.FileInfo, which byte) time.Time {
-	switch which {
-	case 'a':
-		if t, ok := fsx.Atime(fi); ok {
-			return t
-		}
-	case 'c':
-		if t, ok := fileinfo.Ctime(fi); ok {
-			return t
-		}
+// out returns the writer an output file name stands for, which is the
+// standard output for the empty name.
+func (s *state) out(name string) io.Writer {
+	if name == "" {
+		return s.p.Stdout
 	}
-	return fi.ModTime()
+	return s.outFiles[name]
+}
+
+// linkTarget returns what a symbolic link points at, or the empty string
+// when it can't be read.
+func (s *state) linkTarget(f file) string {
+	target, err := fs.ReadLink(s.p.FS, f.fsName)
+	if err != nil {
+		return ""
+	}
+	return target
+}
+
+// timeOf returns the file time a time primary checks.
+func (s *state) timeOf(fi fs.FileInfo, which byte) time.Time {
+	return fileTime(fi, which)
+}
+
+// fileInfoStat returns the information a file system reports about a file
+// beyond what io/fs models.
+func fileInfoStat(fi fs.FileInfo) (fileinfo.Info, bool) {
+	return fileinfo.Stat(fi)
+}
+
+// userName returns the name of the user an identifier stands for, or its
+// decimal form when it names no user.
+func (s *state) userName(uid int) string {
+	if name, ok := s.names[uid]; ok {
+		return name
+	}
+	name := strconv.Itoa(uid)
+	if u, err := user.LookupId(name); err == nil {
+		name = u.Username
+	}
+	s.names[uid] = name
+	return name
+}
+
+// groupName returns the name of the group an identifier stands for, or its
+// decimal form when it names no group.
+func (s *state) groupName(gid int) string {
+	if name, ok := s.groups[gid]; ok {
+		return name
+	}
+	name := strconv.Itoa(gid)
+	if g, err := user.LookupGroupId(name); err == nil {
+		name = g.Name
+	}
+	s.groups[gid] = name
+	return name
 }
 
 func (p *Prog) errorf(format string, args ...any) {
@@ -248,10 +343,15 @@ func (p *Prog) errorf(format string, args ...any) {
 // options holds the options and the primaries that apply to the whole
 // traversal.
 type options struct {
-	follow byte // 'P', 'H' or 'L'
-	depth  bool
-	mount  bool
-	xdev   bool
+	follow     byte // 'P', 'H' or 'L'
+	depth      bool
+	mount      bool
+	xdev       bool
+	maxDepth   int  // how many levels are descended; zero means all
+	minDepth   int  // from which level the files are acted on
+	daystart   bool // times are measured from the beginning of today
+	ignoreRace bool
+	files0From string
 }
 
 // optSet describes the options of find. It holds no short options, since
@@ -259,10 +359,11 @@ type options struct {
 var optSet = getopt.Set{}
 
 // usage describes the options and primaries of find.
-const usage = `Usage: find [-H] [-L] [-P] path... [expression]
+const usage = `Usage: find [-H] [-L] [-P] [-Olevel] [-D debug-features] [path...]
+       [expression]
 Search the file hierarchy below each path, evaluating an expression on every
 file found. The expression combines the primaries below with ! (not), -a
-(and) and -o (or), and defaults to -print.
+(and), -o (or) and the comma operator, and defaults to -print.
 
   -H
          follow the symbolic links given as paths, not those met during the
@@ -271,87 +372,245 @@ file found. The expression combines the primaries below with ! (not), -a
          follow every symbolic link
   -P
          never follow symbolic links
-  -name PATTERN
-         true when the basename of the file matches PATTERN
-  -iname PATTERN
-         like -name, but ignoring case distinctions
-  -path PATTERN
-         true when the whole pathname matches PATTERN
-  -nouser
-         true when no user owns the file
-  -nogroup
-         true when no group owns the file
-  -mount
-         act only on the files of the same file system, and don't descend
-         into the others
-  -xdev
-         don't descend into the directories of another file system
-  -prune
-         don't descend into the directory
-  -perm [-]MODE
-         true when the permission bits match MODE, at least all of them
-         with a '-'
-  -type c
-         true when the file is of type c: b, c, d, l, p, f or s
-  -links n
-         true when the file has n links
-  -user UNAME
-         true when the file belongs to the user UNAME
-  -group GNAME
-         true when the file belongs to the group GNAME
-  -size n[c]
-         true when the file is n units long, of 512 bytes, or of one byte
-         with c
+  -amin n
+         true when the file was last accessed n minutes ago
+  -anewer FILE
+         true when the file was last accessed more recently than FILE was
+         modified
   -atime n
          true when the file was last accessed n days ago
+  -cmin n
+         true when the file status last changed n minutes ago
+  -cnewer FILE
+         true when the file status last changed more recently than FILE was
+         modified
   -ctime n
          true when the file status last changed n days ago
-  -mtime n
-         true when the file was last modified n days ago
-  -newer FILE
-         true when the file was modified more recently than FILE
+  -daystart
+         measure the times from the beginning of today
+  -delete
+         delete the file, empty directories only; implies -depth
+  -depth
+         act on the entries of a directory before the directory itself
+  -empty
+         true when the file is an empty regular file or directory
   -exec UTILITY [ARG]... ;
          run UTILITY on the file, true when it succeeds; an ARG of {} is
          the pathname
   -exec UTILITY [ARG]... {} +
          run UTILITY once per set of pathnames
+  -execdir UTILITY [ARG]... ;
+         like -exec, but run UTILITY in the directory of the file, with {}
+         standing for its base name
+  -executable
+         true when the file can be executed or searched by the user
+  -false
+         always false
+  -files0-from FILE
+         read the starting points from FILE, null byte separated
+  -fls FILE
+         like -ls, but write to FILE
+  -fprint FILE
+         like -print, but write to FILE
+  -fprint0 FILE
+         like -print0, but write to FILE
+  -fprintf FILE FORMAT
+         like -printf, but write to FILE
+  -fstype TYPE
+         not supported: a runtime file system can't tell its type
+  -gid n
+         true when the file belongs to the group identifier n
+  -group GNAME
+         true when the file belongs to the group GNAME
+  -ilname PATTERN
+         like -lname, but ignoring case distinctions
+  -iname PATTERN
+         like -name, but ignoring case distinctions
+  -inum n
+         true when the file has inode number n
+  -ipath PATTERN
+         like -path, but ignoring case distinctions
+  -iregex PATTERN
+         like -regex, but ignoring case distinctions
+  -iwholename PATTERN
+         like -wholename, but ignoring case distinctions
+  -links n
+         true when the file has n links
+  -lname PATTERN
+         true when the file is a symbolic link to PATTERN
+  -ls
+         list the file in the format of ls -dils
+  -maxdepth levels
+         descend at most levels below the paths
+  -mindepth levels
+         act only at levels and deeper
+  -mmin n
+         true when the file was last modified n minutes ago
+  -mount
+         act only on the files of the same file system, and don't descend
+         into the others
+  -mtime n
+         true when the file was last modified n days ago
+  -name PATTERN
+         true when the basename of the file matches PATTERN
+  -newer FILE
+         true when the file was modified more recently than FILE
+  -newerXY REFERENCE
+         true when time X of the file is newer than time Y of REFERENCE;
+         X and Y are a, c or m, and Y can also be t, a literal time
+  -nogroup
+         true when no group owns the file
+  -noleaf
+         accepted and ignored: the optimization it turns off isn't done
+  -not
+         like !, negates the expression that follows
+  -nouser
+         true when no user owns the file
   -ok UTILITY [ARG]... ;
          like -exec, but asking for a confirmation first
+  -okdir UTILITY [ARG]... ;
+         like -execdir, but asking for a confirmation first
+  -path PATTERN
+         true when the whole pathname matches PATTERN
+  -perm [-|/]MODE
+         true when the permission bits match MODE, at least all of them
+         with a '-', and any of them with a '/'
   -print
          write the pathname
   -print0
          write the pathname, terminated by a null byte
-  -depth
-         act on the entries of a directory before the directory itself
+  -printf FORMAT
+         write FORMAT, interpreting escapes and % directives
+  -prune
+         don't descend into the directory
+  -readable
+         true when the file can be read by the user
+  -regex PATTERN
+         true when the whole pathname matches the expression PATTERN
+  -regextype TYPE
+         the regular expression syntax of TYPE, which is taken as
+         posix-extended unless it is posix-basic, grep or emacs
+  -samefile FILE
+         true when the file shares an inode with FILE
+  -size n[bcwkMG]
+         true when the file is n units long, of 512 bytes by default, or of
+         bytes, 2-byte words, kibibytes, mebibytes or gibibytes
+  -true
+         always true
+  -type c
+         true when the file is of type c: b, c, d, p, f, l or s, or a list
+         of them separated by commas
+  -uid n
+         true when the file belongs to the user identifier n
+  -used n
+         true when the file was last accessed n days after its status last
+         changed
+  -user UNAME
+         true when the file belongs to the user UNAME
+  -wholename PATTERN
+         like -path
+  -writable
+         true when the file can be written by the user
+  -xdev
+         don't descend into the directories of another file system
+  -xtype c
+         like -type, but checking the type a symbolic link points to
       --help
          display this help and exit
       --version
          output version information and exit
 `
 
-// parseFlags splits the arguments into the -H, -L and -P options, the path
-// operands, and the expression tokens.
+// parseFlags splits the arguments into the -H, -L, -P, -O, -D and
+// -files0-from options, the path operands, and the expression tokens.
 func parseFlags(args []string) (options, []string, []string, error) {
-	opts := options{follow: 'P'}
+	opts := options{follow: 'P', maxDepth: -1}
 	var i int
 options:
 	for i = 0; i < len(args); i++ {
-		switch args[i] {
-		case "-H", "-L", "-P":
-			opts.follow = args[i][1]
-		case "--":
+		arg := args[i]
+		switch {
+		case arg == "-H", arg == "-L", arg == "-P":
+			opts.follow = arg[1]
+		case arg == "--":
 			i++
 			break options
+		case arg == "-files0-from":
+			if i+1 == len(args) {
+				return options{}, nil, nil, fmt.Errorf("option '-files0-from' requires an argument")
+			}
+			i++
+			opts.files0From = args[i]
+		case strings.HasPrefix(arg, "-O"):
+			level := arg[2:]
+			if level == "" {
+				if i+1 == len(args) {
+					return options{}, nil, nil, errors.New("you must specify a digit after the -O option")
+				}
+				i++
+				level = args[i]
+			}
+			if level == "" || !allDigits(level) {
+				return options{}, nil, nil, fmt.Errorf("invalid optimisation level '%s'", level)
+			}
+			// The optimisation only reorders the evaluation, which this
+			// implementation doesn't do.
+		case arg == "-D":
+			if i+1 == len(args) {
+				return options{}, nil, nil, errors.New("you must specify a debug option after -D")
+			}
+			i++
+			if err := checkDebug(args[i]); err != nil {
+				return options{}, nil, nil, err
+			}
+			// Debugging output isn't implemented.
 		default:
 			break options
 		}
 	}
 	var paths []string
 	for i < len(args) && !isExprStart(args[i]) {
+		if opts.files0From != "" {
+			return options{}, nil, nil, errors.New("the -files0-from option cannot be combined with a starting point")
+		}
 		paths = append(paths, args[i])
 		i++
 	}
 	return opts, paths, args[i:], nil
+}
+
+// allDigits reports whether s consists of decimal digits only.
+func allDigits(s string) bool {
+	for _, c := range s {
+		if c < '0' || c > '9' {
+			return false
+		}
+	}
+	return s != ""
+}
+
+// debugFeatures are the debug options -D accepts.
+var debugFeatures = map[string]bool{
+	"Help": true, "Tree": true, "Search": true, "Stat": true,
+	"OptExprs": true, "Rates": true, "TreeOpt": true,
+}
+
+// checkDebug validates a -D option argument, whose feature names are
+// matched without case distinctions, like GNU find does.
+func checkDebug(value string) error {
+	for feature := range strings.SplitSeq(value, ",") {
+		known := false
+		for name := range debugFeatures {
+			if strings.EqualFold(name, feature) {
+				known = true
+				break
+			}
+		}
+		if !known {
+			return fmt.Errorf("unknown debug option '%s'", feature)
+		}
+	}
+	return nil
 }
 
 // isExprStart reports whether an argument begins the expression: the first
@@ -366,4 +625,19 @@ var _ coreutils.Program = (*Prog)(nil)
 // the last component of the pathname.
 func basename(name string) string {
 	return path.Base(name)
+}
+
+// dirname returns the leading directories of a pathname, which %h writes:
+// all but the last component, "." when there is no slash, and nothing for
+// the root directory.
+func dirname(name string) string {
+	i := strings.LastIndex(name, "/")
+	switch i {
+	case -1:
+		return "."
+	case 0:
+		return ""
+	default:
+		return name[:i]
+	}
 }

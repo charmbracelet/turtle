@@ -14,6 +14,7 @@ import (
 	"time"
 
 	"charm.land/snail/coreutils"
+	"charm.land/snail/coreutils/internal/glob"
 	"charm.land/snail/fsx"
 )
 
@@ -804,12 +805,12 @@ func TestCompilePattern(t *testing.T) {
 		{pattern: "[", text: "[", want: true},
 	}
 	for _, test := range tests {
-		re, err := compilePattern(test.pattern, false)
+		re, err := glob.Compile(test.pattern, false)
 		if err != nil {
-			t.Fatalf("compilePattern(%q) error = %v", test.pattern, err)
+			t.Fatalf("glob.Compile(%q) error = %v", test.pattern, err)
 		}
 		if got := re.MatchString(test.text); got != test.want {
-			t.Errorf("compilePattern(%q).Match(%q) = %v, want %v", test.pattern, test.text, got, test.want)
+			t.Errorf("glob.Compile(%q).Match(%q) = %v, want %v", test.pattern, test.text, got, test.want)
 		}
 	}
 }
