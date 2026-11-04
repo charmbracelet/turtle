@@ -12,6 +12,7 @@ import (
 	"unicode"
 
 	"charm.land/snail/coreutils/internal/fileinfo"
+	"charm.land/snail/coreutils/internal/filemode"
 	"charm.land/snail/fsx"
 )
 
@@ -164,7 +165,7 @@ func (ln line) longString(fields longFields, opts options) string {
 	if opts.blocks {
 		b.WriteString(padLeft(ln.blocks, fields.blocks) + " ")
 	}
-	b.WriteString(modeString(ln.fi.Mode()) + " ")
+	b.WriteString(filemode.String(ln.fi.Mode()) + " ")
 	b.WriteString(padLeft(ln.nlink, fields.nlink) + " ")
 	if opts.owner {
 		b.WriteString(userField(ln.owner, fields.owner, opts.numeric) + " ")
@@ -422,64 +423,6 @@ func indicator(fi fs.FileInfo, kind classify) string {
 		return "*"
 	}
 	return ""
-}
-
-// modeString returns the file mode of a file, as ls writes it.
-func modeString(m fs.FileMode) string {
-	var b strings.Builder
-	b.WriteByte(typeChar(m))
-	b.WriteString(permissions(m, 0o400, 0o200, 0o100, fs.ModeSetuid, 's', 'S'))
-	b.WriteString(permissions(m, 0o040, 0o020, 0o010, fs.ModeSetgid, 's', 'S'))
-	sticky := fs.ModeSticky
-	if m&fs.ModeDir == 0 {
-		// The sticky flag is only written for directories.
-		sticky = 0
-	}
-	b.WriteString(permissions(m, 0o004, 0o002, 0o001, sticky, 't', 'T'))
-	return b.String()
-}
-
-// typeChar returns the character that describes the type of a file.
-func typeChar(m fs.FileMode) byte {
-	switch {
-	case m&fs.ModeDir != 0:
-		return 'd'
-	case m&fs.ModeSymlink != 0:
-		return 'l'
-	case m&fs.ModeNamedPipe != 0:
-		return 'p'
-	case m&fs.ModeSocket != 0:
-		return 's'
-	case m&fs.ModeDevice != 0 && m&fs.ModeCharDevice != 0:
-		return 'c'
-	case m&fs.ModeDevice != 0:
-		return 'b'
-	case m&fs.ModeIrregular != 0:
-		return '?'
-	}
-	return '-'
-}
-
-// permissions returns the three permission characters of one class, with the
-// flag of the class in the third position when it's set.
-func permissions(m, read, write, execute, flag fs.FileMode, set, unset byte) string {
-	chars := []byte{'-', '-', '-'}
-	if m&read != 0 {
-		chars[0] = 'r'
-	}
-	if m&write != 0 {
-		chars[1] = 'w'
-	}
-	switch {
-	case m&execute != 0:
-		chars[2] = 'x'
-	case m&flag != 0:
-		chars[2] = unset
-	}
-	if m&execute != 0 && m&flag != 0 {
-		chars[2] = set
-	}
-	return string(chars)
 }
 
 // textWidth returns the number of columns a name takes when written: a
