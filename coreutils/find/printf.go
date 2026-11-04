@@ -11,6 +11,7 @@ import (
 
 	"charm.land/snail/coreutils/internal/fileinfo"
 	"charm.land/snail/coreutils/internal/filemode"
+	"charm.land/snail/coreutils/internal/printfmt"
 	"charm.land/snail/coreutils/internal/sizefmt"
 	"charm.land/snail/coreutils/internal/strftime"
 
@@ -36,6 +37,8 @@ type printfPiece struct {
 	stop    bool   // \c: stop printing and flush
 }
 
+var printfEscapes = printfmt.Escapes{Octal: printfmt.OctalPlain}
+
 // compilePrintf compiles a -printf format, reporting the escapes and
 // directives it doesn't know on the warning writer, which may be nil.
 func compilePrintf(warnings io.Writer, format string) (printfFormat, error) {
@@ -54,19 +57,19 @@ func compilePrintf(warnings io.Writer, format string) (printfFormat, error) {
 				f.pieces = append(f.pieces, printfPiece{lit: "\\"})
 				break
 			}
-			esc, size, ok := printfEscape(format[i:])
-			if !ok {
+			esc, size, err := printfmt.ScanEscape(format[i:], printfEscapes)
+			if err != nil {
+				return printfFormat{}, err
+			}
+			if esc.Unknown {
 				// A backslash followed by any other character is treated as
 				// an ordinary one, so both are printed.
 				warn("unrecognised escape '\\%c'", format[i])
-				f.pieces = append(f.pieces, printfPiece{lit: "\\" + string(format[i])})
-				i++
-				break
 			}
-			if esc.stop {
+			if esc.Stop {
 				f.pieces = append(f.pieces, printfPiece{stop: true})
 			} else {
-				f.pieces = append(f.pieces, printfPiece{lit: esc.lit})
+				f.pieces = append(f.pieces, printfPiece{lit: esc.Lit})
 			}
 			i += size
 		case '%':
@@ -88,100 +91,37 @@ func compilePrintf(warnings io.Writer, format string) (printfFormat, error) {
 	return f, nil
 }
 
-// printfEscape returns what an escape sequence stands for, its length, and
-// whether it is one; an unknown one is no escape at all.
-func printfEscape(s string) (esc struct {
-	lit  string
-	stop bool
-}, size int, ok bool,
-) {
-	switch s[0] {
-	case 'a':
-		esc.lit = "\a"
-	case 'b':
-		esc.lit = "\b"
-	case 'c':
-		esc.stop = true
-	case 'f':
-		esc.lit = "\f"
-	case 'n':
-		esc.lit = "\n"
-	case 'r':
-		esc.lit = "\r"
-	case 't':
-		esc.lit = "\t"
-	case 'v':
-		esc.lit = "\v"
-	case '\\':
-		esc.lit = "\\"
-	case '0', '1', '2', '3', '4', '5', '6', '7':
-		n := 1
-		for n < 3 && n < len(s) && s[n] >= '0' && s[n] <= '7' {
-			n++
-		}
-		v, err := strconv.ParseUint(s[:n], 8, 8)
-		if err != nil {
-			return esc, 0, false
-		}
-		esc.lit = string([]byte{byte(v)})
-		return esc, n, true
-	default:
-		return esc, 0, false
-	}
-	return esc, 1, true
-}
-
 // parseDirective parses one % directive, starting at the % of format[i],
 // and returns where the next piece starts.
 func parseDirective(format string, i int, warn func(string, ...any)) (printfPiece, int, error) {
-	rest := format[i+1:]
-	// The flags, the width and the precision, like the printf function
-	// takes for strings.
-	spec := strings.Builder{}
-	j := 0
-	for j < len(rest) && strings.ContainsRune("-+ 0#", rune(rest[j])) {
-		spec.WriteByte(rest[j])
-		j++
-	}
-	for j < len(rest) && rest[j] >= '0' && rest[j] <= '9' {
-		spec.WriteByte(rest[j])
-		j++
-	}
-	if j < len(rest) && rest[j] == '.' {
-		spec.WriteByte('.')
-		j++
-		for j < len(rest) && rest[j] >= '0' && rest[j] <= '9' {
-			spec.WriteByte(rest[j])
-			j++
-		}
-	}
-	if j >= len(rest) {
+	spec, j := printfmt.ScanSpec(format[i:], false)
+	if i+j >= len(format) {
 		// A '%' at the end of the format: its behavior is undefined, so
 		// it's taken literally.
-		return printfPiece{lit: "%"}, i + 1 + j, nil
+		return printfPiece{lit: "%"}, i + j, nil
 	}
-	dir := rest[j]
+	dir := format[i+j]
 	j++
 	switch dir {
 	case '%':
-		return printfPiece{lit: "%"}, i + 1 + j, nil
+		return printfPiece{lit: "%"}, i + j, nil
 	case 'p', 'f', 'h', 'P', 'H', 'g', 'G', 'u', 'U', 'm', 'M',
 		'n', 's', 'b', 'k', 'S', 'd', 'D', 'i', 'l', 'y', 'Y',
 		'a', 'c', 't':
-		return printfPiece{dir: dir, spec: spec.String()}, i + 1 + j, nil
+		return printfPiece{dir: dir, spec: spec.Raw}, i + j, nil
 	case 'A', 'B', 'C', 'T':
-		piece := printfPiece{dir: dir, spec: spec.String()}
-		if j < len(rest) {
-			piece.tformat = string(rest[j])
+		piece := printfPiece{dir: dir, spec: spec.Raw}
+		if i+j < len(format) {
+			piece.tformat = string(format[i+j])
 			j++
 		}
-		return piece, i + 1 + j, nil
+		return piece, i + j, nil
 	case '(', '{', '[':
 		return printfPiece{}, 0, fmt.Errorf("the '%%%c' directive is reserved for future use", dir)
 	default:
 		// The directive is discarded, but the character is printed.
 		warn("unrecognised directive '%%%c'", dir)
-		return printfPiece{lit: string(dir)}, i + 1 + j, nil
+		return printfPiece{lit: string(dir)}, i + j, nil
 	}
 }
 

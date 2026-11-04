@@ -9,9 +9,9 @@ import (
 	"math"
 	"strconv"
 	"strings"
-	"unicode/utf8"
 
 	"charm.land/snail/coreutils"
+	"charm.land/snail/coreutils/internal/printfmt"
 )
 
 // Prog is the printf core utility.
@@ -50,6 +50,13 @@ func (p *Prog) diag(msg string) {
 	fmt.Fprintf(p.Stderr, "printf: %s\n", msg)
 }
 
+var (
+	// formatEscapes takes the escapes of the format operand, and bEscapes
+	// the ones of a b conversion argument.
+	formatEscapes = printfmt.Escapes{Octal: printfmt.OctalPlain, Extended: true}
+	bEscapes      = printfmt.Escapes{Octal: printfmt.OctalZero, Extended: true}
+)
+
 // printer renders a parsed format against the argument operands, reusing the
 // format as often as necessary to satisfy them.
 type printer struct {
@@ -79,7 +86,7 @@ func (pr *printer) print(segs []segment) {
 		pr.consumed = false
 		for _, seg := range segs {
 			if seg.conv == nil {
-				stopped, err := expandEscapes(&pr.out, seg.text, -1, true)
+				stopped, err := formatEscapes.Expand(&pr.out, seg.text, -1)
 				if err != nil {
 					pr.escapeError(err)
 					return
@@ -139,7 +146,7 @@ func (pr *printer) writeConv(c *conv) {
 		pr.writePadded(truncate(arg, c.prec), c)
 	case 'b':
 		var b strings.Builder
-		stopped, err := expandEscapes(&b, arg, int(c.prec), false)
+		stopped, err := bEscapes.Expand(&b, arg, int(c.prec))
 		if err != nil || stopped {
 			// The bytes before the '\c' escape or the invalid one
 			// were already converted.
@@ -326,58 +333,19 @@ func parseFormat(format string) []segment {
 // parseConv parses the conversion specification at the start of s, which
 // begins with '%'. It always consumes at least the '%'.
 func parseConv(s string) (conv, int) {
-	c := conv{width: -1, prec: -1}
-	i := 1
-	start := i
-	for i < len(s) && isDigit(s[i]) {
-		i++
+	spec, n := printfmt.ScanSpec(s, true)
+	c := conv{
+		argnum: spec.ArgNum,
+		flags:  spec.Flags,
+		width:  spec.Width,
+		prec:   spec.Prec,
 	}
-	if i > start && i < len(s) && s[i] == '$' {
-		c.argnum = parseNumber(s[start:i])
-		i++
-	} else {
-		i = start
+	if n < len(s) {
+		c.verb = s[n]
+		n++
 	}
-	for i < len(s) && strings.IndexByte("-+ #0", s[i]) >= 0 {
-		c.flags += s[i : i+1]
-		i++
-	}
-	start = i
-	for i < len(s) && isDigit(s[i]) {
-		i++
-	}
-	if i > start {
-		c.width = parseNumber(s[start:i])
-	}
-	if i < len(s) && s[i] == '.' {
-		i++
-		c.prec = 0
-		start = i
-		for i < len(s) && isDigit(s[i]) {
-			i++
-		}
-		if i > start {
-			c.prec = parseNumber(s[start:i])
-		}
-	}
-	if i < len(s) {
-		c.verb = s[i]
-		i++
-	}
-	c.raw = s[:i]
-	return c, i
-}
-
-// parseNumber parses digits as an argument number, width or precision,
-// saturating only values beyond the range a C int can hold.
-func parseNumber(digits string) int64 {
-	if digits == "" {
-		return 0
-	}
-	if n, err := strconv.ParseInt(digits, 10, 64); err == nil && n <= math.MaxInt32 {
-		return n
-	}
-	return math.MaxInt32
+	c.raw = s[:n]
+	return c, n
 }
 
 func validVerb(v byte) bool {
@@ -412,135 +380,6 @@ func (pr *printer) escapeError(err error) {
 	pr.p.diag(err.Error())
 	pr.failed = true
 	pr.halted = true
-}
-
-// expandEscapes writes s to out, interpreting the XSI backslash escape
-// sequences, plus the GNU \e, \xHH, \uHHHH, \UHHHHHHHH and \" ones.
-// In the format operand the octal escapes are "\ddd" with one
-// to three digits, while in a b conversion argument they are "\0ddd",
-// with the leading zero and up to three digits. The expansion stops after
-// max bytes (when non-negative) or at a '\c' escape, which is reported
-// back so all further output can be suppressed. An invalid escape is
-// reported back as well.
-func expandEscapes(out *strings.Builder, s string, max int, format bool) (bool, error) {
-	written := 0
-	for i := 0; i < len(s); i++ {
-		if max >= 0 && written >= max {
-			return false, nil
-		}
-		c := s[i]
-		if c != '\\' || i+1 == len(s) {
-			out.WriteByte(c)
-			written++
-			continue
-		}
-		i++
-		switch c = s[i]; c {
-		case 'a':
-			c = '\a'
-		case 'b':
-			c = '\b'
-		case 'c':
-			return true, nil
-		case 'e':
-			c = '\x1b'
-		case 'f':
-			c = '\f'
-		case 'n':
-			c = '\n'
-		case 'r':
-			c = '\r'
-		case 't':
-			c = '\t'
-		case 'v':
-			c = '\v'
-		case '"', '\\':
-		case 'x':
-			v, n := scanHex(s[i+1:], 2)
-			if n == 0 {
-				return false, errors.New("missing hexadecimal number in escape")
-			}
-			c, i = byte(v), i+n
-		case 'u', 'U':
-			r, err := unicodeEscape(c, s[i+1:])
-			if err != nil {
-				return false, err
-			}
-			i += 4
-			if c == 'U' {
-				i += 4
-			}
-			var b [utf8.UTFMax]byte
-			n := utf8.EncodeRune(b[:], r)
-			if max >= 0 && written+n > max {
-				n = max - written
-			}
-			out.Write(b[:n])
-			written += n
-			continue
-		default:
-			octal := format && isOctalDigit(c) || !format && c == '0'
-			if !octal {
-				// Unrecognized sequence: keep the backslash.
-				out.WriteByte('\\')
-				written++
-				break
-			}
-			v := int(c - '0')
-			lim := 3
-			if !format {
-				lim = 4
-			}
-			for j, n := i+1, 1; n < lim && j < len(s) && isOctalDigit(s[j]); j, n = j+1, n+1 {
-				v = v*8 + int(s[j]-'0')
-				i = j
-			}
-			c = byte(v)
-		}
-		out.WriteByte(c)
-		written++
-	}
-	return false, nil
-}
-
-// unicodeEscape evaluates a \u or \U escape, whose escape character is
-// followed by exactly four or eight hexadecimal digits. Surrogates are
-// invalid universal character names, and values beyond the Unicode range
-// are not representable in UTF-8.
-func unicodeEscape(esc byte, s string) (rune, error) {
-	lim := 4
-	if esc == 'U' {
-		lim = 8
-	}
-	v, n := scanHex(s, lim)
-	if n < lim {
-		return 0, errors.New("missing hexadecimal number in escape")
-	}
-	if v >= 0xd800 && v <= 0xdfff || v > utf8.MaxRune {
-		return 0, fmt.Errorf(`invalid universal character name \%c%0*x`, esc, lim, v)
-	}
-	return rune(v), nil
-}
-
-// scanHex reads up to lim hexadecimal digits from the start of s,
-// returning their value and how many digits it read.
-func scanHex(s string, lim int) (int64, int) {
-	var v int64
-	n := 0
-	for n < lim && n < len(s) && isHexDigit(s[n]) {
-		d := s[n]
-		switch {
-		case d >= '0' && d <= '9':
-			d = d - '0'
-		case d >= 'a' && d <= 'f':
-			d = d - 'a' + 10
-		default:
-			d = d - 'A' + 10
-		}
-		v = v*16 + int64(d)
-		n++
-	}
-	return v, n
 }
 
 // convKind classifies the result of converting an argument operand to a
