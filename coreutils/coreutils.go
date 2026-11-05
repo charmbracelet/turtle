@@ -79,6 +79,13 @@ type Runtime struct {
 	// stands for the working directory. If nil, such utilities fail instead
 	// of running anything.
 	Exec ExecFunc
+
+	// ExecUsage reports the cumulative resource usage of the processes
+	// executed so far, like getrusage(RUSAGE_CHILDREN). Utilities that
+	// time an application, like time, bracket their Exec call with two
+	// reports and subtract them to get the usage of one execution. If nil,
+	// such usage is unavailable.
+	ExecUsage ExecUsageFunc
 }
 
 // OsRuntime returns a Runtime wired to the real operating system.
@@ -103,6 +110,7 @@ func OsRuntime() *Runtime {
 		return osExec(ctx, rt, dir, name, args, env)
 	}
 	rt.ProcessAlive = osProcessAlive
+	rt.ExecUsage = osExecUsage
 	return rt
 }
 
