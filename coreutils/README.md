@@ -71,7 +71,7 @@ section below.
 | Foundational | `wc` | Count lines, words, and bytes | [✅](spec/markdown/posix/wc.md) | [✅](spec/markdown/gnu/wc-invocation.md) |
 | Foundational | `printf` | Format and print arguments | [✅](spec/markdown/posix/printf.md) | [✅](spec/markdown/gnu/printf-invocation.md) |
 | Foundational | `test` | Evaluate a conditional expression | [✅](spec/markdown/posix/test.md) | [✅](spec/markdown/gnu/test-invocation.md) |
-| Foundational | `expr` | Evaluate an expression | [❌](spec/markdown/posix/expr.md) | [❌](spec/markdown/gnu/expr-invocation.md) |
+| Foundational | `expr`* | Evaluate an expression | [✅](spec/markdown/posix/expr.md) | [✅](spec/markdown/gnu/expr-invocation.md) |
 | Foundational | `sleep` | Suspend execution for an interval | [✅](spec/markdown/posix/sleep.md) | [✅](spec/markdown/gnu/sleep-invocation.md) |
 | Filesystem | `touch` | Change file access and modification times | [✅](spec/markdown/posix/touch.md) | [✅](spec/markdown/gnu/touch-invocation.md) |
 | Filesystem | `chmod` | Change file permission modes | [✅](spec/markdown/posix/chmod.md) | [✅](spec/markdown/gnu/chmod-invocation.md) |
@@ -90,8 +90,8 @@ section below.
 | Filesystem | `link` | Create a hard link to a file | [✅](spec/markdown/posix/link.md) | [✅](spec/markdown/gnu/link-invocation.md) |
 | Filesystem | `unlink` | Remove a directory entry | [✅](spec/markdown/posix/unlink.md) | [✅](spec/markdown/gnu/unlink-invocation.md) |
 | Filesystem | `mkfifo` | Create FIFO special files | [❌](spec/markdown/posix/mkfifo.md) | [❌](spec/markdown/gnu/mkfifo-invocation.md) |
-| Filesystem | `readlink` | Print the target of a symbolic link | [❌](spec/markdown/posix/readlink.md) | [❌](spec/markdown/gnu/readlink-invocation.md) |
-| Filesystem | `realpath` | Print the resolved absolute path | [❌](spec/markdown/posix/realpath.md) | [❌](spec/markdown/gnu/realpath-invocation.md) |
+| Filesystem | `readlink`* | Print the target of a symbolic link | [✅](spec/markdown/posix/readlink.md) | [✅](spec/markdown/gnu/readlink-invocation.md) |
+| Filesystem | `realpath`* | Print the resolved absolute path | [✅](spec/markdown/posix/realpath.md) | [✅](spec/markdown/gnu/realpath-invocation.md) |
 | Filesystem | `dd` | Convert and copy a file | [❌](spec/markdown/posix/dd.md) | [❌](spec/markdown/gnu/dd-invocation.md) |
 | Filesystem | `df` | Report file system space usage | [❌](spec/markdown/posix/df.md) | [❌](spec/markdown/gnu/df-invocation.md) |
 | Filesystem | `du` | Estimate file space usage | [❌](spec/markdown/posix/du.md) | [❌](spec/markdown/gnu/du-invocation.md) |
@@ -131,8 +131,8 @@ section below.
 | System / Process | `nohup` | Run a command immune to hangups | [❌](spec/markdown/posix/nohup.md) | [❌](spec/markdown/gnu/nohup-invocation.md) |
 | System / Process | `ps` | Report process status | [❌](spec/markdown/posix/ps.md) | ❌ |
 | System / Process | `time` | Time the execution of a command | [❌](spec/markdown/posix/time.md) | ❌ |
-| System / Process | `timeout` | Run a command with a time limit | [❌](spec/markdown/posix/timeout.md) | [❌](spec/markdown/gnu/timeout-invocation.md) |
-| System / Process | `uname` | Print system information | [❌](spec/markdown/posix/uname.md) | [❌](spec/markdown/gnu/uname-invocation.md) |
+| System / Process | `timeout`* | Run a command with a time limit | [✅](spec/markdown/posix/timeout.md) | [✅](spec/markdown/gnu/timeout-invocation.md) |
+| System / Process | `uname`* | Print system information | [✅](spec/markdown/posix/uname.md) | [✅](spec/markdown/gnu/uname-invocation.md) |
 | System / Process | `who` | Print who is logged in | [❌](spec/markdown/posix/who.md) | [❌](spec/markdown/gnu/who-invocation.md) |
 | Terminal | `stty` | Set the options for a terminal | [❌](spec/markdown/posix/stty.md) | [❌](spec/markdown/gnu/stty-invocation.md) |
 | Terminal | `tput` | Query terminal capabilities | [❌](spec/markdown/posix/tput.md) | ❌ |
@@ -169,7 +169,7 @@ section below.
 | GNU | `tac` | Concatenate and print files in reverse | — | [✅](spec/markdown/gnu/tac-invocation.md) |
 | GNU | `tar`* | Create and extract file archives | — | [✅](https://web.archive.org/web/https://www.gnu.org/software/tar/manual/tar.html) |
 | GNU | `truncate` | Shrink or extend the size of files | — | [✅](spec/markdown/gnu/truncate-invocation.md) |
-| GNU | `which` | Locate a command in the search path | — | ❌ |
+| GNU | `which`* | Locate a command in the search path | — | [✅](https://www.gnu.org/software/which/manual/) |
 | GNU | `whoami`* | Print the effective user name | — | [✅](spec/markdown/gnu/whoami-invocation.md) |
 | GNU | `yes` | Print a string repeatedly | — | [✅](spec/markdown/gnu/yes-invocation.md) |
 
@@ -283,3 +283,60 @@ with its `.Z` suffix) yet. Compression with `-g` or `-m gzip`/
 compression returns the specification's unsupported-algorithm exit
 status (>2). This implementation also does not prompt before overwriting
 on a terminal or check for multiple hard links.
+
+**`realpath`** resolves through the runtime file system, so with a memory
+one the canonical names stay relative to the file system's root, and a
+leading `/` cannot resolve. `-L` binds the `..` of the given operands
+lexically, before any symlink expansion, while `..` inside symlink
+targets binds physically to the resolved prefix; the canonical output
+never keeps a `..`. With `-s` and `-m` together only the file names are
+processed, touching no file. When GNU keeps `-s`, `--strip` and
+`--no-symlinks` on one option line, the usage table here splits them, as
+the hanging layout takes one option per line.
+
+**`readlink`** canonicalizes through the same resolver of `realpath`, so
+the file system caveats above apply. With `-n` given with multiple
+operands it warns on the standard error and prints no delimiters at all.
+
+**`which`** models no aliases or shell functions, so `--read-alias`,
+`--skip-alias`, `--read-functions` and `--skip-functions` are accepted
+and ignored. `--skip-dot` follows the code of GNU which, skipping every
+non-absolute `PATH` entry, beyond what its manual wording suggests. The
+`~` expansion of `PATH` entries is not done, so `--skip-tilde` only skips
+such entries as typed, and `--show-tilde` is never disabled for root.
+Without `HOME`, the tilde options are inactive; without `PATH`, the
+diagnostic reports the default search path instead of GNU's `(null)`.
+
+**`timeout`** cannot signal process groups: `-s/--signal` is validated
+and reported with `-v`, but the only stop mechanism is the cancellation
+of the child's execution context, which kills the process (so `-s` never
+actually delivers its signal). Consequently `-k/--kill-after` gives no
+grace period of a soft signal; it only stops waiting, reporting 137
+after the kill duration. `--preserve-status` mimics a death from the
+configured signal (128+SIG) on a timeout, since the actual status is
+unobservable, and `-f/--foreground` is a no-op. When the command dies
+from an outside signal, the 125 status and error of the runtime are
+propagated instead of re-raising the signal. Usage errors exit with 1,
+like the other utilities here. Duration parsing clamps any positive
+underflow (decimal or hexadecimal) to one nanosecond, so it still times
+out, where GNU would keep a tiny positive interval.
+
+**`uname`***: the processor type (`-p`) is never reported and prints
+`unknown` (as GNU on Linux does); the hardware platform (`-i`) repeats
+the machine name, as GNU reports on Linux. On darwin and the BSDs the
+standard library has no `uname(2)`, so the fields come from the kernel's
+sysctl interface instead; on Windows release/version come from
+`syscall.GetVersion`, which Windows reports as 6.2.9200 for processes
+without an application manifest, and `-p`/`-i` print `unknown`; on the
+smaller ports (plan9, wasm, solaris, aix) only what `runtime` and
+`os.Hostname` expose is reported, and unavailable fields print
+`unknown`. On Android, `-o` reports `Android`. GNU 9.12's
+`-A/--all-labeled` is not implemented.
+
+**`expr`**: the arithmetic is 64-bit, so operands or results beyond
+int64 fail with exit status 3 ('Numerical result out of range'), where
+GNU computes exactly with multiple precision. Patterns support no
+backreferences, and GNU's `\+`, `\?` and `\|` extensions match
+literally, like the patterns of the `sed` and `grep` of this project.
+String comparisons order bytewise, in the C locale, like the other
+utilities here.
