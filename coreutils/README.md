@@ -130,7 +130,7 @@ section below.
 | System / Process | `nice` | Run a command with modified priority | [❌](spec/markdown/posix/nice.md) | [❌](spec/markdown/gnu/nice-invocation.md) |
 | System / Process | `nohup` | Run a command immune to hangups | [❌](spec/markdown/posix/nohup.md) | [❌](spec/markdown/gnu/nohup-invocation.md) |
 | System / Process | `ps` | Report process status | [❌](spec/markdown/posix/ps.md) | ❌ |
-| System / Process | `time` | Time the execution of a command | [❌](spec/markdown/posix/time.md) | ❌ |
+| System / Process | `time`* | Time the execution of a command | [✅](spec/markdown/posix/time.md) | ❌ |
 | System / Process | `timeout`* | Run a command with a time limit | [✅](spec/markdown/posix/timeout.md) | [✅](spec/markdown/gnu/timeout-invocation.md) |
 | System / Process | `uname`* | Print system information | [✅](spec/markdown/posix/uname.md) | [✅](spec/markdown/gnu/uname-invocation.md) |
 | System / Process | `who` | Print who is logged in | [❌](spec/markdown/posix/who.md) | [❌](spec/markdown/gnu/who-invocation.md) |
@@ -332,6 +332,15 @@ smaller ports (plan9, wasm, solaris, aix) only what `runtime` and
 `os.Hostname` expose is reported, and unavailable fields print
 `unknown`. On Android, `-o` reports `Android`. GNU 9.12's
 `-A/--all-labeled` is not implemented.
+
+**`time`**: the runtime exposes no rusage counts for the executed
+utility, so the User and System CPU times are always reported as `0.00`
+and only the `real` time is a true measurement, taken around the
+execution with the runtime clock. Since the GNU default format needs
+those counts, the default output is the same three-line format the `-p`
+option selects, which POSIX leaves unspecified. When the utility cannot
+be found, cannot be invoked or is terminated by a signal, only the
+diagnostic is written, without timing statistics.
 
 **`expr`**: the arithmetic is 64-bit, so operands or results beyond
 int64 fail with exit status 3 ('Numerical result out of range'), where
