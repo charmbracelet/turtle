@@ -72,7 +72,7 @@ func TestExitError(t *testing.T) {
 func TestOsExec(t *testing.T) {
 	t.Run("runtime without a lookup function", func(t *testing.T) {
 		rt := &Runtime{}
-		status, err := osExec(t.Context(), rt, "", "definitely-not-a-utility", nil, nil)
+		status, err := osExec(t.Context(), rt, ExecOpts{Name: "definitely-not-a-utility"})
 		if status != 127 {
 			t.Errorf("status = %d, want 127", status)
 		}
@@ -83,7 +83,7 @@ func TestOsExec(t *testing.T) {
 
 	t.Run("utility not found", func(t *testing.T) {
 		rt := OsRuntime()
-		status, err := osExec(t.Context(), rt, "", "definitely-not-a-utility", nil, nil)
+		status, err := osExec(t.Context(), rt, ExecOpts{Name: "definitely-not-a-utility"})
 		if status != 127 {
 			t.Errorf("status = %d, want 127", status)
 		}
@@ -103,14 +103,14 @@ func TestOsExec(t *testing.T) {
 		}
 		rt := OsRuntime()
 		rt.Environ = envWithPath(dir)
-		if status, err := osExec(t.Context(), rt, "", "myutil", nil, nil); err != nil || status != 3 {
+		if status, err := osExec(t.Context(), rt, ExecOpts{Name: "myutil"}); err != nil || status != 3 {
 			t.Errorf("osExec() = %d, %v, want 3, nil", status, err)
 		}
 	})
 
 	t.Run("utility named by a path that doesn't exist", func(t *testing.T) {
 		rt := OsRuntime()
-		status, err := osExec(t.Context(), rt, "", "./definitely-not-a-utility", nil, nil)
+		status, err := osExec(t.Context(), rt, ExecOpts{Name: "./definitely-not-a-utility"})
 		if status != 127 {
 			t.Errorf("status = %d, want 127", status)
 		}
@@ -130,7 +130,7 @@ func TestOsExec(t *testing.T) {
 		}
 		rt := OsRuntime()
 		rt.Environ = envWithPath(dir)
-		if status, err := osExec(t.Context(), rt, "", "myutil", nil, nil); err != nil || status != 0 {
+		if status, err := osExec(t.Context(), rt, ExecOpts{Name: "myutil"}); err != nil || status != 0 {
 			t.Errorf("osExec() = %d, %v, want 0, nil", status, err)
 		}
 	})
@@ -146,7 +146,7 @@ func TestOsExec(t *testing.T) {
 		}
 		rt := OsRuntime()
 		rt.Environ = envWithPath(dir)
-		if status, err := osExec(t.Context(), rt, "", "myutil", nil, nil); status != 126 || err == nil {
+		if status, err := osExec(t.Context(), rt, ExecOpts{Name: "myutil"}); status != 126 || err == nil {
 			t.Errorf("osExec() = %d, %v, want 126, an error", status, err)
 		}
 	})
@@ -163,7 +163,7 @@ func TestOsExec(t *testing.T) {
 		rt := OsRuntime()
 		rt.WorkingDir = dir
 		rt.Environ = envWithPath(".")
-		if status, err := osExec(t.Context(), rt, "", "myutil", nil, nil); err != nil || status != 0 {
+		if status, err := osExec(t.Context(), rt, ExecOpts{Name: "myutil"}); err != nil || status != 0 {
 			t.Errorf("osExec() = %d, %v, want 0, nil", status, err)
 		}
 	})
@@ -185,7 +185,7 @@ func TestOsExec(t *testing.T) {
 		rt := OsRuntime()
 		rt.WorkingDir = "sub"
 		rt.Environ = envWithPath(".")
-		if status, err := osExec(t.Context(), rt, "", "myutil", nil, nil); err != nil || status != 0 {
+		if status, err := osExec(t.Context(), rt, ExecOpts{Name: "myutil"}); err != nil || status != 0 {
 			t.Errorf("osExec() = %d, %v, want 0, nil", status, err)
 		}
 	})
@@ -202,7 +202,7 @@ func TestOsExec(t *testing.T) {
 		rt := OsRuntime()
 		rt.WorkingDir = dir
 		rt.Environ = envWithPath("")
-		if status, err := osExec(t.Context(), rt, "", "myutil", nil, nil); err != nil || status != 0 {
+		if status, err := osExec(t.Context(), rt, ExecOpts{Name: "myutil"}); err != nil || status != 0 {
 			t.Errorf("osExec() = %d, %v, want 0, nil", status, err)
 		}
 	})
@@ -213,7 +213,7 @@ func TestOsExec(t *testing.T) {
 		}
 		rt := OsRuntime()
 		rt.Environ = func() []string { return envWithoutPath() }
-		if status, err := osExec(t.Context(), rt, "", "sh", []string{"-c", "exit 0"}, nil); err != nil || status != 0 {
+		if status, err := osExec(t.Context(), rt, ExecOpts{Name: "sh", Args: []string{"-c", "exit 0"}}); err != nil || status != 0 {
 			t.Errorf("osExec() = %d, %v, want 0, nil", status, err)
 		}
 	})
@@ -233,7 +233,7 @@ func TestOsExec(t *testing.T) {
 		t.Cleanup(func() { os.Chmod(dir, 0o755) })
 		rt := OsRuntime()
 		rt.Environ = envWithPath(dir)
-		if status, err := osExec(t.Context(), rt, "", "myutil", nil, nil); status != 126 || err == nil {
+		if status, err := osExec(t.Context(), rt, ExecOpts{Name: "myutil"}); status != 126 || err == nil {
 			t.Errorf("osExec() = %d, %v, want 126, an error", status, err)
 		}
 	})
@@ -418,7 +418,7 @@ func TestOsExecEnv(t *testing.T) {
 		out := new(bytes.Buffer)
 		rt.Stdout = out
 		env := []string{"FOO=overridden", "PATH=" + dir}
-		if status, err := osExec(t.Context(), rt, "", "myutil", nil, env); err != nil || status != 0 {
+		if status, err := osExec(t.Context(), rt, ExecOpts{Name: "myutil", Env: env}); err != nil || status != 0 {
 			t.Fatalf("osExec() = %d, %v, want 0, nil", status, err)
 		}
 		if got := out.String(); got != "FOO=overridden\n" {
@@ -432,7 +432,7 @@ func TestOsExecEnv(t *testing.T) {
 		rt.Environ = nil
 		out := new(bytes.Buffer)
 		rt.Stdout = out
-		if status, err := osExec(t.Context(), rt, "", path, nil, nil); err != nil || status != 0 {
+		if status, err := osExec(t.Context(), rt, ExecOpts{Name: path}); err != nil || status != 0 {
 			t.Fatalf("osExec() = %d, %v, want 0, nil", status, err)
 		}
 		if got := out.String(); got != "FOO=\n" {

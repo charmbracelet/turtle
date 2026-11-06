@@ -5,6 +5,8 @@ import (
 	"fmt"
 	"path"
 	"strings"
+
+	"charm.land/snail/coreutils"
 )
 
 // runExec runs one utility invocation, reporting its exit status. A failure
@@ -15,7 +17,7 @@ func (s *state) runExec(dir string, args []string) int {
 		s.failed = true
 		return 1
 	}
-	status, err := s.p.Exec(s.ctx, dir, args[0], args[1:], s.p.EnvList())
+	status, err := s.p.Exec(s.ctx, coreutils.ExecOpts{Name: args[0], Args: args[1:], Dir: dir, Env: s.p.EnvList()})
 	return execResult(s, args[0], status, err)
 }
 

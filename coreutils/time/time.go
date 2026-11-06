@@ -250,7 +250,7 @@ func (p *Prog) invoke(ctx context.Context, out io.Writer, opts settings, utility
 	}
 	before, haveBefore := p.usage()
 	start := p.Now()
-	status, err := p.Exec(ctx, "", utility, args, p.EnvList())
+	status, err := p.Exec(ctx, coreutils.ExecOpts{Name: utility, Args: args, Env: p.EnvList()})
 	elapsed := p.Now().Sub(start)
 	after, haveAfter := p.usage()
 	if err != nil {

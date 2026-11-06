@@ -73,11 +73,10 @@ type Runtime struct {
 	// If nil, such watching is unsupported.
 	ProcessAlive func(pid int) bool
 
-	// Exec runs a utility in the given directory, waiting for its
-	// completion. It's used by utilities that invoke other programs, like
-	// xargs, env and find's -exec and -execdir primaries. An empty dir
-	// stands for the working directory. If nil, such utilities fail instead
-	// of running anything.
+	// Exec runs a utility, waiting for its completion. It's used by
+	// utilities that invoke other programs, like xargs, env and find's
+	// -exec and -execdir primaries. If nil, such utilities fail instead of
+	// running anything.
 	Exec ExecFunc
 
 	// ExecUsage reports the cumulative resource usage of the processes
@@ -106,8 +105,8 @@ func OsRuntime() *Runtime {
 		Environ:    os.Environ,
 		Clock:      time.Now,
 	}
-	rt.Exec = func(ctx context.Context, dir, name string, args, env []string) (int, error) {
-		return osExec(ctx, rt, dir, name, args, env)
+	rt.Exec = func(ctx context.Context, opts ExecOpts) (int, error) {
+		return osExec(ctx, rt, opts)
 	}
 	rt.ProcessAlive = osProcessAlive
 	rt.ExecUsage = osExecUsage
@@ -213,53 +212,88 @@ type ClockFunc func() time.Time
 // SleepFunc is a function signature for the Runtime.Sleep function.
 type SleepFunc func(ctx context.Context, d time.Duration) error
 
-// ExecFunc is a function signature for the Runtime.Exec function. It runs
-// the named utility in the given directory, with the given arguments, and
-// waits for its completion, returning its exit status. An empty dir stands
-// for the working directory. The env parameter is the exact environment the
-// utility runs with, as "KEY=VALUE" strings; nil means an empty environment,
-// never the process one. When the utility cannot be found, cannot be
-// invoked, or is terminated by a signal, it returns an error along with the
-// status the caller should exit with: 127, 126 or 125, respectively.
-type ExecFunc func(ctx context.Context, dir, name string, args []string, env []string) (status int, err error)
+// ExecOpts describes one execution of a utility.
+type ExecOpts struct {
+	// Name is the utility to run, resolved in its PATH.
+	Name string
 
-// osExec runs a utility, wiring it to the runtime outputs and to the null
-// device as its standard input, since the results of the utility reading
-// the same input as xargs are unspecified.
-func osExec(ctx context.Context, rt *Runtime, dir, name string, args, env []string) (int, error) {
-	path, err := lookup(rt, env, name)
+	// Args are the arguments to run the utility with.
+	Args []string
+
+	// Dir is the directory to run the utility in. An empty one stands for
+	// the working directory.
+	Dir string
+
+	// Env is the exact environment to run the utility with, as "KEY=VALUE"
+	// strings. A nil one means an empty environment, never the process one.
+	Env []string
+
+	// Stdin is the standard input of the utility. A nil one is the null
+	// device, since the results of the utility reading the same input as
+	// its caller are unspecified.
+	Stdin io.Reader
+
+	// Stdout is the standard output of the utility. A nil one is the
+	// runtime's Stdout.
+	Stdout io.Writer
+
+	// Stderr is the standard error of the utility. A nil one is the
+	// runtime's Stderr.
+	Stderr io.Writer
+}
+
+// ExecFunc is a function signature for the Runtime.Exec function. It runs
+// the utility described by opts, waiting for its completion and returning
+// its exit status. When the utility cannot be found, cannot be invoked, or
+// is terminated by a signal, it returns an error along with the status the
+// caller should exit with: 127, 126 or 125, respectively.
+type ExecFunc func(ctx context.Context, opts ExecOpts) (status int, err error)
+
+func osExec(ctx context.Context, rt *Runtime, opts ExecOpts) (int, error) {
+	path, err := lookup(rt, opts.Env, opts.Name)
 	if err != nil {
 		if errors.Is(err, exec.ErrNotFound) {
 			return 127, err
 		}
 		return 126, err
 	}
-	status, err := run(ctx, rt, dir, path, args, env)
+	opts.Name = path
+	status, err := run(ctx, rt, opts)
 	if err != nil && errors.Is(err, syscall.ENOEXEC) && runtime.GOOS != "windows" {
 		// An executable file with no executable format runs through the
 		// command interpreter, as execvp does.
-		return run(ctx, rt, dir, "/bin/sh", append([]string{path}, args...), env)
+		opts.Args = append([]string{opts.Name}, opts.Args...)
+		opts.Name = "/bin/sh"
+		return run(ctx, rt, opts)
 	}
 	return status, err
 }
 
-// run starts the utility and waits for its completion, wiring it to the
-// runtime outputs and to the null device as its standard input. An empty
-// dir makes it run in the working directory.
-func run(ctx context.Context, rt *Runtime, dir, path string, args, env []string) (int, error) {
-	cmd := exec.CommandContext(ctx, path, args...)
-	cmd.Dir = dir
+// run starts the utility named in opts and waits for its completion, wiring
+// its standard streams as the opts zero values require. An empty Dir makes
+// it run in the working directory.
+func run(ctx context.Context, rt *Runtime, opts ExecOpts) (int, error) {
+	cmd := exec.CommandContext(ctx, opts.Name, opts.Args...)
+	cmd.Dir = opts.Dir
 	if cmd.Dir == "" {
 		cmd.Dir = rt.WorkingDir
 	}
-	cmd.Env = env
+	cmd.Env = opts.Env
 	if cmd.Env == nil {
 		// A nil Env would make the process environment be inherited.
 		cmd.Env = []string{}
 	}
-	cmd.Stdout = rt.Stdout
-	cmd.Stderr = rt.Stderr
-	if f, err := os.OpenFile(os.DevNull, os.O_RDONLY, 0); err == nil {
+	cmd.Stdout = opts.Stdout
+	if cmd.Stdout == nil {
+		cmd.Stdout = rt.Stdout
+	}
+	cmd.Stderr = opts.Stderr
+	if cmd.Stderr == nil {
+		cmd.Stderr = rt.Stderr
+	}
+	if opts.Stdin != nil {
+		cmd.Stdin = opts.Stdin
+	} else if f, err := os.OpenFile(os.DevNull, os.O_RDONLY, 0); err == nil {
 		cmd.Stdin = f
 		defer f.Close()
 	}
