@@ -128,7 +128,7 @@ section below.
 | System / Process | `kill` | Send a signal to processes | [❌](spec/markdown/posix/kill.md) | ❌ |
 | System / Process | `logname`* | Print the user's login name | [✅](spec/markdown/posix/logname.md) | [✅](spec/markdown/gnu/logname-invocation.md) |
 | System / Process | `nice`* | Run a command with modified priority | [✅](spec/markdown/posix/nice.md) | [✅](spec/markdown/gnu/nice-invocation.md) |
-| System / Process | `nohup` | Run a command immune to hangups | [❌](spec/markdown/posix/nohup.md) | [❌](spec/markdown/gnu/nohup-invocation.md) |
+| System / Process | `nohup`* | Run a command immune to hangups | [✅](spec/markdown/posix/nohup.md) | [✅](spec/markdown/gnu/nohup-invocation.md) |
 | System / Process | `ps` | Report process status | [❌](spec/markdown/posix/ps.md) | ❌ |
 | System / Process | `time`* | Time the execution of a command | [✅](spec/markdown/posix/time.md) | [✅](https://www.gnu.org/software/time/manual/time.html) |
 | System / Process | `timeout`* | Run a command with a time limit | [✅](spec/markdown/posix/timeout.md) | [✅](spec/markdown/gnu/timeout-invocation.md) |
@@ -379,3 +379,14 @@ privileges to lower the niceness, and the adjustments beyond the range
 of a 64-bit integer are reported like GNU reports them. With no
 utility operand, nice reports a usage error, where GNU would print the
 current niceness, which the runtime exposes no way to read.
+
+**`nohup`***: the hangup immunity is a no-op, since the runtime cannot
+block or ignore the signals of the utility it runs. The redirect behavior
+follows POSIX and GNU: a terminal standard output is appended to
+`nohup.out`, falling back to `$HOME/nohup.out`, with the file created
+readable and writable only by its owner, and a terminal standard error
+goes to the same open file. A terminal standard input keeps the null
+device the execution gives the utility, since the runtime cannot
+provide the unreadable substitute descriptor GNU opens. The failures
+of nohup itself, like the ones of a usage error, exit with 125, the
+status GNU uses without `POSIXLY_CORRECT`, where POSIX requires 127.
