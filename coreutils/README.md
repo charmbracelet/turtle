@@ -126,7 +126,7 @@ section below.
 | System / Process | `env` | Run a command in a modified environment | [✅](spec/markdown/posix/env.md) | [✅](spec/markdown/gnu/env-invocation.md) |
 | System / Process | `id` | Print user and group IDs | [❌](spec/markdown/posix/id.md) | [❌](spec/markdown/gnu/id-invocation.md) |
 | System / Process | `kill` | Send a signal to processes | [❌](spec/markdown/posix/kill.md) | ❌ |
-| System / Process | `logname` | Print the user's login name | [❌](spec/markdown/posix/logname.md) | [❌](spec/markdown/gnu/logname-invocation.md) |
+| System / Process | `logname`* | Print the user's login name | [✅](spec/markdown/posix/logname.md) | [✅](spec/markdown/gnu/logname-invocation.md) |
 | System / Process | `nice` | Run a command with modified priority | [❌](spec/markdown/posix/nice.md) | [❌](spec/markdown/gnu/nice-invocation.md) |
 | System / Process | `nohup` | Run a command immune to hangups | [❌](spec/markdown/posix/nohup.md) | [❌](spec/markdown/gnu/nohup-invocation.md) |
 | System / Process | `ps` | Report process status | [❌](spec/markdown/posix/ps.md) | ❌ |
@@ -274,6 +274,10 @@ flags degrade to the closest operation the platform offers.
 
 **`whoami`** takes the name from the `USER` or `LOGNAME` environment
 variables, since the isolated runtime exposes no user database.
+
+**`logname`** takes the name from the `LOGNAME` environment variable,
+against the POSIX note that it be ignored, since the isolated runtime
+exposes no login session to query.
 
 **`compress`** doesn't implement the LZW algorithm (the POSIX default,
 with its `.Z` suffix) yet. Compression with `-g` or `-m gzip`/
