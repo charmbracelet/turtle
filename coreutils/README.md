@@ -124,7 +124,7 @@ section below.
 | Search / Filtering | `xargs` | Build and execute command lines | [✅](spec/markdown/posix/xargs.md) | [❌](https://web.archive.org/web/https://www.gnu.org/software/findutils/manual/html_node/find_html/Invoking-xargs.html) |
 | System / Process | `date`* | Print or set the date and time | [✅](spec/markdown/posix/date.md) | [✅](spec/markdown/gnu/date-invocation.md) |
 | System / Process | `env` | Run a command in a modified environment | [✅](spec/markdown/posix/env.md) | [✅](spec/markdown/gnu/env-invocation.md) |
-| System / Process | `id` | Print user and group IDs | [❌](spec/markdown/posix/id.md) | [❌](spec/markdown/gnu/id-invocation.md) |
+| System / Process | `id`* | Print user and group IDs | [✅](spec/markdown/posix/id.md) | [✅](spec/markdown/gnu/id-invocation.md) |
 | System / Process | `kill` | Send a signal to processes | [❌](spec/markdown/posix/kill.md) | ❌ |
 | System / Process | `logname`* | Print the user's login name | [✅](spec/markdown/posix/logname.md) | [✅](spec/markdown/gnu/logname-invocation.md) |
 | System / Process | `nice`* | Run a command with modified priority | [✅](spec/markdown/posix/nice.md) | [✅](spec/markdown/gnu/nice-invocation.md) |
@@ -278,6 +278,19 @@ variables, since the isolated runtime exposes no user database.
 **`logname`** takes the name from the `LOGNAME` environment variable,
 against the POSIX note that it be ignored, since the isolated runtime
 exposes no login session to query.
+
+**`id`***: the identity is the host process's, through the standard
+library's `os/user` and `os` packages, so the real and effective IDs are
+the same and `-r` is accepted and without effect. Names resolve through
+the host user database, printing the numeric IDs when they don't. The
+`user` operand resolves through the same database, as a name or a numeric
+user ID, but the group memberships of the selected user cannot be
+enumerated with the standard library, so they are omitted: the default
+format prints only the uid and gid, and `-G` prints only the primary
+group ID. Only one operand is taken, where GNU takes several. On Windows
+there are no numeric IDs, so the SID strings the
+platform reports are printed in their place, and the supplementary groups
+are unavailable and omitted.
 
 **`compress`** doesn't implement the LZW algorithm (the POSIX default,
 with its `.Z` suffix) yet. Compression with `-g` or `-m gzip`/
