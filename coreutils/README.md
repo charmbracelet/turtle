@@ -127,7 +127,7 @@ section below.
 | System / Process | `id` | Print user and group IDs | [❌](spec/markdown/posix/id.md) | [❌](spec/markdown/gnu/id-invocation.md) |
 | System / Process | `kill` | Send a signal to processes | [❌](spec/markdown/posix/kill.md) | ❌ |
 | System / Process | `logname`* | Print the user's login name | [✅](spec/markdown/posix/logname.md) | [✅](spec/markdown/gnu/logname-invocation.md) |
-| System / Process | `nice` | Run a command with modified priority | [❌](spec/markdown/posix/nice.md) | [❌](spec/markdown/gnu/nice-invocation.md) |
+| System / Process | `nice`* | Run a command with modified priority | [✅](spec/markdown/posix/nice.md) | [✅](spec/markdown/gnu/nice-invocation.md) |
 | System / Process | `nohup` | Run a command immune to hangups | [❌](spec/markdown/posix/nohup.md) | [❌](spec/markdown/gnu/nohup-invocation.md) |
 | System / Process | `ps` | Report process status | [❌](spec/markdown/posix/ps.md) | ❌ |
 | System / Process | `time`* | Time the execution of a command | [✅](spec/markdown/posix/time.md) | [✅](https://www.gnu.org/software/time/manual/time.html) |
@@ -358,3 +358,11 @@ backreferences, and GNU's `\+`, `\?` and `\|` extensions match
 literally, like the patterns of the `sed` and `grep` of this project.
 String comparisons order bytewise, in the C locale, like the other
 utilities here.
+
+**`nice`** parses and validates the niceness adjustment, but it is
+never applied, since the runtime cannot change the scheduling priority.
+The utility operand still runs, as GNU does when it lacks the
+privileges to lower the niceness, and the adjustments beyond the range
+of a 64-bit integer are reported like GNU reports them. With no
+utility operand, nice reports a usage error, where GNU would print the
+current niceness, which the runtime exposes no way to read.
