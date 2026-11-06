@@ -47,8 +47,8 @@ type execRecord struct {
 	reply  func(ctx context.Context) (int, error)
 }
 
-func (r *execRecord) exec(ctx context.Context, dir, name string, args, env []string) (int, error) {
-	r.called, r.dir, r.name, r.args, r.env = true, dir, name, args, env
+func (r *execRecord) exec(ctx context.Context, opts coreutils.ExecOpts) (int, error) {
+	r.called, r.dir, r.name, r.args, r.env = true, opts.Dir, opts.Name, opts.Args, opts.Env
 	if r.reply != nil {
 		return r.reply(ctx)
 	}

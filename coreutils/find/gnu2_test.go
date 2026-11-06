@@ -378,8 +378,8 @@ func TestRunExecdir(t *testing.T) {
 		Stderr: io.Discard,
 		FS:     fsx.MemFS{"d/a": {}, "d/b": {}, "d/sub/c": {}},
 		Clock:  func() time.Time { return testNow },
-		Exec: func(ctx context.Context, dir, name string, args, env []string) (int, error) {
-			invocations = append(invocations, invocation{dir: dir, args: append([]string{name}, args...)})
+		Exec: func(_ context.Context, opts coreutils.ExecOpts) (int, error) {
+			invocations = append(invocations, invocation{dir: opts.Dir, args: append([]string{opts.Name}, opts.Args...)})
 			return 0, nil
 		},
 	}
@@ -409,9 +409,9 @@ func TestRunExecdirAggregating(t *testing.T) {
 		Stderr: io.Discard,
 		FS:     fsx.MemFS{"d/a": {}, "d/b": {}, "d/sub/c": {}},
 		Clock:  func() time.Time { return testNow },
-		Exec: func(ctx context.Context, dir, name string, args, env []string) (int, error) {
-			dirs = append(dirs, dir)
-			groups = append(groups, args)
+		Exec: func(_ context.Context, opts coreutils.ExecOpts) (int, error) {
+			dirs = append(dirs, opts.Dir)
+			groups = append(groups, opts.Args)
 			return 0, nil
 		},
 	}
@@ -438,8 +438,8 @@ func TestRunOkdir(t *testing.T) {
 		Stderr: new(bytes.Buffer),
 		FS:     fsx.MemFS{"d/a": {}},
 		Clock:  func() time.Time { return testNow },
-		Exec: func(ctx context.Context, dir, name string, a, env []string) (int, error) {
-			args = append([]string{name}, a...)
+		Exec: func(_ context.Context, opts coreutils.ExecOpts) (int, error) {
+			args = append([]string{opts.Name}, opts.Args...)
 			return 0, nil
 		},
 	}

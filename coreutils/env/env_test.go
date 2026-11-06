@@ -38,8 +38,8 @@ func newRuntime(environ []string, rec *execRecord) *coreutils.Runtime {
 		Environ: func() []string { return environ },
 	}
 	if rec != nil {
-		rt.Exec = func(_ context.Context, dir, name string, args, env []string) (int, error) {
-			rec.called, rec.name, rec.args, rec.env = true, name, args, env
+		rt.Exec = func(_ context.Context, opts coreutils.ExecOpts) (int, error) {
+			rec.called, rec.name, rec.args, rec.env = true, opts.Name, opts.Args, opts.Env
 			return rec.status, rec.err
 		}
 	}

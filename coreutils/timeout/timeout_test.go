@@ -30,10 +30,10 @@ type execRecorder struct {
 	reply func(ctx context.Context) (int, error)
 }
 
-func (r *execRecorder) exec(ctx context.Context, dir, name string, args, env []string) (int, error) {
+func (r *execRecorder) exec(ctx context.Context, opts coreutils.ExecOpts) (int, error) {
 	r.mu.Lock()
 	r.calls++
-	r.ctx, r.name, r.args, r.env = ctx, name, args, env
+	r.ctx, r.name, r.args, r.env = ctx, opts.Name, opts.Args, opts.Env
 	r.mu.Unlock()
 	return r.reply(ctx)
 }
@@ -903,7 +903,7 @@ func TestRunCallerContextDone(t *testing.T) {
 	rt := &coreutils.Runtime{
 		Stdout: new(bytes.Buffer),
 		Stderr: new(bytes.Buffer),
-		Exec: func(context.Context, string, string, []string, []string) (int, error) {
+		Exec: func(context.Context, coreutils.ExecOpts) (int, error) {
 			t.Error("the command was executed")
 			return 0, nil
 		},
