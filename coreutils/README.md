@@ -85,16 +85,16 @@ section below.
 | Filesystem | `rm` | Remove files and directories | [✅](spec/markdown/posix/rm.md) | [✅](spec/markdown/gnu/rm-invocation.md) |
 | Filesystem | `ln` | Create links between files | [✅](spec/markdown/posix/ln.md) | [✅](spec/markdown/gnu/ln-invocation.md) |
 | Filesystem | `ls`* | List directory contents | [✅](spec/markdown/posix/ls.md) | [✅](spec/markdown/gnu/ls-invocation.md) |
-| Filesystem | `chgrp` | Change file group ownership | [❌](spec/markdown/posix/chgrp.md) | [❌](spec/markdown/gnu/chgrp-invocation.md) |
-| Filesystem | `chown` | Change file ownership | [❌](spec/markdown/posix/chown.md) | [❌](spec/markdown/gnu/chown-invocation.md) |
+| Filesystem | `chgrp`* | Change file group ownership | [✅](spec/markdown/posix/chgrp.md) | [✅](spec/markdown/gnu/chgrp-invocation.md) |
+| Filesystem | `chown`* | Change file ownership | [✅](spec/markdown/posix/chown.md) | [✅](spec/markdown/gnu/chown-invocation.md) |
 | Filesystem | `link` | Create a hard link to a file | [✅](spec/markdown/posix/link.md) | [✅](spec/markdown/gnu/link-invocation.md) |
 | Filesystem | `unlink` | Remove a directory entry | [✅](spec/markdown/posix/unlink.md) | [✅](spec/markdown/gnu/unlink-invocation.md) |
 | Filesystem | `mkfifo` | Create FIFO special files | [❌](spec/markdown/posix/mkfifo.md) | [❌](spec/markdown/gnu/mkfifo-invocation.md) |
 | Filesystem | `readlink`* | Print the target of a symbolic link | [✅](spec/markdown/posix/readlink.md) | [✅](spec/markdown/gnu/readlink-invocation.md) |
 | Filesystem | `realpath`* | Print the resolved absolute path | [✅](spec/markdown/posix/realpath.md) | [✅](spec/markdown/gnu/realpath-invocation.md) |
-| Filesystem | `dd` | Convert and copy a file | [❌](spec/markdown/posix/dd.md) | [❌](spec/markdown/gnu/dd-invocation.md) |
+| Filesystem | `dd`* | Convert and copy a file | [✅](spec/markdown/posix/dd.md) | [✅](spec/markdown/gnu/dd-invocation.md) |
 | Filesystem | `df` | Report file system space usage | [❌](spec/markdown/posix/df.md) | [❌](spec/markdown/gnu/df-invocation.md) |
-| Filesystem | `du` | Estimate file space usage | [❌](spec/markdown/posix/du.md) | [❌](spec/markdown/gnu/du-invocation.md) |
+| Filesystem | `du`* | Estimate file space usage | [✅](spec/markdown/posix/du.md) | [✅](spec/markdown/gnu/du-invocation.md) |
 | Filesystem | `pathchk` | Check pathnames for validity | [❌](spec/markdown/posix/pathchk.md) | [❌](spec/markdown/gnu/pathchk-invocation.md) |
 | Filesystem | `pax` | Read and write file archives | [❌](spec/markdown/posix/pax.md) | ❌ |
 | Text | `cut` | Cut out fields from input lines | [✅](spec/markdown/posix/cut.md) | [✅](spec/markdown/gnu/cut-invocation.md) |
@@ -162,8 +162,8 @@ section below.
 | GNU | `sha384sum` | Compute SHA-384 checksums | — | [✅](spec/markdown/gnu/sha2-utilities.md) |
 | GNU | `sha512sum` | Compute SHA-512 checksums | — | [✅](spec/markdown/gnu/sha2-utilities.md) |
 | GNU | `shasum`* | Print or check SHA checksums | — | [✅](https://perldoc.perl.org/shasum) |
-| GNU | `shuf` | Generate random permutations | — | [❌](spec/markdown/gnu/shuf-invocation.md) |
-| GNU | `stat` | Print file and file system status | — | [❌](spec/markdown/gnu/stat-invocation.md) |
+| GNU | `shuf`* | Generate random permutations | — | [✅](spec/markdown/gnu/shuf-invocation.md) |
+| GNU | `stat`* | Print file and file system status | — | [✅](spec/markdown/gnu/stat-invocation.md) |
 | GNU | `sync`* | Flush file system buffers | — | [✅](spec/markdown/gnu/sync-invocation.md) |
 | GNU | `tac` | Concatenate and print files in reverse | — | [✅](spec/markdown/gnu/tac-invocation.md) |
 | GNU | `tar`* | Create and extract file archives | — | [✅](https://web.archive.org/web/https://www.gnu.org/software/tar/manual/tar.html) |
@@ -390,3 +390,61 @@ device the execution gives the utility, since the runtime cannot
 provide the unreadable substitute descriptor GNU opens. The failures
 of nohup itself, like the ones of a usage error, exit with 125, the
 status GNU uses without `POSIXLY_CORRECT`, where POSIX requires 127.
+
+**`chgrp` and `chown`** leave the symbolic links their `-h` option and the
+`-P` recursion act on alone instead of changing their ownership: the file
+system interface has no link-aware chown, and the one it exposes follows
+links, so changing the link would change its referent. On the systems
+without an ownership model, like Windows, a change the system cannot
+represent succeeds without effect, as with `install`. The `setuid` and
+`setgid` bits are cleared by the file system when it does so, not by the
+utilities.
+
+**`chgrp`** reports the changed and retained groups by their numeric
+identifiers in the `-v` and `-c` messages, where GNU uses the names.
+
+**`chown`** writes only the errno line when a change fails under `-v`
+and `-c`, where GNU adds a line naming the previous and wanted owner;
+its group-only messages omit the colon GNU puts before the group; a
+numeric owner the user database doesn't know is applied without
+diagnosing, where GNU errors; and usage errors exit 2, like `chmod`
+exits them here, where GNU exits 1.
+
+**`dd`** implements the conversions and operands of the POSIX
+specification, plus the GNU `status=` levels, the `fullblock` and
+`append` flags and the `excl`, `nocreat` and `fsync` conversions. It
+doesn't implement `conv=sparse` or `fdatasync`, and rejects the other
+`iflag`/`oflag` flags as invalid, like GNU does where it doesn't
+support them. It prints no transfer-rate line: `status=noxfer` behaves
+like the default, and `status=progress` reports the record counts once
+a second. Since the file system interface has no truncate, a `seek`
+past the output's end without `conv=notrunc` extends the file by
+reading, truncating and rewriting its null-filled prefix, and a
+non-seekable output with `seek` is null-filled. Block sizes are capped
+at 2^31-1.
+
+**`du`** counts a file by its size rounded up to 512-byte blocks when
+the file system reports none, as `ls` does, and deduplicates hard links
+only when the file system reports a file identity: without one, as on a
+memory file system or Windows, every occurrence is counted. The GNU
+options outside its manual's documented set (`-l`, `-0`, `--inodes`,
+`--threshold`, `--exclude`, `--time`, `--files0-from` and
+`DU_BLOCK_SIZE`) are not implemented.
+
+**`shuf`** consumes the bytes of `--random-source` as it needs them, so
+the same source is deterministic, but the permutation can differ from
+GNU's for the same file. The whole input is read into memory, where GNU
+samples small counts of large inputs with reservoir sampling, and
+ranges beyond what the machine can hold are refused with `too many
+input lines` where GNU dies with `memory exhausted`. The overflow
+diagnostics lack GNU's errno suffixes.
+
+**`stat`** prints `?` for every file system statistic of `-f` except
+the name, since the file system interface reports no statfs data. On a
+memory file system the device, inode and rdev numbers are 0, the link
+count 1, the blocks the size rounded up to 512 bytes, and the
+identifiers 0 when the owner isn't known, as `ls` writes them. The
+mount point (`%m`) and the security context (`%C`) print `?` and mark
+the file failed, as GNU does when their reads fail. `TZ` is honored
+only as a zone name, the `'` grouping flag and the `I` and `+` flags of
+printf are not applied, and `--cached` is accepted and does nothing.
