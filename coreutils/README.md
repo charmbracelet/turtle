@@ -150,7 +150,7 @@ section below.
 | GNU | `gzip` | Compress files with gzip | — | [✅](https://web.archive.org/web/https://www.gnu.org/software/gzip/manual/gzip.html) |
 | GNU | `gunzip` | Decompress gzip files | — | [✅](https://web.archive.org/web/https://www.gnu.org/software/gzip/manual/gzip.html) |
 | GNU | `gzcat` | Decompress gzip files to standard output | — | [✅](https://web.archive.org/web/https://www.gnu.org/software/gzip/manual/gzip.html) |
-| GNU | `install` | Copy files and set attributes | — | [❌](spec/markdown/gnu/install-invocation.md) |
+| GNU | `install` | Copy files and set attributes | — | [✅](spec/markdown/gnu/install-invocation.md) |
 | GNU | `md5sum` | Compute MD5 checksums | — | [✅](spec/markdown/gnu/md5sum-invocation.md) |
 | GNU | `mktemp` | Create a temporary file or directory | — | [✅](spec/markdown/gnu/mktemp-invocation.md) |
 | GNU | `nproc` | Print the number of processing units | — | [✅](spec/markdown/gnu/nproc-invocation.md) |
