@@ -101,19 +101,19 @@ section below.
 | Text | `join`* | Join lines of two files on a common field | [✅](spec/markdown/posix/join.md) | [✅](spec/markdown/gnu/join-invocation.md) |
 | Text | `sort` | Sort lines of text | [✅](spec/markdown/posix/sort.md) | [✅](spec/markdown/gnu/sort-invocation.md) |
 | Text | `paste` | Merge lines of files | [✅](spec/markdown/posix/paste.md) | [✅](spec/markdown/gnu/paste-invocation.md) |
-| Text | `tee` | Duplicate standard input | [✅](spec/markdown/posix/tee.md) | [❌](spec/markdown/gnu/tee-invocation.md) |
+| Text | `tee`* | Duplicate standard input | [✅](spec/markdown/posix/tee.md) | [✅](spec/markdown/gnu/tee-invocation.md) |
 | Text | `tr` | Translate or delete characters | [✅](spec/markdown/posix/tr.md) | [✅](spec/markdown/gnu/tr-invocation.md) |
 | Text | `uniq` | Filter adjacent repeated lines | [✅](spec/markdown/posix/uniq.md) | [✅](spec/markdown/gnu/uniq-invocation.md) |
-| Text | `cmp` | Compare two files byte by byte | [✅](spec/markdown/posix/cmp.md) | [✅](https://web.archive.org/web/https://www.gnu.org/software/diffutils/manual/html_node/Invoking-cmp.html) |
+| Text | `cmp`* | Compare two files byte by byte | [✅](spec/markdown/posix/cmp.md) | [✅](https://web.archive.org/web/https://www.gnu.org/software/diffutils/manual/html_node/Invoking-cmp.html) |
 | Text | `comm` | Compare sorted files line by line | [✅](spec/markdown/posix/comm.md) | [✅](spec/markdown/gnu/comm-invocation.md) |
 | Text | `csplit` | Split a file by context | [✅](spec/markdown/posix/csplit.md) | [✅](spec/markdown/gnu/csplit-invocation.md) |
-| Text | `diff` | Compare files line by line | [✅](spec/markdown/posix/diff.md) | [❌](https://web.archive.org/web/https://www.gnu.org/software/diffutils/manual/html_node/Invoking-diff.html) |
+| Text | `diff`* | Compare files line by line | [✅](spec/markdown/posix/diff.md) | [✅](https://web.archive.org/web/https://www.gnu.org/software/diffutils/manual/html_node/Invoking-diff.html) |
 | Text | `expand` | Convert tabs to spaces | [✅](spec/markdown/posix/expand.md) | [✅](spec/markdown/gnu/expand-invocation.md) |
 | Text | `fold` | Wrap long input lines | [✅](spec/markdown/posix/fold.md) | [✅](spec/markdown/gnu/fold-invocation.md) |
 | Text | `nl` | Number lines of files | [✅](spec/markdown/posix/nl.md) | [✅](spec/markdown/gnu/nl-invocation.md) |
-| Text | `od` | Dump files in octal and other formats | [✅](spec/markdown/posix/od.md) | [❌](spec/markdown/gnu/od-invocation.md) |
-| Text | `pr` | Paginate files for printing | [✅](spec/markdown/posix/pr.md) | [❌](spec/markdown/gnu/pr-invocation.md) |
-| Text | `sed`* | Filter and transform text | [✅](spec/markdown/posix/sed.md) | [❌](https://web.archive.org/web/https://www.gnu.org/software/sed/manual/sed.html) |
+| Text | `od`* | Dump files in octal and other formats | [✅](spec/markdown/posix/od.md) | [✅](spec/markdown/gnu/od-invocation.md) |
+| Text | `pr`* | Paginate files for printing | [✅](spec/markdown/posix/pr.md) | [✅](spec/markdown/gnu/pr-invocation.md) |
+| Text | `sed`* | Filter and transform text | [✅](spec/markdown/posix/sed.md) | [✅](https://web.archive.org/web/https://www.gnu.org/software/sed/manual/sed.html) |
 | Text | `split` | Split a file into pieces | [✅](spec/markdown/posix/split.md) | [✅](spec/markdown/gnu/split-invocation.md) |
 | Text | `strings` | Print printable strings in files | [✅](spec/markdown/posix/strings.md) | [✅](https://web.archive.org/web/https://sourceware.org/binutils/docs/binutils/strings.html) |
 | Text | `unexpand` | Convert spaces to tabs | [✅](spec/markdown/posix/unexpand.md) | [✅](spec/markdown/gnu/unexpand-invocation.md) |
@@ -206,11 +206,91 @@ the C locale, the one the `sort` and `comm` of this project use: no
 utility here implements the collating sequences of other locales, so
 keys which only another `LC_COLLATE` makes equal stay different.
 
+**`cmp`** follows the options of GNU diffutils, with a few differences. The
+first-difference message says `byte`, as GNU does outside the POSIX locale,
+instead of the POSIX `char`, and with `-b` the byte values follow GNU's `%3o`
+and `%-4s` fields while the byte numbers stay unpadded, as POSIX formats them.
+Count values take the multiplicative suffixes of GNU cmp in its exact case, so
+the `b`, `c`, `w`, `R` and `Q` multipliers other utilities accept are refused.
+Options after the first operand are operands, as the shared option parser
+stops there, and not permuted as GNU's does; the obsolescent `-c` alias of
+`-b` is not implemented. Comparing the standard input with itself is refused
+with status 2, as BSD cmp does, where GNU reports the two inputs as identical
+without reading them; POSIX leaves this case undefined.
+
+**`diff`** compares files line by line with the POSIX options and the GNU
+output formats: normal, context, unified, ed, forward-ed, RCS, merged
+`#ifdef`, side-by-side and brief. Left out are `-l` pagination,
+`--color`/`--palette`, `-d`/`--minimal`, `-H`, `-S`, `-p`/`-F` function
+headings, the `--old-line-format`/`--old-group-format` family,
+`--ignore-file-name-case`, `--no-dereference`, `--suppress-blank-empty` and
+`--horizon-lines`. Repeated `-c`, `-C`, `-U`, `--context` and `--unified` keep
+the last count given where GNU keeps the largest; the `-I` patterns are Go
+regular expressions rather than POSIX ones; `-x` patterns use the shell
+matching of `path.Match`; and with `-N`, a missing operand against a directory
+is an error where GNU compares the directory against an empty one. The
+side-by-side columns count bytes as columns, so double-width runes can push
+the right column out, and the width is 130 without a terminal to ask. File
+contents are read whole, as GNU also does for text, and file times print with
+second precision in the local zone, where GNU can add nanoseconds.
+
+**`od`** takes the type sizes of an x86-64 GNU system: 16-byte integers are
+rejected and a 16-byte float is the x87 80-bit long double, read from the
+first ten bytes and printed exactly through the math of `math/big`. The byte
+order of `--endian` is that of a little-endian system, whatever the host is.
+Options stop at the first operand, the way the shared option parser works,
+where GNU od would also permute the arguments after it. An empty attached
+value, as in `--width=` or `--strings=`, is read as the default instead of the
+error GNU gives, because the option parser reports it like the bare long form.
+The undocumented shorthand aliases of GNU od (`-B`, `-D`, `-e`, `-F`, `-H`,
+`-h`, `-I`, `-L`, `-O` and `-X`) are not taken. The input is read whole before
+it is formatted, rather than streamed.
+
+**`pr`** accepts the options of GNU pr, with a few differences. `-p` is
+accepted but ignored: the output is never a terminal for a library caller, so
+there is nothing to pause for. `-s` takes exactly one character, as POSIX
+specifies; use `-S` for multi-character separators. `-J` and merged output may
+contract blank runs to tabs at slightly different places than GNU pr when a
+page is cut by a form feed or ends with empty columns, the rendered column
+widths being identical, and input TAB characters that survive to the output
+with `-J` count as one column for truncation instead of being re-expanded at
+the tab stops. `pr -W width -w width` is equivalent to `pr -W width -J`,
+matching the option translation of GNU pr, not its documentation.
+
+**`tee`** implements `-p` and `--output-error` with their four modes, telling a
+pipe from a regular output by the file type the runtime reports, so broken
+pipes are noticed only when a write fails, not polled ahead as GNU does: the
+file of a process substitution may receive the pipe buffer's worth of extra
+data before the broken pipe is seen. A broken standard output is fatal rather
+than ignorable, in every mode, since Go raises SIGPIPE for it instead of
+reporting the error; only the `nopipe` modes are honored for the other
+outputs, and the default mode leaves with the status 1 where GNU dies of the
+signal. `-i` is accepted and does nothing, signals never reaching the
+in-process runtime, and the mode of `--output-error` must be given whole,
+without the unambiguous abbreviations GNU accepts.
+
 **`sed`** supports BRE and ERE (`-E`) patterns, but not backreferences
 (`\1` to `\9`) in patterns, nor the multi-character collating symbols of
 bracket expressions: a collating symbol or equivalence class of a single
 character stands for that character, as the C locale orders them.
-Backreferences in the replacement of `s` work as specified.
+Backreferences in the replacement of `s` work as specified. It also diverges
+from GNU sed in its GNU extensions. The `e` command and the `e` flag of `s`
+are not implemented: they run their command through a shell, and the runtime
+only offers an `Exec` that takes a program name with an argument list, so
+there is no shell to hand the text to. `--posix` rejects the GNU script
+syntax this implementation parses (the `T`, `Q`, `z`, `F`, `W` and `R`
+commands, the `first~step`, `addr1,+N`, `addr1,~N` and `0,/re/` addresses
+with their `/re/I` and `/re/M` modifiers, the `I` and `M` flags and a number
+with the `g` flag of `s`, the `\U \L \u \l \E` replacement escapes, the
+one-line texts of `a`, `i` and `c`, the exit status argument of `q` and `Q`,
+the width argument of `l`, and the range GNU lets `a`, `i`, `r` and `=`
+take), while keeping the GNU conveniences it has always accepted, like `-i`
+and `-E`. `-u` is accepted and does nothing, since the runtime writes each
+record as soon as it is produced. `--follow-symlinks` only works when the
+runtime file system reports symbolic links, as the OS one does, and it
+follows a link whatever directory its target is in, where GNU sed keeps to
+targets beside the link; a dangling link is reported as an input file that
+can't be read rather than edited as an empty file.
 
 **`grep`** doesn't implement backreferences in BREs, nor `-P`, which
 would need an engine beyond the one of the standard library. The `\<` and
