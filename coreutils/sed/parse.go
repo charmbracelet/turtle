@@ -8,6 +8,7 @@ import (
 	"strings"
 	"unicode/utf8"
 
+	"charm.land/snail/coreutils/internal/bracket"
 	"charm.land/snail/coreutils/internal/bre"
 )
 
@@ -472,7 +473,7 @@ func (p *parser) scanDelimited(delim byte, kind scanKind) (string, error) {
 			p.i++
 			return b.String(), nil
 		case c == '[' && kind == scanRE:
-			end := bracketEnd(p.s, p.i)
+			end := bracket.End(p.s, p.i)
 			if end < 0 {
 				return "", errors.New("unmatched [")
 			}
@@ -893,48 +894,4 @@ func (p *parser) isDelimSpecial(c byte) bool {
 	default:
 		return false
 	}
-}
-
-// bracketEnd returns the index of the ] closing the bracket expression
-// starting at i, or -1 when there's none. A ] right after the opening [ or a
-// leading ^ is a member of the expression, and the ] closing a [:...:],
-// [.x.] or [=x=] subexpression doesn't close the expression.
-func bracketEnd(pattern string, i int) int {
-	j := i + 1
-	if j < len(pattern) && pattern[j] == '^' {
-		j++
-	}
-	if j < len(pattern) && pattern[j] == ']' {
-		j++
-	}
-	for ; j < len(pattern); j++ {
-		if pattern[j] == ']' {
-			return j
-		}
-		if end := subEnd(pattern, j); end >= 0 {
-			j = end
-		}
-	}
-	return -1
-}
-
-// subEnd returns the index of the ] closing the [:...:], [.x.] or [=x=]
-// subexpression starting at j, or -1 when the bracket at j doesn't open one.
-func subEnd(pattern string, j int) int {
-	if j+1 >= len(pattern) {
-		return -1
-	}
-	var marker byte
-	switch pattern[j+1] {
-	case ':', '.', '=':
-		marker = pattern[j+1]
-	default:
-		return -1
-	}
-	for k := j + 2; k+1 < len(pattern); k++ {
-		if pattern[k] == marker && pattern[k+1] == ']' {
-			return k + 1
-		}
-	}
-	return -1
 }
