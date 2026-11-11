@@ -1,6 +1,7 @@
 package input
 
 import (
+	"context"
 	"errors"
 	"io"
 	"strings"
@@ -57,6 +58,73 @@ func TestList(t *testing.T) {
 				}
 			}
 		})
+	}
+}
+
+func TestReadAll(t *testing.T) {
+	tests := []struct {
+		name    string
+		rt      *coreutils.Runtime
+		operand string
+		want    string
+		wantErr string
+	}{
+		{
+			name:    "dash is the standard input",
+			rt:      &coreutils.Runtime{Stdin: strings.NewReader("hello")},
+			operand: "-",
+			want:    "hello",
+		},
+		{
+			name:    "file in the file system",
+			rt:      &coreutils.Runtime{FS: fsx.MemFS{"file.txt": {Data: []byte("contents")}}},
+			operand: "file.txt",
+			want:    "contents",
+		},
+		{
+			name:    "no standard input available",
+			rt:      &coreutils.Runtime{},
+			operand: "-",
+			wantErr: "no standard input available",
+		},
+		{
+			name:    "no file system available",
+			rt:      &coreutils.Runtime{},
+			operand: "file.txt",
+			wantErr: "no file system available",
+		},
+		{
+			name:    "missing file",
+			rt:      &coreutils.Runtime{FS: fsx.MemFS{}},
+			operand: "missing.txt",
+			wantErr: "open missing.txt: file does not exist",
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			data, err := ReadAll(tt.rt, t.Context(), tt.operand)
+			if err != nil {
+				if err.Error() != tt.wantErr {
+					t.Fatalf("ReadAll error = %q, want %q", err, tt.wantErr)
+				}
+				return
+			}
+			if tt.wantErr != "" {
+				t.Fatalf("ReadAll error = nil, want %q", tt.wantErr)
+			}
+			if string(data) != tt.want {
+				t.Errorf("ReadAll = %q, want %q", data, tt.want)
+			}
+		})
+	}
+}
+
+func TestReadAllContextCancelled(t *testing.T) {
+	ctx, cancel := context.WithCancel(t.Context())
+	cancel()
+	_, err := ReadAll(&coreutils.Runtime{Stdin: strings.NewReader("hello")}, ctx, "-")
+	if !errors.Is(err, context.Canceled) {
+		t.Errorf("ReadAll error = %v, want %v", err, context.Canceled)
 	}
 }
 

@@ -11,7 +11,6 @@ import (
 	"fmt"
 	"io"
 	"math"
-	"os"
 	"regexp"
 	"strconv"
 	"strings"
@@ -21,10 +20,10 @@ import (
 	"charm.land/snail/coreutils/internal/bre"
 	"charm.land/snail/coreutils/internal/getopt"
 	"charm.land/snail/coreutils/internal/input"
+	"charm.land/snail/coreutils/internal/output"
 	"charm.land/snail/coreutils/internal/patherr"
 	"charm.land/snail/coreutils/internal/stdopts"
 	"charm.land/snail/coreutils/internal/textutil"
-	"charm.land/snail/fsx"
 )
 
 // Prog is the csplit core utility.
@@ -91,7 +90,7 @@ func (p *Prog) Run(ctx context.Context, args ...string) error {
 		return &coreutils.ExitError{Code: 1}
 	}
 
-	s := &splitter{p: p, opts: opts, lines: lines, current: 1}
+	s := &splitter{ctx: ctx, p: p, opts: opts, lines: lines, current: 1}
 	if err := s.run(ctx, controls); err != nil {
 		if ctx.Err() != nil {
 			return ctx.Err()
@@ -135,12 +134,13 @@ type control struct {
 
 // splitter holds the state of a run in progress.
 type splitter struct {
+	ctx     context.Context
 	p       *Prog
 	opts    options
 	lines   [][]byte
 	current int64 // the current line, 1-based
 	created []string
-	out     fsx.File
+	out     io.WriteCloser
 	outName string
 	written int64
 	failed  bool // whether writing to out failed
@@ -336,7 +336,7 @@ func (s *splitter) createFile() error {
 		suffix = fmt.Sprintf(s.opts.suffixFmt, len(s.created))
 	}
 	name := s.opts.prefix + suffix
-	f, err := s.p.FS.OpenFile(s.p.FsName(name), os.O_WRONLY|os.O_CREATE|os.O_TRUNC, 0o666&^s.p.Umask.Perm())
+	f, err := output.Create(s.p.Runtime, s.ctx, name)
 	if err != nil {
 		return &writeError{name: name, err: err}
 	}

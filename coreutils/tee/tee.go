@@ -12,15 +12,14 @@ import (
 	"fmt"
 	"io"
 	"io/fs"
-	"os"
 
 	"charm.land/snail/coreutils"
 
 	"charm.land/snail/coreutils/internal/ctxio"
 	"charm.land/snail/coreutils/internal/getopt"
+	outio "charm.land/snail/coreutils/internal/output"
 	"charm.land/snail/coreutils/internal/patherr"
 	"charm.land/snail/coreutils/internal/stdopts"
-	"charm.land/snail/fsx"
 )
 
 // Prog is the tee core utility.
@@ -66,7 +65,7 @@ func (p *Prog) Run(ctx context.Context, args ...string) error {
 			ok = false
 			continue
 		}
-		f, err := p.openFile(operand, opts.append)
+		f, err := p.openFile(ctx, operand, opts.append)
 		if err != nil {
 			p.errorf("%s: %v", operand, patherr.Unwrap(err))
 			if opts.errMode.stopsOnOpen() {
@@ -106,6 +105,9 @@ func (p *Prog) copy(ctx context.Context, outputs []output, mode errMode) error {
 					continue
 				}
 				if _, werr := out.w.Write(buf[:n]); werr != nil {
+					if ctx.Err() != nil {
+						return ctx.Err()
+					}
 					out.failed = true
 					c.writeError(outputs, out, werr)
 				}
@@ -133,17 +135,11 @@ func (p *Prog) copy(ctx context.Context, outputs []output, mode errMode) error {
 }
 
 // openFile opens an output file, truncating or appending to it.
-func (p *Prog) openFile(name string, append bool) (fsx.File, error) {
-	if p.FS == nil {
-		return nil, errors.New("no file system available")
-	}
-	flag := os.O_WRONLY | os.O_CREATE
+func (p *Prog) openFile(ctx context.Context, name string, append bool) (io.WriteCloser, error) {
 	if append {
-		flag |= os.O_APPEND
-	} else {
-		flag |= os.O_TRUNC
+		return outio.Append(p.Runtime, ctx, name)
 	}
-	return p.FS.OpenFile(p.FsName(name), flag, 0o666&^p.Umask.Perm())
+	return outio.Create(p.Runtime, ctx, name)
 }
 
 // errorf writes a diagnostic message to standard error.

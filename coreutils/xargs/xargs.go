@@ -25,8 +25,8 @@ import (
 
 	"charm.land/snail/coreutils"
 
-	"charm.land/snail/coreutils/internal/ctxio"
 	"charm.land/snail/coreutils/internal/getopt"
+	"charm.land/snail/coreutils/internal/input"
 	"charm.land/snail/coreutils/internal/patherr"
 	"charm.land/snail/coreutils/internal/stdopts"
 )
@@ -223,16 +223,13 @@ func readLine(r io.Reader) ([]byte, error) {
 // Null- and delimiter-separated input isn't checked for it, as the -0 and
 // -d options disable the string.
 func (p *Prog) readArgs(ctx context.Context, opts options) ([]string, error) {
-	in, closer, err := p.openInput(opts.argFile, opts.argGiven)
-	if err != nil {
-		return nil, err
+	name := opts.argFile
+	if !opts.argGiven {
+		name = "-"
 	}
-	if closer != nil {
-		defer closer.Close()
-	}
-	data, err := io.ReadAll(ctxio.NewReader(ctx, in))
+	data, err := input.ReadAll(p.Runtime, ctx, name)
 	if err != nil {
-		return nil, fmt.Errorf("%s: %v", inputName(opts.argFile, opts.argGiven), err)
+		return nil, fmt.Errorf("%s: %v", inputName(opts.argFile, opts.argGiven), patherr.Unwrap(err))
 	}
 	if err := ctx.Err(); err != nil {
 		return nil, err
@@ -253,23 +250,6 @@ func (p *Prog) readArgs(ctx context.Context, opts options) ([]string, error) {
 	default:
 		return tokenize(ctx, data, eof)
 	}
-}
-
-// openInput returns the reader the items are read from, and the closer to
-// call when it's done: the standard input, or the file of the -a option,
-// "-" denoting the standard input.
-func (p *Prog) openInput(file string, given bool) (io.Reader, io.Closer, error) {
-	if !given || file == "-" {
-		return p.Stdin, nil, nil
-	}
-	if p.FS == nil {
-		return nil, nil, fmt.Errorf("%s: no file system available", file)
-	}
-	f, err := p.FS.Open(p.FsName(file))
-	if err != nil {
-		return nil, nil, fmt.Errorf("%s: %v", file, patherr.Unwrap(err))
-	}
-	return f, f, nil
 }
 
 // inputName returns the name the input source has in diagnostics.

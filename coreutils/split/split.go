@@ -13,7 +13,6 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"os"
 	"strconv"
 	"strings"
 
@@ -21,11 +20,11 @@ import (
 
 	"charm.land/snail/coreutils/internal/getopt"
 	"charm.land/snail/coreutils/internal/input"
+	"charm.land/snail/coreutils/internal/output"
 	"charm.land/snail/coreutils/internal/patherr"
 	"charm.land/snail/coreutils/internal/sizeparse"
 	"charm.land/snail/coreutils/internal/stdopts"
 	"charm.land/snail/coreutils/internal/textutil"
-	"charm.land/snail/fsx"
 )
 
 // Prog is the split core utility.
@@ -71,7 +70,7 @@ func (p *Prog) Run(ctx context.Context, args ...string) error {
 		return &coreutils.ExitError{Code: 1}
 	}
 	w := &pieceWriter{
-		rt: p.Runtime, prefix: prefix, suffixLen: opts.suffixLen,
+		ctx: ctx, rt: p.Runtime, prefix: prefix, suffixLen: opts.suffixLen,
 		numeric: opts.numeric, hex: opts.hex, from: opts.from, count: opts.from,
 		addSuffix: opts.addSuffix,
 	}
@@ -122,6 +121,7 @@ const nameMax = 255
 
 // pieceWriter creates the output files and keeps track of the suffixes.
 type pieceWriter struct {
+	ctx       context.Context
 	rt        *coreutils.Runtime
 	prefix    string
 	suffixLen int
@@ -130,7 +130,7 @@ type pieceWriter struct {
 	from      int64
 	addSuffix string
 	count     int64 // the suffix number of the current piece
-	file      fsx.File
+	file      io.WriteCloser
 	name      string
 }
 
@@ -183,7 +183,7 @@ func (w *pieceWriter) open() error {
 		return errSuffixesExhausted
 	}
 	name := w.nextName()
-	f, err := w.rt.FS.OpenFile(w.rt.FsName(name), os.O_WRONLY|os.O_CREATE|os.O_TRUNC, 0o666&^w.rt.Umask.Perm())
+	f, err := output.Create(w.rt, w.ctx, name)
 	if err != nil {
 		return &writeError{name: name, err: err}
 	}

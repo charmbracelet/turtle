@@ -31,6 +31,7 @@ import (
 
 	"charm.land/snail/coreutils"
 	"charm.land/snail/coreutils/internal/getopt"
+	"charm.land/snail/coreutils/internal/output"
 	"charm.land/snail/coreutils/internal/stdopts"
 )
 
@@ -145,7 +146,7 @@ func (p *Prog) Run(ctx context.Context, args ...string) error {
 		return p.usageError(errors.New("missing operand"))
 	}
 	p.chooseFormat(&opts)
-	out, closeOut, err := p.openOutput(&opts)
+	out, closeOut, err := p.openOutput(ctx, &opts)
 	if err != nil {
 		p.errorf("%v", err)
 		return &coreutils.ExitError{Code: 125, Err: err}
@@ -211,23 +212,18 @@ func (p *Prog) chooseFormat(opts *settings) {
 // function closing it. It is the standard error unless -o was given, even
 // with an empty value: an explicitly empty file name is an invalid path,
 // failing the open as an empty fopen argument fails in GNU time.
-func (p *Prog) openOutput(opts *settings) (io.Writer, func(), error) {
+func (p *Prog) openOutput(ctx context.Context, opts *settings) (io.Writer, func(), error) {
 	if !opts.outGiven {
 		return p.Stderr, func() {}, nil
-	}
-	if p.FS == nil {
-		return nil, nil, errors.New("no file system available")
 	}
 	if opts.outfile == "" {
 		return nil, nil, &fs.PathError{Op: "open", Path: "", Err: fs.ErrInvalid}
 	}
-	flag := os.O_WRONLY | os.O_CREATE
+	open := output.Create
 	if opts.append {
-		flag |= os.O_APPEND
-	} else {
-		flag |= os.O_TRUNC
+		open = output.Append
 	}
-	f, err := p.FS.OpenFile(p.FsName(opts.outfile), flag, 0o666&^p.Umask.Perm())
+	f, err := open(p.Runtime, ctx, opts.outfile)
 	if err != nil {
 		return nil, nil, err
 	}

@@ -6,7 +6,6 @@ import (
 	"errors"
 	"io"
 	"io/fs"
-	"os"
 	"strconv"
 	"strings"
 	"time"
@@ -15,6 +14,7 @@ import (
 
 	"charm.land/snail/coreutils/internal/ctxio"
 	"charm.land/snail/coreutils/internal/filemode"
+	"charm.land/snail/coreutils/internal/output"
 	"charm.land/snail/coreutils/internal/patherr"
 	"charm.land/snail/fsx"
 )
@@ -29,7 +29,7 @@ func (a *archiver) create(ctx context.Context, operands []string) error {
 		a.errorf("Cowardly refusing to create an empty archive")
 		return &coreutils.ExitError{Code: 2}
 	}
-	out, err := a.openWriter()
+	out, err := a.openWriter(ctx)
 	if err != nil {
 		a.fail(a.archiveName(), err)
 		return a.exit(1)
@@ -96,7 +96,7 @@ func (a *archiver) append(ctx context.Context, operands []string, update bool) e
 		return a.exit(1)
 	}
 	tmpName := name + ".tmp"
-	tmp, err := a.rt.FS.OpenFile(a.rt.FsPath(tmpName), os.O_WRONLY|os.O_CREATE|os.O_TRUNC, 0o666&^a.rt.Umask.Perm())
+	tmp, err := output.Create(a.rt, ctx, tmpName)
 	if err != nil {
 		src.Close()
 		a.fail(tmpName, err)

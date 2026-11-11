@@ -8,7 +8,6 @@ import (
 	"fmt"
 	"io"
 	"io/fs"
-	"os"
 	"os/user"
 	"path"
 	"path/filepath"
@@ -21,6 +20,8 @@ import (
 
 	"charm.land/snail/coreutils/internal/fileinfo"
 	"charm.land/snail/coreutils/internal/getopt"
+	"charm.land/snail/coreutils/internal/input"
+	"charm.land/snail/coreutils/internal/output"
 	"charm.land/snail/coreutils/internal/patherr"
 	"charm.land/snail/coreutils/internal/stdopts"
 	"charm.land/snail/coreutils/internal/walk"
@@ -167,30 +168,21 @@ var errQuit = errors.New("quit")
 // readPaths0 reads the starting points of -files0-from, which are separated
 // by null bytes. A name of "-" reads them from the standard input.
 func (p *Prog) readPaths0(ctx context.Context, name string) ([]string, error) {
-	var data []byte
-	if name == "-" {
-		if p.Stdin == nil {
-			return nil, errors.New("no standard input available")
+	if name == "-" && p.Stdin == nil {
+		return nil, errors.New("no standard input available")
+	}
+	data, err := input.ReadAll(p.Runtime, ctx, name)
+	if err != nil {
+		if ctx.Err() != nil {
+			return nil, ctx.Err()
 		}
-		var err error
-		data, err = io.ReadAll(p.Stdin)
-		if err != nil {
-			if ctx.Err() != nil {
-				return nil, ctx.Err()
-			}
+		if name == "-" {
 			return nil, fmt.Errorf("cannot read the standard input: %v", err)
 		}
-	} else {
-		fsName := p.FsPath(name)
-		f, err := p.FS.Open(fsName)
-		if err != nil {
+		if pathErr, ok := errors.AsType[*fs.PathError](err); ok && pathErr.Op == "open" {
 			return nil, fmt.Errorf("cannot open '%s': %v", name, patherr.Unwrap(err))
 		}
-		data, err = io.ReadAll(f)
-		f.Close()
-		if err != nil {
-			return nil, fmt.Errorf("cannot read '%s': %v", name, patherr.Unwrap(err))
-		}
+		return nil, fmt.Errorf("cannot read '%s': %v", name, patherr.Unwrap(err))
 	}
 	if len(data) == 0 {
 		return nil, nil
@@ -220,8 +212,7 @@ func (s *state) openOutFiles(names []string) error {
 			s.outFiles[name] = s.p.Stderr
 			continue
 		}
-		fsName := s.p.FsPath(name)
-		f, err := s.p.FS.OpenFile(fsName, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, 0o666&^s.p.Umask.Perm())
+		f, err := output.Create(s.p.Runtime, s.ctx, name)
 		if err != nil {
 			s.p.errorf("cannot open '%s' for writing: %v", name, patherr.Unwrap(err))
 			s.failed = true

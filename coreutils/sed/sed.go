@@ -13,13 +13,13 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"io"
 	"slices"
 	"strconv"
 	"strings"
 
 	"charm.land/snail/coreutils"
 	"charm.land/snail/coreutils/internal/getopt"
+	"charm.land/snail/coreutils/internal/input"
 	"charm.land/snail/coreutils/internal/patherr"
 	"charm.land/snail/coreutils/internal/stdopts"
 )
@@ -57,7 +57,7 @@ func (p *Prog) Run(ctx context.Context, args ...string) error {
 		return &coreutils.ExitError{Code: 2}
 	}
 
-	script, files, err := p.assembleScript(opts, operands)
+	script, files, err := p.assembleScript(ctx, opts, operands)
 	if err != nil {
 		p.errorf("%v", err)
 		if errors.Is(err, errMissingScript) {
@@ -282,7 +282,7 @@ func expandShortInPlace(arg string) ([]string, bool) {
 // options and, when neither was given, from the first operand, which then
 // isn't a file. The remaining operands name the input files. A -f argument
 // of - takes the script from the standard input.
-func (p *Prog) assembleScript(opts *options, operands []string) (string, []string, error) {
+func (p *Prog) assembleScript(ctx context.Context, opts *options, operands []string) (string, []string, error) {
 	parts := opts.parts
 	files := operands
 	if len(parts) == 0 {
@@ -300,7 +300,7 @@ func (p *Prog) assembleScript(opts *options, operands []string) (string, []strin
 			b.WriteByte('\n')
 		}
 		if part.fromFile {
-			content, err := p.readScript(part.file)
+			content, err := p.readScript(ctx, part.file)
 			if err != nil {
 				return "", nil, fmt.Errorf("%s: %v", part.file, patherr.Unwrap(err))
 			}
@@ -316,35 +316,12 @@ func (p *Prog) assembleScript(opts *options, operands []string) (string, []strin
 
 // readScript reads the script file of a -f option, with the standard input
 // used when the name is "-".
-func (p *Prog) readScript(name string) (string, error) {
-	if name == "-" {
-		if p.Stdin == nil {
-			return "", errors.New("no standard input available")
-		}
-		content, err := io.ReadAll(p.Stdin)
-		if err != nil {
-			return "", err
-		}
-		return string(content), nil
-	}
-	return p.readFile(name)
-}
-
-// readFile reads a file of the runtime file system.
-func (p *Prog) readFile(name string) (string, error) {
-	if p.FS == nil {
-		return "", errors.New("no file system available")
-	}
-	f, err := p.FS.Open(p.FsName(name))
+func (p *Prog) readScript(ctx context.Context, name string) (string, error) {
+	data, err := input.ReadAll(p.Runtime, ctx, name)
 	if err != nil {
 		return "", err
 	}
-	defer f.Close()
-	content, err := io.ReadAll(f)
-	if err != nil {
-		return "", err
-	}
-	return string(content), nil
+	return string(data), nil
 }
 
 func (p *Prog) errorf(format string, args ...any) {

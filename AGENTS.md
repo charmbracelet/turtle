@@ -210,6 +210,7 @@ packages already exist:
   and touch.
 * `input`: mapping the input operands to files or the standard input, and
   opening them.
+* `output`: creating or appending the output operands the utilities write.
 * `patherr`: unwraps `*fs.PathError` so diagnostics don't repeat the file
   name.
 * `printfmt`: the pieces of printf-style format strings shared by printf and
