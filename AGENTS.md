@@ -89,8 +89,8 @@ The process to implement a coreutils should be as follow:
   later).
 * The POSIX and GNU specifications / manuals were downloaded and made available
   locally at:
-  * `coreutils/spec/markdown/posix/*.md`
-  * `coreutils/spec/markdown/gnu/*.md`
+  * `coreutils/spec/posix/*.md`
+  * `coreutils/spec/gnu/*.md`
 * Tests should be written according to the POSIX specification.
   * Every POSIX option must have at least one dedicated test. Options should
     also have tests covering invalid usage and important interactions with other
