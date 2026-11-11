@@ -11,6 +11,7 @@ import (
 	"strings"
 
 	"charm.land/snail/coreutils/internal/bracket"
+	"charm.land/snail/coreutils/internal/rex"
 )
 
 // Compile parses pattern as a POSIX extended regular expression and returns
@@ -62,7 +63,7 @@ func translate(pattern string) (string, error) {
 				i++
 				continue
 			}
-			end, content, ok := interval(pattern, i+1)
+			end, content, ok := rex.Interval(pattern, i+1, false)
 			if !ok {
 				return "", fmt.Errorf("unmatched \\{")
 			}
@@ -82,7 +83,7 @@ func translate(pattern string) (string, error) {
 			if d >= '1' && d <= '9' {
 				return "", fmt.Errorf("backreferences are not supported")
 			}
-			if isRegexpMeta(d) || isLetter(d) {
+			if rex.IsRegexpMeta(d) || rex.IsLetter(d) {
 				out.WriteByte('\\')
 				out.WriteByte(d)
 			} else {
@@ -102,45 +103,4 @@ func translate(pattern string) (string, error) {
 		}
 	}
 	return out.String(), nil
-}
-
-// isLetter reports whether c is an ASCII letter or digit.
-func isLetter(c byte) bool {
-	return c >= 'a' && c <= 'z' || c >= 'A' && c <= 'Z' || c >= '0' && c <= '9'
-}
-
-// isRegexpMeta reports whether c is a metacharacter in Go regexp syntax.
-func isRegexpMeta(c byte) bool {
-	switch c {
-	case '.', '*', '+', '?', '(', ')', '[', ']', '{', '}', '^', '$', '|', '\\':
-		return true
-	}
-	return false
-}
-
-// interval parses a {m}, {m,} or {m,n} interval expression starting at i
-// (right after the opening brace), returning the index just past the closing
-// brace and the content between braces. ok is false when the expression
-// isn't a valid interval.
-func interval(pattern string, i int) (end int, content string, ok bool) {
-	j := i
-	for j < len(pattern) && pattern[j] >= '0' && pattern[j] <= '9' {
-		j++
-	}
-	if j == i {
-		return 0, "", false
-	}
-	content = pattern[i:j]
-	if j < len(pattern) && pattern[j] == ',' {
-		k := j + 1
-		for k < len(pattern) && pattern[k] >= '0' && pattern[k] <= '9' {
-			k++
-		}
-		content = pattern[i:k]
-		j = k
-	}
-	if j >= len(pattern) || pattern[j] != '}' {
-		return 0, "", false
-	}
-	return j + 1, content, true
 }
