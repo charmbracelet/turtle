@@ -235,8 +235,8 @@ func TestRunDefaults(t *testing.T) {
 		{
 			name:     "invalid option",
 			fsys:     testFS(),
-			args:     []string{"-x", "a.txt", "b.txt"},
-			wantErr:  "diff: invalid option -- 'x'\nTry 'diff --help' for more information.\n",
+			args:     []string{"-j", "a.txt", "b.txt"},
+			wantErr:  "diff: invalid option -- 'j'\nTry 'diff --help' for more information.\n",
 			wantExit: 2,
 		},
 		{

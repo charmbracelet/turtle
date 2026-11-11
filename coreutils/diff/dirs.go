@@ -19,10 +19,14 @@ type dirPair struct {
 }
 
 // compareDirs compares the entries of both directory operands: names that
-// exist in only one directory are reported, common subdirectories are
-// compared with the recursive option or noted otherwise, and common regular
-// files are compared after a header naming them.
+// exist in only one directory are reported, or compared against an empty
+// file with the new file options; common subdirectories are compared with
+// the recursive option or noted otherwise; and common regular files are
+// compared after a header naming them.
 func (p *Prog) compareDirs(ctx context.Context, d1, d2 operand, opts options, seen []dirPair) (bool, error) {
+	if opts.format == ifdefFormat {
+		return false, errIfdefDirs
+	}
 	fi1, fi2 := p.statDir(d1), p.statDir(d2)
 	for _, v := range seen {
 		if os.SameFile(v.fi1, fi1) && os.SameFile(v.fi2, fi2) {
@@ -45,27 +49,96 @@ func (p *Prog) compareDirs(ctx context.Context, d1, d2 operand, opts options, se
 		if err := ctx.Err(); err != nil {
 			return false, err
 		}
-		if _, ok := entries2[name]; !ok {
+		if opts.excluded(name) {
+			continue
+		}
+		_, in1 := entries1[name]
+		_, in2 := entries2[name]
+		switch {
+		case in1 && in2:
+			d, err := p.compareEntry(ctx, d1, d2, name, opts, seen)
+			if err != nil {
+				return differ, err
+			}
+			differ = differ || d
+		case in1:
+			// Only in the first directory: with -N it's compared
+			// against a missing second file, with -P only when the
+			// missing one is the first.
+			if opts.newFile {
+				d, err := p.compareMissing(ctx, d1, d2, name, true, opts, seen)
+				if err != nil {
+					return differ, err
+				}
+				differ = differ || d
+				continue
+			}
 			if err := p.write(fmt.Sprintf("Only in %s: %s\n", d1.name, name)); err != nil {
 				return false, err
 			}
 			differ = true
-			continue
-		}
-		if _, ok := entries1[name]; !ok {
+		default:
+			if opts.newFile || opts.unidirectional {
+				d, err := p.compareMissing(ctx, d1, d2, name, false, opts, seen)
+				if err != nil {
+					return differ, err
+				}
+				differ = differ || d
+				continue
+			}
 			if err := p.write(fmt.Sprintf("Only in %s: %s\n", d2.name, name)); err != nil {
 				return false, err
 			}
 			differ = true
-			continue
 		}
-		d, err := p.compareEntry(ctx, d1, d2, name, opts, seen)
-		if err != nil {
-			return differ, err
-		}
-		differ = differ || d
 	}
 	return differ, nil
+}
+
+// compareMissing compares the entry name of the directory it's in against
+// the file it would be in the other one, which the new file options treat
+// as an empty file: a regular file against an empty one, and with the
+// recursive option a directory against an empty one, so only its names
+// come out as additions. Without it, a subdirectory is still only
+// reported.
+func (p *Prog) compareMissing(ctx context.Context, d1, d2 operand, name string, inFirst bool, opts options, seen []dirPair) (bool, error) {
+	present, missing := d2, d1
+	if inFirst {
+		present, missing = d1, d2
+	}
+	sub := operand{
+		name:    path.Join(missing.name, name),
+		path:    path.Join(missing.path, name),
+		missing: true,
+	}
+	fi, err := fs.Stat(p.FS, path.Join(present.path, name))
+	if err != nil {
+		return false, &pathError{label: path.Join(present.name, name), err: err}
+	}
+	if fi.IsDir() {
+		if !opts.recursive {
+			dir := d1
+			if !inFirst {
+				dir = d2
+			}
+			return true, p.write(fmt.Sprintf("Only in %s: %s\n", dir.name, name))
+		}
+		other := operand{name: path.Join(present.name, name), path: path.Join(present.path, name), isDir: true}
+		if inFirst {
+			return p.compareDirs(ctx, other, sub, opts, seen)
+		}
+		return p.compareDirs(ctx, sub, other, opts, seen)
+	}
+	pr := pair{
+		name1:    path.Join(d1.name, name),
+		path1:    path.Join(d1.path, name),
+		missing1: !inFirst,
+		name2:    path.Join(d2.name, name),
+		path2:    path.Join(d2.path, name),
+		missing2: inFirst,
+	}
+	pr.header = opts.header(path.Join(d1.name, name), path.Join(d2.name, name))
+	return p.compareFiles(ctx, pr, opts)
 }
 
 // compareEntry compares the entries of both directories that share a name,
@@ -108,6 +181,9 @@ func (p *Prog) compareEntry(ctx context.Context, d1, d2 operand, name string, op
 // statDir stats the directory operand, returning nil when it can't be
 // reached, in which case loop detection just can't tell.
 func (p *Prog) statDir(d operand) os.FileInfo {
+	if d.missing {
+		return nil
+	}
 	fi, err := fs.Stat(p.FS, d.path)
 	if err != nil {
 		return nil
@@ -115,8 +191,12 @@ func (p *Prog) statDir(d operand) os.FileInfo {
 	return fi
 }
 
-// readDir lists the entries of the directory operand.
+// readDir lists the entries of the directory operand, with a missing
+// directory holding none, as the new file options compare it.
 func (p *Prog) readDir(d operand) (map[string]fs.DirEntry, error) {
+	if d.missing {
+		return map[string]fs.DirEntry{}, nil
+	}
 	entries, err := fs.ReadDir(p.FS, d.path)
 	if err != nil {
 		return nil, err
@@ -139,35 +219,10 @@ func (p *Prog) fileType(path string) (fs.FileMode, error) {
 }
 
 // header returns the line written before the changes of files compared
-// under directories, holding the options as they'd be given on the command
-// line.
+// under directories, holding the command line as it was given.
 func (o options) header(name1, name2 string) string {
 	var b strings.Builder
-	b.WriteString("diff")
-	if o.blank {
-		b.WriteString(" -b")
-	}
-	if o.recursive {
-		b.WriteString(" -r")
-	}
-	switch o.format {
-	case contextFormat:
-		if o.lines == 3 {
-			b.WriteString(" -c")
-		} else {
-			fmt.Fprintf(&b, " -C %d", o.lines)
-		}
-	case unifiedFormat:
-		if o.lines == 3 {
-			b.WriteString(" -u")
-		} else {
-			fmt.Fprintf(&b, " -U %d", o.lines)
-		}
-	case edFormat:
-		b.WriteString(" -e")
-	case forwardEdFormat:
-		b.WriteString(" -f")
-	}
+	b.WriteString(o.cmdline)
 	fmt.Fprintf(&b, " %s %s", name1, name2)
 	return b.String()
 }

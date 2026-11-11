@@ -9,7 +9,8 @@ import (
 // Normal writes the changes that turn a into b in the diff default format:
 // an ed-like command line per change, such as "1,3c5,7", followed by the
 // "< " lines of a and the "> " lines of b, split by "---".
-func Normal(w io.Writer, a, b []string, changes []Change) error {
+func Normal(w io.Writer, a, b []string, changes []Change, o ...LineOpts) error {
+	lo := lineOpts(o)
 	for _, c := range changes {
 		var cmd strings.Builder
 		switch {
@@ -31,7 +32,7 @@ func Normal(w io.Writer, a, b []string, changes []Change) error {
 		if _, err := io.WriteString(w, cmd.String()); err != nil {
 			return err
 		}
-		if err := writeLines(w, "< ", a[c.A0:c.A1]); err != nil {
+		if err := writeLines(w, "<", a[c.A0:c.A1], lo); err != nil {
 			return err
 		}
 		if c.A0 != c.A1 && c.B0 != c.B1 {
@@ -39,7 +40,7 @@ func Normal(w io.Writer, a, b []string, changes []Change) error {
 				return err
 			}
 		}
-		if err := writeLines(w, "> ", b[c.B0:c.B1]); err != nil {
+		if err := writeLines(w, ">", b[c.B0:c.B1], lo); err != nil {
 			return err
 		}
 	}
@@ -56,25 +57,12 @@ func writeRange(b *strings.Builder, first, last int) {
 	}
 }
 
-// writeLines writes the lines prefixed with mark, flagging the last line of
-// a file that lacks a trailing newline.
-func writeLines(w io.Writer, mark string, lines []string) error {
+// writeLines writes the lines flagged with the flag, marking each one as
+// its format does.
+func writeLines(w io.Writer, flag string, lines []string, lo LineOpts) error {
+	mark := lo.spaceMark(flag)
 	for _, line := range lines {
-		if err := writeLine(w, mark, line); err != nil {
-			return err
-		}
-	}
-	return nil
-}
-
-// writeLine writes one line prefixed with mark, flagging the last line of a
-// file that lacks a trailing newline.
-func writeLine(w io.Writer, mark, line string) error {
-	if _, err := io.WriteString(w, mark+line); err != nil {
-		return err
-	}
-	if !strings.HasSuffix(line, "\n") {
-		if _, err := io.WriteString(w, "\n\\ No newline at end of file\n"); err != nil {
+		if err := writeLine(w, mark, line, lo); err != nil {
 			return err
 		}
 	}
