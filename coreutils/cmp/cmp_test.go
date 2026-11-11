@@ -54,6 +54,13 @@ func (r *cancelReader) Read([]byte) (int, error) {
 //	bin2.txt:   {0x01, 'A', 0x0a}
 //	multi1.txt: "abcabc"
 //	multi2.txt: "xbcybz"
+//	skip1.txt:  "1234abcd" (skip2.txt with a prefix)
+//	skip2.txt:  "abcd"
+//	hi1.txt:    {0xff}
+//	hi2.txt:    {0x80}
+//	del1.txt:   {0x7f}
+//	oct1.txt:   "12345678x"
+//	oct2.txt:   "12345678y" (oct1.txt with a difference at byte 9)
 //	sub/a.txt:  "z\n"
 //	sub/b.txt:  "y\n"
 func testFS() fsx.MemFS {
@@ -70,6 +77,13 @@ func testFS() fsx.MemFS {
 		"bin2.txt":   {Data: []byte{0x01, 'A', 0x0a}},
 		"multi1.txt": {Data: []byte("abcabc")},
 		"multi2.txt": {Data: []byte("xbcybz")},
+		"skip1.txt":  {Data: []byte("1234abcd")},
+		"skip2.txt":  {Data: []byte("abcd")},
+		"hi1.txt":    {Data: []byte{0xff}},
+		"hi2.txt":    {Data: []byte{0x80}},
+		"del1.txt":   {Data: []byte{0x7f}},
+		"oct1.txt":   {Data: []byte("12345678x")},
+		"oct2.txt":   {Data: []byte("12345678y")},
 		"sub/a.txt":  {Data: []byte("z\n")},
 		"sub/b.txt":  {Data: []byte("y\n")},
 	}
@@ -145,24 +159,31 @@ func TestRunDefaults(t *testing.T) {
 			args: []string{"a.txt", "a.txt"},
 		},
 		{
+			name:     "a file with itself and different skips still compares",
+			fsys:     testFS(),
+			args:     []string{"a.txt", "a.txt", "1"},
+			want:     "a.txt a.txt differ: byte 1, line 1\n",
+			wantExit: 1,
+		},
+		{
 			name:     "the first difference is reported",
 			fsys:     testFS(),
 			args:     []string{"a.txt", "b.txt"},
-			want:     "a.txt b.txt differ: char 5, line 2\n",
+			want:     "a.txt b.txt differ: byte 5, line 2\n",
 			wantExit: 1,
 		},
 		{
 			name:     "a difference in the first byte is on line 1",
 			fsys:     testFS(),
 			args:     []string{"a.txt", "d.txt"},
-			want:     "a.txt d.txt differ: char 1, line 1\n",
+			want:     "a.txt d.txt differ: byte 1, line 1\n",
 			wantExit: 1,
 		},
 		{
 			name:     "binary files are compared byte by byte",
 			fsys:     testFS(),
 			args:     []string{"bin1.txt", "bin2.txt"},
-			want:     "bin1.txt bin2.txt differ: char 3, line 1\n",
+			want:     "bin1.txt bin2.txt differ: byte 3, line 1\n",
 			wantExit: 1,
 		},
 		{
@@ -203,7 +224,7 @@ func TestRunDefaults(t *testing.T) {
 			fsys:     testFS(),
 			stdin:    strings.NewReader("ab\ncx\n"),
 			args:     []string{"-", "a.txt"},
-			want:     "- a.txt differ: char 5, line 2\n",
+			want:     "- a.txt differ: byte 5, line 2\n",
 			wantExit: 1,
 		},
 		{
@@ -211,7 +232,29 @@ func TestRunDefaults(t *testing.T) {
 			fsys:     testFS(),
 			stdin:    strings.NewReader("xb\ncd\n"),
 			args:     []string{"a.txt", "-"},
-			want:     "a.txt - differ: char 1, line 1\n",
+			want:     "a.txt - differ: byte 1, line 1\n",
+			wantExit: 1,
+		},
+		{
+			name:  "a missing FILE2 is the standard input",
+			fsys:  testFS(),
+			stdin: strings.NewReader("ab\ncd\n"),
+			args:  []string{"a.txt"},
+		},
+		{
+			name:     "the missing FILE2 is reported as '-'",
+			fsys:     testFS(),
+			stdin:    strings.NewReader("ab\ncx\n"),
+			args:     []string{"a.txt"},
+			want:     "a.txt - differ: byte 5, line 2\n",
+			wantExit: 1,
+		},
+		{
+			name:     "the standard input as FILE2 can be the shorter file",
+			fsys:     testFS(),
+			stdin:    strings.NewReader("ab\n"),
+			args:     []string{"a.txt"},
+			wantErr:  "cmp: EOF on '-' after byte 3, line 1\n",
 			wantExit: 1,
 		},
 		{
@@ -234,7 +277,7 @@ func TestRunDefaults(t *testing.T) {
 			name:     "a double dash ends the options",
 			fsys:     testFS(),
 			args:     []string{"--", "a.txt", "b.txt"},
-			want:     "a.txt b.txt differ: char 5, line 2\n",
+			want:     "a.txt b.txt differ: byte 5, line 2\n",
 			wantExit: 1,
 		},
 		{
@@ -242,14 +285,14 @@ func TestRunDefaults(t *testing.T) {
 			fsys:     testFS(),
 			dir:      "sub",
 			args:     []string{"a.txt", "b.txt"},
-			want:     "a.txt b.txt differ: char 1, line 1\n",
+			want:     "a.txt b.txt differ: byte 1, line 1\n",
 			wantExit: 1,
 		},
 		{
 			name:     "a difference beyond the first block is reported",
 			fsys:     big,
 			args:     []string{"big1.txt", "big2.txt"},
-			want:     "big1.txt big2.txt differ: char 40001, line 1\n",
+			want:     "big1.txt big2.txt differ: byte 40001, line 1\n",
 			wantExit: 1,
 		},
 		{
@@ -396,6 +439,299 @@ func TestRunOptions(t *testing.T) {
 	}
 }
 
+func TestRunPrintBytes(t *testing.T) {
+	tests := []testCase{
+		{
+			name:     "-b appends the differing bytes to the message",
+			fsys:     testFS(),
+			args:     []string{"-b", "a.txt", "b.txt"},
+			want:     "a.txt b.txt differ: byte 5, line 2 is 144 d 170 x\n",
+			wantExit: 1,
+		},
+		{
+			name:     "-b quotes control bytes",
+			fsys:     testFS(),
+			args:     []string{"-b", "bin1.txt", "bin2.txt"},
+			want:     "bin1.txt bin2.txt differ: byte 3, line 1 is   7 ^G  12 ^J\n",
+			wantExit: 1,
+		},
+		{
+			name:     "-b quotes the delete byte",
+			fsys:     testFS(),
+			args:     []string{"-b", "del1.txt", "a.txt"},
+			want:     "del1.txt a.txt differ: byte 1, line 1 is 177 ^? 141 a\n",
+			wantExit: 1,
+		},
+		{
+			name:     "-b quotes meta bytes",
+			fsys:     testFS(),
+			args:     []string{"-b", "hi1.txt", "hi2.txt"},
+			want:     "hi1.txt hi2.txt differ: byte 1, line 1 is 377 M-^? 200 M-^@\n",
+			wantExit: 1,
+		},
+		{
+			name:     "--print-bytes stands for -b",
+			fsys:     testFS(),
+			args:     []string{"--print-bytes", "a.txt", "b.txt"},
+			want:     "a.txt b.txt differ: byte 5, line 2 is 144 d 170 x\n",
+			wantExit: 1,
+		},
+		{
+			name:     "-b can be repeated",
+			fsys:     testFS(),
+			args:     []string{"-bb", "a.txt", "b.txt"},
+			want:     "a.txt b.txt differ: byte 5, line 2 is 144 d 170 x\n",
+			wantExit: 1,
+		},
+		{
+			name:     "-lb lists the bytes of every difference",
+			fsys:     testFS(),
+			args:     []string{"-lb", "multi1.txt", "multi2.txt"},
+			want:     "1 141 a    170 x\n4 141 a    171 y\n6 143 c    172 z\n",
+			wantExit: 1,
+		},
+		{
+			name:     "-lb quotes the bytes of a difference",
+			fsys:     testFS(),
+			args:     []string{"-lb", "bin1.txt", "bin2.txt"},
+			want:     "3   7 ^G    12 ^J\n",
+			wantExit: 1,
+		},
+		{
+			name:     "-lb quotes meta bytes without padding them",
+			fsys:     testFS(),
+			args:     []string{"-lb", "hi1.txt", "hi2.txt"},
+			want:     "1 377 M-^? 200 M-^@\n",
+			wantExit: 1,
+		},
+		{
+			name:     "-b keeps the EOF diagnostic of a shorter file",
+			fsys:     testFS(),
+			args:     []string{"-b", "a.txt", "c.txt"},
+			wantErr:  "cmp: EOF on 'c.txt' after byte 3, line 1\n",
+			wantExit: 1,
+		},
+		{
+			name:     "-b is silent with -s",
+			fsys:     testFS(),
+			args:     []string{"-sb", "a.txt", "b.txt"},
+			wantExit: 1,
+		},
+		{
+			name:     "-b reads the standard input",
+			fsys:     testFS(),
+			stdin:    strings.NewReader("ab\ncx\n"),
+			args:     []string{"-b", "a.txt"},
+			want:     "a.txt - differ: byte 5, line 2 is 144 d 170 x\n",
+			wantExit: 1,
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			runCase(t, test)
+		})
+	}
+}
+
+func TestRunIgnoreInitial(t *testing.T) {
+	tests := []testCase{
+		{
+			name:     "-i skips the first bytes of both files",
+			fsys:     testFS(),
+			args:     []string{"-i", "4", "a.txt", "b.txt"},
+			want:     "a.txt b.txt differ: byte 1, line 1\n",
+			wantExit: 1,
+		},
+		{
+			name:     "-i resets the byte and line numbering",
+			fsys:     testFS(),
+			args:     []string{"-i", "1", "a.txt", "b.txt"},
+			want:     "a.txt b.txt differ: byte 4, line 2\n",
+			wantExit: 1,
+		},
+		{
+			name:     "-i with a count for each file",
+			fsys:     testFS(),
+			args:     []string{"-i", "1:3", "a.txt", "b.txt"},
+			want:     "a.txt b.txt differ: byte 1, line 1\n",
+			wantExit: 1,
+		},
+		{
+			name:     "--ignore-initial stands for -i",
+			fsys:     testFS(),
+			args:     []string{"--ignore-initial=4", "a.txt", "b.txt"},
+			want:     "a.txt b.txt differ: byte 1, line 1\n",
+			wantExit: 1,
+		},
+		{
+			name:     "--ignore-initial takes its argument separately",
+			fsys:     testFS(),
+			args:     []string{"--ignore-initial", "4", "a.txt", "b.txt"},
+			want:     "a.txt b.txt differ: byte 1, line 1\n",
+			wantExit: 1,
+		},
+		{
+			name:     "the skip can be grouped with other options",
+			fsys:     testFS(),
+			args:     []string{"-li3", "multi1.txt", "multi2.txt"},
+			want:     "1 141 171\n3 143 172\n",
+			wantExit: 1,
+		},
+		{
+			name:     "the skip counts restart the -l numbering",
+			fsys:     testFS(),
+			args:     []string{"-l", "-i", "3", "multi1.txt", "multi2.txt"},
+			want:     "1 141 171\n3 143 172\n",
+			wantExit: 1,
+		},
+		{
+			name:     "the skip can be hexadecimal",
+			fsys:     testFS(),
+			args:     []string{"-i", "0x4", "a.txt", "b.txt"},
+			want:     "a.txt b.txt differ: byte 1, line 1\n",
+			wantExit: 1,
+		},
+		{
+			name: "the skip can be octal",
+			fsys: testFS(),
+			args: []string{"-i", "010", "a.txt", "b.txt"},
+		},
+		{
+			name: "the skip can have a suffix",
+			fsys: testFS(),
+			args: []string{"-i", "1K", "a.txt", "b.txt"},
+		},
+		{
+			name: "a skip beyond both files compares nothing",
+			fsys: testFS(),
+			args: []string{"-i", "100", "a.txt", "b.txt"},
+		},
+		{
+			name:     "a skip beyond one file only reports it as empty",
+			fsys:     testFS(),
+			args:     []string{"-i", "100:0", "a.txt", "b.txt"},
+			wantErr:  "cmp: EOF on 'a.txt' which is empty\n",
+			wantExit: 1,
+		},
+		{
+			name:     "repeated -i keeps the largest count",
+			fsys:     testFS(),
+			args:     []string{"-i", "4", "-i", "2", "a.txt", "b.txt"},
+			want:     "a.txt b.txt differ: byte 1, line 1\n",
+			wantExit: 1,
+		},
+		{
+			name:     "a single count of repeated -i applies to both files",
+			fsys:     testFS(),
+			args:     []string{"-i", "1:3", "-i", "2", "a.txt", "b.txt"},
+			want:     "a.txt b.txt differ: byte 1, line 1\n",
+			wantExit: 1,
+		},
+		{
+			name:     "-s keeps the status of a skipped difference",
+			fsys:     testFS(),
+			args:     []string{"-si", "4", "a.txt", "b.txt"},
+			wantExit: 1,
+		},
+		{
+			name: "-s keeps the identical status beyond a difference",
+			fsys: testFS(),
+			args: []string{"-si", "5", "a.txt", "b.txt"},
+		},
+		{
+			name:     "-i reads the standard input",
+			fsys:     testFS(),
+			stdin:    strings.NewReader("xxabcd"),
+			args:     []string{"-i", "2", "skip1.txt"},
+			want:     "skip1.txt - differ: byte 1, line 1\n",
+			wantExit: 1,
+		},
+		{
+			name:     "-i with a skip on the standard input only",
+			fsys:     testFS(),
+			stdin:    strings.NewReader("xxabcd"),
+			args:     []string{"-i", "2:0", "-", "skip1.txt"},
+			want:     "- skip1.txt differ: byte 1, line 1\n",
+			wantExit: 1,
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			runCase(t, test)
+		})
+	}
+}
+
+func TestRunSkipOperands(t *testing.T) {
+	tests := []testCase{
+		{
+			name:     "a SKIP1 operand skips FILE1 only",
+			fsys:     testFS(),
+			args:     []string{"skip1.txt", "skip2.txt", "4"},
+			wantExit: 0,
+		},
+		{
+			name:     "SKIP1 and SKIP2 skip each file",
+			fsys:     testFS(),
+			args:     []string{"skip1.txt", "skip2.txt", "4", "4"},
+			wantErr:  "cmp: EOF on 'skip2.txt' which is empty\n",
+			wantExit: 1,
+		},
+		{
+			name:     "a skip beyond one file reports it as empty",
+			fsys:     testFS(),
+			args:     []string{"a.txt", "b.txt", "100"},
+			wantErr:  "cmp: EOF on 'a.txt' which is empty\n",
+			wantExit: 1,
+		},
+		{
+			name:     "the skip operands combine with -i, keeping the largest",
+			fsys:     testFS(),
+			args:     []string{"-i", "2", "a.txt", "b.txt", "5"},
+			wantErr:  "cmp: EOF on 'a.txt' after byte 1, line 1\n",
+			wantExit: 1,
+		},
+		{
+			name:     "the skip operand can be hexadecimal",
+			fsys:     testFS(),
+			args:     []string{"a.txt", "b.txt", "0x4"},
+			want:     "a.txt b.txt differ: byte 1, line 1\n",
+			wantExit: 1,
+		},
+		{
+			name:     "the skip operands work with -l",
+			fsys:     testFS(),
+			args:     []string{"-l", "multi1.txt", "multi2.txt", "3"},
+			want:     "1 141 170\n",
+			wantErr:  "cmp: EOF on 'multi1.txt' after byte 3\n",
+			wantExit: 1,
+		},
+		{
+			name:     "the skip operands are accepted without a warning",
+			fsys:     testFS(),
+			args:     []string{"a.txt", "b.txt", "4", "4"},
+			want:     "a.txt b.txt differ: byte 1, line 1\n",
+			wantExit: 1,
+		},
+		{
+			name:     "the skip operands read the standard input",
+			fsys:     testFS(),
+			stdin:    strings.NewReader("xx1234abcd"),
+			args:     []string{"-", "skip2.txt", "2", "0"},
+			want:     "- skip2.txt differ: byte 1, line 1\n",
+			wantExit: 1,
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			runCase(t, test)
+		})
+	}
+}
+
 func TestRunBytesLimit(t *testing.T) {
 	big := fsx.MemFS{
 		"big1.txt": {Data: []byte(strings.Repeat("a", 40000) + "b")},
@@ -408,14 +744,14 @@ func TestRunBytesLimit(t *testing.T) {
 			name:     "a difference within the limit is reported",
 			fsys:     testFS(),
 			args:     []string{"-n", "5", "a.txt", "b.txt"},
-			want:     "a.txt b.txt differ: char 5, line 2\n",
+			want:     "a.txt b.txt differ: byte 5, line 2\n",
 			wantExit: 1,
 		},
 		{
 			name:     "a limit beyond the files still reports the difference",
 			fsys:     testFS(),
 			args:     []string{"-n", "100", "a.txt", "b.txt"},
-			want:     "a.txt b.txt differ: char 5, line 2\n",
+			want:     "a.txt b.txt differ: byte 5, line 2\n",
 			wantExit: 1,
 		},
 		{
@@ -461,7 +797,7 @@ func TestRunBytesLimit(t *testing.T) {
 			name:     "a difference after a block within the limit is reported",
 			fsys:     big,
 			args:     []string{"-n", "40001", "big1.txt", "big2.txt"},
-			want:     "big1.txt big2.txt differ: char 40001, line 1\n",
+			want:     "big1.txt big2.txt differ: byte 40001, line 1\n",
 			wantExit: 1,
 		},
 		{
@@ -519,7 +855,7 @@ func TestRunBytesLimit(t *testing.T) {
 			name:     "the limit can be attached",
 			fsys:     testFS(),
 			args:     []string{"-n5", "a.txt", "b.txt"},
-			want:     "a.txt b.txt differ: char 5, line 2\n",
+			want:     "a.txt b.txt differ: byte 5, line 2\n",
 			wantExit: 1,
 		},
 		{
@@ -533,14 +869,61 @@ func TestRunBytesLimit(t *testing.T) {
 			name:     "--bytes stands for -n",
 			fsys:     testFS(),
 			args:     []string{"--bytes=5", "a.txt", "b.txt"},
-			want:     "a.txt b.txt differ: char 5, line 2\n",
+			want:     "a.txt b.txt differ: byte 5, line 2\n",
 			wantExit: 1,
 		},
 		{
 			name:     "--bytes takes its argument separately",
 			fsys:     testFS(),
 			args:     []string{"--bytes", "5", "a.txt", "b.txt"},
-			want:     "a.txt b.txt differ: char 5, line 2\n",
+			want:     "a.txt b.txt differ: byte 5, line 2\n",
+			wantExit: 1,
+		},
+		{
+			name:     "the limit can be hexadecimal",
+			fsys:     testFS(),
+			args:     []string{"-n", "0x5", "a.txt", "b.txt"},
+			want:     "a.txt b.txt differ: byte 5, line 2\n",
+			wantExit: 1,
+		},
+		{
+			name:     "the limit can be octal",
+			fsys:     testFS(),
+			args:     []string{"-n", "011", "oct1.txt", "oct2.txt"},
+			want:     "oct1.txt oct2.txt differ: byte 9, line 1\n",
+			wantExit: 1,
+		},
+		{
+			name: "an octal limit counts the leading zero",
+			fsys: testFS(),
+			args: []string{"-n", "010", "oct1.txt", "oct2.txt"},
+		},
+		{
+			name:     "the limit can have a binary suffix",
+			fsys:     testFS(),
+			args:     []string{"-n", "1K", "oct1.txt", "oct2.txt"},
+			want:     "oct1.txt oct2.txt differ: byte 9, line 1\n",
+			wantExit: 1,
+		},
+		{
+			name:     "the limit can have a decimal suffix",
+			fsys:     testFS(),
+			args:     []string{"-n", "1kB", "oct1.txt", "oct2.txt"},
+			want:     "oct1.txt oct2.txt differ: byte 9, line 1\n",
+			wantExit: 1,
+		},
+		{
+			name:     "the limit can have an explicit binary suffix",
+			fsys:     testFS(),
+			args:     []string{"-n", "1KiB", "oct1.txt", "oct2.txt"},
+			want:     "oct1.txt oct2.txt differ: byte 9, line 1\n",
+			wantExit: 1,
+		},
+		{
+			name:     "the limit can be signed with a plus",
+			fsys:     testFS(),
+			args:     []string{"-n", "+9", "oct1.txt", "oct2.txt"},
+			want:     "oct1.txt oct2.txt differ: byte 9, line 1\n",
 			wantExit: 1,
 		},
 		{
@@ -566,16 +949,33 @@ func TestRunInvalidUsage(t *testing.T) {
 			wantExit: 2,
 		},
 		{
-			name:     "one operand",
+			name:     "the standard input may only be specified once",
 			fsys:     testFS(),
-			args:     []string{"a.txt"},
-			wantErr:  "cmp: missing operand\nTry 'cmp --help' for more information.\n",
+			stdin:    strings.NewReader("ab\ncd\n"),
+			args:     []string{"-", "-"},
+			wantErr:  "cmp: the standard input may only be specified once\nTry 'cmp --help' for more information.\n",
+			wantExit: 2,
+		},
+		{
+			name:     "a missing FILE2 makes the standard input twice",
+			fsys:     testFS(),
+			stdin:    strings.NewReader("ab\ncd\n"),
+			args:     []string{"-"},
+			wantErr:  "cmp: the standard input may only be specified once\nTry 'cmp --help' for more information.\n",
+			wantExit: 2,
+		},
+		{
+			name:     "the standard input is rejected twice with skips",
+			fsys:     testFS(),
+			stdin:    strings.NewReader("ab\ncd\n"),
+			args:     []string{"-", "-", "1", "2"},
+			wantErr:  "cmp: the standard input may only be specified once\nTry 'cmp --help' for more information.\n",
 			wantExit: 2,
 		},
 		{
 			name:     "an extra operand",
 			fsys:     testFS(),
-			args:     []string{"a.txt", "b.txt", "third.txt"},
+			args:     []string{"a.txt", "b.txt", "1", "2", "third.txt"},
 			wantErr:  "cmp: extra operand 'third.txt'\nTry 'cmp --help' for more information.\n",
 			wantExit: 2,
 		},
@@ -612,6 +1012,118 @@ func TestRunInvalidUsage(t *testing.T) {
 			fsys:     testFS(),
 			args:     []string{"--bytes=", "a.txt", "b.txt"},
 			wantErr:  "cmp: invalid --bytes value ''\nTry 'cmp --help' for more information.\n",
+			wantExit: 2,
+		},
+		{
+			name:     "a limit with an unsupported suffix",
+			fsys:     testFS(),
+			args:     []string{"-n", "1b", "a.txt", "b.txt"},
+			wantErr:  "cmp: invalid --bytes value '1b'\nTry 'cmp --help' for more information.\n",
+			wantExit: 2,
+		},
+		{
+			name:     "a limit with trailing junk",
+			fsys:     testFS(),
+			args:     []string{"-n", "5x", "a.txt", "b.txt"},
+			wantErr:  "cmp: invalid --bytes value '5x'\nTry 'cmp --help' for more information.\n",
+			wantExit: 2,
+		},
+		{
+			name:     "a hexadecimal limit without digits",
+			fsys:     testFS(),
+			args:     []string{"-n", "0x", "a.txt", "b.txt"},
+			wantErr:  "cmp: invalid --bytes value '0x'\nTry 'cmp --help' for more information.\n",
+			wantExit: 2,
+		},
+		{
+			name:     "a number with a non-octal digit after a zero",
+			fsys:     testFS(),
+			args:     []string{"-n", "09", "a.txt", "b.txt"},
+			wantErr:  "cmp: invalid --bytes value '09'\nTry 'cmp --help' for more information.\n",
+			wantExit: 2,
+		},
+		{
+			name:     "an invalid skip value",
+			fsys:     testFS(),
+			args:     []string{"-i", "x", "a.txt", "b.txt"},
+			wantErr:  "cmp: invalid --ignore-initial value 'x'\nTry 'cmp --help' for more information.\n",
+			wantExit: 2,
+		},
+		{
+			name:     "a negative skip value",
+			fsys:     testFS(),
+			args:     []string{"-i", "-1", "a.txt", "b.txt"},
+			wantErr:  "cmp: invalid --ignore-initial value '-1'\nTry 'cmp --help' for more information.\n",
+			wantExit: 2,
+		},
+		{
+			name:     "an empty skip value",
+			fsys:     testFS(),
+			args:     []string{"--ignore-initial=", "a.txt", "b.txt"},
+			wantErr:  "cmp: invalid --ignore-initial value ''\nTry 'cmp --help' for more information.\n",
+			wantExit: 2,
+		},
+		{
+			name:     "a skip value ending with a colon",
+			fsys:     testFS(),
+			args:     []string{"-i", "4:", "a.txt", "b.txt"},
+			wantErr:  "cmp: invalid --ignore-initial value ''\nTry 'cmp --help' for more information.\n",
+			wantExit: 2,
+		},
+		{
+			name:     "a skip value starting with a colon",
+			fsys:     testFS(),
+			args:     []string{"-i", ":4", "a.txt", "b.txt"},
+			wantErr:  "cmp: invalid --ignore-initial value ':4'\nTry 'cmp --help' for more information.\n",
+			wantExit: 2,
+		},
+		{
+			name:     "a skip value with an invalid second count",
+			fsys:     testFS(),
+			args:     []string{"-i", "4:x", "a.txt", "b.txt"},
+			wantErr:  "cmp: invalid --ignore-initial value 'x'\nTry 'cmp --help' for more information.\n",
+			wantExit: 2,
+		},
+		{
+			name:     "a skip value with two colons",
+			fsys:     testFS(),
+			args:     []string{"-i", "1:1:1", "a.txt", "b.txt"},
+			wantErr:  "cmp: invalid --ignore-initial value '1:1'\nTry 'cmp --help' for more information.\n",
+			wantExit: 2,
+		},
+		{
+			name:     "an invalid SKIP1 operand",
+			fsys:     testFS(),
+			args:     []string{"a.txt", "b.txt", "x"},
+			wantErr:  "cmp: invalid --ignore-initial value 'x'\nTry 'cmp --help' for more information.\n",
+			wantExit: 2,
+		},
+		{
+			name:     "an invalid SKIP2 operand",
+			fsys:     testFS(),
+			args:     []string{"a.txt", "b.txt", "1", "x"},
+			wantErr:  "cmp: invalid --ignore-initial value 'x'\nTry 'cmp --help' for more information.\n",
+			wantExit: 2,
+		},
+		{
+			name:     "-i without an argument",
+			fsys:     testFS(),
+			args:     []string{"-i"},
+			wantErr:  "cmp: option requires an argument -- 'i'\nTry 'cmp --help' for more information.\n",
+			wantExit: 2,
+		},
+		{
+			name:     "--ignore-initial without an argument",
+			fsys:     testFS(),
+			args:     []string{"--ignore-initial"},
+			wantErr:  "cmp: option '--ignore-initial' requires an argument\nTry 'cmp --help' for more information.\n",
+			wantExit: 2,
+		},
+		{
+			name:     "--print-bytes doesn't take an argument",
+			fsys:     testFS(),
+			args:     []string{"--print-bytes=1", "a.txt", "b.txt"},
+			wantErr:  "cmp: option '--print-bytes=1' doesn't allow an argument\nTry 'cmp --help' for more information.\n",
 			wantExit: 2,
 		},
 		{
@@ -789,6 +1301,30 @@ func TestHelpVersion(t *testing.T) {
 		stdout := new(bytes.Buffer)
 		rt := &coreutils.Runtime{Stdout: stdout, Stderr: new(bytes.Buffer)}
 		if err := New(rt).Run(t.Context(), "--version"); err != nil {
+			t.Fatalf("Run() error = %v, want nil (exit status 0)", err)
+		}
+		want := "cmp (charm.land/snail/coreutils) " + coreutils.Version + "\nhttps://charm.land/snail\n"
+		if got := stdout.String(); got != want {
+			t.Errorf("Run() stdout = %q, want %q", got, want)
+		}
+	})
+
+	t.Run("short version", func(t *testing.T) {
+		stdout := new(bytes.Buffer)
+		rt := &coreutils.Runtime{Stdout: stdout, Stderr: new(bytes.Buffer)}
+		if err := New(rt).Run(t.Context(), "-v"); err != nil {
+			t.Fatalf("Run() error = %v, want nil (exit status 0)", err)
+		}
+		want := "cmp (charm.land/snail/coreutils) " + coreutils.Version + "\nhttps://charm.land/snail\n"
+		if got := stdout.String(); got != want {
+			t.Errorf("Run() stdout = %q, want %q", got, want)
+		}
+	})
+
+	t.Run("short version wins over the operands", func(t *testing.T) {
+		stdout := new(bytes.Buffer)
+		rt := &coreutils.Runtime{Stdout: stdout, Stderr: new(bytes.Buffer)}
+		if err := New(rt).Run(t.Context(), "-v", "a.txt"); err != nil {
 			t.Fatalf("Run() error = %v, want nil (exit status 0)", err)
 		}
 		want := "cmp (charm.land/snail/coreutils) " + coreutils.Version + "\nhttps://charm.land/snail\n"

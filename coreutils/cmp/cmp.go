@@ -1,8 +1,10 @@
-// Package cmp implements the POSIX cmp utility.
+// Package cmp implements the POSIX and GNU cmp utilities.
 //
 // It compares two files byte by byte, writing the position of the first
 // difference, or every differing byte with -l. An operand of "-" means the
-// standard input.
+// standard input, which is also compared to when FILE2 is missing. The
+// SKIP1 and SKIP2 operands, like the -i option, skip the given number of
+// bytes at the beginning of each file.
 package cmp
 
 import (
@@ -13,12 +15,14 @@ import (
 	"fmt"
 	"io"
 	"strconv"
+	"strings"
 
 	"charm.land/snail/coreutils"
 
 	"charm.land/snail/coreutils/internal/getopt"
 	"charm.land/snail/coreutils/internal/input"
 	"charm.land/snail/coreutils/internal/patherr"
+	"charm.land/snail/coreutils/internal/sizeparse"
 	"charm.land/snail/coreutils/internal/stdopts"
 )
 
@@ -46,19 +50,20 @@ func (p *Prog) Run(ctx context.Context, args ...string) error {
 		stdopts.TryHelp(p.Runtime, "cmp")
 		return &coreutils.ExitError{Code: 2}
 	}
-	if len(operands) < 2 {
-		p.errorf("missing operand")
-		stdopts.TryHelp(p.Runtime, "cmp")
-		return &coreutils.ExitError{Code: 2}
+	if opts.version {
+		fmt.Fprintf(p.Stdout, "cmp (charm.land/snail/coreutils) %s\nhttps://charm.land/snail\n",
+			coreutils.Version)
+		return nil
 	}
-	if len(operands) > 2 {
-		p.errorf("extra operand '%s'", operands[2])
+	names, err := parseOperands(operands, &opts)
+	if err != nil {
+		p.errorf("%v", err)
 		stdopts.TryHelp(p.Runtime, "cmp")
 		return &coreutils.ExitError{Code: 2}
 	}
 
 	var readers [2]io.Reader
-	for i, name := range operands {
+	for i, name := range names {
 		r, err := input.Open(p.Runtime, ctx, input.New(name))
 		if err != nil {
 			if !opts.silent {
@@ -69,8 +74,13 @@ func (p *Prog) Run(ctx context.Context, args ...string) error {
 		readers[i] = r
 		defer r.Close()
 	}
+	// Two files with the same name and the same skip are identical, as
+	// the same data would be read from both.
+	if names[0] == names[1] && opts.skip[0] == opts.skip[1] {
+		return nil
+	}
 
-	status, err := p.compare(ctx, readers[0], readers[1], [2]string{operands[0], operands[1]}, opts)
+	status, err := p.compare(ctx, readers[0], readers[1], names, opts)
 	if err != nil {
 		var writeErr *writeError
 		var readErr *input.ReadError
@@ -93,6 +103,38 @@ func (p *Prog) Run(ctx context.Context, args ...string) error {
 	return nil
 }
 
+// parseOperands maps the operands to the names of both files and their skips.
+// The standard input is read for a missing FILE2, and the SKIP1 and SKIP2
+// operands stand for the -i option, one file each.
+func parseOperands(operands []string, opts *options) ([2]string, error) {
+	if len(operands) == 0 {
+		return [2]string{}, errors.New("missing operand")
+	}
+	names := [2]string{operands[0], "-"}
+	if len(operands) > 1 {
+		names[1] = operands[1]
+	}
+	// Comparing the standard input with itself is undefined: the stream
+	// can't be read twice, as the first read consumes what the second
+	// would compare.
+	if names[0] == "-" && names[1] == "-" {
+		return names, errors.New("the standard input may only be specified once")
+	}
+	for i := 2; i < len(operands) && i < 4; i++ {
+		skip, err := parseCount(operands[i])
+		if err != nil {
+			return names, fmt.Errorf("invalid --ignore-initial value '%s'", operands[i])
+		}
+		if skip > opts.skip[i-2] {
+			opts.skip[i-2] = skip
+		}
+	}
+	if len(operands) > 4 {
+		return names, fmt.Errorf("extra operand '%s'", operands[4])
+	}
+	return names, nil
+}
+
 // bufSize is the size of the blocks read from each file.
 const bufSize = 32 * 1024
 
@@ -100,6 +142,16 @@ const bufSize = 32 * 1024
 // standard output as the options demand. It returns 1 when the files differ,
 // and 0 when they are identical.
 func (p *Prog) compare(ctx context.Context, r1, r2 io.Reader, names [2]string, opts options) (int, error) {
+	// The skipped initial prefixes are read and discarded, as the files
+	// may not be seekable.
+	for i, r := range [2]io.Reader{r1, r2} {
+		if opts.skip[i] > 0 {
+			if _, err := io.CopyN(io.Discard, r, opts.skip[i]); err != nil && !errors.Is(err, io.EOF) {
+				return 0, &input.ReadError{Label: names[i], Err: err}
+			}
+		}
+	}
+
 	br1 := bufio.NewReader(r1)
 	br2 := bufio.NewReader(r2)
 	buf1 := make([]byte, bufSize)
@@ -142,14 +194,14 @@ func (p *Prog) compare(ctx context.Context, r1, r2 io.Reader, names [2]string, o
 				differing = true
 				for i := diff; i < smaller; i++ {
 					if buf1[i] != buf2[i] {
-						if err := p.writeDiff(byteNumber+int64(i), buf1[i], buf2[i]); err != nil {
+						if err := p.writeDiff(byteNumber+int64(i), buf1[i], buf2[i], opts); err != nil {
 							return 0, err
 						}
 					}
 				}
 			} else {
 				lineNumber += countNewlines(buf1[:diff])
-				if err := p.writeFirstDiff(names, byteNumber+int64(diff), lineNumber); err != nil {
+				if err := p.writeFirstDiff(names, byteNumber+int64(diff), lineNumber, buf1[diff], buf2[diff], opts); err != nil {
 					return 0, err
 				}
 				return 1, nil
@@ -183,9 +235,15 @@ func (p *Prog) compare(ctx context.Context, r1, r2 io.Reader, names [2]string, o
 }
 
 // writeFirstDiff writes the message pointing at the first difference.
-func (p *Prog) writeFirstDiff(names [2]string, byteNumber, lineNumber int64) error {
-	_, err := fmt.Fprintf(p.Stdout, "%s %s differ: char %d, line %d\n",
-		names[0], names[1], byteNumber, lineNumber)
+func (p *Prog) writeFirstDiff(names [2]string, byteNumber, lineNumber int64, b1, b2 byte, opts options) error {
+	var err error
+	if opts.printBytes {
+		_, err = fmt.Fprintf(p.Stdout, "%s %s differ: byte %d, line %d is %3o %s %3o %s\n",
+			names[0], names[1], byteNumber, lineNumber, b1, printable(b1), b2, printable(b2))
+	} else {
+		_, err = fmt.Fprintf(p.Stdout, "%s %s differ: byte %d, line %d\n",
+			names[0], names[1], byteNumber, lineNumber)
+	}
 	if err != nil {
 		return &writeError{err: err}
 	}
@@ -193,8 +251,14 @@ func (p *Prog) writeFirstDiff(names [2]string, byteNumber, lineNumber int64) err
 }
 
 // writeDiff writes the message of a differing byte for -l.
-func (p *Prog) writeDiff(byteNumber int64, b1, b2 byte) error {
-	_, err := fmt.Fprintf(p.Stdout, "%d %o %o\n", byteNumber, b1, b2)
+func (p *Prog) writeDiff(byteNumber int64, b1, b2 byte, opts options) error {
+	var err error
+	if opts.printBytes {
+		_, err = fmt.Fprintf(p.Stdout, "%d %3o %-4s %3o %s\n",
+			byteNumber, b1, printable(b1), b2, printable(b2))
+	} else {
+		_, err = fmt.Fprintf(p.Stdout, "%d %o %o\n", byteNumber, b1, b2)
+	}
 	if err != nil {
 		return &writeError{err: err}
 	}
@@ -223,39 +287,55 @@ func (p *Prog) errorf(format string, args ...any) {
 
 // options holds the parsed command line options.
 type options struct {
-	list   bool
-	silent bool
-	bytes  int64 // -n; negative when the comparison is unlimited
+	list       bool
+	silent     bool
+	printBytes bool     // -b
+	version    bool     // -v
+	bytes      int64    // -n; negative when the comparison is unlimited
+	skip       [2]int64 // -i and the SKIP operands
 }
 
 // longOptions maps the long options of cmp to the short ones they stand for.
 var longOptions = map[string]rune{
-	"bytes":   'n',
-	"verbose": 'l',
-	"quiet":   's',
-	"silent":  's',
+	"print-bytes":    'b',
+	"ignore-initial": 'i',
+	"bytes":          'n',
+	"verbose":        'l',
+	"quiet":          's',
+	"silent":         's',
 }
 
 // optSet describes the options of cmp.
-var optSet = getopt.Set{Valued: "n", Long: longOptions}
+var optSet = getopt.Set{Valued: "in", Long: longOptions}
 
 // usage describes the options of cmp.
-const usage = `Usage: cmp [OPTION]... FILE1 FILE2
+const usage = `Usage: cmp [OPTION]... FILE1 [FILE2 [SKIP1 [SKIP2]]]
 Compare two files byte by byte.
 
-An operand of "-" is the standard input. An exit status of 1 means the
-files differ, and 2 that an error happened.
+The optional SKIP1 and SKIP2 specify the number of bytes to skip
+at the beginning of each file (zero by default).
 
+  -b, --print-bytes
+         print differing bytes
+  -i, --ignore-initial=SKIP
+         skip first SKIP bytes of both inputs
+  -i, --ignore-initial=SKIP1:SKIP2
+         skip first SKIP1 bytes of FILE1 and first SKIP2 bytes of FILE2
   -l, --verbose
-         output byte numbers and values of all differing bytes
-  -n, --bytes=N
-         compare at most N bytes
+         output byte numbers and differing byte values
+  -n, --bytes=LIMIT
+         compare at most LIMIT bytes
   -s, --quiet, --silent
          suppress all normal output
       --help
          display this help and exit
-      --version
+  -v, --version
          output version information and exit
+
+SKIP values may be followed by the following multiplicative suffixes:
+kB 1000, K 1024, MB 1,000,000, M 1,048,576, and so on for G, T, P, E, Z, Y.
+If a FILE is '-' or missing, read standard input.
+Exit status is 0 if inputs are the same, 1 if different, 2 if trouble.
 `
 
 // parseFlags parses the command line options. Option parsing stops at the
@@ -265,6 +345,12 @@ func parseFlags(args []string) (options, []string, error) {
 	var mode byte
 	operands, err := optSet.Parse(args, func(opt rune, value string) error {
 		switch opt {
+		case 'b':
+			opts.printBytes = true
+		case 'i':
+			if err := parseSkips(value, &opts.skip); err != nil {
+				return err
+			}
 		case 'l':
 			if mode != 0 && mode != 'l' {
 				return errors.New("options -l and -s are incompatible")
@@ -277,6 +363,8 @@ func parseFlags(args []string) (options, []string, error) {
 			}
 			mode = 's'
 			opts.silent = true
+		case 'v':
+			opts.version = true
 		case 'n':
 			limit, err := parseLimit(value)
 			if err != nil {
@@ -296,16 +384,143 @@ func parseFlags(args []string) (options, []string, error) {
 	return opts, operands, nil
 }
 
-// parseLimit parses a non-negative decimal byte count.
-func parseLimit(value string) (int64, error) {
-	if value == "" || value[0] == '+' || value[0] == '-' {
-		return 0, fmt.Errorf("invalid --bytes value '%s'", value)
+// parseSkips parses the value of -i into the skips of both files: a single
+// count applies to both files, while two counts split by a colon apply to
+// FILE1 and FILE2 each. Repeated options keep the largest count of a file.
+func parseSkips(value string, skip *[2]int64) error {
+	first, second, twoCounts := strings.Cut(value, ":")
+	n, err := parseCount(first)
+	if err != nil {
+		return fmt.Errorf("invalid --ignore-initial value '%s'", value)
 	}
-	limit, err := strconv.ParseInt(value, 10, 64)
+	if n > skip[0] {
+		skip[0] = n
+	}
+	if twoCounts {
+		n, err := parseCount(second)
+		if err != nil {
+			return fmt.Errorf("invalid --ignore-initial value '%s'", second)
+		}
+		if n > skip[1] {
+			skip[1] = n
+		}
+	} else if skip[1] < skip[0] {
+		skip[1] = skip[0]
+	}
+	return nil
+}
+
+// parseLimit parses the value of -n: a byte count.
+func parseLimit(value string) (int64, error) {
+	limit, err := parseCount(value)
 	if err != nil {
 		return 0, fmt.Errorf("invalid --bytes value '%s'", value)
 	}
 	return limit, nil
+}
+
+// errInvalidCount marks a value which is not a byte count.
+var errInvalidCount = errors.New("invalid byte count")
+
+// countSuffixes holds the multiplicative suffixes a byte count may take, with
+// the multiplier each stands for: "K" for 1024, "kB" for 1000 and "KiB" for
+// 1024 again. GNU cmp accepts these letters in this exact case only.
+var countSuffixes = func() map[string]int64 {
+	suffixes := map[string]int64{"": 1}
+	for _, letter := range []string{"k", "K", "M", "G", "T", "P", "E", "Z", "Y"} {
+		for _, suffix := range []string{letter, letter + "B", letter + "iB"} {
+			// The multiplier comes from the shared size suffixes.
+			if mult, err := sizeparse.Parse("1" + suffix); err == nil {
+				suffixes[suffix] = mult
+			}
+		}
+	}
+	return suffixes
+}()
+
+// parseCount parses a byte count as cmp takes it: a decimal, hexadecimal or
+// octal number with an optional multiplicative suffix, as "10K" for 10240.
+// Leading blanks and a '+' sign are allowed.
+func parseCount(value string) (int64, error) {
+	value = strings.TrimLeft(value, " \t\n\v\f\r")
+	if strings.HasPrefix(value, "+") {
+		value = value[1:]
+	}
+	n, suffix, err := splitCount(value)
+	if err != nil {
+		return 0, err
+	}
+	if _, ok := countSuffixes[suffix]; !ok {
+		return 0, errInvalidCount
+	}
+	// sizeparse does the multiplication of the suffix, with its overflow
+	// checks. The digits were normalized to decimal by splitCount.
+	return sizeparse.Parse(strconv.FormatInt(n, 10) + suffix)
+}
+
+// splitCount splits a value into its number and suffix, returning an error
+// when the value doesn't start with one. The number may be decimal,
+// hexadecimal with a "0x" prefix, or octal with a leading zero.
+func splitCount(value string) (n int64, suffix string, err error) {
+	if len(value) >= 2 && value[0] == '0' && (value[1] == 'x' || value[1] == 'X') {
+		end := 2
+		for end < len(value) && isHexDigit(value[end]) {
+			end++
+		}
+		if end > 2 {
+			n, err := strconv.ParseInt(value[2:end], 16, 64)
+			if err != nil {
+				return 0, "", errInvalidCount
+			}
+			return n, value[end:], nil
+		}
+		// Without digits, only the leading zero counts as a number.
+	}
+	end := 0
+	for end < len(value) && value[end] >= '0' && value[end] <= '9' {
+		end++
+	}
+	if end == 0 {
+		return 0, "", errInvalidCount
+	}
+	base := 10
+	if value[0] == '0' {
+		// A leading zero makes the number octal, as far as its digits
+		// go: "09" counts the "0" only, leaving "9" for the suffix.
+		base = 8
+		octal := 1
+		for octal < end && value[octal] <= '7' {
+			octal++
+		}
+		end = octal
+	}
+	n, err = strconv.ParseInt(value[:end], base, 64)
+	if err != nil {
+		return 0, "", errInvalidCount
+	}
+	return n, value[end:], nil
+}
+
+func isHexDigit(c byte) bool {
+	return c >= '0' && c <= '9' || c >= 'a' && c <= 'f' || c >= 'A' && c <= 'F'
+}
+
+// printable returns the byte as GNU cmp writes it, quoting the unprintable
+// ones as cat -t does: control bytes as "^X", the meta ones as "M-X" and the
+// delete byte as "^?".
+func printable(b byte) string {
+	var quoted string
+	if b >= 0x80 {
+		quoted = "M-"
+		b -= 0x80
+	}
+	switch {
+	case b < 0x20:
+		return quoted + "^" + string(b+'@')
+	case b == 0x7f:
+		return quoted + "^?"
+	}
+	return quoted + string(b)
 }
 
 // readErr returns the error of a read result, or nil when it only signals
