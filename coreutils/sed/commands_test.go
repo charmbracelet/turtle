@@ -173,11 +173,49 @@ func TestRunTextCommands(t *testing.T) {
 			want:  "a\n",
 		},
 		{
-			name:     "text without a backslash is an error",
+			name:  "text without a backslash is a GNU one-line form",
+			stdin: strings.NewReader("a\n"),
+			args:  []string{"1atext"},
+			want:  "a\ntext\n",
+		},
+		{
+			name:     "text without a backslash is an error with --posix",
 			stdin:    strings.NewReader("a\n"),
-			args:     []string{"1atext"},
+			args:     []string{"--posix", "1atext"},
 			wantErr:  "sed: text must start with \\\n",
 			wantExit: 2,
+		},
+		{
+			name:  "a takes its text on the same line without a backslash",
+			stdin: strings.NewReader("a\nb\n"),
+			args:  []string{"2a two words"},
+			want:  "a\nb\ntwo words\n",
+		},
+		{
+			name:  "i takes its text on the same line without a backslash",
+			stdin: strings.NewReader("a\nb\n"),
+			args:  []string{"2i two words"},
+			want:  "a\ntwo words\nb\n",
+		},
+		{
+			name:  "c takes its text on the same line without a backslash",
+			stdin: strings.NewReader("a\nb\nc\n"),
+			args:  []string{"2c two words"},
+			want:  "a\ntwo words\nc\n",
+		},
+		{
+			// The GNU form without a backslash also allows the text to
+			// start on the next line.
+			name:  "a takes its text on the next line without a backslash",
+			stdin: strings.NewReader("a\nb\n"),
+			args:  []string{"2a\ntext"},
+			want:  "a\nb\ntext\n",
+		},
+		{
+			name:  "the one-line text continues with an escaped newline",
+			stdin: strings.NewReader("a\nb\n"),
+			args:  []string{"2a one\\\ntwo"},
+			want:  "a\nb\none\ntwo\n",
 		},
 	}
 	for _, test := range tests {
@@ -338,6 +376,25 @@ func TestRunLineCommands(t *testing.T) {
 			stdin: strings.NewReader(strings.Repeat("x", 75) + "\n"),
 			args:  []string{"l;d"},
 			want:  strings.Repeat("x", 70) + "\\\n" + strings.Repeat("x", 5) + "$\n",
+		},
+		{
+			name:  "l takes a wrap width as its argument",
+			stdin: strings.NewReader(strings.Repeat("x", 15) + "\n"),
+			args:  []string{"l10;d"},
+			want:  strings.Repeat("x", 10) + "\\\n" + strings.Repeat("x", 5) + "$\n",
+		},
+		{
+			name:  "l with a zero width doesn't fold",
+			stdin: strings.NewReader(strings.Repeat("x", 75) + "\n"),
+			args:  []string{"l0;d"},
+			want:  strings.Repeat("x", 75) + "$\n",
+		},
+		{
+			name:     "q takes an exit status",
+			stdin:    strings.NewReader("a\nb\nc\n"),
+			args:     []string{"2q5"},
+			want:     "a\nb\n",
+			wantExit: 5,
 		},
 	}
 	for _, test := range tests {
@@ -580,19 +637,18 @@ func TestRunBlocksAndLabels(t *testing.T) {
 			want:  "X\n",
 		},
 		{
-			// The d belongs to the label of b, so it doesn't run: the
-			// branch targets the : command bearing the whole label.
-			name:  "the label of b extends to the end of a line",
+			// GNU sed ends a label at the first semicolon, so the d is a
+			// command of its own rather than part of the label.
+			name:  "the command after a branch semicolon runs",
 			stdin: strings.NewReader("a\nb\n"),
-			args:  []string{"1!b end;d\ns/./X/\n:end;d"},
-			want:  "X\nb\n",
+			args:  []string{"2!b skip; d\n:skip"},
+			want:  "a\n",
 		},
 		{
-			// The d belongs to the label of :, so it doesn't run.
-			name:  "the label of : extends to the end of a line",
+			name:  "a label ends at a semicolon",
 			stdin: strings.NewReader("a\n"),
-			args:  []string{":end;d\ns/./X/"},
-			want:  "X\n",
+			args:  []string{":l ; p\ns/./X/"},
+			want:  "a\nX\n",
 		},
 		{
 			name:  "comments are ignored",
@@ -837,8 +893,8 @@ func TestRunOptions(t *testing.T) {
 		{
 			name:     "an unknown option is an error",
 			stdin:    strings.NewReader("a\n"),
-			args:     []string{"-z", "d"},
-			wantErr:  "sed: invalid option -- 'z'\nTry 'sed --help' for more information.\n",
+			args:     []string{"-Y", "d"},
+			wantErr:  "sed: invalid option -- 'Y'\nTry 'sed --help' for more information.\n",
 			wantExit: 2,
 		},
 		{
@@ -938,7 +994,7 @@ func TestRunFiles(t *testing.T) {
 			args:     []string{"d", "a.txt", "missing.txt"},
 			want:     "",
 			wantErr:  "sed: can't read missing.txt: file does not exist\n",
-			wantExit: 1,
+			wantExit: 2,
 		},
 		{
 			// The lookahead that tells whether a line is the last one is
@@ -949,7 +1005,17 @@ func TestRunFiles(t *testing.T) {
 			args:     []string{"p", "a.txt", "missing.txt"},
 			want:     "a\na\nb\nb\n",
 			wantErr:  "sed: can't read missing.txt: file does not exist\n",
-			wantExit: 1,
+			wantExit: 2,
+		},
+		{
+			// A file that can't be opened doesn't keep the ones after it
+			// from being processed, and the exit status is 2.
+			name:     "the files after a missing one are still processed",
+			fsys:     stringsFS(map[string]string{"a.txt": "a\n", "b.txt": "b\n"}),
+			args:     []string{"p", "a.txt", "missing.txt", "b.txt"},
+			want:     "a\na\nb\nb\n",
+			wantErr:  "sed: can't read missing.txt: file does not exist\n",
+			wantExit: 2,
 		},
 		{
 			name: "w appends to a file",
@@ -1080,4 +1146,598 @@ func TestRunContext(t *testing.T) {
 			t.Errorf("Run() error = %v, want %v", err, context.DeadlineExceeded)
 		}
 	})
+}
+
+func TestRunGNUCommands(t *testing.T) {
+	tests := []testCase{
+		// The T command branches when no substitution happened.
+		{
+			name:  "T branches without a substitution",
+			stdin: strings.NewReader("a\nb\n"),
+			args:  []string{"s/b/X/\nTl\ns/./Y/\n:l"},
+			want:  "a\nY\n",
+		},
+		{
+			name:  "T doesn't branch after a substitution",
+			stdin: strings.NewReader("a\n"),
+			args:  []string{"s/a/X/\nTl\ns/./Y/\n:l"},
+			want:  "Y\n",
+		},
+		{
+			// The first T only takes the flag away, so the second one
+			// finds no substitution and branches, skipping the d.
+			name:  "T resets the substitution flag when it doesn't branch",
+			stdin: strings.NewReader("a\n"),
+			args:  []string{"s/a/x/;T done;T done;d;:done"},
+			want:  "x\n",
+		},
+		{
+			// The same flag is what the t looks at, so the T which took it
+			// away keeps the t from branching too.
+			name:  "t doesn't branch after a T took the flag away",
+			stdin: strings.NewReader("a\n"),
+			args:  []string{"s/a/x/\nTl\ntl\nd\n:l"},
+			want:  "",
+		},
+		{
+			name:     "T to an unknown label is an error",
+			stdin:    strings.NewReader("a\n"),
+			args:     []string{"Tx"},
+			wantErr:  "sed: label not found: x\n",
+			wantExit: 2,
+		},
+		{
+			name:     "the T command is rejected with --posix",
+			stdin:    strings.NewReader("a\n"),
+			args:     []string{"--posix", "Tl"},
+			wantErr:  "sed: the T command is a GNU extension, not allowed with --posix\n",
+			wantExit: 2,
+		},
+		// The Q command quits without writing the pattern space.
+		{
+			name:  "Q quits without writing the pattern space",
+			stdin: strings.NewReader("a\nb\n"),
+			args:  []string{"1Q"},
+			want:  "",
+		},
+		{
+			name:  "Q writes the text scheduled before it",
+			stdin: strings.NewReader("a\nb\n"),
+			args:  []string{"1a\\text\n1Q"},
+			want:  "text\n",
+		},
+		{
+			name:     "Q takes an exit status",
+			stdin:    strings.NewReader("a\nb\n"),
+			args:     []string{"1Q5"},
+			want:     "",
+			wantExit: 5,
+		},
+		{
+			name:     "an out of range exit status is an error",
+			stdin:    strings.NewReader("a\n"),
+			args:     []string{"q256"},
+			wantErr:  "sed: exit status out of range\n",
+			wantExit: 2,
+		},
+		{
+			name:     "the Q command is rejected with --posix",
+			stdin:    strings.NewReader("a\n"),
+			args:     []string{"--posix", "1Q"},
+			wantErr:  "sed: the Q command is a GNU extension, not allowed with --posix\n",
+			wantExit: 2,
+		},
+		// The z command empties the pattern space.
+		{
+			name:  "z empties the pattern space",
+			stdin: strings.NewReader("a\nb\n"),
+			args:  []string{"1z"},
+			want:  "\nb\n",
+		},
+		{
+			name:     "the z command is rejected with --posix",
+			stdin:    strings.NewReader("a\n"),
+			args:     []string{"--posix", "z"},
+			wantErr:  "sed: the z command is a GNU extension, not allowed with --posix\n",
+			wantExit: 2,
+		},
+		// The F command writes the name of the current input file.
+		{
+			name: "F writes the name of the current file",
+			fsys: stringsFS(map[string]string{"a.txt": "a\n", "b.txt": "b\n"}),
+			args: []string{"F", "a.txt", "b.txt"},
+			want: "a.txt\na\nb.txt\nb\n",
+		},
+		{
+			name:  "F writes - for the standard input",
+			stdin: strings.NewReader("a\n"),
+			args:  []string{"F"},
+			want:  "-\na\n",
+		},
+		{
+			name:     "the F command is rejected with --posix",
+			stdin:    strings.NewReader("a\n"),
+			args:     []string{"--posix", "F"},
+			wantErr:  "sed: the F command is a GNU extension, not allowed with --posix\n",
+			wantExit: 2,
+		},
+		// The W command writes the first line of the pattern space.
+		{
+			name: "W writes the first line of the pattern space",
+			fsys: stringsFS(map[string]string{"in": "a\nb\nc\n"}),
+			args: []string{"-n", "N;W out", "in"},
+			want: "",
+			wantFiles: map[string]string{
+				"out": "a\n",
+			},
+		},
+		{
+			name: "W writes the first line of a joined pattern space",
+			fsys: stringsFS(map[string]string{"in": "a\nb\nc\n"}),
+			args: []string{"-n", "2N;3W out", "in"},
+			wantFiles: map[string]string{
+				"out": "b\n",
+			},
+		},
+		{
+			name:     "the W command is rejected with --posix",
+			stdin:    strings.NewReader("a\n"),
+			args:     []string{"--posix", "W out"},
+			wantErr:  "sed: the W command is a GNU extension, not allowed with --posix\n",
+			wantExit: 2,
+		},
+		// The R command queues one line of a file each time it runs.
+		{
+			name: "R queues one line of the file per cycle",
+			fsys: stringsFS(map[string]string{"r.txt": "l1\nl2\n", "in": "a\nb\nc\n"}),
+			args: []string{"-n", "R r.txt", "in"},
+			want: "l1\nl2\n",
+		},
+		{
+			name: "R keeps reading where it left off",
+			fsys: stringsFS(map[string]string{"r.txt": "l1\nl2\nl3\n", "in": "a\nb\nc\n"}),
+			args: []string{"-n", "R r.txt", "in"},
+			want: "l1\nl2\nl3\n",
+		},
+		{
+			name: "R writes after the pattern space of the cycle",
+			fsys: stringsFS(map[string]string{"r.txt": "l1\n", "in": "a\nb\n"}),
+			args: []string{"R r.txt", "in"},
+			want: "a\nl1\nb\n",
+		},
+		{
+			name: "a missing R file has no lines",
+			fsys: stringsFS(map[string]string{"in": "a\nb\n"}),
+			args: []string{"R missing.txt", "in"},
+			want: "a\nb\n",
+		},
+		{
+			name:     "the R command is rejected with --posix",
+			stdin:    strings.NewReader("a\n"),
+			args:     []string{"--posix", "R r.txt"},
+			wantErr:  "sed: the R command is a GNU extension, not allowed with --posix\n",
+			wantExit: 2,
+		},
+		// The e command runs a shell, which the runtime doesn't provide.
+		{
+			name:     "the e command is unknown",
+			stdin:    strings.NewReader("a\n"),
+			args:     []string{"e"},
+			wantErr:  "sed: unknown command: e\n",
+			wantExit: 2,
+		},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			runCase(t, test)
+		})
+	}
+}
+
+func TestRunStdStreamNames(t *testing.T) {
+	tests := []testCase{
+		{
+			name: "w writes to /dev/stdout",
+			fsys: stringsFS(map[string]string{"in": "a\nb\n"}),
+			args: []string{"-n", "1w /dev/stdout", "in"},
+			want: "a\n",
+		},
+		{
+			name:    "w writes to /dev/stderr",
+			fsys:    stringsFS(map[string]string{"in": "a\nb\n"}),
+			args:    []string{"-n", "1w /dev/stderr", "in"},
+			wantErr: "a\n",
+		},
+		{
+			name: "the w flag of s writes to /dev/stdout",
+			fsys: stringsFS(map[string]string{"in": "a\nb\n"}),
+			args: []string{"-n", "s/a/X/w /dev/stdout", "in"},
+			want: "X\n",
+		},
+		{
+			name: "W writes to /dev/stdout",
+			fsys: stringsFS(map[string]string{"in": "a\nb\nc\n"}),
+			args: []string{"-n", "N;W /dev/stdout", "in"},
+			want: "a\n",
+		},
+		{
+			name:  "r reads from /dev/stdin",
+			fsys:  stringsFS(map[string]string{"in": "a\nb\n"}),
+			stdin: strings.NewReader("EXTRA\n"),
+			args:  []string{"1r /dev/stdin", "in"},
+			want:  "a\nEXTRA\nb\n",
+		},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			runCase(t, test)
+		})
+	}
+}
+
+func TestRunSeparate(t *testing.T) {
+	tests := []testCase{
+		{
+			name: "-s restarts the line numbers for each file",
+			fsys: stringsFS(map[string]string{"a.txt": "a\nb\n", "b.txt": "c\nd\n"}),
+			args: []string{"-s", "=", "a.txt", "b.txt"},
+			want: "1\na\n2\nb\n1\nc\n2\nd\n",
+		},
+		{
+			name: "the line numbers continue without -s",
+			fsys: stringsFS(map[string]string{"a.txt": "a\nb\n", "b.txt": "c\nd\n"}),
+			args: []string{"=", "a.txt", "b.txt"},
+			want: "1\na\n2\nb\n3\nc\n4\nd\n",
+		},
+		{
+			name: "-s takes $ as the last line of each file",
+			fsys: stringsFS(map[string]string{"a.txt": "a\nb\n", "b.txt": "c\nd\n"}),
+			args: []string{"-s", "$d", "a.txt", "b.txt"},
+			want: "a\nc\n",
+		},
+		{
+			name: "-s restarts the ranges for each file",
+			fsys: stringsFS(map[string]string{"one": "a\nb\nc\n", "two": "a\nb\n"}),
+			args: []string{"-s", "/a/,/b/d", "one", "two"},
+			want: "c\n",
+		},
+		{
+			// GNU sed empties the hold space as well as the line counter
+			// and the ranges when it starts each file.
+			name: "-s empties the hold space for each file",
+			fsys: stringsFS(map[string]string{"one": "a\n", "two": "b\n"}),
+			args: []string{"-n", "-s", "/a/h\n$x\np", "one", "two"},
+			want: "a\n\n",
+		},
+		{
+			name: "the --separate long form restarts the line numbers",
+			fsys: stringsFS(map[string]string{"a.txt": "a\nb\n", "b.txt": "c\nd\n"}),
+			args: []string{"--separate", "=", "a.txt", "b.txt"},
+			want: "1\na\n2\nb\n1\nc\n2\nd\n",
+		},
+		{
+			// The n command which hits the end of one file doesn't end the
+			// run: with -s, the next file still gets its own stream.
+			name: "-s goes on after the end of a file",
+			fsys: stringsFS(map[string]string{"one": "a\n", "two": "b\n"}),
+			args: []string{"-s", "n;p", "one", "two"},
+			want: "a\nb\n",
+		},
+		{
+			// Without -s, a missing file stops the run; with it, each file
+			// is its own stream, and the error only takes the status.
+			name:     "-s reports a missing file and keeps going",
+			fsys:     stringsFS(map[string]string{"a.txt": "a\n", "b.txt": "b\n"}),
+			args:     []string{"-s", "p", "a.txt", "missing.txt", "b.txt"},
+			want:     "a\na\nb\nb\n",
+			wantErr:  "sed: can't read missing.txt: file does not exist\n",
+			wantExit: 2,
+		},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			runCase(t, test)
+		})
+	}
+}
+
+func TestRunNullData(t *testing.T) {
+	tests := []testCase{
+		{
+			name:  "-z takes NUL-delimited records",
+			stdin: strings.NewReader("a\x00b\x00"),
+			args:  []string{"-z", "s/a/X/"},
+			want:  "X\x00b\x00",
+		},
+		{
+			name:  "-z keeps a last record without a NUL",
+			stdin: strings.NewReader("a\x00b"),
+			args:  []string{"-z", "s/a/X/"},
+			want:  "X\x00b",
+		},
+		{
+			name:  "-z joins the records of N with a NUL",
+			stdin: strings.NewReader("a\x00b\x00"),
+			args:  []string{"-z", "N;p"},
+			want:  "a\x00b\x00a\x00b\x00",
+		},
+		{
+			name:  "-z counts the NUL-delimited records",
+			stdin: strings.NewReader("a\x00b\x00c\x00"),
+			args:  []string{"-z", "2d"},
+			want:  "a\x00c\x00",
+		},
+		{
+			name:  "-z lets the period match a newline of the record",
+			stdin: strings.NewReader("a\nb\x00"),
+			args:  []string{"-z", "s/a.b/X/"},
+			want:  "X\x00",
+		},
+		{
+			name:  "the --null-data long form takes NUL-delimited records",
+			stdin: strings.NewReader("a\x00b\x00"),
+			args:  []string{"--null-data", "s/a/X/"},
+			want:  "X\x00b\x00",
+		},
+		{
+			name:  "the --zero-terminated long form takes NUL-delimited records",
+			stdin: strings.NewReader("a\x00b\x00"),
+			args:  []string{"--zero-terminated", "s/a/X/"},
+			want:  "X\x00b\x00",
+		},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			runCase(t, test)
+		})
+	}
+}
+
+func TestRunLineLength(t *testing.T) {
+	long := strings.Repeat("x", 12)
+	tests := []testCase{
+		{
+			name:  "-l sets the wrap width of l",
+			stdin: strings.NewReader(long + "\n"),
+			args:  []string{"-l", "5", "l;d"},
+			want:  "xxxxx\\\nxxxxx\\\nxx$\n",
+		},
+		{
+			name:  "-l takes an attached width",
+			stdin: strings.NewReader(long + "\n"),
+			args:  []string{"-l5", "l;d"},
+			want:  "xxxxx\\\nxxxxx\\\nxx$\n",
+		},
+		{
+			name:  "the --line-length long form sets the wrap width",
+			stdin: strings.NewReader(long + "\n"),
+			args:  []string{"--line-length=5", "l;d"},
+			want:  "xxxxx\\\nxxxxx\\\nxx$\n",
+		},
+		{
+			name:  "a zero width leaves the output unfolded",
+			stdin: strings.NewReader(long + "\n"),
+			args:  []string{"-l", "0", "l;d"},
+			want:  long + "$\n",
+		},
+		{
+			name:  "the width of the l command wins over -l",
+			stdin: strings.NewReader(long + "\n"),
+			args:  []string{"-l", "5", "l10;d"},
+			want:  "xxxxxxxxxx\\\nxx$\n",
+		},
+		{
+			name:     "-l without a value is a usage error",
+			stdin:    strings.NewReader("a\n"),
+			args:     []string{"-l"},
+			wantErr:  "sed: option requires an argument -- 'l'\nTry 'sed --help' for more information.\n",
+			wantExit: 2,
+		},
+		{
+			name:     "a width which isn't a number is a usage error",
+			stdin:    strings.NewReader("a\n"),
+			args:     []string{"-l", "x", "d"},
+			wantErr:  "sed: invalid line length: x\nTry 'sed --help' for more information.\n",
+			wantExit: 2,
+		},
+		{
+			name:     "a negative width is a usage error",
+			stdin:    strings.NewReader("a\n"),
+			args:     []string{"-l", "-1", "d"},
+			wantErr:  "sed: invalid line length: -1\nTry 'sed --help' for more information.\n",
+			wantExit: 2,
+		},
+		{
+			name:     "the --line-length long form rejects a bad value",
+			stdin:    strings.NewReader("a\n"),
+			args:     []string{"--line-length=x", "d"},
+			wantErr:  "sed: invalid line length: x\nTry 'sed --help' for more information.\n",
+			wantExit: 2,
+		},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			runCase(t, test)
+		})
+	}
+}
+
+func TestRunGNUOptions(t *testing.T) {
+	tests := []testCase{
+		{
+			name:  "the --expression long form gives the script",
+			stdin: strings.NewReader("a\n"),
+			args:  []string{"--expression", "s/a/X/"},
+			want:  "X\n",
+		},
+		{
+			name:  "the --expression long form takes an attached script",
+			stdin: strings.NewReader("a\n"),
+			args:  []string{"--expression=s/a/X/"},
+			want:  "X\n",
+		},
+		{
+			name:  "the --file long form reads the script from a file",
+			fsys:  stringsFS(map[string]string{"scr": "s/a/X/\n"}),
+			stdin: strings.NewReader("a\n"),
+			args:  []string{"--file", "scr"},
+			want:  "X\n",
+		},
+		{
+			name:  "the --file long form takes an attached name",
+			fsys:  stringsFS(map[string]string{"scr": "s/a/X/\n"}),
+			stdin: strings.NewReader("a\n"),
+			args:  []string{"--file=scr"},
+			want:  "X\n",
+		},
+		{
+			name:  "-f - reads the script from the standard input",
+			fsys:  stringsFS(map[string]string{"in": "a\n"}),
+			stdin: strings.NewReader("s/a/X/\n"),
+			args:  []string{"-f", "-", "in"},
+			want:  "X\n",
+		},
+		{
+			name:  "-r takes extended regular expressions",
+			stdin: strings.NewReader("aab\n"),
+			args:  []string{"-r", "s/a+b/X/"},
+			want:  "X\n",
+		},
+		{
+			name:  "the --regexp-extended long form takes EREs",
+			stdin: strings.NewReader("aab\n"),
+			args:  []string{"--regexp-extended", "s/a+b/X/"},
+			want:  "X\n",
+		},
+		{
+			name:  "the --extended-regexp long form takes EREs",
+			stdin: strings.NewReader("aab\n"),
+			args:  []string{"--extended-regexp", "s/a+b/X/"},
+			want:  "X\n",
+		},
+		{
+			name:  "the --quiet long form suppresses the default output",
+			stdin: strings.NewReader("a\nb\n"),
+			args:  []string{"--quiet", "p"},
+			want:  "a\nb\n",
+		},
+		{
+			name:  "-u is accepted",
+			stdin: strings.NewReader("a\n"),
+			args:  []string{"-u", "s/a/X/"},
+			want:  "X\n",
+		},
+		{
+			name:  "--posix accepts a POSIX script",
+			stdin: strings.NewReader("a\n"),
+			args:  []string{"--posix", "s/a/X/"},
+			want:  "X\n",
+		},
+		{
+			name:  "--follow-symlinks without -i is accepted",
+			stdin: strings.NewReader("a\n"),
+			args:  []string{"--follow-symlinks", "s/a/X/"},
+			want:  "X\n",
+		},
+		// The --posix rejections of the GNU script syntax.
+		{
+			name:     "the I flag of s is rejected with --posix",
+			stdin:    strings.NewReader("A\n"),
+			args:     []string{"--posix", "s/a/X/I"},
+			wantErr:  "sed: the I flag of the s command is a GNU extension, not allowed with --posix\n",
+			wantExit: 2,
+		},
+		{
+			// POSIX itself defines the lowercase i as the flag selecting
+			// case-insensitive matching.
+			name:  "the i flag of s is accepted with --posix",
+			stdin: strings.NewReader("A\n"),
+			args:  []string{"--posix", "s/a/X/i"},
+			want:  "X\n",
+		},
+		{
+			name:     "the M flag of s is rejected with --posix",
+			stdin:    strings.NewReader("a\nb\n"),
+			args:     []string{"--posix", "N;s/^b/X/M"},
+			wantErr:  "sed: the M flag of the s command is a GNU extension, not allowed with --posix\n",
+			wantExit: 2,
+		},
+		{
+			name:     "a number with the g flag of s is rejected with --posix",
+			stdin:    strings.NewReader("banana\n"),
+			args:     []string{"--posix", "s/a/-/2g"},
+			wantErr:  "sed: a number with the g flag of the s command is a GNU extension, not allowed with --posix\n",
+			wantExit: 2,
+		},
+		{
+			name:     "the M modifier of an address is rejected with --posix",
+			stdin:    strings.NewReader("a\nb\nc\nd\n"),
+			args:     []string{"--posix", "N;/^b/Md"},
+			wantErr:  "sed: the M modifier of an address is a GNU extension, not allowed with --posix\n",
+			wantExit: 2,
+		},
+		{
+			name:     "the exit status of q is rejected with --posix",
+			stdin:    strings.NewReader("a\n"),
+			args:     []string{"--posix", "1q5"},
+			wantErr:  "sed: the exit status of the q command is a GNU extension, not allowed with --posix\n",
+			wantExit: 2,
+		},
+		{
+			// POSIX defines the numeric flag of s, only leaving its
+			// combination with g unspecified, so --posix accepts it.
+			name:  "a bare number flag is accepted with --posix",
+			stdin: strings.NewReader("banana\n"),
+			args:  []string{"--posix", "s/a/-/2"},
+			want:  "ban-na\n",
+		},
+		{
+			// POSIX itself says a script whose first two characters are #n
+			// suppresses the default output, so --posix accepts it too.
+			name:  "a #n script is accepted with --posix",
+			stdin: strings.NewReader("a\nb\n"),
+			args:  []string{"--posix", "#n\np"},
+			want:  "a\nb\n",
+		},
+		{
+			name:     "the width of l is rejected with --posix",
+			stdin:    strings.NewReader("a\n"),
+			args:     []string{"--posix", "l10"},
+			wantErr:  "sed: the width of the l command is a GNU extension, not allowed with --posix\n",
+			wantExit: 2,
+		},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			runCase(t, test)
+		})
+	}
+}
+
+func TestRunExitStatus(t *testing.T) {
+	tests := []testCase{
+		{
+			// The q exit status is used when no input file failed.
+			name:     "the exit status of q wins without a file error",
+			fsys:     stringsFS(map[string]string{"a.txt": "a\n"}),
+			args:     []string{"q5", "a.txt"},
+			want:     "a\n",
+			wantExit: 5,
+		},
+		{
+			// An input file which can't be opened takes the status 2 over
+			// the one q asked for, since the failure is reported last.
+			name:     "a file open failure wins over the exit status of q",
+			fsys:     stringsFS(map[string]string{"a.txt": "a\n"}),
+			args:     []string{"q0", "a.txt", "missing.txt"},
+			want:     "a\n",
+			wantErr:  "sed: can't read missing.txt: file does not exist\n",
+			wantExit: 2,
+		},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			runCase(t, test)
+		})
+	}
 }

@@ -322,6 +322,87 @@ func TestRunSubstitute(t *testing.T) {
 			args:  []string{"s/[[.a.]]/X/"},
 			want:  "X\n",
 		},
+		{
+			name:  "the I flag matches case insensitively",
+			stdin: strings.NewReader("Aa\n"),
+			args:  []string{"s/a/X/gI"},
+			want:  "XX\n",
+		},
+		{
+			// The M flag makes ^ match at the newlines the N command
+			// joined the lines with.
+			name:  "the M flag matches at the newlines of the pattern space",
+			stdin: strings.NewReader("a\nb\nc\nd\n"),
+			args:  []string{"N;s/^b/X/M"},
+			want:  "a\nX\nc\nd\n",
+		},
+		{
+			name:  "the m flag matches at the newlines of the pattern space",
+			stdin: strings.NewReader("a\nb\n"),
+			args:  []string{"N;s/^b/X/m"},
+			want:  "a\nX\n",
+		},
+		{
+			name:  "a number with the g flag replaces from the nth match on",
+			stdin: strings.NewReader("banana\n"),
+			args:  []string{"s/a/-/2g"},
+			want:  "ban-n-\n",
+		},
+		{
+			name:  "a number with the g flag beyond the matches changes nothing",
+			stdin: strings.NewReader("banana\n"),
+			args:  []string{"s/a/-/4g"},
+			want:  "banana\n",
+		},
+		{
+			name:  "\\U writes the rest of the replacement in upper case",
+			stdin: strings.NewReader("x\n"),
+			args:  []string{`s/x/\Uhe llo/`},
+			want:  "HE LLO\n",
+		},
+		{
+			name:  "\\L writes the rest of the replacement in lower case",
+			stdin: strings.NewReader("x\n"),
+			args:  []string{`s/x/\LHE LLO/`},
+			want:  "he llo\n",
+		},
+		{
+			name:  "\\E ends the case conversion",
+			stdin: strings.NewReader("x\n"),
+			args:  []string{`s/x/\Uhe\Ello/`},
+			want:  "HEllo\n",
+		},
+		{
+			name:  "\\u writes the next character in upper case",
+			stdin: strings.NewReader("x\n"),
+			args:  []string{`s/x/\uhello/`},
+			want:  "Hello\n",
+		},
+		{
+			name:  "\\l writes the next character in lower case",
+			stdin: strings.NewReader("x\n"),
+			args:  []string{`s/x/\lHELLO/`},
+			want:  "hELLO\n",
+		},
+		{
+			name:  "the case conversion applies to the whole match",
+			stdin: strings.NewReader("ab\n"),
+			args:  []string{`s/a./\U&/`},
+			want:  "AB\n",
+		},
+		{
+			name:  "the case conversion applies to a backreference",
+			stdin: strings.NewReader("ab\n"),
+			args:  []string{`s/\(a\)\(b\)/\U\2\l\1/`},
+			want:  "Ba\n",
+		},
+		{
+			name:     "the case conversion escapes are rejected with --posix",
+			stdin:    strings.NewReader("x\n"),
+			args:     []string{"--posix", `s/x/\Ux/`},
+			wantErr:  "sed: the \\U escape of a replacement is a GNU extension, not allowed with --posix\n",
+			wantExit: 2,
+		},
 	}
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
@@ -654,6 +735,82 @@ func TestRunAddresses(t *testing.T) {
 			args:  []string{"2d"},
 			want:  "\n",
 		},
+		// The GNU address extensions: first~step, +N, ~N and 0,/re/.
+		{
+			name:  "a step address selects every step-th line",
+			stdin: strings.NewReader("1\n2\n3\n4\n5\n"),
+			args:  []string{"1~2d"},
+			want:  "2\n4\n",
+		},
+		{
+			name:  "a step address may start at zero",
+			stdin: strings.NewReader("1\n2\n3\n4\n5\n"),
+			args:  []string{"0~3d"},
+			want:  "1\n2\n4\n5\n",
+		},
+		{
+			name:  "a step address runs from the first line it names",
+			stdin: strings.NewReader("1\n2\n3\n4\n5\n"),
+			args:  []string{"3~3d"},
+			want:  "1\n2\n4\n5\n",
+		},
+		{
+			name:  "a range ends N lines after its first line",
+			stdin: strings.NewReader("1\n2\n3\n4\n5\n"),
+			args:  []string{"2,+2d"},
+			want:  "1\n5\n",
+		},
+		{
+			name:  "a range ends at a line N lines after a pattern",
+			stdin: strings.NewReader("a\nb\nc\nd\ne\n"),
+			args:  []string{"/c/,+1d"},
+			want:  "a\nb\ne\n",
+		},
+		{
+			name:  "a range ends at the next multiple of N",
+			stdin: strings.NewReader("1\n2\n3\n4\n5\n6\n"),
+			args:  []string{"2,~3d"},
+			want:  "1\n4\n5\n6\n",
+		},
+		{
+			name:  "a range ends at the next multiple past a multiple start",
+			stdin: strings.NewReader("1\n2\n3\n4\n5\n6\n"),
+			args:  []string{"3,~3d"},
+			want:  "1\n2\n",
+		},
+		{
+			name:  "a zero range ends on its first line when it matches",
+			stdin: strings.NewReader("x\ny\nx\n"),
+			args:  []string{"0,/x/d"},
+			want:  "y\nx\n",
+		},
+		{
+			name:  "a zero range ends at the first match after the first line",
+			stdin: strings.NewReader("a\nx\nb\n"),
+			args:  []string{"0,/x/d"},
+			want:  "b\n",
+		},
+		{
+			// Unlike 0,/x/, the plain 1,/x/ range starts its search for
+			// the end on the second line.
+			name:  "a one range runs past a match on its first line",
+			stdin: strings.NewReader("x\ny\nx\n"),
+			args:  []string{"1,/x/d"},
+			want:  "",
+		},
+		// The I and M modifiers of a regular expression address.
+		{
+			name:  "the I modifier matches case insensitively",
+			stdin: strings.NewReader("a\nb\n"),
+			args:  []string{"/A/Id"},
+			want:  "b\n",
+		},
+		{
+			name:  "the M modifier matches at the newlines of the pattern space",
+			stdin: strings.NewReader("a\nb\nc\nd\n"),
+			args:  []string{"N;/^b/Md"},
+			want:  "c\nd\n",
+		},
 		{
 			name:     "a missing address after a comma is an error",
 			stdin:    strings.NewReader("a\n"),
@@ -666,6 +823,90 @@ func TestRunAddresses(t *testing.T) {
 			stdin:    strings.NewReader("a\n"),
 			args:     []string{"/a,"},
 			wantErr:  "sed: unterminated regular expression\n",
+			wantExit: 2,
+		},
+		{
+			name:     "a step of zero is an error",
+			stdin:    strings.NewReader("a\n"),
+			args:     []string{"1~0d"},
+			wantErr:  "sed: step can't be 0\n",
+			wantExit: 2,
+		},
+		{
+			name:     "a missing step after a tilde is an error",
+			stdin:    strings.NewReader("a\n"),
+			args:     []string{"1~d"},
+			wantErr:  "sed: missing step after ~\n",
+			wantExit: 2,
+		},
+		{
+			name:     "a missing number after a plus is an error",
+			stdin:    strings.NewReader("a\n"),
+			args:     []string{"1,+d"},
+			wantErr:  "sed: missing number after +\n",
+			wantExit: 2,
+		},
+		{
+			name:     "a missing number after a tilde is an error",
+			stdin:    strings.NewReader("a\n"),
+			args:     []string{"1,~d"},
+			wantErr:  "sed: missing number after ~\n",
+			wantExit: 2,
+		},
+		{
+			name:     "a zero number after a tilde is an error",
+			stdin:    strings.NewReader("a\n"),
+			args:     []string{"1,~0d"},
+			wantErr:  "sed: the number after ~ must be positive\n",
+			wantExit: 2,
+		},
+		{
+			name:     "a step address can't close a range",
+			stdin:    strings.NewReader("a\n"),
+			args:     []string{"1,2~3d"},
+			wantErr:  "sed: a step address can't close a range\n",
+			wantExit: 2,
+		},
+		{
+			name:     "a zero address alone is an error",
+			stdin:    strings.NewReader("a\n"),
+			args:     []string{"0d"},
+			wantErr:  "sed: 0 address can only be the first of a range\n",
+			wantExit: 2,
+		},
+		{
+			name:     "the step address is rejected with --posix",
+			stdin:    strings.NewReader("a\n"),
+			args:     []string{"--posix", "1~2d"},
+			wantErr:  "sed: the first~step address is a GNU extension, not allowed with --posix\n",
+			wantExit: 2,
+		},
+		{
+			name:     "the +N address is rejected with --posix",
+			stdin:    strings.NewReader("a\n"),
+			args:     []string{"--posix", "1,+2d"},
+			wantErr:  "sed: the addr1,+N address is a GNU extension, not allowed with --posix\n",
+			wantExit: 2,
+		},
+		{
+			name:     "the ~N address is rejected with --posix",
+			stdin:    strings.NewReader("a\n"),
+			args:     []string{"--posix", "1,~2d"},
+			wantErr:  "sed: the addr1,~N address is a GNU extension, not allowed with --posix\n",
+			wantExit: 2,
+		},
+		{
+			name:     "the zero address is rejected with --posix",
+			stdin:    strings.NewReader("a\n"),
+			args:     []string{"--posix", "0,/x/d"},
+			wantErr:  "sed: the 0 address is a GNU extension, not allowed with --posix\n",
+			wantExit: 2,
+		},
+		{
+			name:     "the I address modifier is rejected with --posix",
+			stdin:    strings.NewReader("a\n"),
+			args:     []string{"--posix", "/A/Id"},
+			wantErr:  "sed: the I modifier of an address is a GNU extension, not allowed with --posix\n",
 			wantExit: 2,
 		},
 	}
@@ -794,32 +1035,38 @@ func TestRunAddressLimits(t *testing.T) {
 			wantErr:  "sed: too many addresses for command: q\n",
 			wantExit: 2,
 		},
+		// Valid boundaries: the GNU extensions letting a, i, r and = take
+		// a range. The text and files go out at the ends of the range.
 		{
-			name:     "a 1addr = command rejects two addresses",
-			stdin:    strings.NewReader("a\n"),
-			args:     []string{"1,2="},
-			wantErr:  "sed: too many addresses for command: =\n",
-			wantExit: 2,
+			name:  "a 2addr a command appends after the range",
+			stdin: strings.NewReader("a\nb\nc\n"),
+			args:  []string{`1,2a\text`},
+			want:  "a\nb\ntext\nc\n",
 		},
 		{
-			name:     "a 1addr a command rejects two addresses",
+			name:  "a 2addr i command inserts before the range",
+			stdin: strings.NewReader("a\nb\nc\n"),
+			args:  []string{`1,2i\text`},
+			want:  "text\na\nb\nc\n",
+		},
+		{
+			name:  "a 2addr r command appends after the range",
+			fsys:  stringsFS(map[string]string{"r.txt": "FILE\n"}),
+			stdin: strings.NewReader("a\nb\nc\n"),
+			args:  []string{"1,2r r.txt"},
+			want:  "a\nb\nFILE\nc\n",
+		},
+		{
+			name:  "a 2addr = command prints each line number",
+			stdin: strings.NewReader("a\nb\nc\n"),
+			args:  []string{"1,2="},
+			want:  "1\na\n2\nb\nc\n",
+		},
+		{
+			name:     "a 2addr a command is rejected with --posix",
 			stdin:    strings.NewReader("a\n"),
-			args:     []string{"1,2a\\text"},
+			args:     []string{"--posix", `1,2a\text`},
 			wantErr:  "sed: too many addresses for command: a\n",
-			wantExit: 2,
-		},
-		{
-			name:     "a 1addr i command rejects two addresses",
-			stdin:    strings.NewReader("a\n"),
-			args:     []string{"1,2i\\text"},
-			wantErr:  "sed: too many addresses for command: i\n",
-			wantExit: 2,
-		},
-		{
-			name:     "a 1addr r command rejects two addresses",
-			stdin:    strings.NewReader("a\n"),
-			args:     []string{"1,2r r.txt"},
-			wantErr:  "sed: too many addresses for command: r\n",
 			wantExit: 2,
 		},
 		{
@@ -1042,7 +1289,7 @@ func TestRunInPlace(t *testing.T) {
 			fsys:     stringsFS(map[string]string{"ok": "x\n"}),
 			args:     []string{"-i", "s/x/y/", "missing", "ok"},
 			wantErr:  "sed: can't read missing: file does not exist\n",
-			wantExit: 1,
+			wantExit: 2,
 			wantFiles: map[string]string{
 				"ok": "y\n",
 			},
@@ -1172,4 +1419,107 @@ func TestHelpVersion(t *testing.T) {
 			t.Errorf("Run() stdout = %q, want %q", got, want)
 		}
 	})
+}
+
+func TestRunInPlaceSuffixStar(t *testing.T) {
+	tests := []testCase{
+		{
+			name: "a star in the suffix is replaced with the file name",
+			fsys: stringsFS(map[string]string{"f.txt": "a\n"}),
+			args: []string{"-i*.bak", "s/a/b/", "f.txt"},
+			wantFiles: map[string]string{
+				"f.txt":     "b\n",
+				"f.txt.bak": "a\n",
+			},
+		},
+		{
+			// The star makes it easy to put the backup in another
+			// directory, as GNU sed documents.
+			name: "a star in the suffix puts the backup in another directory",
+			fsys: stringsFS(map[string]string{"f.txt": "a\n", "orig/keep": ""}),
+			args: []string{"-iorig/*", "s/a/b/", "f.txt"},
+			wantFiles: map[string]string{
+				"f.txt":      "b\n",
+				"orig/f.txt": "a\n",
+			},
+		},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			runCase(t, test)
+		})
+	}
+}
+
+func TestRunInPlaceFollowSymlinks(t *testing.T) {
+	dir := t.TempDir()
+	target := filepath.Join(dir, "target")
+	if err := os.WriteFile(target, []byte("a\nb\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	link := filepath.Join(dir, "link")
+	if err := os.Symlink("target", link); err != nil {
+		t.Skipf("symlink: %v", err)
+	}
+	rt := &coreutils.Runtime{
+		Stdin:      strings.NewReader(""),
+		Stdout:     new(bytes.Buffer),
+		Stderr:     new(bytes.Buffer),
+		FS:         fsx.OsFS(dir),
+		WorkingDir: dir,
+	}
+
+	t.Run("the link is followed and kept", func(t *testing.T) {
+		if err := New(rt).Run(t.Context(), "--follow-symlinks", "-i", "s/a/X/", "link"); err != nil {
+			t.Fatalf("Run() error = %v", err)
+		}
+		data, err := os.ReadFile(target)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if got, want := string(data), "X\nb\n"; got != want {
+			t.Errorf("target = %q, want %q", got, want)
+		}
+		fi, err := os.Lstat(link)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if fi.Mode()&fs.ModeSymlink == 0 {
+			t.Errorf("link is no longer a symlink: %v", fi.Mode())
+		}
+	})
+
+	t.Run("without it, the link is replaced", func(t *testing.T) {
+		if err := New(rt).Run(t.Context(), "-i", "s/X/Y/", "link"); err != nil {
+			t.Fatalf("Run() error = %v", err)
+		}
+		fi, err := os.Lstat(link)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if fi.Mode()&fs.ModeSymlink != 0 {
+			t.Errorf("link is still a symlink: %v", fi.Mode())
+		}
+	})
+}
+
+func TestRunInPlaceNoBackup(t *testing.T) {
+	// A suffix of just a star asks for no backup at all, leaving the file
+	// as the only one in its directory, as GNU sed does.
+	fsys := stringsFS(map[string]string{"f.txt": "a\n"})
+	rt := &coreutils.Runtime{
+		Stdin:  strings.NewReader(""),
+		Stdout: new(bytes.Buffer),
+		Stderr: new(bytes.Buffer),
+		FS:     fsys,
+	}
+	if err := New(rt).Run(t.Context(), "-i*", "s/a/b/", "f.txt"); err != nil {
+		t.Fatalf("Run() error = %v", err)
+	}
+	if got, want := string(fsys["f.txt"].Data), "b\n"; got != want {
+		t.Errorf("f.txt = %q, want %q", got, want)
+	}
+	if len(fsys) != 1 {
+		t.Errorf("directory holds %d files, want 1", len(fsys))
+	}
 }
