@@ -11,17 +11,16 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"os"
 	"slices"
 
 	"charm.land/snail/coreutils"
 
 	"charm.land/snail/coreutils/internal/getopt"
 	"charm.land/snail/coreutils/internal/input"
+	"charm.land/snail/coreutils/internal/output"
 	"charm.land/snail/coreutils/internal/patherr"
 	"charm.land/snail/coreutils/internal/stdopts"
 	"charm.land/snail/coreutils/internal/textutil"
-	"charm.land/snail/fsx"
 )
 
 // Prog is the sort core utility.
@@ -175,7 +174,7 @@ func (p *Prog) readLines(ctx context.Context, in input.Input, opts options) ([]s
 func (p *Prog) writeLines(ctx context.Context, lines []sortLine, opts options) error {
 	out := io.Writer(p.Stdout)
 	if opts.hasOutput {
-		f, err := p.openOutput(opts.output)
+		f, err := output.Create(p.Runtime, ctx, opts.output)
 		if err != nil {
 			p.errorf("%s: %v", opts.output, patherr.Unwrap(err))
 			return &coreutils.ExitError{Code: 2}
@@ -204,14 +203,6 @@ func writeLine(out io.Writer, data []byte, delim byte) error {
 		return &writeError{err: err}
 	}
 	return nil
-}
-
-// openOutput creates the output file.
-func (p *Prog) openOutput(name string) (fsx.File, error) {
-	if p.FS == nil {
-		return nil, errors.New("no file system available")
-	}
-	return p.FS.OpenFile(p.FsName(name), os.O_WRONLY|os.O_CREATE|os.O_TRUNC, 0o666&^p.Umask.Perm())
 }
 
 // errorf writes a diagnostic message to standard error.

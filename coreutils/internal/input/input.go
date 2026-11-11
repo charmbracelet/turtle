@@ -63,6 +63,18 @@ func Open(rt *coreutils.Runtime, ctx context.Context, in Input) (io.ReadCloser, 
 	return ctxio.ReadCloser{Ctx: ctx, RC: f}, nil
 }
 
+// ReadAll reads the whole input: the file named, or the standard input for
+// the "-" operand, which the caller also passes when its operand list is
+// empty. Reads stop early when ctx is done.
+func ReadAll(rt *coreutils.Runtime, ctx context.Context, name string) ([]byte, error) {
+	r, err := Open(rt, ctx, New(name))
+	if err != nil {
+		return nil, err
+	}
+	defer r.Close()
+	return io.ReadAll(r)
+}
+
 // ReadError wraps a read failure with the label of the input it came from.
 type ReadError struct {
 	Label string

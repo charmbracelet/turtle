@@ -12,7 +12,6 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"os"
 	"slices"
 	"strconv"
 	"unicode/utf8"
@@ -21,6 +20,7 @@ import (
 
 	"charm.land/snail/coreutils/internal/getopt"
 	"charm.land/snail/coreutils/internal/input"
+	"charm.land/snail/coreutils/internal/output"
 	"charm.land/snail/coreutils/internal/patherr"
 	"charm.land/snail/coreutils/internal/stdopts"
 	"charm.land/snail/coreutils/internal/textutil"
@@ -75,7 +75,7 @@ func (p *Prog) Run(ctx context.Context, args ...string) error {
 	}
 	defer r.Close()
 
-	out, err := p.openOutput(outName)
+	out, err := p.openOutput(ctx, outName)
 	if err != nil {
 		p.errorf("%s: %v", outName, patherr.Unwrap(err))
 		return &coreutils.ExitError{Code: 1}
@@ -251,14 +251,11 @@ func foldCase(s []byte) []byte {
 
 // openOutput returns a writer for the output operand. An empty name or "-"
 // mean the standard output.
-func (p *Prog) openOutput(name string) (io.Writer, error) {
+func (p *Prog) openOutput(ctx context.Context, name string) (io.Writer, error) {
 	if name == "" || name == "-" {
 		return p.Stdout, nil
 	}
-	if p.FS == nil {
-		return nil, errors.New("no file system available")
-	}
-	return p.FS.OpenFile(p.FsName(name), os.O_WRONLY|os.O_CREATE|os.O_TRUNC, 0o666&^p.Umask.Perm())
+	return output.Create(p.Runtime, ctx, name)
 }
 
 // errorf writes a diagnostic message to standard error.

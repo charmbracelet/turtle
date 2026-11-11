@@ -13,6 +13,7 @@ import (
 	"unicode"
 	"unicode/utf8"
 
+	"charm.land/snail/coreutils/internal/output"
 	"charm.land/snail/coreutils/internal/patherr"
 	"charm.land/snail/coreutils/internal/textutil"
 	"charm.land/snail/fsx"
@@ -993,10 +994,7 @@ func (r *runner) openWriters() error {
 				r.writers[name] = r.p.Stderr
 				continue
 			}
-			if r.p.FS == nil {
-				return errors.New("no file system available")
-			}
-			f, err := r.p.FS.OpenFile(r.p.FsName(name), os.O_WRONLY|os.O_CREATE|os.O_TRUNC, 0o666&^r.p.Umask.Perm())
+			f, err := output.Create(r.p.Runtime, r.ctx, name)
 			if err != nil {
 				return fmt.Errorf("can't create %s: %v", name, patherr.Unwrap(err))
 			}

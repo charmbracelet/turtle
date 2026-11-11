@@ -5,6 +5,7 @@ package ctxio
 import (
 	"context"
 	"io"
+	"io/fs"
 )
 
 // ReadCloser stops read operations with the context error once Ctx is done,
@@ -31,4 +32,34 @@ func (c ReadCloser) Read(p []byte) (int, error) {
 // Close implements the io.Closer interface.
 func (c ReadCloser) Close() error {
 	return c.RC.Close()
+}
+
+// WriteCloser stops write operations with the context error once Ctx is
+// done, so long outputs don't delay returning.
+type WriteCloser struct {
+	Ctx context.Context
+	WC  io.WriteCloser
+}
+
+// Write implements the io.Writer interface.
+func (c WriteCloser) Write(p []byte) (int, error) {
+	if err := c.Ctx.Err(); err != nil {
+		return 0, err
+	}
+	return c.WC.Write(p)
+}
+
+// Close implements the io.Closer interface.
+func (c WriteCloser) Close() error {
+	return c.WC.Close()
+}
+
+// Stat returns the status of the wrapped file, when it is one, so callers
+// can keep telling what they write to through the wrapper.
+func (c WriteCloser) Stat() (fs.FileInfo, error) {
+	s, ok := c.WC.(interface{ Stat() (fs.FileInfo, error) })
+	if !ok {
+		return nil, fs.ErrInvalid
+	}
+	return s.Stat()
 }

@@ -21,13 +21,13 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"os"
 	"path/filepath"
 	"strconv"
 	"strings"
 
 	"charm.land/snail/coreutils"
 	"charm.land/snail/coreutils/internal/getopt"
+	"charm.land/snail/coreutils/internal/output"
 	"charm.land/snail/coreutils/internal/patherr"
 	"charm.land/snail/coreutils/internal/stdopts"
 )
@@ -286,7 +286,7 @@ func (a *archiver) openReader() (io.ReadCloser, error) {
 }
 
 // openWriter returns the archive to write, truncating an existing one.
-func (a *archiver) openWriter() (io.WriteCloser, error) {
+func (a *archiver) openWriter(ctx context.Context) (io.WriteCloser, error) {
 	name := a.archiveName()
 	if name == "-" {
 		if a.rt.Stdout == nil {
@@ -294,10 +294,7 @@ func (a *archiver) openWriter() (io.WriteCloser, error) {
 		}
 		return nopCloser{a.rt.Stdout}, nil
 	}
-	if a.rt.FS == nil {
-		return nil, errors.New("no file system available")
-	}
-	return a.rt.FS.OpenFile(a.rt.FsPath(name), os.O_WRONLY|os.O_CREATE|os.O_TRUNC, 0o666&^a.rt.Umask.Perm())
+	return output.Create(a.rt, ctx, name)
 }
 
 // nopCloser adapts a writer to io.WriteCloser without closing it.

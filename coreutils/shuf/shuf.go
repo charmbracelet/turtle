@@ -14,17 +14,16 @@ import (
 	"fmt"
 	"io"
 	"math"
-	"os"
 	"strconv"
 	"strings"
 
 	"charm.land/snail/coreutils"
 	"charm.land/snail/coreutils/internal/getopt"
 	"charm.land/snail/coreutils/internal/input"
+	"charm.land/snail/coreutils/internal/output"
 	"charm.land/snail/coreutils/internal/patherr"
 	"charm.land/snail/coreutils/internal/stdopts"
 	"charm.land/snail/coreutils/internal/textutil"
-	"charm.land/snail/fsx"
 )
 
 // Prog is the shuf core utility.
@@ -165,7 +164,7 @@ func (p *Prog) write(ctx context.Context, g *rng, opts options, count uint64, li
 
 	out := io.Writer(p.Stdout)
 	if opts.hasOutput {
-		f, err := p.openOutput(opts.output)
+		f, err := output.Create(p.Runtime, ctx, opts.output)
 		if err != nil {
 			p.errorf("%s: %v", opts.output, patherr.Unwrap(err))
 			return &coreutils.ExitError{Code: 1, Err: err}
@@ -270,14 +269,6 @@ func writeItem(w *bufio.Writer, item string, delim byte) error {
 		return err
 	}
 	return w.WriteByte(delim)
-}
-
-// openOutput creates the output file, truncating it when it exists.
-func (p *Prog) openOutput(name string) (fsx.File, error) {
-	if p.FS == nil {
-		return nil, errors.New("no file system available")
-	}
-	return p.FS.OpenFile(p.FsName(name), os.O_WRONLY|os.O_CREATE|os.O_TRUNC, 0o666&^p.Umask.Perm())
 }
 
 // usageErrorf reports a usage error, followed by the hint, and exits with
