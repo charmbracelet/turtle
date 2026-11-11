@@ -49,11 +49,7 @@ Run COMMAND with an adjusted niceness, which affects process scheduling.
 
   -n, --adjustment=N
          add integer N to the niceness (default 10)
-      --help
-         display this help and exit
-      --version
-         output version information and exit
-`
+` + stdopts.Tail
 
 // Run invokes the utility operand with the argument operands, after the
 // niceness adjustment is parsed and validated. The adjustment is accepted
@@ -90,7 +86,7 @@ func (p *Prog) Run(ctx context.Context, args ...string) error {
 // usageError reports a usage error, followed by the standard hint, exiting
 // with 125, the status GNU nice uses when it fails.
 func (p *Prog) usageError(err error) error {
-	p.errorf("%v", err)
+	stdopts.Errorf(p.Runtime, "nice", "%v", err)
 	stdopts.TryHelp(p.Runtime, "nice")
 	return &coreutils.ExitError{Code: 125, Err: err}
 }
@@ -235,7 +231,7 @@ func (p *Prog) invoke(ctx context.Context, utility string, args []string) error 
 		return err
 	}
 	if p.Exec == nil {
-		p.errorf("no command execution available")
+		stdopts.Errorf(p.Runtime, "nice", "no command execution available")
 		return &coreutils.ExitError{Code: 125}
 	}
 	status, err := p.Exec(ctx, coreutils.ExecOpts{Name: utility, Args: args, Env: p.EnvList()})
@@ -243,21 +239,13 @@ func (p *Prog) invoke(ctx context.Context, utility string, args []string) error 
 		if ctxErr := ctx.Err(); ctxErr != nil {
 			return ctxErr
 		}
-		p.errorf("%v", err)
+		stdopts.Errorf(p.Runtime, "nice", "%v", err)
 		return &coreutils.ExitError{Code: status, Err: err}
 	}
 	if status != 0 {
 		return &coreutils.ExitError{Code: status}
 	}
 	return nil
-}
-
-// errorf writes a diagnostic message to the standard error.
-func (p *Prog) errorf(format string, args ...any) {
-	if p.Stderr == nil {
-		return
-	}
-	fmt.Fprintf(p.Stderr, "nice: "+format+"\n", args...)
 }
 
 var (

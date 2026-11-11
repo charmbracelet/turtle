@@ -47,9 +47,7 @@ func (p *Prog) Run(ctx context.Context, args ...string) error {
 	}
 	opts, operands, err := parseFlags(args)
 	if err != nil {
-		p.errorf("%v", err)
-		stdopts.TryHelp(p.Runtime, "cat")
-		return &coreutils.ExitError{Code: 2}
+		return stdopts.UsageError(p.Runtime, "cat", err)
 	}
 
 	inputs := input.List(operands)
@@ -61,7 +59,7 @@ func (p *Prog) Run(ctx context.Context, args ...string) error {
 			return err
 		}
 		if !in.Stdin && in.Name == "" {
-			p.errorf("invalid zero-length file name")
+			stdopts.Errorf(p.Runtime, "cat", "invalid zero-length file name")
 			ok = false
 			continue
 		}
@@ -69,18 +67,18 @@ func (p *Prog) Run(ctx context.Context, args ...string) error {
 			var writeErr *writeError
 			switch {
 			case errors.As(err, &writeErr):
-				p.errorf("write error: %v", writeErr.err)
+				stdopts.Errorf(p.Runtime, "cat", "write error: %v", writeErr.err)
 				return &coreutils.ExitError{Code: 1, Err: writeErr.err}
 			case ctx.Err() != nil:
 				return ctx.Err()
 			default:
-				p.errorf("%s: %v", in.Label(), patherr.Unwrap(err))
+				stdopts.Errorf(p.Runtime, "cat", "%s: %v", in.Label(), patherr.Unwrap(err))
 				ok = false
 			}
 		}
 	}
 	if err := pr.flush(); err != nil {
-		p.errorf("write error: %v", patherr.Unwrap(err))
+		stdopts.Errorf(p.Runtime, "cat", "write error: %v", patherr.Unwrap(err))
 		return &coreutils.ExitError{Code: 1, Err: err}
 	}
 	if !ok {
@@ -198,11 +196,7 @@ With no FILE, or when FILE is -, read standard input.
          (ignored)
   -v, --show-nonprinting
          use ^ and M- notation, except for LFD and TAB
-      --help
-         display this help and exit
-      --version
-         output version information and exit
-`
+` + stdopts.Tail
 
 // parseFlags parses the command line options. Option parsing stops at the
 // first operand or at "--". The -u option is accepted and has no effect:
@@ -364,11 +358,6 @@ func (p *printer) flush() error {
 		p.pending = nil
 	}
 	return p.w.Flush()
-}
-
-// errorf writes a diagnostic message to standard error.
-func (p *Prog) errorf(format string, args ...any) {
-	fmt.Fprintf(p.Stderr, "cat: "+format+"\n", args...)
 }
 
 // writeError marks an error as coming from writing to the standard output.

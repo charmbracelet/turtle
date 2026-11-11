@@ -8,6 +8,7 @@ import (
 	"strings"
 
 	"charm.land/snail/coreutils/internal/getopt"
+	"charm.land/snail/coreutils/internal/stdopts"
 )
 
 // The long options of od which have no short form stand for private runes.
@@ -98,11 +99,7 @@ for multiply by 512.
          same as -t d2
   -x
          same as -t x2
-      --help
-         display this help and exit
-      --version
-         output version information and exit
-`
+` + stdopts.Tail
 
 type options struct {
 	address     byte // the radix of the offsets, as -A selects

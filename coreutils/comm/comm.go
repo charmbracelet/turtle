@@ -9,7 +9,6 @@ import (
 	"bufio"
 	"context"
 	"errors"
-	"fmt"
 	"io"
 	"strings"
 
@@ -43,17 +42,15 @@ func (p *Prog) Run(ctx context.Context, args ...string) error {
 	}
 	opts, operands, err := parseFlags(args)
 	if err != nil {
-		p.errorf("%v", err)
-		stdopts.TryHelp(p.Runtime, "comm")
-		return &coreutils.ExitError{Code: 2}
+		return stdopts.UsageError(p.Runtime, "comm", err)
 	}
 	if len(operands) < 2 {
-		p.errorf("missing operand")
+		stdopts.Errorf(p.Runtime, "comm", "missing operand")
 		stdopts.TryHelp(p.Runtime, "comm")
 		return &coreutils.ExitError{Code: 2}
 	}
 	if len(operands) > 2 {
-		p.errorf("extra operand '%s'", operands[2])
+		stdopts.Errorf(p.Runtime, "comm", "extra operand '%s'", operands[2])
 		stdopts.TryHelp(p.Runtime, "comm")
 		return &coreutils.ExitError{Code: 2}
 	}
@@ -62,7 +59,7 @@ func (p *Prog) Run(ctx context.Context, args ...string) error {
 	for i, name := range operands {
 		in, err := p.openInput(ctx, name, opts.zero)
 		if err != nil {
-			p.errorf("%s: %v", name, patherr.Unwrap(err))
+			stdopts.Errorf(p.Runtime, "comm", "%s: %v", name, patherr.Unwrap(err))
 			return &coreutils.ExitError{Code: 1}
 		}
 		ins[i] = in
@@ -74,12 +71,12 @@ func (p *Prog) Run(ctx context.Context, args ...string) error {
 		var readErr *input.ReadError
 		switch {
 		case errors.As(err, &writeErr):
-			p.errorf("write error: %v", writeErr.err)
+			stdopts.Errorf(p.Runtime, "comm", "write error: %v", writeErr.err)
 			return &coreutils.ExitError{Code: 1, Err: writeErr.err}
 		case ctx.Err() != nil:
 			return ctx.Err()
 		case errors.As(err, &readErr):
-			p.errorf("%s: %v", readErr.Label, patherr.Unwrap(readErr.Err))
+			stdopts.Errorf(p.Runtime, "comm", "%s: %v", readErr.Label, patherr.Unwrap(readErr.Err))
 			return &coreutils.ExitError{Code: 1}
 		default:
 			return err
@@ -214,11 +211,6 @@ func (p *Prog) openInput(ctx context.Context, name string, zero bool) (*file, er
 	return &file{Closer: rc, reader: bufio.NewReader(rc), label: name, term: term}, nil
 }
 
-// errorf writes a diagnostic message to standard error.
-func (p *Prog) errorf(format string, args ...any) {
-	fmt.Fprintf(p.Stderr, "comm: "+format+"\n", args...)
-}
-
 // optOutputDelimiter is the rune the long-only --output-delimiter option maps
 // to. Having no short equivalent, it's kept above the bytes a group of short
 // options can hold.
@@ -252,11 +244,7 @@ When FILE1 or FILE2 (not both) is -, read standard input.
          separate columns with STR
   -z, --zero-terminated
          line delimiter is NUL, not newline
-      --help
-         display this help and exit
-      --version
-         output version information and exit
-`
+` + stdopts.Tail
 
 // options holds the parsed command line options. delimiter separates the
 // columns, and an empty --output-delimiter value selects NUL.

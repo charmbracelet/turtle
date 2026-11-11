@@ -85,8 +85,7 @@ func (p *Prog) Run(ctx context.Context, args ...string) error {
 		fmt.Fprint(p.Stdout, Usage(p.base.Prog))
 		return nil
 	case set.version:
-		fmt.Fprintf(p.Stdout, "%s (charm.land/snail/coreutils) %s\nhttps://charm.land/snail\n",
-			p.base.Prog, coreutils.Version)
+		fmt.Fprint(p.Stdout, stdopts.VersionText(p.base.Prog))
 		return nil
 	}
 	return zcore.Run(ctx, p.Runtime, set.Options, set.operands)

@@ -16,6 +16,7 @@ import (
 	"strings"
 
 	"charm.land/snail/coreutils"
+	"charm.land/snail/coreutils/internal/stdopts"
 	"charm.land/snail/fsx"
 )
 
@@ -34,7 +35,7 @@ func New(rt *coreutils.Runtime) coreutils.Program {
 func (p *Prog) Run(_ context.Context, args ...string) error {
 	ok, err := p.evaluate(args)
 	if err != nil {
-		p.errorf("%v", err)
+		stdopts.Errorf(p.Runtime, "test", "%v", err)
 		return &coreutils.ExitError{Code: 2}
 	}
 	if !ok {
@@ -385,11 +386,6 @@ func sameFile(a, b fs.FileInfo) bool {
 		return ok && ma == mb
 	}
 	return os.SameFile(a, b)
-}
-
-// errorf writes a diagnostic message to standard error.
-func (p *Prog) errorf(format string, args ...any) {
-	fmt.Fprintf(p.Stderr, "test: "+format+"\n", args...)
 }
 
 var (

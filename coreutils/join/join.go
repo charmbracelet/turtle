@@ -45,24 +45,24 @@ func (p *Prog) Run(ctx context.Context, args ...string) error {
 	}
 	opts, operands, err := parseFlags(args)
 	if err != nil {
-		p.errorf("%v", err)
+		stdopts.Errorf(p.Runtime, "join", "%v", err)
 		stdopts.TryHelp(p.Runtime, "join")
 		return &coreutils.ExitError{Code: 1}
 	}
 	if err := checkOperands(operands); err != nil {
-		p.errorf("%v", err)
+		stdopts.Errorf(p.Runtime, "join", "%v", err)
 		stdopts.TryHelp(p.Runtime, "join")
 		return &coreutils.ExitError{Code: 1}
 	}
 	r1, err := input.Open(p.Runtime, ctx, input.New(operands[0]))
 	if err != nil {
-		p.errorf("%s: %v", operands[0], patherr.Unwrap(err))
+		stdopts.Errorf(p.Runtime, "join", "%s: %v", operands[0], patherr.Unwrap(err))
 		return &coreutils.ExitError{Code: 1}
 	}
 	r2, err := input.Open(p.Runtime, ctx, input.New(operands[1]))
 	if err != nil {
 		r1.Close()
-		p.errorf("%s: %v", operands[1], patherr.Unwrap(err))
+		stdopts.Errorf(p.Runtime, "join", "%s: %v", operands[1], patherr.Unwrap(err))
 		return &coreutils.ExitError{Code: 1}
 	}
 	err = p.joinFiles(ctx, file{name: operands[0], r: newLineReader(r1)}, file{name: operands[1], r: newLineReader(r2)}, opts)
@@ -75,7 +75,7 @@ func (p *Prog) Run(ctx context.Context, args ...string) error {
 		if ctx.Err() != nil {
 			return ctx.Err()
 		}
-		p.errorf("%v", patherr.Unwrap(err))
+		stdopts.Errorf(p.Runtime, "join", "%v", patherr.Unwrap(err))
 		return &coreutils.ExitError{Code: 1, Err: err}
 	}
 	return nil
@@ -391,11 +391,7 @@ blanks. When FILE1 or FILE2 (not both) is -, read standard input.
          use CHAR as input and output field separator
   -v FILenum
          like -a FILenum, but suppress joined output lines
-      --help
-         display this help and exit
-      --version
-         output version information and exit
-`
+` + stdopts.Tail
 
 func parseFlags(args []string) (options, []string, error) {
 	opts := options{paired: true, key1: 1, key2: 1}
@@ -547,10 +543,6 @@ func parseSelector(elem string) (selector, error) {
 		return selector{}, fmt.Errorf("invalid field number in %q", elem)
 	}
 	return selector{file: f, field: n}, nil
-}
-
-func (p *Prog) errorf(format string, args ...any) {
-	fmt.Fprintf(p.Stderr, "join: "+format+"\n", args...)
 }
 
 var _ coreutils.Program = (*Prog)(nil)

@@ -56,18 +56,18 @@ func (p *Prog) Run(ctx context.Context, args ...string) error {
 	}
 	opts, operands, err := parseFlags(args)
 	if err != nil {
-		p.errorf("%v", err)
+		stdopts.Errorf(p.Runtime, "cksum", "%v", err)
 		stdopts.TryHelp(p.Runtime, "cksum")
 		return &coreutils.ExitError{Code: 1}
 	}
 	a, err := opts.chosen()
 	if err != nil {
-		p.errorf("%v", err)
+		stdopts.Errorf(p.Runtime, "cksum", "%v", err)
 		stdopts.TryHelp(p.Runtime, "cksum")
 		return &coreutils.ExitError{Code: 1}
 	}
 	if err := opts.validate(a); err != nil {
-		p.errorf("%v", err)
+		stdopts.Errorf(p.Runtime, "cksum", "%v", err)
 		stdopts.TryHelp(p.Runtime, "cksum")
 		return &coreutils.ExitError{Code: 1}
 	}
@@ -87,12 +87,12 @@ func (p *Prog) Run(ctx context.Context, args ...string) error {
 			if ctxErr := ctx.Err(); ctxErr != nil {
 				return ctxErr
 			}
-			p.errorf("%s: %v", name, patherr.Unwrap(err))
+			stdopts.Errorf(p.Runtime, "cksum", "%s: %v", name, patherr.Unwrap(err))
 			failed = true
 			continue
 		}
 		if _, err := io.WriteString(p.Stdout, line); err != nil {
-			p.errorf("write error: %v", err)
+			stdopts.Errorf(p.Runtime, "cksum", "write error: %v", err)
 			return &coreutils.ExitError{Code: 1, Err: err}
 		}
 	}
@@ -156,11 +156,7 @@ With no FILE, or when FILE is -, read standard input.
          create an untagged checksum, as the standalone digest utilities do
   -z, --zero
          end each output line with NUL, not newline
-      --help
-         display this help and exit
-      --version
-         output version information and exit
-`
+` + stdopts.Tail
 
 // parseFlags parses the options and operands. Option parsing stops at the
 // first operand or at "--".
@@ -517,10 +513,6 @@ var nameEscaper = strings.NewReplacer(`\`, `\\`, "\n", `\n`, "\r", `\r`)
 // escaped for the lines it appears in to be parsed back.
 func problematic(s string) bool {
 	return strings.ContainsAny(s, "\\\n\r")
-}
-
-func (p *Prog) errorf(format string, args ...any) {
-	fmt.Fprintf(p.Stderr, "cksum: "+format+"\n", args...)
 }
 
 var (

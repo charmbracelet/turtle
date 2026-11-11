@@ -35,7 +35,7 @@ func (p *Prog) Run(ctx context.Context, args ...string) error {
 	}
 	opts, operands, err := parseFlags(args)
 	if err != nil {
-		p.errorf("%v", err)
+		stdopts.Errorf(p.Runtime, "strings", "%v", err)
 		stdopts.TryHelp(p.Runtime, "strings")
 		return &coreutils.ExitError{Code: 1}
 	}
@@ -49,7 +49,7 @@ func (p *Prog) Run(ctx context.Context, args ...string) error {
 		in := input.New(name)
 		r, err := input.Open(p.Runtime, ctx, in)
 		if err != nil {
-			p.errorf("%s: %v", name, patherr.Unwrap(err))
+			stdopts.Errorf(p.Runtime, "strings", "%s: %v", name, patherr.Unwrap(err))
 			return &coreutils.ExitError{Code: 1}
 		}
 		data, readErr := io.ReadAll(r)
@@ -58,15 +58,15 @@ func (p *Prog) Run(ctx context.Context, args ...string) error {
 			if ctx.Err() != nil {
 				return ctx.Err()
 			}
-			p.errorf("%s: %v", name, patherr.Unwrap(readErr))
+			stdopts.Errorf(p.Runtime, "strings", "%s: %v", name, patherr.Unwrap(readErr))
 			return &coreutils.ExitError{Code: 1}
 		}
 		if closeErr != nil {
-			p.errorf("%s: %v", name, patherr.Unwrap(closeErr))
+			stdopts.Errorf(p.Runtime, "strings", "%s: %v", name, patherr.Unwrap(closeErr))
 			return &coreutils.ExitError{Code: 1}
 		}
 		if err := p.writeStrings(data, in.Label(), opts); err != nil {
-			p.errorf("write error: %v", err)
+			stdopts.Errorf(p.Runtime, "strings", "write error: %v", err)
 			return &coreutils.ExitError{Code: 1, Err: err}
 		}
 	}
@@ -116,10 +116,6 @@ func (p *Prog) writeStrings(data []byte, label string, opts options) error {
 	return flush(len(data))
 }
 
-func (p *Prog) errorf(format string, args ...any) {
-	fmt.Fprintf(p.Stderr, "strings: "+format+"\n", args...)
-}
-
 type options struct {
 	minLength      int
 	offset         byte
@@ -148,11 +144,7 @@ in the given files, or the standard input when no file is given.
   -t RADIX
          print the offsets in the given radix: d (decimal), o (octal) or
          x (hexadecimal)
-      --help
-         display this help and exit
-      --version
-         output version information and exit
-`
+` + stdopts.Tail
 
 func parseFlags(args []string) (options, []string, error) {
 	opts := options{minLength: 4}

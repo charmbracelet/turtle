@@ -37,7 +37,7 @@ func (p *Prog) Run(ctx context.Context, args ...string) error {
 	}
 	opts, names, suffix, err := parseArgs(args)
 	if err != nil {
-		p.errorf("%v", err)
+		stdopts.Errorf(p.Runtime, "basename", "%v", err)
 		stdopts.TryHelp(p.Runtime, "basename")
 		return &coreutils.ExitError{Code: 2, Err: err}
 	}
@@ -96,11 +96,6 @@ func parseArgs(args []string) (options, []string, string, error) {
 	return opts, operands, opts.suffix, nil
 }
 
-// errorf writes a diagnostic message to standard error.
-func (p *Prog) errorf(format string, args ...any) {
-	fmt.Fprintf(p.Stderr, "basename: "+format+"\n", args...)
-}
-
 // basename returns the last component of path, with suffix removed when it's
 // not identical to and is a suffix of the result. Only forward slashes are
 // treated as separators, so callers must normalize Windows-style paths first.
@@ -151,11 +146,7 @@ If specified, also remove a trailing SUFFIX.
          remove a trailing SUFFIX; implies -a
   -z, --zero
          end each output line with NUL, not newline
-      --help
-         display this help and exit
-      --version
-         output version information and exit
-`
+` + stdopts.Tail
 
 var (
 	_ coreutils.Program = (*Prog)(nil)

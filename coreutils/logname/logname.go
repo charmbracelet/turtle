@@ -36,14 +36,14 @@ func (p *Prog) Run(ctx context.Context, args ...string) error {
 		return err
 	}
 	if err := parseArgs(args); err != nil {
-		p.errorf("%v", err)
+		stdopts.Errorf(p.Runtime, "logname", "%v", err)
 		stdopts.TryHelp(p.Runtime, "logname")
 		return &coreutils.ExitError{Code: 1, Err: err}
 	}
 	name, ok := p.login()
 	if !ok {
 		err := errors.New("no login name")
-		p.errorf("%v", err)
+		stdopts.Errorf(p.Runtime, "logname", "%v", err)
 		return &coreutils.ExitError{Code: 1, Err: err}
 	}
 	if _, err := io.WriteString(p.Stdout, name+"\n"); err != nil {
@@ -76,23 +76,11 @@ func (p *Prog) login() (string, bool) {
 	return "", false
 }
 
-// errorf writes a diagnostic message to the standard error.
-func (p *Prog) errorf(format string, args ...any) {
-	if p.Stderr == nil {
-		return
-	}
-	fmt.Fprintf(p.Stderr, "logname: "+format+"\n", args...)
-}
-
 // usage describes the options of logname.
 const usage = `Usage: logname [OPTION]...
 Print the user's login name.
 
-      --help
-         display this help and exit
-      --version
-         output version information and exit
-`
+` + stdopts.Tail
 
 var (
 	_ coreutils.Program = (*Prog)(nil)

@@ -4,7 +4,6 @@ package chown
 import (
 	"context"
 	"errors"
-	"fmt"
 	"io/fs"
 	"os/user"
 	"path"
@@ -44,32 +43,30 @@ func (p *Prog) Run(ctx context.Context, args ...string) error {
 	}
 	opts, operands, err := parseFlags(args)
 	if err != nil {
-		p.errorf("%v", err)
-		stdopts.TryHelp(p.Runtime, "chown")
-		return &coreutils.ExitError{Code: 2}
+		return stdopts.UsageError(p.Runtime, "chown", err)
 	}
 	if err := p.prepare(&opts); err != nil {
-		p.errorf("%v", err)
+		stdopts.Errorf(p.Runtime, "chown", "%v", err)
 		return &coreutils.ExitError{Code: 1}
 	}
 	switch {
 	case len(operands) == 0:
-		p.errorf("missing operand")
+		stdopts.Errorf(p.Runtime, "chown", "missing operand")
 		stdopts.TryHelp(p.Runtime, "chown")
 		return &coreutils.ExitError{Code: 2}
 	case p.FS == nil:
-		p.errorf("no file system available")
+		stdopts.Errorf(p.Runtime, "chown", "no file system available")
 		return &coreutils.ExitError{Code: 1}
 	}
 	cfs, ok := p.FS.(fsx.ChownFS)
 	if !ok {
-		p.errorf("changing ownership is not supported")
+		stdopts.Errorf(p.Runtime, "chown", "changing ownership is not supported")
 		return &coreutils.ExitError{Code: 1}
 	}
 	if opts.fromSpec != nil {
 		from, err := p.parseFrom(*opts.fromSpec)
 		if err != nil {
-			p.errorf("%v", err)
+			stdopts.Errorf(p.Runtime, "chown", "%v", err)
 			return &coreutils.ExitError{Code: 1}
 		}
 		opts.from = &from
@@ -106,20 +103,20 @@ func (p *Prog) Run(ctx context.Context, args ...string) error {
 func (p *Prog) target(opts options, operands []string) (ownership, []string, error) {
 	if opts.reference == nil {
 		if len(operands) == 1 {
-			p.errorf("missing file operand")
+			stdopts.Errorf(p.Runtime, "chown", "missing file operand")
 			stdopts.TryHelp(p.Runtime, "chown")
 			return ownership{}, nil, &coreutils.ExitError{Code: 2}
 		}
 		target, err := p.parseOwner(operands[0])
 		if err != nil {
-			p.errorf("%v", err)
+			stdopts.Errorf(p.Runtime, "chown", "%v", err)
 			return ownership{}, nil, &coreutils.ExitError{Code: 1}
 		}
 		return target, operands[1:], nil
 	}
 	target, err := p.referenceTarget(*opts.reference)
 	if err != nil {
-		p.errorf("failed to get attributes of %s: %v", *opts.reference, patherr.Unwrap(err))
+		stdopts.Errorf(p.Runtime, "chown", "failed to get attributes of %s: %v", *opts.reference, patherr.Unwrap(err))
 		return ownership{}, nil, &coreutils.ExitError{Code: 1}
 	}
 	return target, operands, nil
@@ -181,8 +178,8 @@ func (p *Prog) preserveRoot(opts options, files []string) error {
 
 // refuseRoot reports the failsafe of --preserve-root.
 func (p *Prog) refuseRoot() error {
-	p.errorf("it is dangerous to operate recursively on '/'")
-	p.errorf("use --no-preserve-root to override this failsafe")
+	stdopts.Errorf(p.Runtime, "chown", "it is dangerous to operate recursively on '/'")
+	stdopts.Errorf(p.Runtime, "chown", "use --no-preserve-root to override this failsafe")
 	return &coreutils.ExitError{Code: 1}
 }
 
@@ -206,7 +203,7 @@ func (p *Prog) visit(ctx context.Context, operand, root, name string, target own
 	fi, err := p.lstat(name)
 	if err != nil {
 		if !opts.quiet {
-			p.errorf("cannot access '%s': %v", shown, patherr.Unwrap(err))
+			stdopts.Errorf(p.Runtime, "chown", "cannot access '%s': %v", shown, patherr.Unwrap(err))
 		}
 		return true, nil
 	}
@@ -216,7 +213,7 @@ func (p *Prog) visit(ctx context.Context, operand, root, name string, target own
 		name, fi, err = p.resolveChain(name)
 		if err != nil {
 			if !opts.quiet {
-				p.errorf("cannot dereference '%s': %v", shown, patherr.Unwrap(err))
+				stdopts.Errorf(p.Runtime, "chown", "cannot dereference '%s': %v", shown, patherr.Unwrap(err))
 			}
 			return true, nil
 		}
@@ -228,7 +225,7 @@ func (p *Prog) visit(ctx context.Context, operand, root, name string, target own
 	}
 	if traverse && visited[name] {
 		if !opts.quiet {
-			p.errorf("cycle in directory tree '%s'", shown)
+			stdopts.Errorf(p.Runtime, "chown", "cycle in directory tree '%s'", shown)
 		}
 		return true, nil
 	}
@@ -237,9 +234,9 @@ func (p *Prog) visit(ctx context.Context, operand, root, name string, target own
 	if err := p.apply(name, shown, fi, target, opts, cfs); err != nil {
 		if !opts.quiet {
 			if target.uid >= 0 {
-				p.errorf("changing ownership of '%s': %v", shown, patherr.Unwrap(err))
+				stdopts.Errorf(p.Runtime, "chown", "changing ownership of '%s': %v", shown, patherr.Unwrap(err))
 			} else {
-				p.errorf("changing group of '%s': %v", shown, patherr.Unwrap(err))
+				stdopts.Errorf(p.Runtime, "chown", "changing group of '%s': %v", shown, patherr.Unwrap(err))
 			}
 		}
 		failed = true
@@ -254,7 +251,7 @@ func (p *Prog) visit(ctx context.Context, operand, root, name string, target own
 	entries, err := fs.ReadDir(p.FS, name)
 	if err != nil {
 		if !opts.quiet {
-			p.errorf("cannot read directory '%s': %v", shown, patherr.Unwrap(err))
+			stdopts.Errorf(p.Runtime, "chown", "cannot read directory '%s': %v", shown, patherr.Unwrap(err))
 		}
 		return true, nil
 	}
@@ -358,11 +355,6 @@ func (p *Prog) lstat(name string) (fs.FileInfo, error) {
 		return lfs.Lstat(name)
 	}
 	return fs.Stat(p.FS, name)
-}
-
-// errorf writes a diagnostic message to standard error.
-func (p *Prog) errorf(format string, args ...any) {
-	fmt.Fprintf(p.Stderr, "chown: "+format+"\n", args...)
 }
 
 // display returns the path to show in diagnostics: the operand as given, with
@@ -470,11 +462,7 @@ Change the owner and/or group of each FILE to OWNER and/or GROUP.
          use the owner and group of REF_FILE instead of an owner operand
   -v, --verbose
          output a diagnostic for every file processed
-      --help
-         display this help and exit
-      --version
-         output version information and exit
-`
+` + stdopts.Tail
 
 // options holds what a run of chown selects.
 type options struct {

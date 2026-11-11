@@ -44,7 +44,7 @@ func (p *Prog) Run(ctx context.Context, args ...string) error {
 	}
 	opts, operands, err := parseFlags(args)
 	if err != nil {
-		p.errorf("%v", err)
+		stdopts.Errorf(p.Runtime, "env", "%v", err)
 		stdopts.TryHelp(p.Runtime, "env")
 		return &coreutils.ExitError{Code: 125, Err: err}
 	}
@@ -56,7 +56,7 @@ func (p *Prog) Run(ctx context.Context, args ...string) error {
 	if opts.split != "" {
 		split, err := p.splitArgs(opts.split)
 		if err != nil {
-			p.errorf("%v", err)
+			stdopts.Errorf(p.Runtime, "env", "%v", err)
 			return &coreutils.ExitError{Code: 125, Err: err}
 		}
 		operands = append(split, operands...)
@@ -109,11 +109,7 @@ With no COMMAND, print the resulting environment.
   -S, --split-string=STRING
          process and split STRING into separate arguments, used to pass multiple
          arguments on shebang lines
-      --help
-         display this help and exit
-      --version
-         output version information and exit
-`
+` + stdopts.Tail
 
 // parseFlags parses the options and operands. The -u option may repeat,
 // and option parsing stops at the first operand or at "--".
@@ -148,11 +144,11 @@ func (p *Prog) chdir(dir string) error {
 	resolved := p.FsPath(dir)
 	fi, err := fs.Stat(p.FS, resolved)
 	if err != nil {
-		p.errorf("cannot change directory to %s: %v", dir, patherr.Unwrap(err))
+		stdopts.Errorf(p.Runtime, "env", "cannot change directory to %s: %v", dir, patherr.Unwrap(err))
 		return &coreutils.ExitError{Code: 125, Err: err}
 	}
 	if !fi.IsDir() {
-		p.errorf("cannot change directory to %s: not a directory", dir)
+		stdopts.Errorf(p.Runtime, "env", "cannot change directory to %s: not a directory", dir)
 		return &coreutils.ExitError{Code: 125}
 	}
 	p.WorkingDir = resolved
@@ -320,7 +316,7 @@ func (p *Prog) buildEnv(opts settings, assignments []string) []string {
 // pair per line, each terminated with a newline or a NUL with -0.
 func (p *Prog) printEnv(entries []string, null bool) error {
 	if p.Stdout == nil {
-		p.errorf("no standard output available")
+		stdopts.Errorf(p.Runtime, "env", "no standard output available")
 		return &coreutils.ExitError{Code: 125}
 	}
 	term := "\n"
@@ -344,7 +340,7 @@ func (p *Prog) invoke(ctx context.Context, utility string, args, entries []strin
 		return err
 	}
 	if p.Exec == nil {
-		p.errorf("no command execution available")
+		stdopts.Errorf(p.Runtime, "env", "no command execution available")
 		return &coreutils.ExitError{Code: 125}
 	}
 	status, err := p.Exec(ctx, coreutils.ExecOpts{Name: utility, Args: args, Env: entries})
@@ -352,7 +348,7 @@ func (p *Prog) invoke(ctx context.Context, utility string, args, entries []strin
 		if ctxErr := ctx.Err(); ctxErr != nil {
 			return ctxErr
 		}
-		p.errorf("%v", err)
+		stdopts.Errorf(p.Runtime, "env", "%v", err)
 		return &coreutils.ExitError{Code: status, Err: err}
 	}
 	if status != 0 {
@@ -410,14 +406,6 @@ func validName(name string) bool {
 		}
 	}
 	return true
-}
-
-// errorf writes a diagnostic message to the standard error.
-func (p *Prog) errorf(format string, args ...any) {
-	if p.Stderr == nil {
-		return
-	}
-	fmt.Fprintf(p.Stderr, "env: "+format+"\n", args...)
 }
 
 var (

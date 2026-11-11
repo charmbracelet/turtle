@@ -193,9 +193,5 @@ Compress or expand files.
          compression method: lzw (default) or gzip
   -v
          write the names and the sizes of the files processed
-      --help
-         display this help and exit
-      --version
-         output version information and exit
-`
+` + stdopts.Tail
 }

@@ -48,12 +48,10 @@ func (p *Prog) Run(ctx context.Context, args ...string) error {
 	}
 	opts, operands, err := parseFlags(args)
 	if err != nil {
-		p.errorf("%v", err)
-		stdopts.TryHelp(p.Runtime, "split")
-		return &coreutils.ExitError{Code: 2}
+		return stdopts.UsageError(p.Runtime, "split", err)
 	}
 	if len(operands) > 2 {
-		p.errorf("extra operand '%s'", operands[2])
+		stdopts.Errorf(p.Runtime, "split", "extra operand '%s'", operands[2])
 		stdopts.TryHelp(p.Runtime, "split")
 		return &coreutils.ExitError{Code: 2}
 	}
@@ -66,7 +64,7 @@ func (p *Prog) Run(ctx context.Context, args ...string) error {
 		prefix = operands[1]
 	}
 	if p.FS == nil {
-		p.errorf("no file system available")
+		stdopts.Errorf(p.Runtime, "split", "no file system available")
 		return &coreutils.ExitError{Code: 1}
 	}
 	w := &pieceWriter{
@@ -75,13 +73,13 @@ func (p *Prog) Run(ctx context.Context, args ...string) error {
 		addSuffix: opts.addSuffix,
 	}
 	if len(coreutils.FsBase(prefix))+opts.suffixLen+len(opts.addSuffix) > nameMax {
-		p.errorf("%s: file name too long", w.nextName())
+		stdopts.Errorf(p.Runtime, "split", "%s: file name too long", w.nextName())
 		return &coreutils.ExitError{Code: 1}
 	}
 
 	r, err := input.Open(p.Runtime, ctx, input.New(name))
 	if err != nil {
-		p.errorf("%s: %v", name, patherr.Unwrap(err))
+		stdopts.Errorf(p.Runtime, "split", "%s: %v", name, patherr.Unwrap(err))
 		return &coreutils.ExitError{Code: 1}
 	}
 	defer r.Close()
@@ -103,13 +101,13 @@ func (p *Prog) Run(ctx context.Context, args ...string) error {
 		case ctx.Err() != nil:
 			return ctx.Err()
 		case errors.Is(err, errSuffixesExhausted):
-			p.errorf("%v", err)
+			stdopts.Errorf(p.Runtime, "split", "%v", err)
 		case errors.As(err, &writeErr):
-			p.errorf("%s: %v", writeErr.name, patherr.Unwrap(writeErr.err))
+			stdopts.Errorf(p.Runtime, "split", "%s: %v", writeErr.name, patherr.Unwrap(writeErr.err))
 		case errors.As(err, &readErr):
-			p.errorf("%s: %v", name, patherr.Unwrap(readErr.err))
+			stdopts.Errorf(p.Runtime, "split", "%s: %v", name, patherr.Unwrap(readErr.err))
 		default:
-			p.errorf("%v", err)
+			stdopts.Errorf(p.Runtime, "split", "%v", err)
 		}
 		return &coreutils.ExitError{Code: 1, Err: err}
 	}
@@ -565,11 +563,6 @@ func sortSearch(sorted []int, v int64) int {
 	return i
 }
 
-// errorf writes a diagnostic message to standard error.
-func (p *Prog) errorf(format string, args ...any) {
-	fmt.Fprintf(p.Stderr, "split: "+format+"\n", args...)
-}
-
 // options holds the parsed command line options.
 type options struct {
 	lines     int64
@@ -633,11 +626,7 @@ default FILE is stdin and default PREFIX is 'x'.
          like -d, but use hexadecimal suffixes
       --additional-suffix=SUFFIX
          append SUFFIX to file names
-      --help
-         display this help and exit
-      --version
-         output version information and exit
-`
+` + stdopts.Tail
 
 // parseFlags parses the command line options. Option parsing stops at the
 // first operand or at "--". The -d and -x options take an optional attached

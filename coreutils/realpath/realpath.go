@@ -76,22 +76,22 @@ func (p *Prog) Run(ctx context.Context, args ...string) error {
 	}
 	opts, operands, err := parseFlags(args)
 	if err != nil {
-		p.errorf("%v", err)
+		stdopts.Errorf(p.Runtime, "realpath", "%v", err)
 		stdopts.TryHelp(p.Runtime, "realpath")
 		return &coreutils.ExitError{Code: 1}
 	}
 	switch {
 	case len(operands) == 0:
-		p.errorf("missing file operand")
+		stdopts.Errorf(p.Runtime, "realpath", "missing file operand")
 		stdopts.TryHelp(p.Runtime, "realpath")
 		return &coreutils.ExitError{Code: 1}
 	case slices.Contains(operands, ""):
-		p.errorf("invalid zero-length file name")
+		stdopts.Errorf(p.Runtime, "realpath", "invalid zero-length file name")
 		stdopts.TryHelp(p.Runtime, "realpath")
 		return &coreutils.ExitError{Code: 1}
 	}
 	if p.FS == nil {
-		p.errorf("no file system available")
+		stdopts.Errorf(p.Runtime, "realpath", "no file system available")
 		return &coreutils.ExitError{Code: 1}
 	}
 
@@ -105,7 +105,7 @@ func (p *Prog) Run(ctx context.Context, args ...string) error {
 		if ctxErr := ctx.Err(); ctxErr != nil {
 			return ctxErr
 		}
-		p.errorf("%v", err)
+		stdopts.Errorf(p.Runtime, "realpath", "%v", err)
 		return &coreutils.ExitError{Code: 1, Err: err}
 	}
 
@@ -120,7 +120,7 @@ func (p *Prog) Run(ctx context.Context, args ...string) error {
 				return ctxErr
 			}
 			if opts.verbose {
-				p.errorf("%s: %v", name, patherr.Unwrap(err))
+				stdopts.Errorf(p.Runtime, "realpath", "%s: %v", name, patherr.Unwrap(err))
 			}
 			ok = false
 			continue
@@ -426,11 +426,7 @@ all but the last component must exist.
          don't expand symbolic links
   -z, --zero
          end each output line with NUL, not newline
-      --help
-         display this help and exit
-      --version
-         output version information and exit
-`
+` + stdopts.Tail
 
 // parseFlags parses the options and operands. Option parsing stops at the
 // first operand or at "--".
@@ -557,13 +553,6 @@ var (
 	errLoop   = errors.New("too many levels of symbolic links")
 	errNotDir = errors.New("not a directory")
 )
-
-// errorf writes a diagnostic message to the standard error.
-func (p *Prog) errorf(format string, args ...any) {
-	if p.Stderr != nil {
-		fmt.Fprintf(p.Stderr, "realpath: "+format+"\n", args...)
-	}
-}
 
 var (
 	_ coreutils.Program = (*Prog)(nil)

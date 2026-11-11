@@ -52,40 +52,36 @@ func (p *Prog) Run(ctx context.Context, args ...string) error {
 	}
 	opts, operands, err := parseFlags(args)
 	if err != nil {
-		p.errorf("%v", err)
-		stdopts.TryHelp(p.Runtime, "cp")
-		return &coreutils.ExitError{Code: 2}
+		return stdopts.UsageError(p.Runtime, "cp", err)
 	}
 	sources, target, err := splitOperands(operands, opts)
 	if err != nil {
-		p.errorf("%v", err)
-		stdopts.TryHelp(p.Runtime, "cp")
-		return &coreutils.ExitError{Code: 2}
+		return stdopts.UsageError(p.Runtime, "cp", err)
 	}
 	if p.FS == nil {
-		p.errorf("no file system available")
+		stdopts.Errorf(p.Runtime, "cp", "no file system available")
 		return &coreutils.ExitError{Code: 1}
 	}
 	if slices.Contains(operands, "") || (opts.targetDirSet && opts.targetDir == "") {
-		p.errorf("invalid zero-length file name")
+		stdopts.Errorf(p.Runtime, "cp", "invalid zero-length file name")
 		return &coreutils.ExitError{Code: 1}
 	}
 
 	dst := p.FsPath(target)
 	fi, err := fs.Stat(p.FS, dst)
 	if err != nil && !errors.Is(err, fs.ErrNotExist) {
-		p.errorf("cannot stat '%s': %v", target, patherr.Unwrap(err))
+		stdopts.Errorf(p.Runtime, "cp", "cannot stat '%s': %v", target, patherr.Unwrap(err))
 		return &coreutils.ExitError{Code: 1}
 	}
 	targetIsDir := err == nil && fi.IsDir()
 	slash := strings.HasSuffix(filepath.ToSlash(target), "/")
 	if opts.targetDirSet && !targetIsDir {
-		p.errorf("target '%s' is not a directory", target)
+		stdopts.Errorf(p.Runtime, "cp", "target '%s' is not a directory", target)
 		return &coreutils.ExitError{Code: 1}
 	}
 	into := targetIsDir && !opts.noTarget
 	if !targetIsDir && (len(sources) > 1 || (slash && !opts.recursive)) {
-		p.errorf("target '%s' is not a directory", target)
+		stdopts.Errorf(p.Runtime, "cp", "target '%s' is not a directory", target)
 		return &coreutils.ExitError{Code: 1}
 	}
 
@@ -108,7 +104,7 @@ func (p *Prog) Run(ctx context.Context, args ...string) error {
 		case errors.Is(err, errFailed):
 			ok = false
 		default:
-			p.errorf("%v", err)
+			stdopts.Errorf(p.Runtime, "cp", "%v", err)
 			ok = false
 		}
 	}
@@ -310,7 +306,7 @@ func (p *Prog) copyDir(ctx context.Context, e pair, fi fs.FileInfo, opts options
 		case errors.Is(err, errFailed):
 			ok = false
 		default:
-			p.errorf("%v", err)
+			stdopts.Errorf(p.Runtime, "cp", "%v", err)
 			ok = false
 		}
 	}
@@ -512,11 +508,6 @@ var errSkipped = errors.New("skipped")
 // errFailed marks a hierarchy whose failure was already reported.
 var errFailed = errors.New("failed")
 
-// errorf writes a diagnostic message to standard error.
-func (p *Prog) errorf(format string, args ...any) {
-	fmt.Fprintf(p.Stderr, "cp: "+format+"\n", args...)
-}
-
 // options holds the flags of cp. For -i and -n, only the last one given
 // takes effect, and -u is ignored when -n is in effect.
 type options struct {
@@ -645,11 +636,7 @@ Copy SOURCE to DEST, or multiple SOURCE(s) to DIRECTORY.
          missing
   -v, --verbose
          explain what is being done
-      --help
-         display this help and exit
-      --version
-         output version information and exit
-`
+` + stdopts.Tail
 
 // splitOperands splits the operands into the sources and the target,
 // following the -t and -T options.

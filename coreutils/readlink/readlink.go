@@ -43,11 +43,11 @@ func (p *Prog) Run(ctx context.Context, args ...string) error {
 	case len(operands) == 0:
 		return p.usageError(errors.New("missing operand"))
 	case slices.Contains(operands, ""):
-		p.errorf("invalid zero-length file name")
+		stdopts.Errorf(p.Runtime, "readlink", "invalid zero-length file name")
 		return &coreutils.ExitError{Code: 1}
 	}
 	if p.FS == nil {
-		p.errorf("no file system available")
+		stdopts.Errorf(p.Runtime, "readlink", "no file system available")
 		return &coreutils.ExitError{Code: 1}
 	}
 
@@ -65,7 +65,7 @@ func (p *Prog) Run(ctx context.Context, args ...string) error {
 	case len(operands) == 1:
 		delims = ""
 	default:
-		p.errorf("warning: -n specified with more than one operand; not printing delimiters")
+		stdopts.Errorf(p.Runtime, "readlink", "warning: -n specified with more than one operand; not printing delimiters")
 		delims = ""
 	}
 
@@ -80,7 +80,7 @@ func (p *Prog) Run(ctx context.Context, args ...string) error {
 				return ctxErr
 			}
 			if verbose {
-				p.errorf("%s: %v", operand, err)
+				stdopts.Errorf(p.Runtime, "readlink", "%s: %v", operand, err)
 			}
 			ok = false
 			continue
@@ -167,11 +167,7 @@ Print value of a symbolic link or canonical file name.
          report error messages
   -z, --zero
          end each output line with NUL, not newline
-      --help
-         display this help and exit
-      --version
-         output version information and exit
-`
+` + stdopts.Tail
 
 // parseFlags parses the options and operands. Option parsing stops at the
 // first operand or at "--".
@@ -206,20 +202,13 @@ func parseFlags(args []string) (options, []string, error) {
 
 // usageError reports a usage error, with the hint that follows them.
 func (p *Prog) usageError(err error) error {
-	p.errorf("%v", err)
+	stdopts.Errorf(p.Runtime, "readlink", "%v", err)
 	stdopts.TryHelp(p.Runtime, "readlink")
 	return &coreutils.ExitError{Code: 1, Err: err}
 }
 
 // errNotSymlink is returned when an operand names no symbolic link.
 var errNotSymlink = errors.New("not a symbolic link")
-
-// errorf writes a diagnostic message to the standard error.
-func (p *Prog) errorf(format string, args ...any) {
-	if p.Stderr != nil {
-		fmt.Fprintf(p.Stderr, "readlink: "+format+"\n", args...)
-	}
-}
 
 var (
 	_ coreutils.Program = (*Prog)(nil)

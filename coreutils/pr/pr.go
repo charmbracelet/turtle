@@ -46,12 +46,12 @@ func (p *Prog) Run(ctx context.Context, args ...string) error {
 	}
 	opts, operands, err := parseFlags(args)
 	if err != nil {
-		p.errorf("%v", err)
+		stdopts.Errorf(p.Runtime, "pr", "%v", err)
 		stdopts.TryHelp(p.Runtime, "pr")
 		return &coreutils.ExitError{Code: 1}
 	}
 	if err := opts.setup(operands); err != nil {
-		p.errorf("%v", err)
+		stdopts.Errorf(p.Runtime, "pr", "%v", err)
 		stdopts.TryHelp(p.Runtime, "pr")
 		return &coreutils.ExitError{Code: 1}
 	}
@@ -69,7 +69,7 @@ func (p *Prog) Run(ctx context.Context, args ...string) error {
 	var writeErr *writeError
 	switch {
 	case errors.As(err, &writeErr):
-		p.errorf("write error: %v", writeErr.err)
+		stdopts.Errorf(p.Runtime, "pr", "write error: %v", writeErr.err)
 		return &coreutils.ExitError{Code: 1, Err: writeErr.err}
 	case err != nil:
 		return err
@@ -215,11 +215,7 @@ lines. The standard input is read when no FILE is given, or when a FILE is -.
          page width of WIDTH columns (default 72) for multi-column output
   -W, --page-width=WIDTH
          page width of WIDTH columns, truncating even single-column output
-      --help
-         display this help and exit
-      --version
-         output version information and exit
-`
+` + stdopts.Tail
 
 // The long options which stand for no short option.
 const (
@@ -804,11 +800,6 @@ func (p *Prog) location() *time.Location {
 		}
 	}
 	return time.Local
-}
-
-// errorf writes a diagnostic message to standard error.
-func (p *Prog) errorf(format string, args ...any) {
-	fmt.Fprintf(p.Stderr, "pr: "+format+"\n", args...)
 }
 
 // writeError marks an error as coming from writing to the standard output.

@@ -61,12 +61,10 @@ func (p *Prog) Run(ctx context.Context, args ...string) error {
 	}
 	opts, operands, err := parseFlags(args)
 	if err != nil {
-		p.errorf("%v", err)
-		stdopts.TryHelp(p.Runtime, "ls")
-		return &coreutils.ExitError{Code: 2}
+		return stdopts.UsageError(p.Runtime, "ls", err)
 	}
 	if p.FS == nil {
-		p.errorf("no file system available")
+		stdopts.Errorf(p.Runtime, "ls", "no file system available")
 		return &coreutils.ExitError{Code: 1}
 	}
 	if opts.fast {
@@ -75,9 +73,7 @@ func (p *Prog) Run(ctx context.Context, args ...string) error {
 	}
 	l, err := p.newLister(opts)
 	if err != nil {
-		p.errorf("%v", err)
-		stdopts.TryHelp(p.Runtime, "ls")
-		return &coreutils.ExitError{Code: 2}
+		return stdopts.UsageError(p.Runtime, "ls", err)
 	}
 	// The listing of an implicit dot operand is written without a header,
 	// unless the listing is recursive.
@@ -92,13 +88,13 @@ func (p *Prog) Run(ctx context.Context, args ...string) error {
 			return err
 		}
 		if arg == "" {
-			p.errorf("invalid zero-length file name")
+			stdopts.Errorf(p.Runtime, "ls", "invalid zero-length file name")
 			l.failed = true
 			continue
 		}
 		e, err := l.entryFor(p.FsPath(arg), arg, true)
 		if err != nil {
-			p.errorf("cannot access '%s': %v", arg, patherr.Unwrap(err))
+			stdopts.Errorf(p.Runtime, "ls", "cannot access '%s': %v", arg, patherr.Unwrap(err))
 			l.failed = true
 			continue
 		}
@@ -172,7 +168,7 @@ func (p *Prog) newLister(opts options) (*lister, error) {
 			if style, found := quotingStyles[word]; found {
 				opts.quoting = style
 			} else {
-				p.errorf("ignoring invalid value of environment variable QUOTING_STYLE: %s", word)
+				stdopts.Errorf(p.Runtime, "ls", "ignoring invalid value of environment variable QUOTING_STYLE: %s", word)
 			}
 		} else if tty {
 			opts.quoting = quoteShellEscape
@@ -196,7 +192,7 @@ func (p *Prog) newLister(opts options) (*lister, error) {
 			if size, err := strconv.Atoi(strings.TrimSpace(word)); err == nil && size >= 0 {
 				l.tabsize = size
 			} else {
-				p.errorf("ignoring invalid tab size in environment variable TABSIZE: %s", word)
+				stdopts.Errorf(p.Runtime, "ls", "ignoring invalid tab size in environment variable TABSIZE: %s", word)
 			}
 		}
 	}
@@ -326,7 +322,7 @@ func (l *lister) entryFor(path, name string, isOperand bool) (entry, error) {
 		// A link that can't be resolved is written as itself. Only the
 		// options that ask for it make it a failure.
 		if l.opts.follow != followDefault {
-			l.prog.errorf("cannot access '%s': %v", name, patherr.Unwrap(err))
+			stdopts.Errorf(l.prog.Runtime, "ls", "cannot access '%s': %v", name, patherr.Unwrap(err))
 			l.failed = true
 		}
 		return e, nil
@@ -361,7 +357,7 @@ func (l *lister) follows(isOperand bool) bool {
 func (l *lister) listDir(ctx context.Context, e entry, header bool) error {
 	if id := dirID(e.fi); id != "" {
 		if l.visits[id] {
-			l.prog.errorf("%s: directory causes a cycle", e.name)
+			stdopts.Errorf(l.prog.Runtime, "ls", "%s: directory causes a cycle", e.name)
 			l.failed = true
 			return nil
 		}
@@ -376,7 +372,7 @@ func (l *lister) listDir(ctx context.Context, e entry, header bool) error {
 	}
 	entries, err := l.readEntries(e.path, e.name)
 	if err != nil {
-		l.prog.errorf("cannot open directory '%s': %v", e.name, patherr.Unwrap(err))
+		stdopts.Errorf(l.prog.Runtime, "ls", "cannot open directory '%s': %v", e.name, patherr.Unwrap(err))
 		l.failed = true
 		return nil
 	}
@@ -422,7 +418,7 @@ func (l *lister) readEntries(dir, display string) ([]entry, error) {
 		}
 		e, err := l.entryFor(path.Join(dir, name), name, false)
 		if err != nil {
-			l.prog.errorf("cannot access '%s': %v", joinName(display, name), patherr.Unwrap(err))
+			stdopts.Errorf(l.prog.Runtime, "ls", "cannot access '%s': %v", joinName(display, name), patherr.Unwrap(err))
 			l.failed = true
 			continue
 		}
@@ -756,11 +752,6 @@ func dirID(fi fs.FileInfo) string {
 		return ""
 	}
 	return strconv.FormatUint(st.Dev, 10) + ":" + strconv.FormatUint(st.Ino, 10)
-}
-
-// errorf writes a diagnostic message to standard error.
-func (p *Prog) errorf(format string, args ...any) {
-	fmt.Fprintf(p.Stderr, "ls: "+format+"\n", args...)
 }
 
 var (

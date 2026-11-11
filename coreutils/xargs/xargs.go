@@ -70,19 +70,19 @@ func (p *Prog) Run(ctx context.Context, args ...string) error {
 	}
 	opts, operands, err := parseFlags(args)
 	if err != nil {
-		p.errorf("%v", err)
+		stdopts.Errorf(p.Runtime, "xargs", "%v", err)
 		if p.Stderr != nil {
 			stdopts.TryHelp(p.Runtime, "xargs")
 		}
 		return &coreutils.ExitError{Code: 2}
 	}
 	if p.Exec == nil {
-		p.errorf("no command execution available")
+		stdopts.Errorf(p.Runtime, "xargs", "no command execution available")
 		return &coreutils.ExitError{Code: 1}
 	}
 	if !opts.argGiven || opts.argFile == "-" {
 		if p.Stdin == nil {
-			p.errorf("no standard input available")
+			stdopts.Errorf(p.Runtime, "xargs", "no standard input available")
 			return &coreutils.ExitError{Code: 1}
 		}
 	}
@@ -96,7 +96,7 @@ func (p *Prog) Run(ctx context.Context, args ...string) error {
 		if ctx.Err() != nil {
 			return ctx.Err()
 		}
-		p.errorf("%v", err)
+		stdopts.Errorf(p.Runtime, "xargs", "%v", err)
 		return &coreutils.ExitError{Code: 1}
 	}
 
@@ -121,7 +121,7 @@ func (p *Prog) Run(ctx context.Context, args ...string) error {
 				return ctxErr
 			}
 			if err != nil {
-				p.errorf("%v", err)
+				stdopts.Errorf(p.Runtime, "xargs", "%v", err)
 				return &coreutils.ExitError{Code: 1}
 			}
 			if !yes {
@@ -133,7 +133,7 @@ func (p *Prog) Run(ctx context.Context, args ...string) error {
 			if ctxErr := ctx.Err(); ctxErr != nil {
 				return ctxErr
 			}
-			p.errorf("%s: %v", utility, err)
+			stdopts.Errorf(p.Runtime, "xargs", "%s: %v", utility, err)
 			return &coreutils.ExitError{Code: status}
 		}
 		switch status {
@@ -141,17 +141,17 @@ func (p *Prog) Run(ctx context.Context, args ...string) error {
 		case 125:
 			// An exit status of 125 means the utility was terminated by
 			// a signal, so like 255 it stops the processing.
-			p.errorf("%s exited with status 125", utility)
+			stdopts.Errorf(p.Runtime, "xargs", "%s exited with status 125", utility)
 			return &coreutils.ExitError{Code: 125}
 		case 255:
-			p.errorf("%s exited with status 255", utility)
+			stdopts.Errorf(p.Runtime, "xargs", "%s exited with status 255", utility)
 			return &coreutils.ExitError{Code: 124}
 		default:
 			ok = false
 		}
 	}
 	if splitErr != nil {
-		p.errorf("%v", splitErr)
+		stdopts.Errorf(p.Runtime, "xargs", "%v", splitErr)
 		return &coreutils.ExitError{Code: 1}
 	}
 	if !ok {
@@ -260,14 +260,6 @@ func inputName(file string, given bool) string {
 	return file
 }
 
-// errorf writes a diagnostic message to the standard error.
-func (p *Prog) errorf(format string, args ...any) {
-	if p.Stderr == nil {
-		return
-	}
-	fmt.Fprintf(p.Stderr, "xargs: "+format+"\n", args...)
-}
-
 // options holds the parsed command line options.
 type options struct {
 	eof      string // -E, "" when disabled
@@ -355,11 +347,7 @@ Run COMMAND with arguments read from the input; the utility defaults to echo.
          print each command line before running it
   -x, --exit
          exit when a command line exceeds the size limit
-      --help
-         display this help and exit
-      --version
-         output version information and exit
-`
+` + stdopts.Tail
 
 // parseFlags parses the options and operands. The -I, -L and -n options are
 // mutually exclusive, and the last one given wins. Option parsing stops at

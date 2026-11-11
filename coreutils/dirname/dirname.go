@@ -8,7 +8,6 @@ package dirname
 
 import (
 	"context"
-	"fmt"
 	"io"
 	"path/filepath"
 	"strings"
@@ -36,12 +35,10 @@ func (p *Prog) Run(ctx context.Context, args ...string) error {
 	}
 	zero, names, err := parseFlags(args)
 	if err != nil {
-		p.errorf("%v", err)
-		stdopts.TryHelp(p.Runtime, "dirname")
-		return &coreutils.ExitError{Code: 2}
+		return stdopts.UsageError(p.Runtime, "dirname", err)
 	}
 	if len(names) == 0 {
-		p.errorf("missing operand")
+		stdopts.Errorf(p.Runtime, "dirname", "missing operand")
 		stdopts.TryHelp(p.Runtime, "dirname")
 		return &coreutils.ExitError{Code: 2}
 	}
@@ -64,11 +61,6 @@ func (p *Prog) Run(ctx context.Context, args ...string) error {
 	return nil
 }
 
-// errorf writes a diagnostic message to standard error.
-func (p *Prog) errorf(format string, args ...any) {
-	fmt.Fprintf(p.Stderr, "dirname: "+format+"\n", args...)
-}
-
 // longOptions maps the long options of dirname to the short ones they stand
 // for.
 var longOptions = map[string]rune{
@@ -85,11 +77,7 @@ removed; if NAME contains no /, output '.' (meaning the current directory).
 
   -z, --zero
          end each output line with NUL, not newline
-      --help
-         display this help and exit
-      --version
-         output version information and exit
-`
+` + stdopts.Tail
 
 // parseFlags parses the options and operands. Option parsing stops at the
 // first operand or at "--".

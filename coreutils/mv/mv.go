@@ -54,40 +54,36 @@ func (p *Prog) Run(ctx context.Context, args ...string) error {
 	}
 	opts, operands, err := parseFlags(args)
 	if err != nil {
-		p.errorf("%v", err)
-		stdopts.TryHelp(p.Runtime, "mv")
-		return &coreutils.ExitError{Code: 2}
+		return stdopts.UsageError(p.Runtime, "mv", err)
 	}
 	sources, target, err := splitOperands(operands, opts)
 	if err != nil {
-		p.errorf("%v", err)
-		stdopts.TryHelp(p.Runtime, "mv")
-		return &coreutils.ExitError{Code: 2}
+		return stdopts.UsageError(p.Runtime, "mv", err)
 	}
 	if p.FS == nil {
-		p.errorf("no file system available")
+		stdopts.Errorf(p.Runtime, "mv", "no file system available")
 		return &coreutils.ExitError{Code: 1}
 	}
 	if slices.Contains(operands, "") || (opts.targetDirSet && opts.targetDir == "") {
-		p.errorf("invalid zero-length file name")
+		stdopts.Errorf(p.Runtime, "mv", "invalid zero-length file name")
 		return &coreutils.ExitError{Code: 1}
 	}
 
 	dst := p.FsPath(target)
 	fi, err := fs.Stat(p.FS, dst)
 	if err != nil && !errors.Is(err, fs.ErrNotExist) {
-		p.errorf("cannot stat '%s': %v", target, patherr.Unwrap(err))
+		stdopts.Errorf(p.Runtime, "mv", "cannot stat '%s': %v", target, patherr.Unwrap(err))
 		return &coreutils.ExitError{Code: 1}
 	}
 	targetIsDir := err == nil && fi.IsDir()
 	slash := strings.HasSuffix(filepath.ToSlash(target), "/")
 	if opts.targetDirSet && !targetIsDir {
-		p.errorf("target '%s' is not a directory", target)
+		stdopts.Errorf(p.Runtime, "mv", "target '%s' is not a directory", target)
 		return &coreutils.ExitError{Code: 1}
 	}
 	moveInto := targetIsDir && !opts.noTarget
 	if !moveInto && (len(sources) > 1 || slash) {
-		p.errorf("target '%s' is not a directory", target)
+		stdopts.Errorf(p.Runtime, "mv", "target '%s' is not a directory", target)
 		return &coreutils.ExitError{Code: 1}
 	}
 
@@ -108,7 +104,7 @@ func (p *Prog) Run(ctx context.Context, args ...string) error {
 			case ctx.Err() != nil:
 				return ctx.Err()
 			default:
-				p.errorf("%v", err)
+				stdopts.Errorf(p.Runtime, "mv", "%v", err)
 				ok = false
 			}
 		}
@@ -355,11 +351,6 @@ func atime(fi fs.FileInfo) time.Time {
 // failure.
 var errSkipped = errors.New("skipped")
 
-// errorf writes a diagnostic message to standard error.
-func (p *Prog) errorf(format string, args ...any) {
-	fmt.Fprintf(p.Stderr, "mv: "+format+"\n", args...)
-}
-
 // unwrapRenameError unwraps the errors of a rename, which *os.LinkError wraps
 // with both names instead.
 func unwrapRenameError(err error) error {
@@ -432,11 +423,7 @@ Rename SOURCE to DEST, or move SOURCE(s) to DIRECTORY.
          treat DEST as a normal file
   -t, --target-directory=DIRECTORY
          move all SOURCE arguments into DIRECTORY
-      --help
-         display this help and exit
-      --version
-         output version information and exit
-`
+` + stdopts.Tail
 
 // splitOperands splits the operands into the sources and the target,
 // following the -t and -T options.

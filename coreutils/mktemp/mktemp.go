@@ -38,17 +38,15 @@ func (p *Prog) Run(ctx context.Context, args ...string) error {
 	}
 	opts, operands, err := parseFlags(args)
 	if err != nil {
-		p.errorf("%v", err)
-		stdopts.TryHelp(p.Runtime, "mktemp")
-		return &coreutils.ExitError{Code: 2}
+		return stdopts.UsageError(p.Runtime, "mktemp", err)
 	}
 	if len(operands) > 1 {
-		p.errorf("extra operand '%s'", operands[1])
+		stdopts.Errorf(p.Runtime, "mktemp", "extra operand '%s'", operands[1])
 		stdopts.TryHelp(p.Runtime, "mktemp")
 		return &coreutils.ExitError{Code: 2}
 	}
 	if p.FS == nil {
-		p.errorf("no file system available")
+		stdopts.Errorf(p.Runtime, "mktemp", "no file system available")
 		return &coreutils.ExitError{Code: 1}
 	}
 	name, err := p.create(ctx, opts, operands)
@@ -57,7 +55,7 @@ func (p *Prog) Run(ctx context.Context, args ...string) error {
 			return err
 		}
 		if !opts.quiet {
-			p.errorf("%v", err)
+			stdopts.Errorf(p.Runtime, "mktemp", "%v", err)
 			if _, ok := errors.AsType[*usageError](err); ok {
 				stdopts.TryHelp(p.Runtime, "mktemp")
 			}
@@ -245,11 +243,6 @@ const (
 	maxTries = 1 << 12
 )
 
-// errorf writes a diagnostic message to standard error.
-func (p *Prog) errorf(format string, args ...any) {
-	fmt.Fprintf(p.Stderr, "mktemp: "+format+"\n", args...)
-}
-
 // options holds the flags of mktemp: -d and -u select what to create, -q
 // suppresses diagnostics, -p gives the directory the template is relative to,
 // --suffix appends to the template, and -t is the deprecated form of -p with
@@ -310,11 +303,7 @@ and --tmpdir is implied.
   -t
          treat TEMPLATE as a single path component relative to TMPDIR
          (deprecated)
-      --help
-         display this help and exit
-      --version
-         output version information and exit
-`
+` + stdopts.Tail
 
 // parseFlags parses the options and operands. Option parsing stops at the
 // first operand or at "--". The -p and --suffix options take their

@@ -10,7 +10,6 @@ import (
 	"bufio"
 	"context"
 	"errors"
-	"fmt"
 	"io"
 	"io/fs"
 	"os"
@@ -48,12 +47,10 @@ func (p *Prog) Run(ctx context.Context, args ...string) error {
 	}
 	outfile, operands, err := parseFlags(args)
 	if err != nil {
-		p.errorf("%v", err)
-		stdopts.TryHelp(p.Runtime, "uudecode")
-		return &coreutils.ExitError{Code: 2}
+		return stdopts.UsageError(p.Runtime, "uudecode", err)
 	}
 	if len(operands) > 1 {
-		p.errorf("extra operand '%s'", operands[1])
+		stdopts.Errorf(p.Runtime, "uudecode", "extra operand '%s'", operands[1])
 		stdopts.TryHelp(p.Runtime, "uudecode")
 		return &coreutils.ExitError{Code: 2}
 	}
@@ -63,12 +60,12 @@ func (p *Prog) Run(ctx context.Context, args ...string) error {
 		in = input.New(operands[0])
 	}
 	if !in.Stdin && in.Name == "" {
-		p.errorf("invalid zero-length file name")
+		stdopts.Errorf(p.Runtime, "uudecode", "invalid zero-length file name")
 		return &coreutils.ExitError{Code: 1}
 	}
 	r, err := input.Open(p.Runtime, ctx, in)
 	if err != nil {
-		p.errorf("%s: %v", in.Label(), patherr.Unwrap(err))
+		stdopts.Errorf(p.Runtime, "uudecode", "%s: %v", in.Label(), patherr.Unwrap(err))
 		return &coreutils.ExitError{Code: 1, Err: err}
 	}
 	defer r.Close()
@@ -83,18 +80,18 @@ func (p *Prog) decode(ctx context.Context, br *bufio.Reader, in input.Input, out
 	switch {
 	case err == nil:
 	case errors.Is(err, errNoBegin):
-		p.errorf("%s: no 'begin' line", in.Label())
+		stdopts.Errorf(p.Runtime, "uudecode", "%s: no 'begin' line", in.Label())
 		return &coreutils.ExitError{Code: 1, Err: err}
 	case ctx.Err() != nil:
 		return ctx.Err()
 	default:
-		p.errorf("%s: %v", in.Label(), patherr.Unwrap(err))
+		stdopts.Errorf(p.Runtime, "uudecode", "%s: %v", in.Label(), patherr.Unwrap(err))
 		return &coreutils.ExitError{Code: 1, Err: err}
 	}
 
 	spec, err := chmod.ParseMode(header.Mode)
 	if err != nil {
-		p.errorf("%s: %v", in.Label(), err)
+		stdopts.Errorf(p.Runtime, "uudecode", "%s: %v", in.Label(), err)
 		return &coreutils.ExitError{Code: 1, Err: err}
 	}
 	mode := spec(0, false, 0)
@@ -104,13 +101,13 @@ func (p *Prog) decode(ctx context.Context, br *bufio.Reader, in input.Input, out
 		name = *outfile
 	}
 	if name == "" {
-		p.errorf("invalid zero-length file name")
+		stdopts.Errorf(p.Runtime, "uudecode", "invalid zero-length file name")
 		return &coreutils.ExitError{Code: 1}
 	}
 
 	w, done, err := p.output(name, mode)
 	if err != nil {
-		p.errorf("%s: %v", name, patherr.Unwrap(err))
+		stdopts.Errorf(p.Runtime, "uudecode", "%s: %v", name, patherr.Unwrap(err))
 		return &coreutils.ExitError{Code: 1, Err: err}
 	}
 	err = p.decodeBody(ctx, br, w, header.Base64)
@@ -119,17 +116,17 @@ func (p *Prog) decode(ctx context.Context, br *bufio.Reader, in input.Input, out
 	}
 	switch {
 	case w.err != nil:
-		p.errorf("%s: %v", name, w.err)
+		stdopts.Errorf(p.Runtime, "uudecode", "%s: %v", name, w.err)
 		return &coreutils.ExitError{Code: 1, Err: w.err}
 	case err == nil:
 		return nil
 	case ctx.Err() != nil:
 		return ctx.Err()
 	case errors.Is(err, errInvalidInput), errors.Is(err, basex.ErrInvalidInput), errors.Is(err, io.ErrUnexpectedEOF):
-		p.errorf("%s: invalid input", in.Label())
+		stdopts.Errorf(p.Runtime, "uudecode", "%s: invalid input", in.Label())
 		return &coreutils.ExitError{Code: 1}
 	default:
-		p.errorf("%s: %v", in.Label(), patherr.Unwrap(err))
+		stdopts.Errorf(p.Runtime, "uudecode", "%s: %v", in.Label(), patherr.Unwrap(err))
 		return &coreutils.ExitError{Code: 1, Err: err}
 	}
 }
@@ -223,11 +220,6 @@ func (p *Prog) output(name string, mode fs.FileMode) (*errWriter, func() error, 
 	return &errWriter{w: f}, done, nil
 }
 
-// errorf writes a diagnostic message to the standard error.
-func (p *Prog) errorf(format string, args ...any) {
-	fmt.Fprintf(p.Stderr, "uudecode: "+format+"\n", args...)
-}
-
 // errNoBegin reports an input which ends before any "begin" line.
 var errNoBegin = errors.New("no 'begin' line")
 
@@ -291,11 +283,7 @@ on the standard output when the pathname of its header is '-' or
   -o, --output-file=OUTFILE
          write the decoded file to OUTFILE, instead of the pathname of the
          header
-      --help
-         display this help and exit
-      --version
-         output version information and exit
-`
+` + stdopts.Tail
 
 // parseFlags parses the options and operands. The -o option takes a pathname
 // option-argument, either attached or in the next argument, and the last one

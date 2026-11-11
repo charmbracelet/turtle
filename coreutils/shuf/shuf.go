@@ -47,7 +47,7 @@ func (p *Prog) Run(ctx context.Context, args ...string) error {
 	}
 	opts, operands, err := parseFlags(args)
 	if err != nil {
-		p.errorf("%v", err)
+		stdopts.Errorf(p.Runtime, "shuf", "%v", err)
 		stdopts.TryHelp(p.Runtime, "shuf")
 		return &coreutils.ExitError{Code: 1}
 	}
@@ -88,7 +88,7 @@ func (p *Prog) run(ctx context.Context, opts options, operands []string) error {
 				if ctx.Err() != nil {
 					return ctx.Err()
 				}
-				p.errorf("%s: %v", inputLabel(operands), patherr.Unwrap(err))
+				stdopts.Errorf(p.Runtime, "shuf", "%s: %v", inputLabel(operands), patherr.Unwrap(err))
 				return &coreutils.ExitError{Code: 1, Err: err}
 			}
 			n = uint64(len(lines))
@@ -121,12 +121,12 @@ func (p *Prog) newRNG(ctx context.Context, opts options) (*rng, error) {
 		return newRNG(&ctxReader{ctx: ctx, r: rand.Reader}, "getrandom", nil), nil
 	}
 	if p.FS == nil {
-		p.errorf("%s: no file system available", opts.randomSource)
+		stdopts.Errorf(p.Runtime, "shuf", "%s: no file system available", opts.randomSource)
 		return nil, &coreutils.ExitError{Code: 1}
 	}
 	f, err := p.FS.Open(p.FsName(opts.randomSource))
 	if err != nil {
-		p.errorf("%s: %v", opts.randomSource, patherr.Unwrap(err))
+		stdopts.Errorf(p.Runtime, "shuf", "%s: %v", opts.randomSource, patherr.Unwrap(err))
 		return nil, &coreutils.ExitError{Code: 1, Err: err}
 	}
 	return newRNG(&ctxReader{ctx: ctx, r: f}, opts.randomSource, f), nil
@@ -158,7 +158,7 @@ func (p *Prog) readLines(ctx context.Context, opts options, operands []string) (
 // after the input was read, so a file can be shuffled in place, and writes.
 func (p *Prog) write(ctx context.Context, g *rng, opts options, count uint64, lines []string, lo, n uint64) error {
 	if opts.repeat && count != 0 && n == 0 {
-		p.errorf("no lines to repeat")
+		stdopts.Errorf(p.Runtime, "shuf", "no lines to repeat")
 		return &coreutils.ExitError{Code: 1}
 	}
 
@@ -166,7 +166,7 @@ func (p *Prog) write(ctx context.Context, g *rng, opts options, count uint64, li
 	if opts.hasOutput {
 		f, err := output.Create(p.Runtime, ctx, opts.output)
 		if err != nil {
-			p.errorf("%s: %v", opts.output, patherr.Unwrap(err))
+			stdopts.Errorf(p.Runtime, "shuf", "%s: %v", opts.output, patherr.Unwrap(err))
 			return &coreutils.ExitError{Code: 1, Err: err}
 		}
 		defer f.Close()
@@ -185,18 +185,18 @@ func (p *Prog) write(ctx context.Context, g *rng, opts options, count uint64, li
 			return ctx.Err()
 		}
 		if srcErr, ok := errors.AsType[*sourceError](err); ok {
-			p.errorf("%s: %v", srcErr.label, srcErr.err)
+			stdopts.Errorf(p.Runtime, "shuf", "%s: %v", srcErr.label, srcErr.err)
 			return &coreutils.ExitError{Code: 1, Err: err}
 		}
 		if errors.Is(err, errTooManyItems) {
-			p.errorf("%v", err)
+			stdopts.Errorf(p.Runtime, "shuf", "%v", err)
 			return &coreutils.ExitError{Code: 1, Err: err}
 		}
-		p.errorf("write error: %v", patherr.Unwrap(err))
+		stdopts.Errorf(p.Runtime, "shuf", "write error: %v", patherr.Unwrap(err))
 		return &coreutils.ExitError{Code: 1, Err: err}
 	}
 	if err := w.Flush(); err != nil {
-		p.errorf("write error: %v", patherr.Unwrap(err))
+		stdopts.Errorf(p.Runtime, "shuf", "write error: %v", patherr.Unwrap(err))
 		return &coreutils.ExitError{Code: 1, Err: err}
 	}
 	return nil
@@ -274,14 +274,9 @@ func writeItem(w *bufio.Writer, item string, delim byte) error {
 // usageErrorf reports a usage error, followed by the hint, and exits with
 // status 1.
 func (p *Prog) usageErrorf(format string, args ...any) error {
-	p.errorf(format, args...)
+	stdopts.Errorf(p.Runtime, "shuf", format, args...)
 	stdopts.TryHelp(p.Runtime, "shuf")
 	return &coreutils.ExitError{Code: 1}
-}
-
-// errorf writes a diagnostic message to the standard error.
-func (p *Prog) errorf(format string, args ...any) {
-	fmt.Fprintf(p.Stderr, "shuf: "+format+"\n", args...)
 }
 
 // inputLabel returns the name of the input for diagnostics.
@@ -350,11 +345,7 @@ With no FILE, or when FILE is -, read standard input.
          output lines can be repeated
   -z, --zero-terminated
          delimit items with a zero byte, not a newline
-      --help
-         display this help and exit
-      --version
-         output version information and exit
-`
+` + stdopts.Tail
 
 // delim returns the byte that terminates an item: a zero byte with -z, and a
 // newline otherwise.

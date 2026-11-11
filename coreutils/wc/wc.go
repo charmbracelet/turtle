@@ -62,9 +62,7 @@ func (p *Prog) Run(ctx context.Context, args ...string) error {
 	}
 	opts, operands, err := parseFlags(args)
 	if err != nil {
-		p.errorf("%v", err)
-		stdopts.TryHelp(p.Runtime, "wc")
-		return &coreutils.ExitError{Code: 2}
+		return stdopts.UsageError(p.Runtime, "wc", err)
 	}
 	if !opts.any() {
 		opts.lines, opts.words, opts.bytes = true, true, true
@@ -85,7 +83,7 @@ func (p *Prog) Run(ctx context.Context, args ...string) error {
 			return err
 		}
 		if !in.Stdin && in.Name == "" {
-			p.errorf("invalid zero-length file name")
+			stdopts.Errorf(p.Runtime, "wc", "invalid zero-length file name")
 			ok = false
 			continue
 		}
@@ -94,7 +92,7 @@ func (p *Prog) Run(ctx context.Context, args ...string) error {
 			if ctxErr := ctx.Err(); ctxErr != nil {
 				return ctxErr
 			}
-			p.errorf("%s: %v", in.Label(), patherr.Unwrap(err))
+			stdopts.Errorf(p.Runtime, "wc", "%s: %v", in.Label(), patherr.Unwrap(err))
 			ok = false
 			continue
 		}
@@ -190,11 +188,6 @@ func (p *Prog) write(c counts, name string, opts options) error {
 	return nil
 }
 
-// errorf writes a diagnostic message to standard error.
-func (p *Prog) errorf(format string, args ...any) {
-	fmt.Fprintf(p.Stderr, "wc: "+format+"\n", args...)
-}
-
 // optTotal is the rune the long-only --total option maps to. Having no short
 // equivalent, it's kept above the bytes a group of short options can hold.
 const optTotal rune = 0x100
@@ -231,11 +224,7 @@ characters delimited by white space.
       --total=WHEN
          print a line with totals; WHEN can be: auto, always, only, or never
          (default: auto)
-      --help
-         display this help and exit
-      --version
-         output version information and exit
-`
+` + stdopts.Tail
 
 // parseFlags parses the options and operands. Option parsing stops at the
 // first operand or at "--". Following the GNU manual, options don't undo

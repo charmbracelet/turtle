@@ -47,30 +47,30 @@ func (p *Prog) Run(ctx context.Context, args ...string) error {
 	}
 	opts, operands, err := parseFlags(args)
 	if err != nil {
-		p.errorf("%v", err)
+		stdopts.Errorf(p.Runtime, "tr", "%v", err)
 		stdopts.TryHelp(p.Runtime, "tr")
 		return &coreutils.ExitError{Code: 1}
 	}
 	if err := checkOperands(opts, operands); err != nil {
-		p.errorf("%v", err)
+		stdopts.Errorf(p.Runtime, "tr", "%v", err)
 		stdopts.TryHelp(p.Runtime, "tr")
 		return &coreutils.ExitError{Code: 1}
 	}
 	t, err := newTranslator(opts, operands)
 	if err != nil {
-		p.errorf("%v", err)
+		stdopts.Errorf(p.Runtime, "tr", "%v", err)
 		stdopts.TryHelp(p.Runtime, "tr")
 		return &coreutils.ExitError{Code: 1}
 	}
 	if p.Stdin == nil {
-		p.errorf("no standard input available")
+		stdopts.Errorf(p.Runtime, "tr", "no standard input available")
 		return &coreutils.ExitError{Code: 1}
 	}
 	if err := p.copy(ctx, t); err != nil {
 		if ctx.Err() != nil {
 			return ctx.Err()
 		}
-		p.errorf("%v", err)
+		stdopts.Errorf(p.Runtime, "tr", "%v", err)
 		return &coreutils.ExitError{Code: 1, Err: err}
 	}
 	return nil
@@ -147,10 +147,6 @@ func partialRune(tail []byte) bool {
 	return true
 }
 
-func (p *Prog) errorf(format string, args ...any) {
-	fmt.Fprintf(p.Stderr, "tr: "+format+"\n", args...)
-}
-
 type options struct {
 	complement bool
 	delete     bool
@@ -184,11 +180,7 @@ Translate, squeeze, and/or delete characters from the standard input.
          truncate string1 to the length of string2
   -u
          (ignored)
-      --help
-         display this help and exit
-      --version
-         output version information and exit
-`
+` + stdopts.Tail
 
 func parseFlags(args []string) (options, []string, error) {
 	var opts options

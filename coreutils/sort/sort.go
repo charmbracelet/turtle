@@ -47,12 +47,10 @@ func (p *Prog) Run(ctx context.Context, args ...string) error {
 	}
 	opts, operands, err := parseFlags(args)
 	if err != nil {
-		p.errorf("%v", err)
-		stdopts.TryHelp(p.Runtime, "sort")
-		return &coreutils.ExitError{Code: 2}
+		return stdopts.UsageError(p.Runtime, "sort", err)
 	}
 	if opts.check != 0 && len(operands) > 1 {
-		p.errorf("extra operand '%s' not allowed with -c", operands[1])
+		stdopts.Errorf(p.Runtime, "sort", "extra operand '%s' not allowed with -c", operands[1])
 		stdopts.TryHelp(p.Runtime, "sort")
 		return &coreutils.ExitError{Code: 2}
 	}
@@ -60,7 +58,7 @@ func (p *Prog) Run(ctx context.Context, args ...string) error {
 	inputs := make([]input.Input, 0, len(operands))
 	for _, operand := range operands {
 		if operand == "" {
-			p.errorf("invalid zero-length file name")
+			stdopts.Errorf(p.Runtime, "sort", "invalid zero-length file name")
 			return &coreutils.ExitError{Code: 2}
 		}
 		inputs = append(inputs, input.New(operand))
@@ -80,7 +78,7 @@ func (p *Prog) Run(ctx context.Context, args ...string) error {
 			if ctx.Err() != nil {
 				return ctx.Err()
 			}
-			p.errorf("%s: %v", in.Label(), patherr.Unwrap(err))
+			stdopts.Errorf(p.Runtime, "sort", "%s: %v", in.Label(), patherr.Unwrap(err))
 			return &coreutils.ExitError{Code: 2}
 		}
 		sets = append(sets, lines)
@@ -104,7 +102,7 @@ func (p *Prog) Run(ctx context.Context, args ...string) error {
 func (p *Prog) check(ctx context.Context, in input.Input, opts options) error {
 	r, err := input.Open(p.Runtime, ctx, in)
 	if err != nil {
-		p.errorf("%s: %v", in.Label(), patherr.Unwrap(err))
+		stdopts.Errorf(p.Runtime, "sort", "%s: %v", in.Label(), patherr.Unwrap(err))
 		return &coreutils.ExitError{Code: 2}
 	}
 	defer r.Close()
@@ -129,7 +127,7 @@ func (p *Prog) check(ctx context.Context, in input.Input, opts options) error {
 			}
 			if disorder {
 				if opts.check == 'c' {
-					p.errorf("%s:%d: disorder: %s", name, number, cur.data)
+					stdopts.Errorf(p.Runtime, "sort", "%s:%d: disorder: %s", name, number, cur.data)
 				}
 				return &coreutils.ExitError{Code: 1}
 			}
@@ -145,7 +143,7 @@ func (p *Prog) check(ctx context.Context, in input.Input, opts options) error {
 		if ctx.Err() != nil {
 			return ctx.Err()
 		}
-		p.errorf("%s: %v", in.Label(), patherr.Unwrap(err))
+		stdopts.Errorf(p.Runtime, "sort", "%s: %v", in.Label(), patherr.Unwrap(err))
 		return &coreutils.ExitError{Code: 2}
 	}
 	return nil
@@ -176,7 +174,7 @@ func (p *Prog) writeLines(ctx context.Context, lines []sortLine, opts options) e
 	if opts.hasOutput {
 		f, err := output.Create(p.Runtime, ctx, opts.output)
 		if err != nil {
-			p.errorf("%s: %v", opts.output, patherr.Unwrap(err))
+			stdopts.Errorf(p.Runtime, "sort", "%s: %v", opts.output, patherr.Unwrap(err))
 			return &coreutils.ExitError{Code: 2}
 		}
 		defer f.Close()
@@ -187,7 +185,7 @@ func (p *Prog) writeLines(ctx context.Context, lines []sortLine, opts options) e
 			return err
 		}
 		if err := writeLine(out, line.data, textutil.Delim(opts.zeroTerminated)); err != nil {
-			p.errorf("write error: %v", err)
+			stdopts.Errorf(p.Runtime, "sort", "write error: %v", err)
 			return &coreutils.ExitError{Code: 2, Err: err}
 		}
 	}
@@ -203,11 +201,6 @@ func writeLine(out io.Writer, data []byte, delim byte) error {
 		return &writeError{err: err}
 	}
 	return nil
-}
-
-// errorf writes a diagnostic message to standard error.
-func (p *Prog) errorf(format string, args ...any) {
-	fmt.Fprintf(p.Stderr, "sort: "+format+"\n", args...)
 }
 
 // options holds the parsed command line options.
@@ -302,11 +295,7 @@ With no FILE, or when FILE is -, read standard input.
          delimit items with a zero byte, not a newline
       --sort=WORD
          sort by WORD: human-numeric, month, numeric, random, or version
-      --help
-         display this help and exit
-      --version
-         output version information and exit
-`
+` + stdopts.Tail
 
 // delimiter returns the byte that terminates an item: a zero byte with -z,
 // and a newline otherwise.

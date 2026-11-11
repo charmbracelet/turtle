@@ -46,9 +46,7 @@ func (p *Prog) Run(ctx context.Context, args ...string) error {
 	}
 	opts, operands, err := parseFlags(args)
 	if err != nil {
-		p.errorf("%v", err)
-		stdopts.TryHelp(p.Runtime, "fold")
-		return &coreutils.ExitError{Code: 2}
+		return stdopts.UsageError(p.Runtime, "fold", err)
 	}
 
 	inputs := make([]input.Input, 0, len(operands))
@@ -65,7 +63,7 @@ func (p *Prog) Run(ctx context.Context, args ...string) error {
 			return err
 		}
 		if !in.Stdin && in.Name == "" {
-			p.errorf("invalid zero-length file name")
+			stdopts.Errorf(p.Runtime, "fold", "invalid zero-length file name")
 			ok = false
 			continue
 		}
@@ -73,12 +71,12 @@ func (p *Prog) Run(ctx context.Context, args ...string) error {
 			var writeErr *writeError
 			switch {
 			case errors.As(err, &writeErr):
-				p.errorf("write error: %v", writeErr.err)
+				stdopts.Errorf(p.Runtime, "fold", "write error: %v", writeErr.err)
 				return &coreutils.ExitError{Code: 1, Err: writeErr.err}
 			case ctx.Err() != nil:
 				return ctx.Err()
 			default:
-				p.errorf("%s: %v", in.Label(), patherr.Unwrap(err))
+				stdopts.Errorf(p.Runtime, "fold", "%s: %v", in.Label(), patherr.Unwrap(err))
 				ok = false
 			}
 		}
@@ -203,11 +201,6 @@ func (p *Prog) writeSegment(seg []byte, newline bool) error {
 	return nil
 }
 
-// errorf writes a diagnostic message to standard error.
-func (p *Prog) errorf(format string, args ...any) {
-	fmt.Fprintf(p.Stderr, "fold: "+format+"\n", args...)
-}
-
 // options holds the parsed command line options.
 type options struct {
 	bytes  bool
@@ -239,11 +232,7 @@ than the limit, 80 columns by default.
          break at word boundaries, after the last blank
   -w, --width=WIDTH
          use WIDTH columns instead of 80
-      --help
-         display this help and exit
-      --version
-         output version information and exit
-`
+` + stdopts.Tail
 
 // parseFlags parses the command line options. Option parsing stops at the
 // first operand or at "--".

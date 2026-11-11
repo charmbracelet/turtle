@@ -49,34 +49,32 @@ func (p *Prog) Run(ctx context.Context, args ...string) error {
 	}
 	opts, operands, err := parseFlags(args)
 	if err != nil {
-		p.errorf("%v", err)
-		stdopts.TryHelp(p.Runtime, "ln")
-		return &coreutils.ExitError{Code: 2}
+		return stdopts.UsageError(p.Runtime, "ln", err)
 	}
 	switch {
 	case len(operands) == 0:
-		p.errorf("missing file operand")
+		stdopts.Errorf(p.Runtime, "ln", "missing file operand")
 		stdopts.TryHelp(p.Runtime, "ln")
 		return &coreutils.ExitError{Code: 2}
 	case opts.noTarget && opts.targetDir != "":
-		p.errorf("cannot combine --target-directory and --no-target-directory")
+		stdopts.Errorf(p.Runtime, "ln", "cannot combine --target-directory and --no-target-directory")
 		stdopts.TryHelp(p.Runtime, "ln")
 		return &coreutils.ExitError{Code: 2}
 	case opts.noTarget && len(operands) < 2:
-		p.errorf("missing destination file operand after '%s'", operands[0])
+		stdopts.Errorf(p.Runtime, "ln", "missing destination file operand after '%s'", operands[0])
 		stdopts.TryHelp(p.Runtime, "ln")
 		return &coreutils.ExitError{Code: 2}
 	case opts.noTarget && len(operands) > 2:
-		p.errorf("extra operand '%s'", operands[2])
+		stdopts.Errorf(p.Runtime, "ln", "extra operand '%s'", operands[2])
 		stdopts.TryHelp(p.Runtime, "ln")
 		return &coreutils.ExitError{Code: 2}
 	}
 	if p.FS == nil {
-		p.errorf("no file system available")
+		stdopts.Errorf(p.Runtime, "ln", "no file system available")
 		return &coreutils.ExitError{Code: 1}
 	}
 	if slices.Contains(operands, "") {
-		p.errorf("invalid zero-length file name")
+		stdopts.Errorf(p.Runtime, "ln", "invalid zero-length file name")
 		return &coreutils.ExitError{Code: 1}
 	}
 
@@ -90,25 +88,25 @@ func (p *Prog) Run(ctx context.Context, args ...string) error {
 	case opts.targetDir != "":
 		fi, err := fs.Stat(p.FS, dst)
 		if err != nil {
-			p.errorf("failed to access '%s': %v", target, patherr.Unwrap(err))
+			stdopts.Errorf(p.Runtime, "ln", "failed to access '%s': %v", target, patherr.Unwrap(err))
 			return &coreutils.ExitError{Code: 1}
 		}
 		if !fi.IsDir() {
-			p.errorf("target '%s' is not a directory", target)
+			stdopts.Errorf(p.Runtime, "ln", "target '%s' is not a directory", target)
 			return &coreutils.ExitError{Code: 1}
 		}
 		targetIsDir = true
 	default:
 		fi, err := p.targetStat(opts, dst)
 		if err != nil && !errors.Is(err, fs.ErrNotExist) {
-			p.errorf("cannot stat '%s': %v", target, patherr.Unwrap(err))
+			stdopts.Errorf(p.Runtime, "ln", "cannot stat '%s': %v", target, patherr.Unwrap(err))
 			return &coreutils.ExitError{Code: 1}
 		}
 		targetIsDir = err == nil && fi.IsDir()
 	}
 	slash := strings.HasSuffix(filepath.ToSlash(target), "/")
 	if !targetIsDir && (len(sources) > 1 || slash) {
-		p.errorf("target '%s' is not a directory", target)
+		stdopts.Errorf(p.Runtime, "ln", "target '%s' is not a directory", target)
 		return &coreutils.ExitError{Code: 1}
 	}
 
@@ -124,7 +122,7 @@ func (p *Prog) Run(ctx context.Context, args ...string) error {
 			e.dstName = path.Join(target, base)
 		}
 		if err := p.link(e, opts); err != nil {
-			p.errorf("%v", err)
+			stdopts.Errorf(p.Runtime, "ln", "%v", err)
 			ok = false
 		}
 	}
@@ -304,11 +302,7 @@ Link TARGET to LINK_NAME, or link TARGET(s) to DIRECTORY.
          treat the last operand as a normal file
   -v, --verbose
          print the name of each file after linking it
-      --help
-         display this help and exit
-      --version
-         output version information and exit
-`
+` + stdopts.Tail
 
 // parseFlags parses the options and operands. Option parsing stops at the
 // first operand or at "--".
@@ -352,11 +346,6 @@ const maxSymlinks = 40
 
 // errLoop is returned when following symbolic links doesn't reach an entry.
 var errLoop = errors.New("too many levels of symbolic links")
-
-// errorf writes a diagnostic message to standard error.
-func (p *Prog) errorf(format string, args ...any) {
-	fmt.Fprintf(p.Stderr, "ln: "+format+"\n", args...)
-}
 
 // unwrapLinkError unwraps the errors of a link creation, which *os.LinkError
 // wraps with both names instead.

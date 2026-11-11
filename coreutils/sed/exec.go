@@ -15,6 +15,7 @@ import (
 
 	"charm.land/snail/coreutils/internal/output"
 	"charm.land/snail/coreutils/internal/patherr"
+	"charm.land/snail/coreutils/internal/stdopts"
 	"charm.land/snail/coreutils/internal/textutil"
 	"charm.land/snail/fsx"
 )
@@ -145,7 +146,7 @@ func (s *source) fetch() (string, bool, error) {
 			s.idx++
 			rc, err := s.open(name)
 			if err != nil {
-				s.p.errorf("%v", err)
+				stdopts.Errorf(s.p.Runtime, "sed", "%v", err)
 				s.res.openFailed = true
 				continue // the remaining files still get their turn
 			}

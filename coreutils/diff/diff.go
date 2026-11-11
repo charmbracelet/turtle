@@ -45,9 +45,7 @@ func (p *Prog) Run(ctx context.Context, args ...string) error {
 	}
 	opts, operands, err := parseFlags(args)
 	if err != nil {
-		p.errorf("%v", err)
-		stdopts.TryHelp(p.Runtime, "diff")
-		return &coreutils.ExitError{Code: 2}
+		return stdopts.UsageError(p.Runtime, "diff", err)
 	}
 	if opts.version {
 		return p.printVersion()
@@ -58,7 +56,7 @@ func (p *Prog) Run(ctx context.Context, args ...string) error {
 
 	if opts.fromFile != "" {
 		if opts.toFile != "" {
-			p.errorf("--from-file and --to-file both specified")
+			stdopts.Errorf(p.Runtime, "diff", "--from-file and --to-file both specified")
 			return &coreutils.ExitError{Code: 2}
 		}
 		return p.compareAll(ctx, opts, operands, opts.fromFile, true)
@@ -68,12 +66,12 @@ func (p *Prog) Run(ctx context.Context, args ...string) error {
 	}
 
 	if len(operands) < 2 {
-		p.errorf("missing operand")
+		stdopts.Errorf(p.Runtime, "diff", "missing operand")
 		stdopts.TryHelp(p.Runtime, "diff")
 		return &coreutils.ExitError{Code: 2}
 	}
 	if len(operands) > 2 {
-		p.errorf("extra operand '%s'", operands[2])
+		stdopts.Errorf(p.Runtime, "diff", "extra operand '%s'", operands[2])
 		stdopts.TryHelp(p.Runtime, "diff")
 		return &coreutils.ExitError{Code: 2}
 	}
@@ -111,18 +109,18 @@ func (p *Prog) exit(differ bool, err error) error {
 		var pathErr *pathError
 		switch {
 		case errors.As(err, &writeErr):
-			p.errorf("write error: %v", writeErr.err)
+			stdopts.Errorf(p.Runtime, "diff", "write error: %v", writeErr.err)
 			return &coreutils.ExitError{Code: 2, Err: writeErr.err}
 		case errors.Is(err, context.Canceled), errors.Is(err, context.DeadlineExceeded):
 			return err
 		case errors.Is(err, errNoFS):
-			p.errorf("%v", err)
+			stdopts.Errorf(p.Runtime, "diff", "%v", err)
 			return &coreutils.ExitError{Code: 2}
 		case errors.Is(err, errIfdefDirs):
-			p.errorf("%v", err)
+			stdopts.Errorf(p.Runtime, "diff", "%v", err)
 			return &coreutils.ExitError{Code: 2}
 		case errors.As(err, &pathErr):
-			p.errorf("%s: %v", pathErr.label, patherr.Unwrap(pathErr.err))
+			stdopts.Errorf(p.Runtime, "diff", "%s: %v", pathErr.label, patherr.Unwrap(pathErr.err))
 			return &coreutils.ExitError{Code: 2, Err: pathErr.err}
 		default:
 			return err
@@ -236,16 +234,10 @@ func (p *Prog) exists(name string) bool {
 // printVersion writes the version text, like the --version option which
 // the -v shortcut of diff stands for.
 func (p *Prog) printVersion() error {
-	if _, err := fmt.Fprintf(p.Stdout,
-		"diff (charm.land/snail/coreutils) %s\nhttps://charm.land/snail\n", coreutils.Version); err != nil {
+	if _, err := fmt.Fprint(p.Stdout, stdopts.VersionText("diff")); err != nil {
 		return &coreutils.ExitError{Code: 1, Err: err}
 	}
 	return nil
-}
-
-// errorf writes a diagnostic message to standard error.
-func (p *Prog) errorf(format string, args ...any) {
-	fmt.Fprintf(p.Stderr, "diff: "+format+"\n", args...)
 }
 
 // options holds the parsed command line options.
@@ -445,11 +437,7 @@ directory operand makes the files of the same name inside it compared.
          output a merged file to show '#ifdef NAME' differences
       --normal
          output a normal diff (the default)
-      --help
-         display this help and exit
-      --version
-         output version information and exit
-`
+` + stdopts.Tail
 
 // parseFlags parses the command line options. Option parsing stops at the
 // first operand or at "--".

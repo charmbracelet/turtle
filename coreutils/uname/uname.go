@@ -49,13 +49,13 @@ func (p *Prog) Run(ctx context.Context, args ...string) error {
 	}
 	opts, err := parseFlags(args)
 	if err != nil {
-		p.errorf("%v", err)
+		stdopts.Errorf(p.Runtime, "uname", "%v", err)
 		stdopts.TryHelp(p.Runtime, "uname")
 		return &coreutils.ExitError{Code: 1, Err: err}
 	}
 	info, err := p.hostInfo()
 	if err != nil {
-		p.errorf("%v", err)
+		stdopts.Errorf(p.Runtime, "uname", "%v", err)
 		return &coreutils.ExitError{Code: 1, Err: err}
 	}
 	if _, err := io.WriteString(p.Stdout, info.line(opts)+"\n"); err != nil {
@@ -189,11 +189,7 @@ Print certain system information. With no OPTION, same as -s.
          print the hardware platform (non-portable)
   -o, --operating-system
          print the operating system
-      --help
-         display this help and exit
-      --version
-         output version information and exit
-`
+` + stdopts.Tail
 
 // parseFlags parses the options. uname takes no operands.
 func parseFlags(args []string) (options, error) {
@@ -253,14 +249,6 @@ func goarchMachine(arch string) string {
 	default:
 		return arch
 	}
-}
-
-// errorf writes a diagnostic message to the standard error.
-func (p *Prog) errorf(format string, args ...any) {
-	if p.Stderr == nil {
-		return
-	}
-	fmt.Fprintf(p.Stderr, "uname: "+format+"\n", args...)
 }
 
 var (

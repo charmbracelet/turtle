@@ -36,14 +36,14 @@ func (p *Prog) Run(ctx context.Context, args ...string) error {
 		return err
 	}
 	if err := parseArgs(args); err != nil {
-		p.errorf("%v", err)
+		stdopts.Errorf(p.Runtime, "whoami", "%v", err)
 		stdopts.TryHelp(p.Runtime, "whoami")
 		return &coreutils.ExitError{Code: 1, Err: err}
 	}
 	name, ok := p.user()
 	if !ok {
 		err := errors.New("no user name: neither USER nor LOGNAME is set")
-		p.errorf("%v", err)
+		stdopts.Errorf(p.Runtime, "whoami", "%v", err)
 		return &coreutils.ExitError{Code: 1, Err: err}
 	}
 	if _, err := io.WriteString(p.Stdout, name+"\n"); err != nil {
@@ -78,23 +78,11 @@ func (p *Prog) user() (string, bool) {
 	return "", false
 }
 
-// errorf writes a diagnostic message to the standard error.
-func (p *Prog) errorf(format string, args ...any) {
-	if p.Stderr == nil {
-		return
-	}
-	fmt.Fprintf(p.Stderr, "whoami: "+format+"\n", args...)
-}
-
 // usage describes the options of whoami.
 const usage = `Usage: whoami [OPTION]...
 Print the user name associated with the current effective user ID.
 
-      --help
-         display this help and exit
-      --version
-         output version information and exit
-`
+` + stdopts.Tail
 
 var (
 	_ coreutils.Program = (*Prog)(nil)

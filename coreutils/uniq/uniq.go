@@ -46,9 +46,7 @@ func (p *Prog) Run(ctx context.Context, args ...string) error {
 	}
 	opts, operands, err := parseFlags(args)
 	if err != nil {
-		p.errorf("%v", err)
-		stdopts.TryHelp(p.Runtime, "uniq")
-		return &coreutils.ExitError{Code: 2}
+		return stdopts.UsageError(p.Runtime, "uniq", err)
 	}
 	var inName, outName string
 	switch len(operands) {
@@ -58,26 +56,26 @@ func (p *Prog) Run(ctx context.Context, args ...string) error {
 	case 2:
 		inName, outName = operands[0], operands[1]
 	default:
-		p.errorf("extra operand '%s'", operands[2])
+		stdopts.Errorf(p.Runtime, "uniq", "extra operand '%s'", operands[2])
 		stdopts.TryHelp(p.Runtime, "uniq")
 		return &coreutils.ExitError{Code: 2}
 	}
 	if slices.Contains(operands, "") {
-		p.errorf("invalid zero-length file name")
+		stdopts.Errorf(p.Runtime, "uniq", "invalid zero-length file name")
 		return &coreutils.ExitError{Code: 1}
 	}
 
 	in := input.Input{Name: inName, Stdin: inName == "" || inName == "-"}
 	r, err := input.Open(p.Runtime, ctx, in)
 	if err != nil {
-		p.errorf("%s: %v", in.Label(), patherr.Unwrap(err))
+		stdopts.Errorf(p.Runtime, "uniq", "%s: %v", in.Label(), patherr.Unwrap(err))
 		return &coreutils.ExitError{Code: 1}
 	}
 	defer r.Close()
 
 	out, err := p.openOutput(ctx, outName)
 	if err != nil {
-		p.errorf("%s: %v", outName, patherr.Unwrap(err))
+		stdopts.Errorf(p.Runtime, "uniq", "%s: %v", outName, patherr.Unwrap(err))
 		return &coreutils.ExitError{Code: 1}
 	}
 
@@ -85,12 +83,12 @@ func (p *Prog) Run(ctx context.Context, args ...string) error {
 		var writeErr *writeError
 		switch {
 		case errors.As(err, &writeErr):
-			p.errorf("write error: %v", writeErr.err)
+			stdopts.Errorf(p.Runtime, "uniq", "write error: %v", writeErr.err)
 			return &coreutils.ExitError{Code: 1, Err: writeErr.err}
 		case ctx.Err() != nil:
 			return ctx.Err()
 		default:
-			p.errorf("%s: %v", in.Label(), patherr.Unwrap(err))
+			stdopts.Errorf(p.Runtime, "uniq", "%s: %v", in.Label(), patherr.Unwrap(err))
 			return &coreutils.ExitError{Code: 1}
 		}
 	}
@@ -258,11 +256,6 @@ func (p *Prog) openOutput(ctx context.Context, name string) (io.Writer, error) {
 	return output.Create(p.Runtime, ctx, name)
 }
 
-// errorf writes a diagnostic message to standard error.
-func (p *Prog) errorf(format string, args ...any) {
-	fmt.Fprintf(p.Stderr, "uniq: "+format+"\n", args...)
-}
-
 // options holds the parsed command line options.
 type options struct {
 	count        bool
@@ -338,11 +331,7 @@ With no options, matching lines are merged to the first occurrence.
          compare no more than N characters in lines
   -z, --zero-terminated
          line delimiter is NUL, not newline
-      --help
-         display this help and exit
-      --version
-         output version information and exit
-`
+` + stdopts.Tail
 
 // parseFlags parses the command line options. Option parsing stops at the
 // first operand or at "--".

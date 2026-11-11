@@ -47,37 +47,37 @@ func (p *Prog) Run(ctx context.Context, args ...string) error {
 	}
 	opts, operands, err := parseFlags(args)
 	if err != nil {
-		p.errorf("%v", err)
+		stdopts.Errorf(p.Runtime, "csplit", "%v", err)
 		stdopts.TryHelp(p.Runtime, "csplit")
 		return &coreutils.ExitError{Code: 1}
 	}
 	if len(operands) == 0 {
-		p.errorf("missing operand")
+		stdopts.Errorf(p.Runtime, "csplit", "missing operand")
 		stdopts.TryHelp(p.Runtime, "csplit")
 		return &coreutils.ExitError{Code: 1}
 	}
 	if len(operands) == 1 {
-		p.errorf("missing operand after '%s'", operands[0])
+		stdopts.Errorf(p.Runtime, "csplit", "missing operand after '%s'", operands[0])
 		stdopts.TryHelp(p.Runtime, "csplit")
 		return &coreutils.ExitError{Code: 1}
 	}
 	if p.FS == nil {
-		p.errorf("no file system available")
+		stdopts.Errorf(p.Runtime, "csplit", "no file system available")
 		return &coreutils.ExitError{Code: 1}
 	}
 	controls, err := parseControls(operands[1:])
 	if err != nil {
-		p.errorf("%v", err)
+		stdopts.Errorf(p.Runtime, "csplit", "%v", err)
 		return &coreutils.ExitError{Code: 1}
 	}
 	if len(coreutils.FsBase(opts.prefix))+max(opts.digits, 10) > nameMax {
-		p.errorf("'%s': file name too long", opts.prefix)
+		stdopts.Errorf(p.Runtime, "csplit", "'%s': file name too long", opts.prefix)
 		return &coreutils.ExitError{Code: 1}
 	}
 
 	r, err := input.Open(p.Runtime, ctx, input.New(operands[0]))
 	if err != nil {
-		p.errorf("%s: %v", operands[0], patherr.Unwrap(err))
+		stdopts.Errorf(p.Runtime, "csplit", "%s: %v", operands[0], patherr.Unwrap(err))
 		return &coreutils.ExitError{Code: 1}
 	}
 	lines, err := readLines(ctx, r)
@@ -86,7 +86,7 @@ func (p *Prog) Run(ctx context.Context, args ...string) error {
 		if ctx.Err() != nil {
 			return ctx.Err()
 		}
-		p.errorf("%s: %v", operands[0], patherr.Unwrap(err))
+		stdopts.Errorf(p.Runtime, "csplit", "%s: %v", operands[0], patherr.Unwrap(err))
 		return &coreutils.ExitError{Code: 1}
 	}
 
@@ -374,9 +374,9 @@ func (s *splitter) closeFile() error {
 // unless -k was given, and returns err.
 func (s *splitter) fail(err error) error {
 	if writeErr, ok := errors.AsType[*writeError](err); ok {
-		s.p.errorf("%s: %v", writeErr.name, patherr.Unwrap(writeErr.err))
+		stdopts.Errorf(s.p.Runtime, "csplit", "%s: %v", writeErr.name, patherr.Unwrap(writeErr.err))
 	} else {
-		s.p.errorf("%v", err)
+		stdopts.Errorf(s.p.Runtime, "csplit", "%v", err)
 	}
 	s.closeFile()
 	if !s.opts.keep {
@@ -438,11 +438,6 @@ func trimNewline(line []byte) []byte {
 	return line
 }
 
-// errorf writes a diagnostic message to standard error.
-func (p *Prog) errorf(format string, args ...any) {
-	fmt.Fprintf(p.Stderr, "csplit: "+format+"\n", args...)
-}
-
 // longOptions maps the long options of csplit to the short ones they stand
 // for.
 var longOptions = map[string]rune{
@@ -482,11 +477,7 @@ and output byte counts of each piece to standard output.
          suppress zero-length output files
       --suppress-matched
          do not output lines matching the pattern
-      --help
-         display this help and exit
-      --version
-         output version information and exit
-`
+` + stdopts.Tail
 
 // parseFlags parses the command line options. Option parsing stops at the
 // first operand or at "--".

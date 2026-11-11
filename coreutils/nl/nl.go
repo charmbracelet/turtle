@@ -53,7 +53,7 @@ func (p *Prog) Run(ctx context.Context, args ...string) error {
 	}
 	opts, operands, err := parseFlags(args)
 	if err != nil {
-		p.errorf("%v", err)
+		stdopts.Errorf(p.Runtime, "nl", "%v", err)
 		stdopts.TryHelp(p.Runtime, "nl")
 		return &coreutils.ExitError{Code: 1}
 	}
@@ -68,7 +68,7 @@ func (p *Prog) Run(ctx context.Context, args ...string) error {
 			return err
 		}
 		if !in.Stdin && in.Name == "" {
-			p.errorf("invalid zero-length file name")
+			stdopts.Errorf(p.Runtime, "nl", "invalid zero-length file name")
 			ok = false
 			continue
 		}
@@ -76,15 +76,15 @@ func (p *Prog) Run(ctx context.Context, args ...string) error {
 			var writeErr *writeError
 			switch {
 			case errors.As(err, &writeErr):
-				p.errorf("write error: %v", writeErr.err)
+				stdopts.Errorf(p.Runtime, "nl", "write error: %v", writeErr.err)
 				return &coreutils.ExitError{Code: 1, Err: writeErr.err}
 			case ctx.Err() != nil:
 				return ctx.Err()
 			case errors.Is(err, errOverflow):
-				p.errorf("%v", err)
+				stdopts.Errorf(p.Runtime, "nl", "%v", err)
 				return &coreutils.ExitError{Code: 1, Err: err}
 			default:
-				p.errorf("%s: %v", in.Label(), patherr.Unwrap(err))
+				stdopts.Errorf(p.Runtime, "nl", "%s: %v", in.Label(), patherr.Unwrap(err))
 				ok = false
 			}
 		}
@@ -273,11 +273,6 @@ func (n *numberer) printNo() error {
 // errOverflow signals that the line number went past the int64 range.
 var errOverflow = errors.New("line number overflow")
 
-// errorf writes a diagnostic message to standard error.
-func (p *Prog) errorf(format string, args ...any) {
-	fmt.Fprintf(p.Stderr, "nl: "+format+"\n", args...)
-}
-
 // options holds the parsed command line options.
 type options struct {
 	body    style
@@ -353,11 +348,7 @@ STYLE is one of: a (all lines), t (nonempty lines), n (no lines) or pBRE
 one of: ln (left justified), rn (right justified) or rz (right justified,
 with leading zeros).
 
-      --help
-         display this help and exit
-      --version
-         output version information and exit
-`
+` + stdopts.Tail
 
 // parseFlags parses the command line options. Option parsing stops at the
 // first operand or at "--".

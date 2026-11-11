@@ -45,12 +45,10 @@ func (p *Prog) Run(ctx context.Context, args ...string) error {
 	}
 	opts, operands, err := parseFlags(args)
 	if err != nil {
-		p.errorf("%v", err)
-		stdopts.TryHelp(p.Runtime, "tee")
-		return &coreutils.ExitError{Code: 2}
+		return stdopts.UsageError(p.Runtime, "tee", err)
 	}
 	if p.Stdin == nil {
-		p.errorf("no standard input available")
+		stdopts.Errorf(p.Runtime, "tee", "no standard input available")
 		return &coreutils.ExitError{Code: 1}
 	}
 
@@ -58,7 +56,7 @@ func (p *Prog) Run(ctx context.Context, args ...string) error {
 	ok := true
 	for _, operand := range operands {
 		if operand == "" {
-			p.errorf("invalid zero-length file name")
+			stdopts.Errorf(p.Runtime, "tee", "invalid zero-length file name")
 			if opts.errMode.stopsOnOpen() {
 				return &coreutils.ExitError{Code: 1}
 			}
@@ -67,7 +65,7 @@ func (p *Prog) Run(ctx context.Context, args ...string) error {
 		}
 		f, err := p.openFile(ctx, operand, opts.append)
 		if err != nil {
-			p.errorf("%s: %v", operand, patherr.Unwrap(err))
+			stdopts.Errorf(p.Runtime, "tee", "%s: %v", operand, patherr.Unwrap(err))
 			if opts.errMode.stopsOnOpen() {
 				return &coreutils.ExitError{Code: 1}
 			}
@@ -123,7 +121,7 @@ func (p *Prog) copy(ctx context.Context, outputs []output, mode errMode) error {
 			if ctx.Err() != nil {
 				return ctx.Err()
 			}
-			p.errorf("standard input: %v", err)
+			stdopts.Errorf(p.Runtime, "tee", "standard input: %v", err)
 			c.failed = true
 			break
 		}
@@ -140,11 +138,6 @@ func (p *Prog) openFile(ctx context.Context, name string, append bool) (io.Write
 		return outio.Append(p.Runtime, ctx, name)
 	}
 	return outio.Create(p.Runtime, ctx, name)
-}
-
-// errorf writes a diagnostic message to standard error.
-func (p *Prog) errorf(format string, args ...any) {
-	fmt.Fprintf(p.Stderr, "tee: "+format+"\n", args...)
 }
 
 // errMode is the behavior on output errors which --output-error selects.
@@ -198,7 +191,7 @@ func (c *copier) writeError(outputs []output, out *output, err error) {
 		c.stop = true
 		return
 	}
-	c.p.errorf("%s: %v", out.label, err)
+	stdopts.Errorf(c.p.Runtime, "tee", "%s: %v", out.label, err)
 	c.failed = true
 	if c.mode == modeExit || c.mode == modeExitNopipe {
 		c.stop = true
@@ -261,11 +254,7 @@ Copy the standard input to the standard output and to each FILE.
          (the default) diagnoses every output which isn't a pipe,
          'exit' and 'exit-nopipe' stop at the first error, the errors
          of pipes included and excluded
-      --help
-         display this help and exit
-      --version
-         output version information and exit
-`
+` + stdopts.Tail
 
 // parseFlags parses the command line options. The -i option is accepted and
 // has no effect: signals aren't delivered to the utility in this context. The

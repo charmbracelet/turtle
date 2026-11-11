@@ -34,17 +34,15 @@ func (p *Prog) Run(ctx context.Context, args ...string) error {
 	}
 	opts, dirs, err := parseFlags(args)
 	if err != nil {
-		p.errorf("%v", err)
-		stdopts.TryHelp(p.Runtime, "rmdir")
-		return &coreutils.ExitError{Code: 2}
+		return stdopts.UsageError(p.Runtime, "rmdir", err)
 	}
 	if len(dirs) == 0 {
-		p.errorf("missing operand")
+		stdopts.Errorf(p.Runtime, "rmdir", "missing operand")
 		stdopts.TryHelp(p.Runtime, "rmdir")
 		return &coreutils.ExitError{Code: 2}
 	}
 	if p.FS == nil {
-		p.errorf("no file system available")
+		stdopts.Errorf(p.Runtime, "rmdir", "no file system available")
 		return &coreutils.ExitError{Code: 1}
 	}
 
@@ -55,7 +53,7 @@ func (p *Prog) Run(ctx context.Context, args ...string) error {
 		}
 		failed, err := p.rmdir(dir, opts)
 		if err != nil {
-			p.errorf("%s: %v", failed, patherr.Unwrap(err))
+			stdopts.Errorf(p.Runtime, "rmdir", "%s: %v", failed, patherr.Unwrap(err))
 			ok = false
 		}
 	}
@@ -127,11 +125,6 @@ func (p *Prog) nonEmpty(name string, err error) bool {
 	return readErr == nil && len(entries) > 0
 }
 
-// errorf writes a diagnostic message to standard error.
-func (p *Prog) errorf(format string, args ...any) {
-	fmt.Fprintf(p.Stderr, "rmdir: "+format+"\n", args...)
-}
-
 // optIgnoreFail is the pseudo option which --ignore-fail-on-non-empty
 // stands for, having no short form.
 const optIgnoreFail = 0x100
@@ -164,11 +157,7 @@ Remove empty directories.
          remove DIRECTORY, then try to remove each component of it
   -v, --verbose
          give a diagnostic for each successful removal
-      --help
-         display this help and exit
-      --version
-         output version information and exit
-`
+` + stdopts.Tail
 
 // parseFlags parses the options and operands. Option parsing stops at the
 // first operand or at "--".

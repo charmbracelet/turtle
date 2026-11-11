@@ -39,22 +39,20 @@ func (p *Prog) Run(ctx context.Context, args ...string) error {
 	}
 	opts, files, err := parseFlags(args)
 	if err != nil {
-		p.errorf("%v", err)
-		stdopts.TryHelp(p.Runtime, "touch")
-		return &coreutils.ExitError{Code: 2}
+		return stdopts.UsageError(p.Runtime, "touch", err)
 	}
 	if len(files) == 0 {
-		p.errorf("missing file operand")
+		stdopts.Errorf(p.Runtime, "touch", "missing file operand")
 		stdopts.TryHelp(p.Runtime, "touch")
 		return &coreutils.ExitError{Code: 2}
 	}
 	if p.FS == nil {
-		p.errorf("no file system available")
+		stdopts.Errorf(p.Runtime, "touch", "no file system available")
 		return &coreutils.ExitError{Code: 1}
 	}
 	atime, mtime, err := p.referenceTime(opts)
 	if err != nil {
-		p.errorf("%v", err)
+		stdopts.Errorf(p.Runtime, "touch", "%v", err)
 		return &coreutils.ExitError{Code: 1}
 	}
 
@@ -64,7 +62,7 @@ func (p *Prog) Run(ctx context.Context, args ...string) error {
 			return err
 		}
 		if err := p.touch(file, opts, atime, mtime); err != nil {
-			p.errorf("%s: %v", file, patherr.Unwrap(err))
+			stdopts.Errorf(p.Runtime, "touch", "%s: %v", file, patherr.Unwrap(err))
 			ok = false
 		}
 	}
@@ -226,11 +224,6 @@ func (p *Prog) create(path string) error {
 	return f.Close()
 }
 
-// errorf writes a diagnostic message to standard error.
-func (p *Prog) errorf(format string, args ...any) {
-	fmt.Fprintf(p.Stderr, "touch: "+format+"\n", args...)
-}
-
 // options holds the -a, -c, -f, -h and -m flags, plus the option-argument of
 // the last -d, -r or -t option given. The -d value is also kept when -r or -t
 // follows it, as the origin for relative times, with refFile holding the -r
@@ -288,11 +281,7 @@ A FILE argument that does not exist is created, unless -c or -h is supplied.
          use [[CC]YY]MMDDhhmm[.ss] instead of current time
       --time=WORD
          change the time WORD names: access, atime, use, modify or mtime
-      --help
-         display this help and exit
-      --version
-         output version information and exit
-`
+` + stdopts.Tail
 
 // parseFlags parses the options and operands. Option parsing stops at the
 // first operand or at "--". The -d, -r and -t options take an option-argument,

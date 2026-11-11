@@ -46,7 +46,7 @@ func (p *Prog) Run(ctx context.Context, args ...string) error {
 	}
 	opts, operands, err := parseFlags(p.Terminal(1), args)
 	if err != nil {
-		p.errorf("%v", err)
+		stdopts.Errorf(p.Runtime, "which", "%v", err)
 		stdopts.TryHelp(p.Runtime, "which")
 		return &coreutils.ExitError{Code: 1, Err: err}
 	}
@@ -245,22 +245,16 @@ func (p *Prog) println(path string) error {
 
 // fail writes the diagnostic for a command which wasn't found.
 func (p *Prog) fail(name, path string) {
-	p.errorf("no %s in (%s)", name, path)
+	stdopts.Errorf(p.Runtime, "which", "no %s in (%s)", name, path)
 }
 
 // printVersion writes the version text, like the shared standard options.
 func (p *Prog) printVersion() error {
-	_, err := fmt.Fprintf(p.Stdout,
-		"which (charm.land/snail/coreutils) %s\nhttps://charm.land/snail\n", coreutils.Version)
+	_, err := fmt.Fprint(p.Stdout, stdopts.VersionText("which"))
 	if err != nil {
 		return &coreutils.ExitError{Code: 1, Err: err}
 	}
 	return nil
-}
-
-// errorf writes a diagnostic message to the standard error.
-func (p *Prog) errorf(format string, args ...any) {
-	fmt.Fprintf(p.Stderr, "which: "+format+"\n", args...)
 }
 
 // options holds the flags of which.
@@ -364,11 +358,7 @@ printing the path of the first match, or of every match with -a.
          print a tilde instead of the HOME directory in the output
       --tty-only
          stop processing options on the right if not on a tty
-      --help
-         display this help and exit
-      --version
-         output version information and exit
-`
+` + stdopts.Tail
 
 var (
 	_ coreutils.Program = (*Prog)(nil)

@@ -3,7 +3,6 @@ package digest
 import (
 	"context"
 	"errors"
-	"fmt"
 
 	"charm.land/snail/coreutils"
 	"charm.land/snail/coreutils/internal/getopt"
@@ -39,18 +38,18 @@ func (f Family) Run(ctx context.Context, rt *coreutils.Runtime, args []string) e
 	}
 	set, err := f.parseFlags(args)
 	if err != nil {
-		f.errorf(rt, "%v", err)
+		stdopts.Errorf(rt, f.Name, "%v", err)
 		stdopts.TryHelp(rt, f.Name)
 		return &coreutils.ExitError{Code: 1}
 	}
 	if err := set.validate(); err != nil {
-		f.errorf(rt, "%v", err)
+		stdopts.Errorf(rt, f.Name, "%v", err)
 		stdopts.TryHelp(rt, f.Name)
 		return &coreutils.ExitError{Code: 1}
 	}
 	a, ok := f.Algorithms[set.algorithm]
 	if !ok {
-		f.errorf(rt, "unrecognized algorithm '%s'", set.algorithm)
+		stdopts.Errorf(rt, f.Name, "unrecognized algorithm '%s'", set.algorithm)
 		stdopts.TryHelp(rt, f.Name)
 		return &coreutils.ExitError{Code: 1}
 	}
@@ -63,11 +62,6 @@ func (f Family) Run(ctx context.Context, rt *coreutils.Runtime, args []string) e
 		return a.verify(ctx, rt, set.options, operands)
 	}
 	return a.digests(ctx, rt, set.options, operands)
-}
-
-// errorf writes a diagnostic message to the standard error of rt.
-func (f Family) errorf(rt *coreutils.Runtime, format string, args ...any) {
-	fmt.Fprintf(rt.Stderr, f.Name+": "+format+"\n", args...)
 }
 
 // settings holds what a run of a family utility selects: the options shared
@@ -189,9 +183,5 @@ func usage(prog string) string {
          read in text mode (default)
   -w, --warn
          warn about improperly formatted checksum lines
-      --help
-         display this help and exit
-      --version
-         output version information and exit
-`
+` + stdopts.Tail
 }

@@ -52,14 +52,12 @@ func (p *Prog) Run(ctx context.Context, args ...string) error {
 	}
 	opts, operands, err := parseFlags(args)
 	if err != nil {
-		p.errorf("%v", err)
-		stdopts.TryHelp(p.Runtime, "sed")
-		return &coreutils.ExitError{Code: 2}
+		return stdopts.UsageError(p.Runtime, "sed", err)
 	}
 
 	script, files, err := p.assembleScript(ctx, opts, operands)
 	if err != nil {
-		p.errorf("%v", err)
+		stdopts.Errorf(p.Runtime, "sed", "%v", err)
 		if errors.Is(err, errMissingScript) {
 			stdopts.TryHelp(p.Runtime, "sed")
 			return &coreutils.ExitError{Code: 2}
@@ -69,7 +67,7 @@ func (p *Prog) Run(ctx context.Context, args ...string) error {
 
 	cmds, err := parseScript(script, opts)
 	if err != nil {
-		p.errorf("%v", err)
+		stdopts.Errorf(p.Runtime, "sed", "%v", err)
 		return &coreutils.ExitError{Code: 2}
 	}
 
@@ -77,7 +75,7 @@ func (p *Prog) Run(ctx context.Context, args ...string) error {
 	var res runResult
 	if opts.inPlace {
 		if len(files) == 0 || slices.Contains(files, "-") {
-			p.errorf("-i may not be used with stdin")
+			stdopts.Errorf(p.Runtime, "sed", "-i may not be used with stdin")
 			stdopts.TryHelp(p.Runtime, "sed")
 			return &coreutils.ExitError{Code: 2}
 		}
@@ -89,7 +87,7 @@ func (p *Prog) Run(ctx context.Context, args ...string) error {
 		if ctx.Err() != nil {
 			return ctx.Err()
 		}
-		p.errorf("%v", err)
+		stdopts.Errorf(p.Runtime, "sed", "%v", err)
 		return &coreutils.ExitError{Code: 1, Err: err}
 	}
 	if res.openFailed {
@@ -182,11 +180,7 @@ Edit the standard input or the given files with a script of commands.
          follow symlinks when editing files in place
       --posix
          reject the GNU extensions of the script syntax
-      --help
-         display this help and exit
-      --version
-         output version information and exit
-`
+` + stdopts.Tail
 
 func parseFlags(args []string) (*options, []string, error) {
 	opts := &options{lineLength: lDefaultWidth}
@@ -322,10 +316,6 @@ func (p *Prog) readScript(ctx context.Context, name string) (string, error) {
 		return "", err
 	}
 	return string(data), nil
-}
-
-func (p *Prog) errorf(format string, args ...any) {
-	fmt.Fprintf(p.Stderr, "sed: "+format+"\n", args...)
 }
 
 var _ coreutils.Program = (*Prog)(nil)

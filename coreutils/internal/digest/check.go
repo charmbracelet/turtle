@@ -14,6 +14,7 @@ import (
 	"charm.land/snail/coreutils"
 	"charm.land/snail/coreutils/internal/input"
 	"charm.land/snail/coreutils/internal/patherr"
+	"charm.land/snail/coreutils/internal/stdopts"
 )
 
 // The format of the checksum lines seen until now. A line without the
@@ -88,7 +89,7 @@ func (c *checker) file(ctx context.Context, name string) (bool, error) {
 
 	r, err := input.Open(c.rt, ctx, input.New(name))
 	if err != nil {
-		c.a.errorf(c.rt, "%s: %v", label, patherr.Unwrap(err))
+		stdopts.Errorf(c.rt, c.a.Name, "%s: %v", label, patherr.Unwrap(err))
 		return false, nil
 	}
 	defer r.Close()
@@ -112,7 +113,7 @@ func (c *checker) lines(ctx context.Context, r io.Reader, label string, stdin bo
 			if ctxErr := ctx.Err(); ctxErr != nil {
 				return ctxErr
 			}
-			c.a.errorf(c.rt, "%s: read error: %v", label, err)
+			stdopts.Errorf(c.rt, c.a.Name, "%s: read error: %v", label, err)
 			return errCheckRead
 		}
 		if line != "" {
@@ -141,7 +142,7 @@ func (c *checker) verifyLine(ctx context.Context, label string, number int, line
 	if !ok || (stdin && e.name == "-") {
 		c.misformatted++
 		if c.opts.warn {
-			c.a.errorf(c.rt, "%s: %d: improperly formatted %s checksum line",
+			stdopts.Errorf(c.rt, c.a.Name, "%s: %d: improperly formatted %s checksum line",
 				label, number, c.a.Tag)
 		}
 		return nil
@@ -155,7 +156,7 @@ func (c *checker) verifyLine(ctx context.Context, label string, number int, line
 	case err != nil && errors.Is(err, fs.ErrNotExist) && c.opts.ignoreMissing:
 		// A file which isn't there is skipped without any mention.
 	case err != nil:
-		c.a.errorf(c.rt, "%s: %v", e.name, patherr.Unwrap(err))
+		stdopts.Errorf(c.rt, c.a.Name, "%s: %v", e.name, patherr.Unwrap(err))
 		c.readFailures++
 		if !c.opts.status {
 			c.statusf("%s: FAILED open or read", e.name)
@@ -188,7 +189,7 @@ func (c *checker) digestOf(ctx context.Context, name string) ([]byte, error) {
 // checksum it held was verified.
 func (c *checker) report(label string) bool {
 	if !c.valid {
-		c.a.errorf(c.rt, "%s: no properly formatted checksum lines found", label)
+		stdopts.Errorf(c.rt, c.a.Name, "%s: no properly formatted checksum lines found", label)
 		return false
 	}
 	if !c.opts.status {
@@ -205,7 +206,7 @@ func (c *checker) report(label string) bool {
 				"computed checksums did NOT match")
 		}
 		if c.opts.ignoreMissing && !c.matched {
-			c.a.errorf(c.rt, "%s: no file was verified", label)
+			stdopts.Errorf(c.rt, c.a.Name, "%s: no file was verified", label)
 		}
 	}
 	return c.matched && c.mismatches == 0 && c.readFailures == 0 &&
@@ -224,7 +225,7 @@ func (c *checker) warnf(n int, singular, plural string) {
 	if n == 1 {
 		warning = "WARNING: 1 " + singular
 	}
-	c.a.errorf(c.rt, "%s", warning)
+	stdopts.Errorf(c.rt, c.a.Name, "%s", warning)
 }
 
 // entry is a checksum line: the digest to compare and the file it was taken

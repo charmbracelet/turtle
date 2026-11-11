@@ -17,6 +17,7 @@ import (
 	"charm.land/snail/coreutils/internal/filemode"
 	"charm.land/snail/coreutils/internal/patherr"
 
+	"charm.land/snail/coreutils/internal/stdopts"
 	"charm.land/snail/fsx"
 )
 
@@ -449,7 +450,7 @@ func (e printExpr) eval(s *state, f file) bool {
 		ending = "\x00"
 	}
 	if _, err := fmt.Fprint(s.out(e.file), f.name, ending); err != nil {
-		s.p.errorf("write error: %v", err)
+		stdopts.Errorf(s.p.Runtime, "find", "write error: %v", err)
 		s.failed = true
 	}
 	return true
@@ -462,7 +463,7 @@ type lsExpr struct {
 
 func (e lsExpr) eval(s *state, f file) bool {
 	if err := listFile(s, s.out(e.file), f); err != nil {
-		s.p.errorf("write error: %v", err)
+		stdopts.Errorf(s.p.Runtime, "find", "write error: %v", err)
 		s.failed = true
 	}
 	return true
@@ -476,7 +477,7 @@ type printfExpr struct {
 
 func (e printfExpr) eval(s *state, f file) bool {
 	if err := e.format.write(s, s.out(e.file), f); err != nil {
-		s.p.errorf("write error: %v", err)
+		stdopts.Errorf(s.p.Runtime, "find", "write error: %v", err)
 		s.failed = true
 	}
 	return true
@@ -569,7 +570,7 @@ func (e deleteExpr) eval(s *state, f file) bool {
 	if s.opts.ignoreRace && errors.Is(err, fs.ErrNotExist) {
 		return true
 	}
-	s.p.errorf("cannot delete '%s': %v", f.name, patherr.Unwrap(err))
+	stdopts.Errorf(s.p.Runtime, "find", "cannot delete '%s': %v", f.name, patherr.Unwrap(err))
 	s.failed = true
 	return false
 }

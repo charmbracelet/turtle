@@ -52,7 +52,7 @@ func (p *Prog) run(ctx context.Context, set settings) error {
 	}
 	f, err := newFormat(seq, set)
 	if err != nil {
-		p.errorf("%v", err)
+		stdopts.Errorf(p.Runtime, "seq", "%v", err)
 		return &coreutils.ExitError{Code: 1, Err: err}
 	}
 	return p.print(ctx, seq, set, f)
@@ -345,19 +345,14 @@ func (p *Prog) write(s string) error {
 
 // writeError reports a failure writing to the standard output.
 func (p *Prog) writeError(err error) error {
-	p.errorf("write error: %v", err)
+	stdopts.Errorf(p.Runtime, "seq", "write error: %v", err)
 	return &coreutils.ExitError{Code: 1, Err: err}
-}
-
-// errorf writes a diagnostic message to the standard error.
-func (p *Prog) errorf(f string, args ...any) {
-	fmt.Fprintf(p.Stderr, "seq: "+f+"\n", args...)
 }
 
 // usageErrorf writes a diagnostic message to the standard error, followed by
 // a hint to the help, and returns the exit status it asks for.
 func (p *Prog) usageErrorf(f string, args ...any) *coreutils.ExitError {
-	p.errorf(f, args...)
+	stdopts.Errorf(p.Runtime, "seq", f, args...)
 	stdopts.TryHelp(p.Runtime, "seq")
 	return &coreutils.ExitError{Code: 1}
 }
@@ -549,11 +544,7 @@ Print numbers from FIRST to LAST, in steps of INCREMENT.
          use STRING to separate numbers (default: \n)
   -w, --equal-width
          equalize width by padding with leading zeros
-      --help
-         display this help and exit
-      --version
-         output version information and exit
-`
+` + stdopts.Tail
 
 var (
 	_ coreutils.Program = (*Prog)(nil)

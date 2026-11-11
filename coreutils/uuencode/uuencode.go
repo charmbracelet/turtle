@@ -9,7 +9,6 @@ package uuencode
 import (
 	"context"
 	"errors"
-	"fmt"
 	"io"
 	"io/fs"
 
@@ -45,17 +44,15 @@ func (p *Prog) Run(ctx context.Context, args ...string) error {
 	}
 	base64, operands, err := parseFlags(args)
 	if err != nil {
-		p.errorf("%v", err)
-		stdopts.TryHelp(p.Runtime, "uuencode")
-		return &coreutils.ExitError{Code: 2}
+		return stdopts.UsageError(p.Runtime, "uuencode", err)
 	}
 	switch {
 	case len(operands) == 0:
-		p.errorf("missing operand")
+		stdopts.Errorf(p.Runtime, "uuencode", "missing operand")
 		stdopts.TryHelp(p.Runtime, "uuencode")
 		return &coreutils.ExitError{Code: 2}
 	case len(operands) > 2:
-		p.errorf("extra operand '%s'", operands[2])
+		stdopts.Errorf(p.Runtime, "uuencode", "extra operand '%s'", operands[2])
 		stdopts.TryHelp(p.Runtime, "uuencode")
 		return &coreutils.ExitError{Code: 2}
 	}
@@ -66,13 +63,13 @@ func (p *Prog) Run(ctx context.Context, args ...string) error {
 		in = input.New(operands[0])
 	}
 	if !in.Stdin && in.Name == "" {
-		p.errorf("invalid zero-length file name")
+		stdopts.Errorf(p.Runtime, "uuencode", "invalid zero-length file name")
 		return &coreutils.ExitError{Code: 1}
 	}
 
 	r, mode, err := p.open(in)
 	if err != nil {
-		p.errorf("%s: %v", in.Label(), patherr.Unwrap(err))
+		stdopts.Errorf(p.Runtime, "uuencode", "%s: %v", in.Label(), patherr.Unwrap(err))
 		return &coreutils.ExitError{Code: 1, Err: err}
 	}
 	defer r.Close()
@@ -81,14 +78,14 @@ func (p *Prog) Run(ctx context.Context, args ...string) error {
 	err = p.encode(ctx, r, w, mode, name, base64)
 	switch {
 	case w.err != nil:
-		p.errorf("write error: %v", w.err)
+		stdopts.Errorf(p.Runtime, "uuencode", "write error: %v", w.err)
 		return &coreutils.ExitError{Code: 1, Err: w.err}
 	case ctx.Err() != nil:
 		return ctx.Err()
 	case err == nil:
 		return nil
 	default:
-		p.errorf("%s: %v", in.Label(), patherr.Unwrap(err))
+		stdopts.Errorf(p.Runtime, "uuencode", "%s: %v", in.Label(), patherr.Unwrap(err))
 		return &coreutils.ExitError{Code: 1, Err: err}
 	}
 }
@@ -141,11 +138,6 @@ func (p *Prog) open(in input.Input) (io.ReadCloser, fs.FileMode, error) {
 	return f, fi.Mode().Perm(), nil
 }
 
-// errorf writes a diagnostic message to the standard error.
-func (p *Prog) errorf(format string, args ...any) {
-	fmt.Fprintf(p.Stderr, "uuencode: "+format+"\n", args...)
-}
-
 // longOptions maps the long options of uuencode to the short ones they
 // stand for.
 var longOptions = map[string]rune{
@@ -162,11 +154,7 @@ output, announcing decode_pathname as the name of the recreated file.
 
   -m, --base64
          encode with the MIME base64 algorithm, instead of the historical one
-      --help
-         display this help and exit
-      --version
-         output version information and exit
-`
+` + stdopts.Tail
 
 // parseFlags parses the options and operands. Option parsing stops at the
 // first operand or at "--".
