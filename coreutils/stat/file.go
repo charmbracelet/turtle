@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"charm.land/snail/coreutils/internal/fileinfo"
+	"charm.land/snail/coreutils/internal/filemode"
 	"charm.land/snail/fsx"
 )
 
@@ -129,27 +130,11 @@ func (n *userNames) group(id uint64) string {
 	return name
 }
 
-// accessBits returns the permission and special mode bits of a file, as the
-// octal %a writes them.
-func accessBits(m fs.FileMode) uint64 {
-	v := uint64(m.Perm())
-	if m&fs.ModeSetuid != 0 {
-		v |= 0o4000
-	}
-	if m&fs.ModeSetgid != 0 {
-		v |= 0o2000
-	}
-	if m&fs.ModeSticky != 0 {
-		v |= 0o1000
-	}
-	return v
-}
-
 // rawMode returns the mode of a file as the raw st_mode of the systems
 // holds it: the type bits of the POSIX interface, followed by the special
 // and permission bits.
 func rawMode(m fs.FileMode) uint64 {
-	v := accessBits(m)
+	v := uint64(filemode.Octal(m))
 	switch {
 	case m&fs.ModeDir != 0:
 		v |= 0o040000

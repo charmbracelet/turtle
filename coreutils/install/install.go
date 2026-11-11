@@ -32,6 +32,7 @@ import (
 	"charm.land/snail/coreutils/chmod"
 	"charm.land/snail/coreutils/internal/backup"
 	"charm.land/snail/coreutils/internal/ctxio"
+	"charm.land/snail/coreutils/internal/filemode"
 	"charm.land/snail/coreutils/internal/getopt"
 	"charm.land/snail/coreutils/internal/patherr"
 	"charm.land/snail/coreutils/internal/stdopts"
@@ -330,7 +331,7 @@ func (p *Prog) setAttrs(e pair, fi fs.FileInfo, set settings) error {
 			return fmt.Errorf("cannot change ownership of '%s': %v", e.dstName, patherr.Unwrap(err))
 		}
 	}
-	if err := p.FS.Chmod(e.dst, set.fileMode&chmodBits); err != nil {
+	if err := p.FS.Chmod(e.dst, set.fileMode&filemode.AccessBits); err != nil {
 		return fmt.Errorf("cannot change permissions of '%s': %v", e.dstName, patherr.Unwrap(err))
 	}
 	if set.opts.preserveTimes {
@@ -470,7 +471,7 @@ func (p *Prog) setDirAttrs(name, shown string, set settings) error {
 			return fmt.Errorf("cannot change owner and permissions of '%s': %v", shown, patherr.Unwrap(err))
 		}
 	}
-	if err := p.FS.Chmod(name, set.dirMode&chmodBits); err != nil {
+	if err := p.FS.Chmod(name, set.dirMode&filemode.AccessBits); err != nil {
 		return fmt.Errorf("cannot change owner and permissions of '%s': %v", shown, patherr.Unwrap(err))
 	}
 	return nil
@@ -676,12 +677,8 @@ func atime(fi fs.FileInfo) time.Time {
 	return fi.ModTime()
 }
 
-// chmodBits are the mode bits that Chmod changes, and specialBits the ones
-// beyond the plain permissions.
-const (
-	chmodBits   = fs.ModePerm | fs.ModeSetuid | fs.ModeSetgid | fs.ModeSticky
-	specialBits = fs.ModeSetuid | fs.ModeSetgid | fs.ModeSticky
-)
+// specialBits are the mode bits beyond the plain permissions.
+const specialBits = fs.ModeSetuid | fs.ModeSetgid | fs.ModeSticky
 
 // errNotDir is reported when a path component names something other than a
 // directory.

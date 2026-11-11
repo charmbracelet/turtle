@@ -177,7 +177,7 @@ func (r *renderer) fileDirective(c byte, quoted bool, mod byte, spec printfmt.Sp
 	m := st.fi.Mode()
 	switch c {
 	case 'a':
-		return numField(accessBits(m), spec, 8), false, true
+		return numField(uint64(filemode.Octal(m)), spec, 8), false, true
 	case 'A':
 		return strField(filemode.String(m), spec), false, true
 	case 'b':

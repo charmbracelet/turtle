@@ -27,6 +27,7 @@ import (
 	"charm.land/snail/coreutils"
 
 	"charm.land/snail/coreutils/internal/ctxio"
+	"charm.land/snail/coreutils/internal/filemode"
 	"charm.land/snail/coreutils/internal/getopt"
 	"charm.land/snail/coreutils/internal/patherr"
 	"charm.land/snail/coreutils/internal/stdopts"
@@ -230,7 +231,7 @@ func (p *Prog) copyDir(ctx context.Context, e pair, fi fs.FileInfo) error {
 			return err
 		}
 	}
-	if err := p.FS.Chmod(e.dst, fi.Mode()&chmodBits); err != nil {
+	if err := p.FS.Chmod(e.dst, fi.Mode()&filemode.AccessBits); err != nil {
 		return fmt.Errorf("cannot set mode of '%s': %v", e.dstName, patherr.Unwrap(err))
 	}
 	if err := p.FS.Chtimes(e.dst, atime(fi), fi.ModTime()); err != nil {
@@ -263,7 +264,7 @@ func (p *Prog) copyFile(ctx context.Context, e pair, fi fs.FileInfo) error {
 		return fmt.Errorf("cannot close '%s': %v", e.srcName, patherr.Unwrap(inErr))
 	}
 
-	if err := p.FS.Chmod(e.dst, fi.Mode()&chmodBits); err != nil {
+	if err := p.FS.Chmod(e.dst, fi.Mode()&filemode.AccessBits); err != nil {
 		return fmt.Errorf("cannot set mode of '%s': %v", e.dstName, patherr.Unwrap(err))
 	}
 	if err := p.FS.Chtimes(e.dst, atime(fi), fi.ModTime()); err != nil {
@@ -361,9 +362,6 @@ func atime(fi fs.FileInfo) time.Time {
 	}
 	return fi.ModTime()
 }
-
-// chmodBits are the mode bits that a duplicated entry keeps.
-const chmodBits = fs.ModePerm | fs.ModeSetuid | fs.ModeSetgid | fs.ModeSticky
 
 // errSkipped marks a move declined through -n, -u or -i, which isn't a
 // failure.

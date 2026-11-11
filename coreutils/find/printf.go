@@ -160,7 +160,7 @@ func (f printfFormat) directive(s *state, piece printfPiece, file file) string {
 // writeMode returns what %m writes, honoring the '#' flag, which makes it
 // keep a leading zero.
 func (piece printfPiece) writeMode(m fs.FileMode) string {
-	value := strconv.FormatInt(int64(m&permBits), 8)
+	value := strconv.FormatUint(uint64(filemode.Octal(m)), 8)
 	if strings.Contains(piece.spec, "#") && value != "0" {
 		value = "0" + value
 	}
