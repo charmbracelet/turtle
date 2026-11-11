@@ -3,9 +3,47 @@
 package textutil
 
 import (
+	"bufio"
 	"bytes"
+	"context"
+	"errors"
+	"io"
 	"unicode/utf8"
 )
+
+// Delim returns the record separator of an input: a NUL when zero is set, a
+// newline otherwise.
+func Delim(zero bool) byte {
+	if zero {
+		return 0
+	}
+	return '\n'
+}
+
+// Each reads the records of r, each including its trailing separator when
+// present; the final record may lack one. fn is called once per record, in
+// order, and its first error, like the context done error of ctx, stops the
+// reading and is returned as it is.
+func Each(ctx context.Context, r io.Reader, sep byte, fn func(rec []byte) error) error {
+	br := bufio.NewReader(r)
+	for {
+		if err := ctx.Err(); err != nil {
+			return err
+		}
+		rec, err := br.ReadBytes(sep)
+		if len(rec) > 0 {
+			if ferr := fn(rec); ferr != nil {
+				return ferr
+			}
+		}
+		if err != nil {
+			if errors.Is(err, io.EOF) {
+				return nil
+			}
+			return err
+		}
+	}
+}
 
 // IsBlank reports whether c is a blank character: a space or a tab.
 func IsBlank(c byte) bool {

@@ -6,14 +6,13 @@
 package sort
 
 import (
-	"bufio"
+	"bytes"
 	"context"
 	"errors"
 	"fmt"
 	"io"
 	"os"
 	"slices"
-	"strings"
 
 	"charm.land/snail/coreutils"
 
@@ -21,6 +20,7 @@ import (
 	"charm.land/snail/coreutils/internal/input"
 	"charm.land/snail/coreutils/internal/patherr"
 	"charm.land/snail/coreutils/internal/stdopts"
+	"charm.land/snail/coreutils/internal/textutil"
 	"charm.land/snail/fsx"
 )
 
@@ -115,45 +115,41 @@ func (p *Prog) check(ctx context.Context, in input.Input, opts options) error {
 		name = "-"
 	}
 
-	delim := opts.delimiter()
-	br := bufio.NewReader(r)
+	delim := textutil.Delim(opts.zeroTerminated)
+	term := []byte{delim}
 	var prev sortLine
 	havePrev := false
 	number := 0
-	for {
-		if err := ctx.Err(); err != nil {
+	err = textutil.Each(ctx, r, delim, func(line []byte) error {
+		number++
+		cur := opts.newLine(bytes.TrimSuffix(line, term))
+		if havePrev {
+			disorder := opts.compareLines(prev, cur) > 0
+			if opts.unique && opts.equalKeys(prev, cur) {
+				disorder = true
+			}
+			if disorder {
+				if opts.check == 'c' {
+					p.errorf("%s:%d: disorder: %s", name, number, cur.data)
+				}
+				return &coreutils.ExitError{Code: 1}
+			}
+		}
+		prev = cur
+		havePrev = true
+		return nil
+	})
+	if err != nil {
+		if _, ok := errors.AsType[*coreutils.ExitError](err); ok {
 			return err
 		}
-		line, err := br.ReadString(delim)
-		if len(line) > 0 {
-			number++
-			cur := opts.newLine([]byte(strings.TrimSuffix(line, string(delim))))
-			if havePrev {
-				disorder := opts.compareLines(prev, cur) > 0
-				if opts.unique && opts.equalKeys(prev, cur) {
-					disorder = true
-				}
-				if disorder {
-					if opts.check == 'c' {
-						p.errorf("%s:%d: disorder: %s", name, number, cur.data)
-					}
-					return &coreutils.ExitError{Code: 1}
-				}
-			}
-			prev = cur
-			havePrev = true
+		if ctx.Err() != nil {
+			return ctx.Err()
 		}
-		if err != nil {
-			if errors.Is(err, io.EOF) {
-				return nil
-			}
-			if ctx.Err() != nil {
-				return ctx.Err()
-			}
-			p.errorf("%s: %v", in.Label(), patherr.Unwrap(err))
-			return &coreutils.ExitError{Code: 2}
-		}
+		p.errorf("%s: %v", in.Label(), patherr.Unwrap(err))
+		return &coreutils.ExitError{Code: 2}
 	}
+	return nil
 }
 
 // readLines reads all the lines of an input, computing the key of each.
@@ -165,23 +161,13 @@ func (p *Prog) readLines(ctx context.Context, in input.Input, opts options) ([]s
 	defer r.Close()
 
 	var lines []sortLine
-	delim := opts.delimiter()
-	br := bufio.NewReader(r)
-	for {
-		if err := ctx.Err(); err != nil {
-			return nil, err
-		}
-		line, err := br.ReadString(delim)
-		if len(line) > 0 {
-			lines = append(lines, opts.newLine([]byte(strings.TrimSuffix(line, string(delim)))))
-		}
-		if err != nil {
-			if errors.Is(err, io.EOF) {
-				return lines, nil
-			}
-			return nil, err
-		}
-	}
+	delim := textutil.Delim(opts.zeroTerminated)
+	term := []byte{delim}
+	err = textutil.Each(ctx, r, delim, func(line []byte) error {
+		lines = append(lines, opts.newLine(bytes.TrimSuffix(line, term)))
+		return nil
+	})
+	return lines, err
 }
 
 // writeLines writes the sorted lines to the output file, or to the standard
@@ -201,7 +187,7 @@ func (p *Prog) writeLines(ctx context.Context, lines []sortLine, opts options) e
 		if err := ctx.Err(); err != nil {
 			return err
 		}
-		if err := writeLine(out, line.data, opts.delimiter()); err != nil {
+		if err := writeLine(out, line.data, textutil.Delim(opts.zeroTerminated)); err != nil {
 			p.errorf("write error: %v", err)
 			return &coreutils.ExitError{Code: 2, Err: err}
 		}

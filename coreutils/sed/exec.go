@@ -14,6 +14,7 @@ import (
 	"unicode/utf8"
 
 	"charm.land/snail/coreutils/internal/patherr"
+	"charm.land/snail/coreutils/internal/textutil"
 	"charm.land/snail/fsx"
 )
 
@@ -92,10 +93,7 @@ func (p *Prog) newSource(ctx context.Context, res *runResult, files []string, o 
 	if len(paths) == 0 {
 		paths = []string{"-"}
 	}
-	sep := byte('\n')
-	if o.nullData {
-		sep = 0
-	}
+	sep := textutil.Delim(o.nullData)
 	return &source{p: p, ctx: ctx, res: res, paths: paths, sep: sep}
 }
 

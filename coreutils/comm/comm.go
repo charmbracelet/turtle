@@ -19,6 +19,7 @@ import (
 	"charm.land/snail/coreutils/internal/input"
 	"charm.land/snail/coreutils/internal/patherr"
 	"charm.land/snail/coreutils/internal/stdopts"
+	"charm.land/snail/coreutils/internal/textutil"
 )
 
 // Prog is the comm core utility.
@@ -209,10 +210,7 @@ func (p *Prog) openInput(ctx context.Context, name string, zero bool) (*file, er
 	if err != nil {
 		return nil, err
 	}
-	term := byte('\n')
-	if zero {
-		term = 0
-	}
+	term := textutil.Delim(zero)
 	return &file{Closer: rc, reader: bufio.NewReader(rc), label: name, term: term}, nil
 }
 

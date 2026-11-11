@@ -40,6 +40,7 @@ import (
 	"charm.land/snail/coreutils/internal/patherr"
 	"charm.land/snail/coreutils/internal/sizeparse"
 	"charm.land/snail/coreutils/internal/stdopts"
+	"charm.land/snail/coreutils/internal/textutil"
 	"charm.land/snail/fsx"
 )
 
@@ -713,7 +714,7 @@ func (o *output) headerLocked(in input.Input) {
 
 // copyPortion copies the part of the input selected by the options.
 func (p *Prog) copyPortion(r io.Reader, f fsx.SeekFile, opts options) error {
-	delim := opts.delim()
+	delim := textutil.Delim(opts.zero)
 	switch {
 	case opts.reverse:
 		return p.reverse(r, opts)
@@ -819,9 +820,9 @@ func (p *Prog) reverse(r io.Reader, opts options) error {
 		err   error
 	)
 	if opts.countSet {
-		lines, err = readLastLines(r, opts.count, opts.delim())
+		lines, err = readLastLines(r, opts.count, textutil.Delim(opts.zero))
 	} else {
-		lines, err = readAllLines(r, opts.delim())
+		lines, err = readAllLines(r, textutil.Delim(opts.zero))
 	}
 	if err != nil {
 		return err

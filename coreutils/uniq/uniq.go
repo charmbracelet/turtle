@@ -7,7 +7,6 @@
 package uniq
 
 import (
-	"bufio"
 	"bytes"
 	"context"
 	"errors"
@@ -101,8 +100,7 @@ func (p *Prog) Run(ctx context.Context, args ...string) error {
 // uniq copies the groups of adjacent equal items of r to out, as the options
 // demand. Items are delimited by the byte the options pick.
 func (p *Prog) uniq(ctx context.Context, r io.Reader, out io.Writer, opts options) error {
-	br := bufio.NewReader(r)
-	delim := opts.delimiter()
+	delim := textutil.Delim(opts.zeroTerm)
 	term := []byte{delim}
 	var (
 		group    [][]byte
@@ -110,31 +108,22 @@ func (p *Prog) uniq(ctx context.Context, r io.Reader, out io.Writer, opts option
 		havePrev bool
 	)
 	w := groupWriter{out: out, opts: opts}
-	for {
-		if err := ctx.Err(); err != nil {
-			return err
+	err := textutil.Each(ctx, r, delim, func(rec []byte) error {
+		key := opts.key(bytes.TrimSuffix(rec, term))
+		if havePrev && bytes.Equal(prevKey, key) {
+			group = append(group, rec)
+			return nil
 		}
-		item, err := br.ReadString(delim)
-		if len(item) > 0 {
-			raw := []byte(item)
-			key := opts.key(bytes.TrimSuffix(raw, term))
-			if havePrev && bytes.Equal(prevKey, key) {
-				group = append(group, raw)
-			} else {
-				if havePrev {
-					if werr := w.write(group); werr != nil {
-						return werr
-					}
-				}
-				group, prevKey, havePrev = [][]byte{raw}, key, true
+		if havePrev {
+			if err := w.write(group); err != nil {
+				return err
 			}
 		}
-		if err != nil {
-			if errors.Is(err, io.EOF) {
-				break
-			}
-			return err
-		}
+		group, prevKey, havePrev = [][]byte{rec}, key, true
+		return nil
+	})
+	if err != nil {
+		return err
 	}
 	if havePrev {
 		return w.write(group)
@@ -179,7 +168,7 @@ func (w *groupWriter) writeRepeated(group [][]byte) error {
 		return nil
 	}
 	if w.opts.delimit == delimitPrepend || w.opts.delimit == delimitSeparate && w.wrote {
-		if _, err := w.out.Write([]byte{w.opts.delimiter()}); err != nil {
+		if _, err := w.out.Write([]byte{textutil.Delim(w.opts.zeroTerm)}); err != nil {
 			return &writeError{err: err}
 		}
 	}

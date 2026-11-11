@@ -7,12 +7,10 @@
 package unexpand
 
 import (
-	"bufio"
+	"bytes"
 	"context"
 	"errors"
 	"fmt"
-	"io"
-	"strings"
 	"unicode/utf8"
 
 	"charm.land/snail/coreutils"
@@ -22,6 +20,7 @@ import (
 	"charm.land/snail/coreutils/internal/patherr"
 	"charm.land/snail/coreutils/internal/stdopts"
 	"charm.land/snail/coreutils/internal/tabutil"
+	"charm.land/snail/coreutils/internal/textutil"
 )
 
 // Prog is the unexpand core utility.
@@ -97,25 +96,10 @@ func (p *Prog) unexpand(ctx context.Context, in input.Input, opts options) error
 	}
 	defer r.Close()
 
-	br := bufio.NewReader(r)
-	for {
-		if err := ctx.Err(); err != nil {
-			return err
-		}
-		line, err := br.ReadString('\n')
-		if len(line) > 0 {
-			terminated := strings.HasSuffix(line, "\n")
-			if cerr := p.unexpandLine([]byte(strings.TrimSuffix(line, "\n")), opts, terminated); cerr != nil {
-				return cerr
-			}
-		}
-		if err != nil {
-			if errors.Is(err, io.EOF) {
-				return nil
-			}
-			return err
-		}
-	}
+	nl := []byte{'\n'}
+	return textutil.Each(ctx, r, '\n', func(rec []byte) error {
+		return p.unexpandLine(bytes.TrimSuffix(rec, nl), opts, bytes.HasSuffix(rec, nl))
+	})
 }
 
 // unexpandLine writes a line with its convertible blank runs replaced by the
