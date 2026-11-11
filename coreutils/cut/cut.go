@@ -46,9 +46,7 @@ func (p *Prog) Run(ctx context.Context, args ...string) error {
 	}
 	opts, operands, err := parseFlags(args)
 	if err != nil {
-		p.errorf("%v", err)
-		stdopts.TryHelp(p.Runtime, "cut")
-		return &coreutils.ExitError{Code: 2}
+		return stdopts.UsageError(p.Runtime, "cut", err)
 	}
 
 	inputs := make([]input.Input, 0, len(operands))
@@ -65,7 +63,7 @@ func (p *Prog) Run(ctx context.Context, args ...string) error {
 			return err
 		}
 		if !in.Stdin && in.Name == "" {
-			p.errorf("invalid zero-length file name")
+			stdopts.Errorf(p.Runtime, "cut", "invalid zero-length file name")
 			ok = false
 			continue
 		}
@@ -73,12 +71,12 @@ func (p *Prog) Run(ctx context.Context, args ...string) error {
 			var writeErr *writeError
 			switch {
 			case errors.As(err, &writeErr):
-				p.errorf("write error: %v", writeErr.err)
+				stdopts.Errorf(p.Runtime, "cut", "write error: %v", writeErr.err)
 				return &coreutils.ExitError{Code: 1, Err: writeErr.err}
 			case ctx.Err() != nil:
 				return ctx.Err()
 			default:
-				p.errorf("%s: %v", in.Label(), patherr.Unwrap(err))
+				stdopts.Errorf(p.Runtime, "cut", "%s: %v", in.Label(), patherr.Unwrap(err))
 				ok = false
 			}
 		}
@@ -123,11 +121,6 @@ func (p *Prog) cutLine(line []byte, opts options) error {
 		return &writeError{err: err}
 	}
 	return nil
-}
-
-// errorf writes a diagnostic message to standard error.
-func (p *Prog) errorf(format string, args ...any) {
-	fmt.Fprintf(p.Stderr, "cut: "+format+"\n", args...)
 }
 
 // mode is the kind of position a list selects.
@@ -195,11 +188,7 @@ With no FILE, or when FILE is -, read standard input.
          use STRING as the output delimiter
   -z, --zero-terminated
          line delimiter is NUL, not newline
-      --help
-         display this help and exit
-      --version
-         output version information and exit
-`
+` + stdopts.Tail
 
 // parseFlags parses the options and operands, checking that exactly one list
 // option is given and that the other options combine with it. Option parsing

@@ -10,7 +10,6 @@ import (
 	"bytes"
 	"context"
 	"errors"
-	"fmt"
 	"unicode/utf8"
 
 	"charm.land/snail/coreutils"
@@ -45,9 +44,7 @@ func (p *Prog) Run(ctx context.Context, args ...string) error {
 	}
 	opts, operands, err := parseFlags(args)
 	if err != nil {
-		p.errorf("%v", err)
-		stdopts.TryHelp(p.Runtime, "unexpand")
-		return &coreutils.ExitError{Code: 2}
+		return stdopts.UsageError(p.Runtime, "unexpand", err)
 	}
 
 	inputs := make([]input.Input, 0, len(operands))
@@ -64,7 +61,7 @@ func (p *Prog) Run(ctx context.Context, args ...string) error {
 			return err
 		}
 		if !in.Stdin && in.Name == "" {
-			p.errorf("invalid zero-length file name")
+			stdopts.Errorf(p.Runtime, "unexpand", "invalid zero-length file name")
 			ok = false
 			continue
 		}
@@ -72,12 +69,12 @@ func (p *Prog) Run(ctx context.Context, args ...string) error {
 			var writeErr *writeError
 			switch {
 			case errors.As(err, &writeErr):
-				p.errorf("write error: %v", writeErr.err)
+				stdopts.Errorf(p.Runtime, "unexpand", "write error: %v", writeErr.err)
 				return &coreutils.ExitError{Code: 1, Err: writeErr.err}
 			case ctx.Err() != nil:
 				return ctx.Err()
 			default:
-				p.errorf("%s: %v", in.Label(), patherr.Unwrap(err))
+				stdopts.Errorf(p.Runtime, "unexpand", "%s: %v", in.Label(), patherr.Unwrap(err))
 				ok = false
 			}
 		}
@@ -193,11 +190,6 @@ func unexpandRun(out *[]byte, stops tabutil.Stops, from, to int) int {
 	return pos
 }
 
-// errorf writes a diagnostic message to standard error.
-func (p *Prog) errorf(format string, args ...any) {
-	fmt.Fprintf(p.Stderr, "unexpand: "+format+"\n", args...)
-}
-
 // options holds the parsed command line options.
 type options struct {
 	stops     tabutil.Stops
@@ -234,11 +226,7 @@ With no FILE, or when FILE is -, read standard input.
          have tabs N characters apart, not 8
   -t, --tabs=LIST
          use comma separated LIST of tab positions
-      --help
-         display this help and exit
-      --version
-         output version information and exit
-`
+` + stdopts.Tail
 
 // parseFlags parses the command line options. Giving -t implies -a, as the
 // conversions aren't limited to the leading blanks anymore, unless

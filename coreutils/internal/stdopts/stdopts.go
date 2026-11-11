@@ -23,6 +23,38 @@ const (
 // errDone stops the parsing once the usage or version was written.
 var errDone = errors.New("standard option handled")
 
+// Tail is the closing pair of the --help and --version entries every usage
+// text ends with.
+const Tail = `      --help
+         display this help and exit
+      --version
+         output version information and exit
+`
+
+// VersionText returns the version text a utility writes for --version.
+func VersionText(prog string) string {
+	return fmt.Sprintf("%s (charm.land/snail/coreutils) %s\nhttps://charm.land/snail\n",
+		prog, coreutils.Version)
+}
+
+// UsageError reports err as a diagnostic on the standard error of rt, with
+// the program name and the try-help hint, and returns the exit error for
+// it.
+func UsageError(rt *coreutils.Runtime, prog string, err error) error {
+	Errorf(rt, prog, "%v", err)
+	TryHelp(rt, prog)
+	return &coreutils.ExitError{Code: 2}
+}
+
+// Errorf writes a diagnostic to the standard error of rt, prefixed with
+// the program name.
+func Errorf(rt *coreutils.Runtime, prog, format string, args ...any) {
+	if rt.Stderr == nil {
+		return
+	}
+	fmt.Fprintf(rt.Stderr, prog+": "+format+"\n", args...)
+}
+
 // Check reports whether args ask for --help or --version, parsing them with
 // set so the option-arguments of the utility are skipped, and an unknown
 // long option or a missing option argument stops the scan. When one of the
@@ -45,8 +77,7 @@ func Check(rt *coreutils.Runtime, prog, usage string, set getopt.Set, args []str
 		case help:
 			out = usage
 		case version:
-			out = fmt.Sprintf("%s (charm.land/snail/coreutils) %s\nhttps://charm.land/snail\n",
-				prog, coreutils.Version)
+			out = VersionText(prog)
 		default:
 			return nil
 		}

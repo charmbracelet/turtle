@@ -77,36 +77,32 @@ func (p *Prog) Run(ctx context.Context, args ...string) error {
 	}
 	opts, operands, err := parseFlags(args)
 	if err != nil {
-		p.errorf("%v", err)
-		stdopts.TryHelp(p.Runtime, "install")
-		return &coreutils.ExitError{Code: 2}
+		return stdopts.UsageError(p.Runtime, "install", err)
 	}
 	if p.FS == nil {
-		p.errorf("no file system available")
+		stdopts.Errorf(p.Runtime, "install", "no file system available")
 		return &coreutils.ExitError{Code: 1}
 	}
 	bk, err := p.backupOptions(opts)
 	if err != nil {
-		p.errorf("%v", err)
-		stdopts.TryHelp(p.Runtime, "install")
-		return &coreutils.ExitError{Code: 2}
+		return stdopts.UsageError(p.Runtime, "install", err)
 	}
 	set, err := p.settings(opts, bk)
 	if err != nil {
-		p.errorf("%v", err)
+		stdopts.Errorf(p.Runtime, "install", "%v", err)
 		return &coreutils.ExitError{Code: 1}
 	}
 	if set.opts.compare && set.fileMode&specialBits != 0 {
-		p.errorf("the --compare (-C) option is ignored when you specify a mode with non-permission bits")
+		stdopts.Errorf(p.Runtime, "install", "the --compare (-C) option is ignored when you specify a mode with non-permission bits")
 	}
 	if slices.Contains(operands, "") || (opts.targetDirSet && opts.targetDir == "") {
-		p.errorf("invalid zero-length file name")
+		stdopts.Errorf(p.Runtime, "install", "invalid zero-length file name")
 		return &coreutils.ExitError{Code: 1}
 	}
 
 	if opts.directory {
 		if len(operands) == 0 {
-			p.errorf("missing operand")
+			stdopts.Errorf(p.Runtime, "install", "missing operand")
 			stdopts.TryHelp(p.Runtime, "install")
 			return &coreutils.ExitError{Code: 2}
 		}
@@ -116,7 +112,7 @@ func (p *Prog) Run(ctx context.Context, args ...string) error {
 				return err
 			}
 			if err := p.installDir(dir, set); err != nil {
-				p.errorf("%v", err)
+				stdopts.Errorf(p.Runtime, "install", "%v", err)
 				ok = false
 			}
 		}
@@ -128,9 +124,7 @@ func (p *Prog) Run(ctx context.Context, args ...string) error {
 
 	sources, target, err := splitOperands(operands, opts)
 	if err != nil {
-		p.errorf("%v", err)
-		stdopts.TryHelp(p.Runtime, "install")
-		return &coreutils.ExitError{Code: 2}
+		return stdopts.UsageError(p.Runtime, "install", err)
 	}
 
 	dst := p.FsPath(target)
@@ -138,17 +132,17 @@ func (p *Prog) Run(ctx context.Context, args ...string) error {
 	if opts.targetDirSet {
 		if opts.createParents {
 			if err := p.createTargetDir(target, set); err != nil {
-				p.errorf("%v", err)
+				stdopts.Errorf(p.Runtime, "install", "%v", err)
 				return &coreutils.ExitError{Code: 1}
 			}
 		}
 		fi, err := fs.Stat(p.FS, dst)
 		switch {
 		case err != nil:
-			p.errorf("failed to access '%s': %v", target, patherr.Unwrap(err))
+			stdopts.Errorf(p.Runtime, "install", "failed to access '%s': %v", target, patherr.Unwrap(err))
 			return &coreutils.ExitError{Code: 1}
 		case !fi.IsDir():
-			p.errorf("failed to access '%s': not a directory", target)
+			stdopts.Errorf(p.Runtime, "install", "failed to access '%s': not a directory", target)
 			return &coreutils.ExitError{Code: 1}
 		}
 		into = true
@@ -156,12 +150,12 @@ func (p *Prog) Run(ctx context.Context, args ...string) error {
 		into = !opts.noTarget
 	}
 	if !into && len(sources) > 1 {
-		p.errorf("target '%s' is not a directory", target)
+		stdopts.Errorf(p.Runtime, "install", "target '%s' is not a directory", target)
 		return &coreutils.ExitError{Code: 1}
 	}
 	if opts.createParents && !opts.targetDirSet {
 		if err := p.createParents(target, set); err != nil {
-			p.errorf("%v", err)
+			stdopts.Errorf(p.Runtime, "install", "%v", err)
 			return &coreutils.ExitError{Code: 1}
 		}
 	}
@@ -181,7 +175,7 @@ func (p *Prog) Run(ctx context.Context, args ...string) error {
 			case ctx.Err() != nil:
 				return ctx.Err()
 			default:
-				p.errorf("%v", err)
+				stdopts.Errorf(p.Runtime, "install", "%v", err)
 				ok = false
 			}
 		}
@@ -551,7 +545,7 @@ func (p *Prog) backupOptions(opts options) (backup.Options, error) {
 	} else if env, ok := p.LookupEnv("VERSION_CONTROL"); ok && env != "" {
 		m, err := backup.ParseMethod(env)
 		if err != nil {
-			p.errorf("ignoring invalid value of environment variable VERSION_CONTROL")
+			stdopts.Errorf(p.Runtime, "install", "ignoring invalid value of environment variable VERSION_CONTROL")
 		} else {
 			method = m
 		}
@@ -678,11 +672,6 @@ const specialBits = fs.ModeSetuid | fs.ModeSetgid | fs.ModeSticky
 // directory.
 var errNotDir = errors.New("not a directory")
 
-// errorf writes a diagnostic message to standard error.
-func (p *Prog) errorf(format string, args ...any) {
-	fmt.Fprintf(p.Stderr, "install: "+format+"\n", args...)
-}
-
 // options holds the flags of install.
 type options struct {
 	compare       bool
@@ -769,11 +758,7 @@ existing DIRECTORY, while setting permission modes and owner/group. In the
          treat DEST as a normal file
   -v, --verbose
          print the name of each file as it is installed
-      --help
-         display this help and exit
-      --version
-         output version information and exit
-`
+` + stdopts.Tail
 
 // splitOperands splits the operands into the sources and the target,
 // following the -t and -T options.

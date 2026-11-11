@@ -56,7 +56,7 @@ func (p *Prog) Run(ctx context.Context, args ...string) error {
 	}
 	opts, operands, err := parseFlags(args)
 	if err != nil {
-		p.errorf("%v", err)
+		stdopts.Errorf(p.Runtime, "du", "%v", err)
 		stdopts.TryHelp(p.Runtime, "du")
 		return &coreutils.ExitError{Code: 1}
 	}
@@ -64,7 +64,7 @@ func (p *Prog) Run(ctx context.Context, args ...string) error {
 		return &coreutils.ExitError{Code: 1}
 	}
 	if p.FS == nil {
-		p.errorf("no file system available")
+		stdopts.Errorf(p.Runtime, "du", "no file system available")
 		return &coreutils.ExitError{Code: 1}
 	}
 	if len(operands) == 0 {
@@ -98,15 +98,15 @@ func (p *Prog) Run(ctx context.Context, args ...string) error {
 func (p *Prog) checkConflicts(opts options) bool {
 	switch {
 	case opts.all && opts.summarize:
-		p.errorf("options --summarize and --all are mutually exclusive")
+		stdopts.Errorf(p.Runtime, "du", "options --summarize and --all are mutually exclusive")
 		stdopts.TryHelp(p.Runtime, "du")
 		return false
 	case opts.summarize && opts.maxDepthSet && opts.maxDepth != 0:
-		p.errorf("warning: summarizing conflicts with --max-depth=%d", opts.maxDepth)
+		stdopts.Errorf(p.Runtime, "du", "warning: summarizing conflicts with --max-depth=%d", opts.maxDepth)
 		stdopts.TryHelp(p.Runtime, "du")
 		return false
 	case opts.summarize && opts.maxDepthSet:
-		p.errorf("warning: summarizing is the same as using --max-depth=0")
+		stdopts.Errorf(p.Runtime, "du", "warning: summarizing is the same as using --max-depth=0")
 	}
 	return true
 }
@@ -130,7 +130,7 @@ type runner struct {
 // every file the options ask for.
 func (r *runner) operand(ctx context.Context, name string) error {
 	if name == "" {
-		r.p.errorf("cannot access '': %v", fs.ErrNotExist)
+		stdopts.Errorf(r.p.Runtime, "du", "cannot access '': %v", fs.ErrNotExist)
 		r.failed = true
 		return nil
 	}
@@ -147,9 +147,9 @@ func (r *runner) operand(ctx context.Context, name string) error {
 			}
 			if perr, ok := errors.AsType[*fs.PathError](err); ok &&
 				(perr.Op == "readdirent" || perr.Op == "readdir") {
-				r.p.errorf("cannot read directory '%s': %v", name, perr.Err)
+				stdopts.Errorf(r.p.Runtime, "du", "cannot read directory '%s': %v", name, perr.Err)
 			} else {
-				r.p.errorf("cannot access '%s': %v", name, patherr.Unwrap(err))
+				stdopts.Errorf(r.p.Runtime, "du", "cannot access '%s': %v", name, patherr.Unwrap(err))
 			}
 			r.failed = true
 			return nil
@@ -327,9 +327,4 @@ func (a accumulator) add(depth int, entry, subdir int64) {
 	lvl.entries = addSize(lvl.entries, entry)
 	lvl.subdirs = addSize(lvl.subdirs, subdir)
 	a[depth] = lvl
-}
-
-// errorf writes a diagnostic message to standard error.
-func (p *Prog) errorf(format string, args ...any) {
-	fmt.Fprintf(p.Stderr, "du: "+format+"\n", args...)
 }

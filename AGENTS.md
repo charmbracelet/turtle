@@ -221,7 +221,10 @@ packages already exist:
   like the bytes of head, tail, split and od.
 * `sizefmt`: formats sizes the GNU way: `--block-size` specs and the
   human-readable notation of `-h`, used by du, ls and find.
-* `stdopts`: the `--help` and `--version` common options, described above.
+* `stdopts`: the `--help` and `--version` common options, described above,
+  plus the diagnostics every utility shares: the closing entries of the
+  usage text (`Tail`), the version text (`VersionText`), the usage-error
+  report (`UsageError`) and the program-prefixed diagnostic (`Errorf`).
 * `strftime`: strftime-style time formats, as the `+format` operand of date
   takes.
 * `tabutil`: the tab stop handling shared by expand and unexpand.

@@ -6,6 +6,7 @@ import (
 
 	"charm.land/snail/coreutils/internal/getopt"
 	"charm.land/snail/coreutils/internal/glob"
+	"charm.land/snail/coreutils/internal/stdopts"
 )
 
 // Long options with no short form stand for private runes.
@@ -180,11 +181,7 @@ matches a pattern.
          print a null byte after the file name
   -z, --null-data
          separate the input and the output lines with null bytes
-      --help
-         display this help and exit
-      --version
-         output version information and exit
-`
+` + stdopts.Tail
 
 // parseFlags parses the options of grep.
 func parseFlags(args []string) (options, []string, error) {

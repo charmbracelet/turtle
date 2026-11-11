@@ -83,12 +83,10 @@ type encoding interface {
 func (c *Codec) Run(ctx context.Context, rt *coreutils.Runtime, args []string) error {
 	opts, operands, err := parseFlags(args)
 	if err != nil {
-		c.errorf(rt, "%v", err)
-		stdopts.TryHelp(rt, c.Name)
-		return &coreutils.ExitError{Code: 2}
+		return stdopts.UsageError(rt, c.Name, err)
 	}
 	if len(operands) > 1 {
-		c.errorf(rt, "extra operand '%s'", operands[1])
+		stdopts.Errorf(rt, c.Name, "extra operand '%s'", operands[1])
 		stdopts.TryHelp(rt, c.Name)
 		return &coreutils.ExitError{Code: 2}
 	}
@@ -98,13 +96,13 @@ func (c *Codec) Run(ctx context.Context, rt *coreutils.Runtime, args []string) e
 		in = input.New(operands[0])
 	}
 	if !in.Stdin && in.Name == "" {
-		c.errorf(rt, "invalid zero-length file name")
+		stdopts.Errorf(rt, c.Name, "invalid zero-length file name")
 		return &coreutils.ExitError{Code: 1}
 	}
 
 	r, err := input.Open(rt, ctx, in)
 	if err != nil {
-		c.errorf(rt, "%s: %v", in.Label(), patherr.Unwrap(err))
+		stdopts.Errorf(rt, c.Name, "%s: %v", in.Label(), patherr.Unwrap(err))
 		return &coreutils.ExitError{Code: 1, Err: err}
 	}
 	defer r.Close()
@@ -120,14 +118,14 @@ func (c *Codec) Run(ctx context.Context, rt *coreutils.Runtime, args []string) e
 	case ctx.Err() != nil:
 		return ctx.Err()
 	case errors.Is(err, ErrInvalidInput):
-		c.errorf(rt, "invalid input")
+		stdopts.Errorf(rt, c.Name, "invalid input")
 		return &coreutils.ExitError{Code: 1}
 	default:
 		if writeErr, ok := errors.AsType[*writeError](err); ok {
-			c.errorf(rt, "write error: %v", writeErr.err)
+			stdopts.Errorf(rt, c.Name, "write error: %v", writeErr.err)
 			return &coreutils.ExitError{Code: 1, Err: writeErr.err}
 		}
-		c.errorf(rt, "%s: %v", in.Label(), patherr.Unwrap(err))
+		stdopts.Errorf(rt, c.Name, "%s: %v", in.Label(), patherr.Unwrap(err))
 		return &coreutils.ExitError{Code: 1, Err: err}
 	}
 }
@@ -279,11 +277,6 @@ func (c *Codec) checkCanonical(decoded, src []byte) error {
 		return ErrInvalidInput
 	}
 	return nil
-}
-
-// errorf writes a diagnostic message to the standard error of rt.
-func (c *Codec) errorf(rt *coreutils.Runtime, format string, args ...any) {
-	fmt.Fprintf(rt.Stderr, c.Name+": "+format+"\n", args...)
 }
 
 // options holds what the -d, -i and -w options select.

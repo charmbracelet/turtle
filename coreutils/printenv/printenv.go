@@ -7,7 +7,6 @@ package printenv
 
 import (
 	"context"
-	"fmt"
 	"io"
 
 	"charm.land/snail/coreutils"
@@ -35,7 +34,7 @@ func (p *Prog) Run(ctx context.Context, args ...string) error {
 	}
 	opts, names, err := parseArgs(args)
 	if err != nil {
-		p.errorf("%v", err)
+		stdopts.Errorf(p.Runtime, "printenv", "%v", err)
 		stdopts.TryHelp(p.Runtime, "printenv")
 		return &coreutils.ExitError{Code: 1, Err: err}
 	}
@@ -52,7 +51,7 @@ func (p *Prog) Run(ctx context.Context, args ...string) error {
 // printEntries writes each environment entry followed by sep.
 func (p *Prog) printEntries(ctx context.Context, entries []string, sep string) error {
 	if p.Stdout == nil {
-		p.errorf("no standard output available")
+		stdopts.Errorf(p.Runtime, "printenv", "no standard output available")
 		return &coreutils.ExitError{Code: 2}
 	}
 	for _, entry := range entries {
@@ -71,7 +70,7 @@ func (p *Prog) printEntries(ctx context.Context, entries []string, sep string) e
 // at least one of them was not set.
 func (p *Prog) printValues(ctx context.Context, names []string, sep string) error {
 	if p.Stdout == nil {
-		p.errorf("no standard output available")
+		stdopts.Errorf(p.Runtime, "printenv", "no standard output available")
 		return &coreutils.ExitError{Code: 2}
 	}
 	missing := false
@@ -92,11 +91,6 @@ func (p *Prog) printValues(ctx context.Context, names []string, sep string) erro
 		return &coreutils.ExitError{Code: 1}
 	}
 	return nil
-}
-
-// errorf writes a diagnostic to the standard error.
-func (p *Prog) errorf(format string, args ...any) {
-	fmt.Fprintf(p.Stderr, "printenv: "+format+"\n", args...)
 }
 
 // options holds the -0 flag.
@@ -135,11 +129,7 @@ Print the values of the specified environment VARIABLE(s).
 
   -0, --null
          end each output line with NUL, not newline
-      --help
-         display this help and exit
-      --version
-         output version information and exit
-`
+` + stdopts.Tail
 
 var (
 	_ coreutils.Program = (*Prog)(nil)

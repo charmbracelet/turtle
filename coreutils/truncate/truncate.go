@@ -42,32 +42,30 @@ func (p *Prog) Run(ctx context.Context, args ...string) error {
 	}
 	opts, files, err := parseFlags(args)
 	if err != nil {
-		p.errorf("%v", err)
-		stdopts.TryHelp(p.Runtime, "truncate")
-		return &coreutils.ExitError{Code: 2}
+		return stdopts.UsageError(p.Runtime, "truncate", err)
 	}
 	if len(files) == 0 {
-		p.errorf("missing file operand")
+		stdopts.Errorf(p.Runtime, "truncate", "missing file operand")
 		stdopts.TryHelp(p.Runtime, "truncate")
 		return &coreutils.ExitError{Code: 2}
 	}
 	if !opts.sizeGiven && !opts.referenceGiven {
-		p.errorf("you must specify either --size or --reference")
+		stdopts.Errorf(p.Runtime, "truncate", "you must specify either --size or --reference")
 		stdopts.TryHelp(p.Runtime, "truncate")
 		return &coreutils.ExitError{Code: 2}
 	}
 	if opts.referenceGiven && opts.sizeGiven && opts.size.adjust == adjustSet {
-		p.errorf("you must specify a relative --size with --reference")
+		stdopts.Errorf(p.Runtime, "truncate", "you must specify a relative --size with --reference")
 		stdopts.TryHelp(p.Runtime, "truncate")
 		return &coreutils.ExitError{Code: 2}
 	}
 	if p.FS == nil {
-		p.errorf("no file system available")
+		stdopts.Errorf(p.Runtime, "truncate", "no file system available")
 		return &coreutils.ExitError{Code: 1}
 	}
 	spec, refSize, err := p.resolveSize(opts)
 	if err != nil {
-		p.errorf("%v", err)
+		stdopts.Errorf(p.Runtime, "truncate", "%v", err)
 		return &coreutils.ExitError{Code: 1, Err: err}
 	}
 
@@ -77,7 +75,7 @@ func (p *Prog) Run(ctx context.Context, args ...string) error {
 			return err
 		}
 		if err := p.truncateFile(file, opts.noCreate, spec, refSize); err != nil {
-			p.errorf("%v", err)
+			stdopts.Errorf(p.Runtime, "truncate", "%v", err)
 			ok = false
 		}
 	}
@@ -239,11 +237,6 @@ func truncateErr(name string, want int64, err error) error {
 	return fmt.Errorf("failed to truncate %s at %d bytes: %v", name, want, patherr.Unwrap(err))
 }
 
-// errorf writes a diagnostic message to standard error.
-func (p *Prog) errorf(format string, args ...any) {
-	fmt.Fprintf(p.Stderr, "truncate: "+format+"\n", args...)
-}
-
 // options holds the parsed command line options.
 type options struct {
 	noCreate  bool
@@ -282,11 +275,7 @@ and the extended part reads as zero bytes.
          set or adjust the file size by SIZE; SIZE may be relative to the size
          of each file, with a leading '+', '-', '<', '>', '/' or '%', and may
          hold a multiplier suffix
-      --help
-         display this help and exit
-      --version
-         output version information and exit
-`
+` + stdopts.Tail
 
 // parseFlags parses the command line options. Option parsing stops at the
 // first operand or at "--". The last -s or -r option given is the one used.

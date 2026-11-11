@@ -35,22 +35,20 @@ func (p *Prog) Run(ctx context.Context, args ...string) error {
 	}
 	opts, operands, err := parseFlags(args)
 	if err != nil {
-		p.errorf("%v", err)
-		stdopts.TryHelp(p.Runtime, "chgrp")
-		return &coreutils.ExitError{Code: 2}
+		return stdopts.UsageError(p.Runtime, "chgrp", err)
 	}
 	switch {
 	case len(operands) == 0:
-		p.errorf("missing operand")
+		stdopts.Errorf(p.Runtime, "chgrp", "missing operand")
 		stdopts.TryHelp(p.Runtime, "chgrp")
 		return &coreutils.ExitError{Code: 2}
 	case p.FS == nil:
-		p.errorf("no file system available")
+		stdopts.Errorf(p.Runtime, "chgrp", "no file system available")
 		return &coreutils.ExitError{Code: 1}
 	}
 	chowner, ok := p.FS.(fsx.ChownFS)
 	if !ok {
-		p.errorf("group ownership is not supported by this file system")
+		stdopts.Errorf(p.Runtime, "chgrp", "group ownership is not supported by this file system")
 		return &coreutils.ExitError{Code: 1}
 	}
 	gid, files, err := p.group(opts, operands)
@@ -79,13 +77,13 @@ func (p *Prog) Run(ctx context.Context, args ...string) error {
 func (p *Prog) group(opts options, operands []string) (int, []string, error) {
 	if opts.reference == nil {
 		if len(operands) == 1 {
-			p.errorf("missing file operand")
+			stdopts.Errorf(p.Runtime, "chgrp", "missing file operand")
 			stdopts.TryHelp(p.Runtime, "chgrp")
 			return 0, nil, &coreutils.ExitError{Code: 2}
 		}
 		gid, err := parseGroup(operands[0])
 		if err != nil {
-			p.errorf("%v", err)
+			stdopts.Errorf(p.Runtime, "chgrp", "%v", err)
 			stdopts.TryHelp(p.Runtime, "chgrp")
 			return 0, nil, &coreutils.ExitError{Code: 1}
 		}
@@ -93,7 +91,7 @@ func (p *Prog) group(opts options, operands []string) (int, []string, error) {
 	}
 	gid, err := p.referenceGroup(*opts.reference)
 	if err != nil {
-		p.errorf("%v", err)
+		stdopts.Errorf(p.Runtime, "chgrp", "%v", err)
 		return 0, nil, &coreutils.ExitError{Code: 1}
 	}
 	return gid, operands, nil
@@ -304,7 +302,7 @@ func (r *run) change(name, shown string, fi fs.FileInfo) error {
 // report writes the diagnostic of a failed file, unless -f silences it.
 func (r *run) report(shown string, err error) {
 	if !r.opts.silence {
-		r.p.errorf("%s: %v", shown, patherr.Unwrap(err))
+		stdopts.Errorf(r.p.Runtime, "chgrp", "%s: %v", shown, patherr.Unwrap(err))
 	}
 	r.failed = true
 }
@@ -360,11 +358,6 @@ func parseGroup(s string) (int, error) {
 		return 0, fmt.Errorf("invalid group: '%s'", s)
 	}
 	return gid, nil
-}
-
-// errorf writes a diagnostic message to standard error.
-func (p *Prog) errorf(format string, args ...any) {
-	fmt.Fprintf(p.Stderr, "chgrp: "+format+"\n", args...)
 }
 
 // The verbosity levels of a run, selected by -c and -v.
@@ -432,11 +425,7 @@ Change the group of each FILE to GROUP.
          with -R, follow every symbolic link to a directory encountered
   -P
          with -R, never follow symbolic links
-      --help
-         display this help and exit
-      --version
-         output version information and exit
-`
+` + stdopts.Tail
 
 // options holds what a run of chgrp selects.
 type options struct {

@@ -16,6 +16,7 @@ import (
 	"charm.land/snail/coreutils/internal/filemode"
 	"charm.land/snail/coreutils/internal/output"
 	"charm.land/snail/coreutils/internal/patherr"
+	"charm.land/snail/coreutils/internal/stdopts"
 	"charm.land/snail/fsx"
 )
 
@@ -26,7 +27,7 @@ const blockSize = 512
 // an error, like GNU's "cowardly" refusal.
 func (a *archiver) create(ctx context.Context, operands []string) error {
 	if len(operands) == 0 {
-		a.errorf("Cowardly refusing to create an empty archive")
+		stdopts.Errorf(a.rt, "tar", "Cowardly refusing to create an empty archive")
 		return &coreutils.ExitError{Code: 2}
 	}
 	out, err := a.openWriter(ctx)
@@ -169,7 +170,7 @@ func (a *archiver) scanEntries(ctx context.Context) (map[string]time.Time, error
 // still a success, like GNU's --ignore-failed-read.
 func (a *archiver) failCreate(name string, err error) {
 	if a.opts.ignoreErrors {
-		a.errorf("%s: %v", name, patherr.Unwrap(err))
+		stdopts.Errorf(a.rt, "tar", "%s: %v", name, patherr.Unwrap(err))
 		return
 	}
 	a.fail(name, err)
@@ -227,7 +228,7 @@ func (a *archiver) writeEntry(ctx context.Context, tw *tar.Writer, name, resolve
 		return
 	}
 	if a.opts.verbose {
-		a.errorf("%s", hdr.Name)
+		stdopts.Errorf(a.rt, "tar", "%s", hdr.Name)
 	}
 	if err := tw.WriteHeader(hdr); err != nil {
 		a.fail(name, err)

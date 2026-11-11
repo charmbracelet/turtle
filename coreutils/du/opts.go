@@ -6,6 +6,7 @@ import (
 
 	"charm.land/snail/coreutils/internal/getopt"
 	"charm.land/snail/coreutils/internal/sizefmt"
+	"charm.land/snail/coreutils/internal/stdopts"
 )
 
 // optMaxDepth is a rune which no short option can reach, so --max-depth has
@@ -60,11 +61,7 @@ Summarize device usage of the set of FILEs, recursively for directories.
          display only a total for each argument
   -x, --one-file-system
          skip directories on different file systems
-      --help
-         display this help and exit
-      --version
-         output version information and exit
-`
+` + stdopts.Tail
 
 // options holds what a run of du selects.
 type options struct {

@@ -87,16 +87,14 @@ func (p *Prog) Run(ctx context.Context, args ...string) error {
 	}
 	opts, operands, err := parseFlags(args)
 	if err != nil {
-		p.errorf("%v", err)
-		stdopts.TryHelp(p.Runtime, "stat")
-		return &coreutils.ExitError{Code: 2}
+		return stdopts.UsageError(p.Runtime, "stat", err)
 	}
 	if p.FS == nil {
-		p.errorf("no file system available")
+		stdopts.Errorf(p.Runtime, "stat", "no file system available")
 		return &coreutils.ExitError{Code: 1}
 	}
 	if len(operands) == 0 {
-		p.errorf("missing operand")
+		stdopts.Errorf(p.Runtime, "stat", "missing operand")
 		stdopts.TryHelp(p.Runtime, "stat")
 		return &coreutils.ExitError{Code: 2}
 	}
@@ -108,7 +106,7 @@ func (p *Prog) Run(ctx context.Context, args ...string) error {
 			return err
 		}
 		if name == "" {
-			p.errorf("invalid zero-length file name")
+			stdopts.Errorf(p.Runtime, "stat", "invalid zero-length file name")
 			failed = true
 			continue
 		}
@@ -136,7 +134,7 @@ func (p *Prog) Run(ctx context.Context, args ...string) error {
 			// The text before the invalid directive is written, the way
 			// GNU leaves what it wrote before the directive fails it.
 			fmt.Fprint(p.Stdout, out)
-			p.errorf("%v", err)
+			stdopts.Errorf(p.Runtime, "stat", "%v", err)
 			return &coreutils.ExitError{Code: 1}
 		}
 		if given && !escapes {
@@ -216,18 +214,13 @@ func (p *Prog) statOf(name string, opts options) (fileStat, bool) {
 	}
 	if err != nil {
 		if opts.fs {
-			p.errorf("cannot read file system information for '%s': %v", name, patherr.Unwrap(err))
+			stdopts.Errorf(p.Runtime, "stat", "cannot read file system information for '%s': %v", name, patherr.Unwrap(err))
 		} else {
-			p.errorf("cannot stat '%s': %v", name, patherr.Unwrap(err))
+			stdopts.Errorf(p.Runtime, "stat", "cannot stat '%s': %v", name, patherr.Unwrap(err))
 		}
 		return st, false
 	}
 	return p.newFileStat(name, path, fi, opts), true
-}
-
-// errorf writes a diagnostic message to standard error.
-func (p *Prog) errorf(format string, args ...any) {
-	fmt.Fprintf(p.Stderr, "stat: "+format+"\n", args...)
 }
 
 // usage describes the options of stat.
@@ -252,8 +245,4 @@ Display file or file system status.
   -t, --terse
          print the information in terse form
 
-      --help
-         display this help and exit
-      --version
-         output version information and exit
-`
+` + stdopts.Tail

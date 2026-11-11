@@ -77,19 +77,17 @@ func (p *Prog) Run(ctx context.Context, args ...string) error {
 	}
 	opts, operands, err := parseFlags(args)
 	if err != nil {
-		p.errorf("%v", err)
-		stdopts.TryHelp(p.Runtime, "tail")
-		return &coreutils.ExitError{Code: 2}
+		return stdopts.UsageError(p.Runtime, "tail", err)
 	}
 	inputs := input.List(operands)
 	if opts.follow {
 		return p.runFollow(ctx, inputs, opts)
 	}
 	if opts.retry {
-		p.errorf("warning: --retry ignored; --retry is useful only when following")
+		stdopts.Errorf(p.Runtime, "tail", "warning: --retry ignored; --retry is useful only when following")
 	}
 	if len(opts.pids) > 0 {
-		p.errorf("warning: PID ignored; --pid=PID is useful only when following")
+		stdopts.Errorf(p.Runtime, "tail", "warning: PID ignored; --pid=PID is useful only when following")
 	}
 	return p.copyInputs(ctx, inputs, opts)
 }
@@ -108,13 +106,13 @@ func (p *Prog) copyInputs(ctx context.Context, inputs []input.Input, opts option
 			return err
 		}
 		if !in.Stdin && in.Name == "" {
-			p.errorf("invalid zero-length file name")
+			stdopts.Errorf(p.Runtime, "tail", "invalid zero-length file name")
 			ok = false
 			continue
 		}
 		rc, f, err := p.open(in)
 		if err != nil {
-			p.errorf("%s: %v", in.Label(), patherr.Unwrap(err))
+			stdopts.Errorf(p.Runtime, "tail", "%s: %v", in.Label(), patherr.Unwrap(err))
 			ok = false
 			continue
 		}
@@ -130,12 +128,12 @@ func (p *Prog) copyInputs(ctx context.Context, inputs []input.Input, opts option
 		var writeErr *writeError
 		switch {
 		case errors.As(err, &writeErr):
-			p.errorf("write error: %v", writeErr.err)
+			stdopts.Errorf(p.Runtime, "tail", "write error: %v", writeErr.err)
 			return &coreutils.ExitError{Code: 1, Err: writeErr.err}
 		case ctx.Err() != nil:
 			return ctx.Err()
 		default:
-			p.errorf("%s: %v", in.Label(), patherr.Unwrap(err))
+			stdopts.Errorf(p.Runtime, "tail", "%s: %v", in.Label(), patherr.Unwrap(err))
 			ok = false
 		}
 	}
@@ -156,10 +154,10 @@ func (p *Prog) runFollow(ctx context.Context, inputs []input.Input, opts options
 		return p.copyInputs(ctx, inputs, opts)
 	}
 	if opts.retry && !opts.byName {
-		p.errorf("warning: --retry only effective for the initial open")
+		stdopts.Errorf(p.Runtime, "tail", "warning: --retry only effective for the initial open")
 	}
 	if len(opts.pids) > 0 && p.ProcessAlive == nil {
-		p.errorf("warning: --pid=PID is not supported on this system")
+		stdopts.Errorf(p.Runtime, "tail", "warning: --pid=PID is not supported on this system")
 		opts.pids = nil
 	}
 
@@ -175,13 +173,13 @@ func (p *Prog) runFollow(ctx context.Context, inputs []input.Input, opts options
 			return err
 		}
 		if !in.Stdin && in.Name == "" {
-			p.errorf("invalid zero-length file name")
+			stdopts.Errorf(p.Runtime, "tail", "invalid zero-length file name")
 			ok = false
 			continue
 		}
 		follow := !in.Stdin || !stdinPipe
 		if in.Stdin && in.Name == "-" && follow && opts.byName {
-			p.errorf("cannot follow '-' by name")
+			stdopts.Errorf(p.Runtime, "tail", "cannot follow '-' by name")
 			return &coreutils.ExitError{Code: 1}
 		}
 		following = following || follow
@@ -219,12 +217,12 @@ func (p *Prog) runFollow(ctx context.Context, inputs []input.Input, opts options
 			var writeErr *writeError
 			switch {
 			case errors.As(err, &writeErr):
-				p.errorf("write error: %v", writeErr.err)
+				stdopts.Errorf(p.Runtime, "tail", "write error: %v", writeErr.err)
 				return &coreutils.ExitError{Code: 1, Err: writeErr.err}
 			case ctx.Err() != nil:
 				return ctx.Err()
 			default:
-				p.errorf("%s: %v", in.Label(), patherr.Unwrap(err))
+				stdopts.Errorf(p.Runtime, "tail", "%s: %v", in.Label(), patherr.Unwrap(err))
 				ok = false
 			}
 			continue
@@ -245,7 +243,7 @@ func (p *Prog) runFollow(ctx context.Context, inputs []input.Input, opts options
 	}
 	if len(fls) == 0 {
 		if following {
-			p.errorf("no files remaining")
+			stdopts.Errorf(p.Runtime, "tail", "no files remaining")
 			return &coreutils.ExitError{Code: 1}
 		}
 		if !ok {
@@ -255,7 +253,7 @@ func (p *Prog) runFollow(ctx context.Context, inputs []input.Input, opts options
 	}
 	if opts.debug {
 		// There is no notification support, so the follow always polls.
-		p.errorf("using polling mode")
+		stdopts.Errorf(p.Runtime, "tail", "using polling mode")
 	}
 	return p.followAll(ctx, fls, opts, ok)
 }
@@ -319,10 +317,10 @@ func (p *Prog) followAll(ctx context.Context, fls []*follower, opts options, ok 
 	case ctx.Err() != nil:
 		return ctx.Err()
 	case writeErr != nil:
-		p.errorf("write error: %v", writeErr.err)
+		stdopts.Errorf(p.Runtime, "tail", "write error: %v", writeErr.err)
 		return &coreutils.ExitError{Code: 1, Err: writeErr.err}
 	case gaveUp:
-		p.errorf("no files remaining")
+		stdopts.Errorf(p.Runtime, "tail", "no files remaining")
 		return &coreutils.ExitError{Code: 1}
 	case !ok:
 		return &coreutils.ExitError{Code: 1}
@@ -492,7 +490,7 @@ func (fl *follower) reappeared() bool {
 	}
 	fresh := !sameFile(fi, fl.stat)
 	if fresh {
-		fl.p.errorf("'%s' has appeared;  following new file", fl.in.Label())
+		stdopts.Errorf(fl.p.Runtime, "tail", "'%s' has appeared;  following new file", fl.in.Label())
 	}
 	if err := fl.reopen(fresh); err != nil {
 		return fl.inaccessible(err)
@@ -521,7 +519,7 @@ func (fl *follower) drain(ctx context.Context) (bool, error) {
 			if ctx.Err() != nil {
 				return false, ctx.Err()
 			}
-			fl.p.errorf("%s: %v", fl.in.Label(), patherr.Unwrap(err))
+			stdopts.Errorf(fl.p.Runtime, "tail", "%s: %v", fl.in.Label(), patherr.Unwrap(err))
 			return true, nil
 		}
 	}
@@ -536,13 +534,13 @@ func (fl *follower) recheck() (drainAgain, ended bool) {
 	}
 	fi, err := fl.f.Stat()
 	if err != nil {
-		fl.p.errorf("%s: %v", fl.in.Label(), patherr.Unwrap(err))
+		stdopts.Errorf(fl.p.Runtime, "tail", "%s: %v", fl.in.Label(), patherr.Unwrap(err))
 		return false, true
 	}
 	if fi.Size() < fl.offset {
-		fl.p.errorf("%s: file truncated", fl.in.Label())
+		stdopts.Errorf(fl.p.Runtime, "tail", "%s: file truncated", fl.in.Label())
 		if _, err := fl.f.Seek(0, io.SeekStart); err != nil {
-			fl.p.errorf("%s: %v", fl.in.Label(), patherr.Unwrap(err))
+			stdopts.Errorf(fl.p.Runtime, "tail", "%s: %v", fl.in.Label(), patherr.Unwrap(err))
 			return false, true
 		}
 		fl.offset = 0
@@ -572,17 +570,17 @@ func (fl *follower) recheckName() (drainAgain, ended bool) {
 	switch {
 	case err != nil:
 		if !fl.retry {
-			fl.p.errorf("'%s' has become inaccessible: %v; giving up on this name", fl.in.Label(), patherr.Unwrap(err))
+			stdopts.Errorf(fl.p.Runtime, "tail", "'%s' has become inaccessible: %v; giving up on this name", fl.in.Label(), patherr.Unwrap(err))
 			fl.close()
 			return false, true
 		}
-		fl.p.errorf("'%s' has become inaccessible: %v", fl.in.Label(), patherr.Unwrap(err))
+		stdopts.Errorf(fl.p.Runtime, "tail", "'%s' has become inaccessible: %v", fl.in.Label(), patherr.Unwrap(err))
 		fl.close()
 		return false, false
 	case sameFile(fi, fl.stat):
 		return false, false
 	}
-	fl.p.errorf("'%s' has been replaced;  following new file", fl.in.Label())
+	stdopts.Errorf(fl.p.Runtime, "tail", "'%s' has been replaced;  following new file", fl.in.Label())
 	if err := fl.reopen(true); err != nil {
 		return false, fl.inaccessible(err)
 	}
@@ -620,10 +618,10 @@ func (fl *follower) reopen(fresh bool) error {
 // it without --retry.
 func (fl *follower) inaccessible(err error) bool {
 	if !fl.retry {
-		fl.p.errorf("'%s' has become inaccessible: %v; giving up on this name", fl.in.Label(), patherr.Unwrap(err))
+		stdopts.Errorf(fl.p.Runtime, "tail", "'%s' has become inaccessible: %v; giving up on this name", fl.in.Label(), patherr.Unwrap(err))
 		return true
 	}
-	fl.p.errorf("'%s' has become inaccessible: %v", fl.in.Label(), patherr.Unwrap(err))
+	stdopts.Errorf(fl.p.Runtime, "tail", "'%s' has become inaccessible: %v", fl.in.Label(), patherr.Unwrap(err))
 	return false
 }
 
@@ -643,7 +641,7 @@ func (p *Prog) openRetry(ctx context.Context, in input.Input, opts options) (io.
 	if err == nil {
 		return rc, f, nil
 	}
-	p.errorf("%s: %v", in.Label(), patherr.Unwrap(err))
+	stdopts.Errorf(p.Runtime, "tail", "%s: %v", in.Label(), patherr.Unwrap(err))
 	if !opts.retry {
 		return nil, nil, err
 	}
@@ -652,7 +650,7 @@ func (p *Prog) openRetry(ctx context.Context, in input.Input, opts options) (io.
 			return nil, nil, werr
 		}
 		if rc, f, err = p.open(in); err == nil {
-			p.errorf("'%s' has appeared;  following new file", in.Label())
+			stdopts.Errorf(p.Runtime, "tail", "'%s' has appeared;  following new file", in.Label())
 			return rc, f, nil
 		}
 	}
@@ -925,11 +923,6 @@ func sameFile(a, b fs.FileInfo) bool {
 	return aok && bok && ma == mb
 }
 
-// errorf writes a diagnostic message to standard error.
-func (p *Prog) errorf(format string, args ...any) {
-	fmt.Fprintf(p.Stderr, "tail: "+format+"\n", args...)
-}
-
 // The pseudo-options stand for the long options of tail which have no short
 // form, as a short argument can't hold their control characters.
 const (
@@ -1001,11 +994,7 @@ With no FILE, or when FILE is -, read standard input.
          always print headers giving file names
   -z, --zero-terminated
          line delimiter is NUL, not newline
-      --help
-         display this help and exit
-      --version
-         output version information and exit
-`
+` + stdopts.Tail
 
 func parseFlags(args []string) (options, []string, error) {
 	var opts options

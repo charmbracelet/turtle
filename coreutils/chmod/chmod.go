@@ -35,17 +35,15 @@ func (p *Prog) Run(ctx context.Context, args ...string) error {
 	}
 	opts, operands, err := parseFlags(args)
 	if err != nil {
-		p.errorf("%v", err)
-		stdopts.TryHelp(p.Runtime, "chmod")
-		return &coreutils.ExitError{Code: 2}
+		return stdopts.UsageError(p.Runtime, "chmod", err)
 	}
 	switch {
 	case len(operands) == 0:
-		p.errorf("missing operand")
+		stdopts.Errorf(p.Runtime, "chmod", "missing operand")
 		stdopts.TryHelp(p.Runtime, "chmod")
 		return &coreutils.ExitError{Code: 2}
 	case p.FS == nil:
-		p.errorf("no file system available")
+		stdopts.Errorf(p.Runtime, "chmod", "no file system available")
 		return &coreutils.ExitError{Code: 1}
 	}
 
@@ -77,13 +75,13 @@ func (p *Prog) Run(ctx context.Context, args ...string) error {
 func (p *Prog) spec(opts options, operands []string) (ModeSpec, []string, error) {
 	if opts.reference == nil {
 		if len(operands) == 1 {
-			p.errorf("missing file operand")
+			stdopts.Errorf(p.Runtime, "chmod", "missing file operand")
 			stdopts.TryHelp(p.Runtime, "chmod")
 			return nil, nil, &coreutils.ExitError{Code: 2}
 		}
 		spec, err := ParseMode(operands[0])
 		if err != nil {
-			p.errorf("%v", err)
+			stdopts.Errorf(p.Runtime, "chmod", "%v", err)
 			stdopts.TryHelp(p.Runtime, "chmod")
 			return nil, nil, &coreutils.ExitError{Code: 1}
 		}
@@ -92,7 +90,7 @@ func (p *Prog) spec(opts options, operands []string) (ModeSpec, []string, error)
 	// With --reference, every operand is a file.
 	spec, err := p.referenceSpec(*opts.reference)
 	if err != nil {
-		p.errorf("failed to get attributes of %s: %v", *opts.reference, patherr.Unwrap(err))
+		stdopts.Errorf(p.Runtime, "chmod", "failed to get attributes of %s: %v", *opts.reference, patherr.Unwrap(err))
 		return nil, nil, &coreutils.ExitError{Code: 1}
 	}
 	return spec, operands, nil
@@ -119,7 +117,7 @@ func (p *Prog) chmod(ctx context.Context, name string, spec ModeSpec, opts optio
 	failed := false
 
 	report := func(walked string, err error) {
-		p.errorf("%s: %v", display(name, resolved, walked), patherr.Unwrap(err))
+		stdopts.Errorf(p.Runtime, "chmod", "%s: %v", display(name, resolved, walked), patherr.Unwrap(err))
 		failed = true
 	}
 
@@ -232,11 +230,6 @@ func (p *Prog) describe(name string, old, mode fs.FileMode, verbosity int) {
 		name, filemode.Octal(mode), modeString(mode))
 }
 
-// errorf writes a diagnostic message to standard error.
-func (p *Prog) errorf(format string, args ...any) {
-	fmt.Fprintf(p.Stderr, "chmod: "+format+"\n", args...)
-}
-
 // display returns the path to show in diagnostics: the operand as given, with
 // any sub-path walked below it appended.
 func display(operand, resolved, walked string) string {
@@ -281,11 +274,7 @@ Change the access permissions of each FILE.
          use the mode of REF_FILE instead of a MODE operand
   -v, --verbose
          verbosely describe the action or non-action taken for every file
-      --help
-         display this help and exit
-      --version
-         output version information and exit
-`
+` + stdopts.Tail
 
 // optReference is a rune which no short option can reach, so --reference
 // stays long-only.

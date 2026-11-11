@@ -49,7 +49,7 @@ func (p *Prog) Run(ctx context.Context, args ...string) error {
 	}
 	if len(args) == 0 {
 		err := errors.New("missing operand")
-		p.errorf("%v", err)
+		stdopts.Errorf(p.Runtime, "expr", "%v", err)
 		stdopts.TryHelp(p.Runtime, "expr")
 		return &coreutils.ExitError{Code: 2, Err: err}
 	}
@@ -59,14 +59,14 @@ func (p *Prog) Run(ctx context.Context, args ...string) error {
 		if fail, ok := errors.AsType[*failError](err); ok {
 			status = fail.status
 		}
-		p.errorf("%v", err)
+		stdopts.Errorf(p.Runtime, "expr", "%v", err)
 		return &coreutils.ExitError{Code: status, Err: err}
 	}
 	if _, err := io.WriteString(p.Stdout, v.text()+"\n"); err != nil {
 		// GNU reports a failed write through close_stdout, exiting with
 		// its EXPR_FAILURE status.
 		err = fmt.Errorf("write error: %w", err)
-		p.errorf("%v", err)
+		stdopts.Errorf(p.Runtime, "expr", "%v", err)
 		return &coreutils.ExitError{Code: 3, Err: err}
 	}
 	if isNull(v) {
@@ -104,14 +104,6 @@ func rangeErrf(s string) error {
 // the arguments of its diagnostics.
 func quote(s string) string {
 	return "'" + strings.ReplaceAll(s, "'", `'\''`) + "'"
-}
-
-// errorf writes a diagnostic message to the standard error.
-func (p *Prog) errorf(format string, args ...any) {
-	if p.Stderr == nil {
-		return
-	}
-	fmt.Fprintf(p.Stderr, "expr: "+format+"\n", args...)
 }
 
 // usage describes the expression language of expr.
@@ -156,11 +148,7 @@ Pattern matches return the string matched between \( and \) or null; if
 Exit status is 0 if EXPRESSION is neither null nor 0, 1 if EXPRESSION is null
 or 0, 2 if EXPRESSION is syntactically invalid, and 3 if an error occurred.
 
-      --help
-         display this help and exit
-      --version
-         output version information and exit
-`
+` + stdopts.Tail
 
 var (
 	_ coreutils.Program = (*Prog)(nil)

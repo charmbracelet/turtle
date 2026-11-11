@@ -11,7 +11,6 @@ import (
 	"context"
 	"encoding/hex"
 	"errors"
-	"fmt"
 	"hash"
 	"io"
 	"strings"
@@ -52,14 +51,10 @@ func (a Algorithm) Run(ctx context.Context, rt *coreutils.Runtime, args []string
 	}
 	opts, operands, err := parseFlags(args)
 	if err != nil {
-		a.errorf(rt, "%v", err)
-		stdopts.TryHelp(rt, a.Name)
-		return &coreutils.ExitError{Code: 2}
+		return stdopts.UsageError(rt, a.Name, err)
 	}
 	if err := opts.validate(); err != nil {
-		a.errorf(rt, "%v", err)
-		stdopts.TryHelp(rt, a.Name)
-		return &coreutils.ExitError{Code: 2}
+		return stdopts.UsageError(rt, a.Name, err)
 	}
 	if len(operands) == 0 {
 		operands = []string{"-"}
@@ -92,7 +87,7 @@ func (a Algorithm) digests(ctx context.Context, rt *coreutils.Runtime, opts opti
 			continue
 		}
 		if _, err := io.WriteString(rt.Stdout, a.line(opts, name, sum)); err != nil {
-			a.errorf(rt, "write error: %v", err)
+			stdopts.Errorf(rt, a.Name, "write error: %v", err)
 			return &coreutils.ExitError{Code: 1, Err: err}
 		}
 		if err := ctx.Err(); err != nil {
@@ -171,12 +166,7 @@ func (a Algorithm) line(opts options, name string, sum []byte) string {
 
 // report writes the diagnostic of an operand that couldn't be digested.
 func (a Algorithm) report(rt *coreutils.Runtime, name string, err error) {
-	a.errorf(rt, "%s: %v", name, patherr.Unwrap(err))
-}
-
-// errorf writes a diagnostic message to the standard error of rt.
-func (a Algorithm) errorf(rt *coreutils.Runtime, format string, args ...any) {
-	fmt.Fprintf(rt.Stderr, a.Name+": "+format+"\n", args...)
+	stdopts.Errorf(rt, a.Name, "%s: %v", name, patherr.Unwrap(err))
 }
 
 // nameEscaper translates the characters which are escaped on output.
@@ -260,11 +250,7 @@ With no FILE, or when FILE is -, read standard input.
          warn about improperly formatted checksum lines
   -z, --zero
          end each output line with NUL, not newline
-      --help
-         display this help and exit
-      --version
-         output version information and exit
-`
+` + stdopts.Tail
 }
 
 // validate reports the options which GNU refuses to take together.

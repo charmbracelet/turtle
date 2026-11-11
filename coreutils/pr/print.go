@@ -13,6 +13,7 @@ import (
 
 	"charm.land/snail/coreutils/internal/ctxio"
 	"charm.land/snail/coreutils/internal/patherr"
+	"charm.land/snail/coreutils/internal/stdopts"
 	"charm.land/snail/coreutils/internal/strftime"
 )
 
@@ -79,7 +80,7 @@ func (p *printer) printFiles(ctx context.Context, operands []string, engine func
 func (p *printer) diagnose(label string, err error) {
 	p.err = true
 	if !p.opts.noDiag {
-		p.prog.errorf("%s: %v", label, patherr.Unwrap(err))
+		stdopts.Errorf(p.prog.Runtime, "pr", "%s: %v", label, patherr.Unwrap(err))
 	}
 }
 
@@ -590,7 +591,7 @@ func (p *printer) printMerged(ctx context.Context, operands []string) error {
 
 	// The merge layout puts one line number before all the columns.
 	if err := o.setupColumns(len(files)); err != nil {
-		p.prog.errorf("%v", err)
+		stdopts.Errorf(p.prog.Runtime, "pr", "%v", err)
 		p.err = true
 		return nil
 	}

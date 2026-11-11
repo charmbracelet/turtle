@@ -37,18 +37,18 @@ func (p *Prog) Run(ctx context.Context, args ...string) error {
 	}
 	opts, operands, err := parseFlags(args)
 	if err != nil {
-		p.errorf("%v", err)
+		stdopts.Errorf(p.Runtime, "od", "%v", err)
 		stdopts.TryHelp(p.Runtime, "od")
 		return &coreutils.ExitError{Code: 1}
 	}
 	if opts.stringMin >= 0 && len(opts.types) > 0 {
-		p.errorf("no type may be specified when dumping strings")
+		stdopts.Errorf(p.Runtime, "od", "no type may be specified when dumping strings")
 		return &coreutils.ExitError{Code: 1}
 	}
 	files := traditionalOperands(operands, &opts)
 	if opts.traditional && len(files) > 1 {
-		p.errorf("extra operand '%s'", files[1])
-		p.errorf("compatibility mode supports at most one file")
+		stdopts.Errorf(p.Runtime, "od", "extra operand '%s'", files[1])
+		stdopts.Errorf(p.Runtime, "od", "compatibility mode supports at most one file")
 		stdopts.TryHelp(p.Runtime, "od")
 		return &coreutils.ExitError{Code: 1}
 	}
@@ -62,7 +62,7 @@ func (p *Prog) Run(ctx context.Context, args ...string) error {
 		}
 		r, err := input.Open(p.Runtime, ctx, input.New(name))
 		if err != nil {
-			p.errorf("%s: %v", name, patherr.Unwrap(err))
+			stdopts.Errorf(p.Runtime, "od", "%s: %v", name, patherr.Unwrap(err))
 			return &coreutils.ExitError{Code: 1}
 		}
 		part, readErr := io.ReadAll(r)
@@ -71,17 +71,17 @@ func (p *Prog) Run(ctx context.Context, args ...string) error {
 			if ctx.Err() != nil {
 				return ctx.Err()
 			}
-			p.errorf("%s: %v", name, patherr.Unwrap(readErr))
+			stdopts.Errorf(p.Runtime, "od", "%s: %v", name, patherr.Unwrap(readErr))
 			return &coreutils.ExitError{Code: 1}
 		}
 		if closeErr != nil {
-			p.errorf("%s: %v", name, patherr.Unwrap(closeErr))
+			stdopts.Errorf(p.Runtime, "od", "%s: %v", name, patherr.Unwrap(closeErr))
 			return &coreutils.ExitError{Code: 1}
 		}
 		data = append(data, part...)
 	}
 	if opts.skip > uint64(len(data)) {
-		p.errorf("cannot skip past end of combined input")
+		stdopts.Errorf(p.Runtime, "od", "cannot skip past end of combined input")
 		return &coreutils.ExitError{Code: 1}
 	}
 	start := int(opts.skip)
@@ -100,7 +100,7 @@ func (p *Prog) Run(ctx context.Context, args ...string) error {
 		if ctx.Err() != nil {
 			return ctx.Err()
 		}
-		p.errorf("write error: %v", err)
+		stdopts.Errorf(p.Runtime, "od", "write error: %v", err)
 		return &coreutils.ExitError{Code: 1, Err: err}
 	}
 	return nil
@@ -253,7 +253,7 @@ func (p *Prog) layout(opts options) ([]spec, int, bool) {
 		case opts.width%lcm == 0:
 			blockSize = opts.width
 		default:
-			p.errorf("warning: invalid width %d; using %d instead", opts.width, lcm)
+			stdopts.Errorf(p.Runtime, "od", "warning: invalid width %d; using %d instead", opts.width, lcm)
 			blockSize = lcm
 		}
 	}
@@ -262,7 +262,7 @@ func (p *Prog) layout(opts options) ([]spec, int, bool) {
 	for i, typ := range opts.types {
 		fields := blockSize / typ.size
 		if fields-1 > 0 && fields-1 > math.MaxInt/(fields-1) {
-			p.errorf("width %d is too large", opts.width)
+			stdopts.Errorf(p.Runtime, "od", "width %d is too large", opts.width)
 			return nil, 0, false
 		}
 		specs[i] = spec{outputType: typ, width: fieldWidth(typ)}
@@ -633,10 +633,6 @@ func namedCharacter(b byte) string {
 		return "del"
 	}
 	return string(b)
-}
-
-func (p *Prog) errorf(format string, args ...any) {
-	fmt.Fprintf(p.Stderr, "od: "+format+"\n", args...)
 }
 
 var _ coreutils.Program = (*Prog)(nil)

@@ -52,9 +52,7 @@ func (p *Prog) Run(ctx context.Context, args ...string) error {
 	}
 	opts, operands, err := parseFlags(args)
 	if err != nil {
-		p.errorf("%v", err)
-		stdopts.TryHelp(p.Runtime, "tac")
-		return &coreutils.ExitError{Code: 2}
+		return stdopts.UsageError(p.Runtime, "tac", err)
 	}
 
 	ok := true
@@ -63,7 +61,7 @@ func (p *Prog) Run(ctx context.Context, args ...string) error {
 			return err
 		}
 		if !in.Stdin && in.Name == "" {
-			p.errorf("invalid zero-length file name")
+			stdopts.Errorf(p.Runtime, "tac", "invalid zero-length file name")
 			ok = false
 			continue
 		}
@@ -71,12 +69,12 @@ func (p *Prog) Run(ctx context.Context, args ...string) error {
 			var writeErr *writeError
 			switch {
 			case errors.As(err, &writeErr):
-				p.errorf("write error: %v", writeErr.err)
+				stdopts.Errorf(p.Runtime, "tac", "write error: %v", writeErr.err)
 				return &coreutils.ExitError{Code: 1, Err: writeErr.err}
 			case ctx.Err() != nil:
 				return ctx.Err()
 			default:
-				p.errorf("%s: %v", in.Label(), patherr.Unwrap(err))
+				stdopts.Errorf(p.Runtime, "tac", "%s: %v", in.Label(), patherr.Unwrap(err))
 				ok = false
 			}
 		}
@@ -112,11 +110,6 @@ func (p *Prog) tac(ctx context.Context, in input.Input, opts options) error {
 	return nil
 }
 
-// errorf writes a diagnostic message to standard error.
-func (p *Prog) errorf(format string, args ...any) {
-	fmt.Fprintf(p.Stderr, "tac: "+format+"\n", args...)
-}
-
 // parseFlags parses the options and operands. The -s option takes the
 // separator, interpreting its backslash escapes; an empty separator means
 // the NUL byte, and is an error with -r, which compiles the separator as a
@@ -142,11 +135,7 @@ With no FILE, or when FILE is -, read standard input.
          treat the separator as a regular expression
   -s, --separator=STRING
          use STRING as the record separator; empty means a zero byte
-      --help
-         display this help and exit
-      --version
-         output version information and exit
-`
+` + stdopts.Tail
 
 func parseFlags(args []string) (options, []string, error) {
 	var opts options

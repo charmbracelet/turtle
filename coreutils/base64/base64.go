@@ -60,11 +60,7 @@ With no FILE, or when FILE is -, read standard input.
   -w, --wrap=COLS
          wrap encoded lines after COLS characters (default 76). Use 0 to disable
          line wrapping
-      --help
-         display this help and exit
-      --version
-         output version information and exit
-`
+` + stdopts.Tail
 
 var (
 	_ coreutils.Program = (*Prog)(nil)

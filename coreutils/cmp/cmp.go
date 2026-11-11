@@ -46,20 +46,15 @@ func (p *Prog) Run(ctx context.Context, args ...string) error {
 	}
 	opts, operands, err := parseFlags(args)
 	if err != nil {
-		p.errorf("%v", err)
-		stdopts.TryHelp(p.Runtime, "cmp")
-		return &coreutils.ExitError{Code: 2}
+		return stdopts.UsageError(p.Runtime, "cmp", err)
 	}
 	if opts.version {
-		fmt.Fprintf(p.Stdout, "cmp (charm.land/snail/coreutils) %s\nhttps://charm.land/snail\n",
-			coreutils.Version)
+		fmt.Fprint(p.Stdout, stdopts.VersionText("cmp"))
 		return nil
 	}
 	names, err := parseOperands(operands, &opts)
 	if err != nil {
-		p.errorf("%v", err)
-		stdopts.TryHelp(p.Runtime, "cmp")
-		return &coreutils.ExitError{Code: 2}
+		return stdopts.UsageError(p.Runtime, "cmp", err)
 	}
 
 	var readers [2]io.Reader
@@ -67,7 +62,7 @@ func (p *Prog) Run(ctx context.Context, args ...string) error {
 		r, err := input.Open(p.Runtime, ctx, input.New(name))
 		if err != nil {
 			if !opts.silent {
-				p.errorf("%s: %v", name, patherr.Unwrap(err))
+				stdopts.Errorf(p.Runtime, "cmp", "%s: %v", name, patherr.Unwrap(err))
 			}
 			return &coreutils.ExitError{Code: 2}
 		}
@@ -86,12 +81,12 @@ func (p *Prog) Run(ctx context.Context, args ...string) error {
 		var readErr *input.ReadError
 		switch {
 		case errors.As(err, &writeErr):
-			p.errorf("write error: %v", writeErr.err)
+			stdopts.Errorf(p.Runtime, "cmp", "write error: %v", writeErr.err)
 			return &coreutils.ExitError{Code: 2, Err: writeErr.err}
 		case ctx.Err() != nil:
 			return ctx.Err()
 		case errors.As(err, &readErr):
-			p.errorf("%s: %v", readErr.Label, patherr.Unwrap(readErr.Err))
+			stdopts.Errorf(p.Runtime, "cmp", "%s: %v", readErr.Label, patherr.Unwrap(readErr.Err))
 			return &coreutils.ExitError{Code: 2}
 		default:
 			return err
@@ -270,19 +265,14 @@ func (p *Prog) writeDiff(byteNumber int64, b1, b2 byte, opts options) error {
 func (p *Prog) writeEOF(name string, compared, lineNumber int64, atLineStart bool, opts options) {
 	switch {
 	case compared == 0:
-		p.errorf("EOF on '%s' which is empty", name)
+		stdopts.Errorf(p.Runtime, "cmp", "EOF on '%s' which is empty", name)
 	case opts.list:
-		p.errorf("EOF on '%s' after byte %d", name, compared)
+		stdopts.Errorf(p.Runtime, "cmp", "EOF on '%s' after byte %d", name, compared)
 	case atLineStart:
-		p.errorf("EOF on '%s' after byte %d, line %d", name, compared, lineNumber-1)
+		stdopts.Errorf(p.Runtime, "cmp", "EOF on '%s' after byte %d, line %d", name, compared, lineNumber-1)
 	default:
-		p.errorf("EOF on '%s' after byte %d, in line %d", name, compared, lineNumber)
+		stdopts.Errorf(p.Runtime, "cmp", "EOF on '%s' after byte %d, in line %d", name, compared, lineNumber)
 	}
-}
-
-// errorf writes a diagnostic message to standard error.
-func (p *Prog) errorf(format string, args ...any) {
-	fmt.Fprintf(p.Stderr, "cmp: "+format+"\n", args...)
 }
 
 // options holds the parsed command line options.

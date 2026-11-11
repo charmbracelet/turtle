@@ -6,7 +6,6 @@ package sync
 
 import (
 	"context"
-	"fmt"
 	"os"
 
 	"charm.land/snail/coreutils"
@@ -36,22 +35,20 @@ func (p *Prog) Run(ctx context.Context, args ...string) error {
 	}
 	opts, operands, err := parseFlags(args)
 	if err != nil {
-		p.errorf("%v", err)
-		stdopts.TryHelp(p.Runtime, "sync")
-		return &coreutils.ExitError{Code: 2}
+		return stdopts.UsageError(p.Runtime, "sync", err)
 	}
 	if opts.data && opts.fileSystem {
-		p.errorf("cannot specify both --data and --file-system")
+		stdopts.Errorf(p.Runtime, "sync", "cannot specify both --data and --file-system")
 		stdopts.TryHelp(p.Runtime, "sync")
 		return &coreutils.ExitError{Code: 1}
 	}
 	if opts.data && len(operands) == 0 {
-		p.errorf("--data needs at least one argument")
+		stdopts.Errorf(p.Runtime, "sync", "--data needs at least one argument")
 		stdopts.TryHelp(p.Runtime, "sync")
 		return &coreutils.ExitError{Code: 1}
 	}
 	if p.FS == nil {
-		p.errorf("no file system available")
+		stdopts.Errorf(p.Runtime, "sync", "no file system available")
 		return &coreutils.ExitError{Code: 1}
 	}
 	if err := ctx.Err(); err != nil {
@@ -87,7 +84,7 @@ func (p *Prog) syncAll() error {
 		return nil
 	}
 	if err := fsys.Sync(); err != nil {
-		p.errorf("error syncing: %v", patherr.Unwrap(err))
+		stdopts.Errorf(p.Runtime, "sync", "error syncing: %v", patherr.Unwrap(err))
 		return &coreutils.ExitError{Code: 1, Err: err}
 	}
 	return nil
@@ -99,19 +96,19 @@ func (p *Prog) syncAll() error {
 func (p *Prog) syncFile(operand string) bool {
 	f, err := p.FS.OpenFile(p.FsAbs(operand), os.O_RDONLY, 0)
 	if err != nil {
-		p.errorf("error opening '%s': %v", operand, patherr.Unwrap(err))
+		stdopts.Errorf(p.Runtime, "sync", "error opening '%s': %v", operand, patherr.Unwrap(err))
 		return false
 	}
 
 	ok := true
 	if syncer, canSync := f.(syncer); canSync {
 		if err := syncer.Sync(); err != nil {
-			p.errorf("error syncing '%s': %v", operand, patherr.Unwrap(err))
+			stdopts.Errorf(p.Runtime, "sync", "error syncing '%s': %v", operand, patherr.Unwrap(err))
 			ok = false
 		}
 	}
 	if err := f.Close(); err != nil {
-		p.errorf("error closing '%s': %v", operand, patherr.Unwrap(err))
+		stdopts.Errorf(p.Runtime, "sync", "error closing '%s': %v", operand, patherr.Unwrap(err))
 		ok = false
 	}
 	return ok
@@ -121,11 +118,6 @@ func (p *Prog) syncFile(operand string) bool {
 // open file.
 type syncer interface {
 	Sync() error
-}
-
-// errorf writes a diagnostic message to standard error.
-func (p *Prog) errorf(format string, args ...any) {
-	fmt.Fprintf(p.Stderr, "sync: "+format+"\n", args...)
 }
 
 // options holds the flags of sync: -d asks for a data-only sync and -f for
@@ -153,11 +145,7 @@ Synchronize cached writes to persistent storage
          sync only file data, no unneeded metadata
   -f, --file-system
          sync the file systems that contain the files
-      --help
-         display this help and exit
-      --version
-         output version information and exit
-`
+` + stdopts.Tail
 
 // parseFlags parses the options and operands. Option parsing stops at the
 // first operand or at "--", and the last state of each flag is the one used.

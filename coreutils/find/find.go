@@ -45,7 +45,7 @@ func (p *Prog) Run(ctx context.Context, args ...string) error {
 	}
 	opts, paths, tokens, err := parseFlags(args)
 	if err != nil {
-		p.errorf("%v", err)
+		stdopts.Errorf(p.Runtime, "find", "%v", err)
 		stdopts.TryHelp(p.Runtime, "find")
 		return &coreutils.ExitError{Code: 1}
 	}
@@ -55,12 +55,12 @@ func (p *Prog) Run(ctx context.Context, args ...string) error {
 			if ctx.Err() != nil {
 				return err
 			}
-			p.errorf("%v", err)
+			stdopts.Errorf(p.Runtime, "find", "%v", err)
 			return &coreutils.ExitError{Code: 1}
 		}
 	} else if len(paths) == 0 {
 		if len(tokens) > 0 {
-			p.errorf("paths must precede expression: '%s'", tokens[0])
+			stdopts.Errorf(p.Runtime, "find", "paths must precede expression: '%s'", tokens[0])
 			stdopts.TryHelp(p.Runtime, "find")
 			return &coreutils.ExitError{Code: 1}
 		}
@@ -74,7 +74,7 @@ func (p *Prog) Run(ctx context.Context, args ...string) error {
 		var err error
 		expr, err = parseExpr(p.Runtime, p.Now(), tokens, opts.follow)
 		if err != nil {
-			p.errorf("%v", err)
+			stdopts.Errorf(p.Runtime, "find", "%v", err)
 			stdopts.TryHelp(p.Runtime, "find")
 			return &coreutils.ExitError{Code: 1}
 		}
@@ -120,12 +120,12 @@ func (p *Prog) Run(ctx context.Context, args ...string) error {
 				}
 				if perr, ok := errors.AsType[*fs.PathError](err); ok {
 					if perr.Op == "readdirent" || perr.Op == "readdir" {
-						p.errorf("cannot read directory '%s': %v", name, perr.Err)
+						stdopts.Errorf(p.Runtime, "find", "cannot read directory '%s': %v", name, perr.Err)
 					} else {
-						p.errorf("'%s': %v", name, perr.Err)
+						stdopts.Errorf(p.Runtime, "find", "'%s': %v", name, perr.Err)
 					}
 				} else {
-					p.errorf("%v", err)
+					stdopts.Errorf(p.Runtime, "find", "%v", err)
 				}
 				s.failed = true
 				return nil
@@ -214,7 +214,7 @@ func (s *state) openOutFiles(names []string) error {
 		}
 		f, err := output.Create(s.p.Runtime, s.ctx, name)
 		if err != nil {
-			s.p.errorf("cannot open '%s' for writing: %v", name, patherr.Unwrap(err))
+			stdopts.Errorf(s.p.Runtime, "find", "cannot open '%s' for writing: %v", name, patherr.Unwrap(err))
 			s.failed = true
 			return err
 		}
@@ -233,7 +233,7 @@ func (s *state) closeOutFiles() {
 	s.outClosers = nil
 	for _, f := range closers {
 		if err := f.Close(); err != nil {
-			s.p.errorf("close failed: %v", err)
+			stdopts.Errorf(s.p.Runtime, "find", "close failed: %v", err)
 			s.failed = true
 		}
 	}
@@ -244,7 +244,7 @@ func (s *state) flushOutFiles() {
 	for _, f := range s.outClosers {
 		if flusher, ok := f.(interface{ Flush() error }); ok {
 			if err := flusher.Flush(); err != nil {
-				s.p.errorf("write error: %v", err)
+				stdopts.Errorf(s.p.Runtime, "find", "write error: %v", err)
 				s.failed = true
 			}
 		}
@@ -325,10 +325,6 @@ func (s *state) groupName(gid int) string {
 	}
 	s.groups[gid] = name
 	return name
-}
-
-func (p *Prog) errorf(format string, args ...any) {
-	fmt.Fprintf(p.Stderr, "find: "+format+"\n", args...)
 }
 
 // options holds the options and the primaries that apply to the whole
@@ -506,11 +502,7 @@ file found. The expression combines the primaries below with ! (not), -a
          don't descend into the directories of another file system
   -xtype c
          like -type, but checking the type a symbolic link points to
-      --help
-         display this help and exit
-      --version
-         output version information and exit
-`
+` + stdopts.Tail
 
 // parseFlags splits the arguments into the -H, -L, -P, -O, -D and
 // -files0-from options, the path operands, and the expression tokens.

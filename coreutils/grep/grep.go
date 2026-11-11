@@ -4,7 +4,6 @@ package grep
 import (
 	"context"
 	"errors"
-	"fmt"
 	"io"
 	"strings"
 
@@ -33,9 +32,7 @@ func (p *Prog) Run(ctx context.Context, args ...string) error {
 	}
 	opts, operands, err := parseFlags(args)
 	if err != nil {
-		p.errorf("%v", err)
-		stdopts.TryHelp(p.Runtime, "grep")
-		return &coreutils.ExitError{Code: 2}
+		return stdopts.UsageError(p.Runtime, "grep", err)
 	}
 	if err := p.readSelectors(ctx, &opts); err != nil {
 		return err
@@ -45,13 +42,13 @@ func (p *Prog) Run(ctx context.Context, args ...string) error {
 		return err
 	}
 	if len(patterns) == 0 {
-		p.errorf("no pattern given")
+		stdopts.Errorf(p.Runtime, "grep", "no pattern given")
 		stdopts.TryHelp(p.Runtime, "grep")
 		return &coreutils.ExitError{Code: 2}
 	}
 	m, err := newMatcher(patterns, opts)
 	if err != nil {
-		p.errorf("%v", err)
+		stdopts.Errorf(p.Runtime, "grep", "%v", err)
 		return &coreutils.ExitError{Code: 2}
 	}
 	col := p.colors(opts)
@@ -120,7 +117,7 @@ func (p *Prog) reportAccess(label string, err error, opts options) {
 		err = patherr.Unwrap(accessErr.err)
 	}
 	if !opts.suppress {
-		p.errorf("%s: %v", label, err)
+		stdopts.Errorf(p.Runtime, "grep", "%s: %v", label, err)
 	}
 }
 
@@ -173,7 +170,7 @@ func (p *Prog) collectPatterns(ctx context.Context, opts options, operands []str
 func (p *Prog) readPatternFile(ctx context.Context, name string) ([]byte, error) {
 	r, err := input.Open(p.Runtime, ctx, input.New(name))
 	if err != nil {
-		p.errorf("%s: %v", name, patherr.Unwrap(err))
+		stdopts.Errorf(p.Runtime, "grep", "%s: %v", name, patherr.Unwrap(err))
 		return nil, &coreutils.ExitError{Code: 2}
 	}
 	data, readErr := io.ReadAll(r)
@@ -182,11 +179,11 @@ func (p *Prog) readPatternFile(ctx context.Context, name string) ([]byte, error)
 		if ctx.Err() != nil {
 			return nil, ctx.Err()
 		}
-		p.errorf("%s: %v", name, patherr.Unwrap(readErr))
+		stdopts.Errorf(p.Runtime, "grep", "%s: %v", name, patherr.Unwrap(readErr))
 		return nil, &coreutils.ExitError{Code: 2}
 	}
 	if closeErr != nil {
-		p.errorf("%s: %v", name, patherr.Unwrap(closeErr))
+		stdopts.Errorf(p.Runtime, "grep", "%s: %v", name, patherr.Unwrap(closeErr))
 		return nil, &coreutils.ExitError{Code: 2}
 	}
 	return data, nil
@@ -216,10 +213,6 @@ func fileLabel(in input.Input, opts options) string {
 		return "(standard input)"
 	}
 	return in.Name
-}
-
-func (p *Prog) errorf(format string, args ...any) {
-	fmt.Fprintf(p.Stderr, "grep: "+format+"\n", args...)
 }
 
 // isDirOperand reports whether a file operand names a directory. The

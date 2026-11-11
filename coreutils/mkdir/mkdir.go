@@ -35,23 +35,21 @@ func (p *Prog) Run(ctx context.Context, args ...string) error {
 	}
 	opts, dirs, err := parseFlags(args)
 	if err != nil {
-		p.errorf("%v", err)
-		stdopts.TryHelp(p.Runtime, "mkdir")
-		return &coreutils.ExitError{Code: 2}
+		return stdopts.UsageError(p.Runtime, "mkdir", err)
 	}
 	if len(dirs) == 0 {
-		p.errorf("missing operand")
+		stdopts.Errorf(p.Runtime, "mkdir", "missing operand")
 		stdopts.TryHelp(p.Runtime, "mkdir")
 		return &coreutils.ExitError{Code: 2}
 	}
 	if p.FS == nil {
-		p.errorf("no file system available")
+		stdopts.Errorf(p.Runtime, "mkdir", "no file system available")
 		return &coreutils.ExitError{Code: 1}
 	}
 	var spec chmod.ModeSpec
 	if opts.modeSet {
 		if spec, err = chmod.ParseMode(opts.mode); err != nil {
-			p.errorf("%v", err)
+			stdopts.Errorf(p.Runtime, "mkdir", "%v", err)
 			stdopts.TryHelp(p.Runtime, "mkdir")
 			return &coreutils.ExitError{Code: 1}
 		}
@@ -63,7 +61,7 @@ func (p *Prog) Run(ctx context.Context, args ...string) error {
 			return err
 		}
 		if err := p.mkdir(dir, opts, spec); err != nil {
-			p.errorf("%s: %v", dir, patherr.Unwrap(err))
+			stdopts.Errorf(p.Runtime, "mkdir", "%s: %v", dir, patherr.Unwrap(err))
 			ok = false
 		}
 	}
@@ -139,11 +137,6 @@ func (p *Prog) mkdir(dir string, opts options, spec chmod.ModeSpec) error {
 // directory.
 var errNotDir = errors.New("not a directory")
 
-// errorf writes a diagnostic message to standard error.
-func (p *Prog) errorf(format string, args ...any) {
-	fmt.Fprintf(p.Stderr, "mkdir: "+format+"\n", args...)
-}
-
 // options holds the -p and -v flags and the option-argument of the last -m
 // option given.
 type options struct {
@@ -178,11 +171,7 @@ Create the DIRECTORY(ies), if they do not already exist.
          make any missing parent directories for each argument
   -v, --verbose
          print a message for each created directory
-      --help
-         display this help and exit
-      --version
-         output version information and exit
-`
+` + stdopts.Tail
 
 func parseFlags(args []string) (options, []string, error) {
 	var opts options

@@ -45,7 +45,7 @@ func (p *Prog) Run(ctx context.Context, args ...string) error {
 	}
 	opts, operands, err := parseFlags(args)
 	if err != nil {
-		p.errorf("%v", err)
+		stdopts.Errorf(p.Runtime, "paste", "%v", err)
 		stdopts.TryHelp(p.Runtime, "paste")
 		if errors.Is(err, errTrailingBackslash) {
 			return &coreutils.ExitError{Code: 1}
@@ -53,7 +53,7 @@ func (p *Prog) Run(ctx context.Context, args ...string) error {
 		return &coreutils.ExitError{Code: 2}
 	}
 	if len(operands) == 0 {
-		p.errorf("missing operand")
+		stdopts.Errorf(p.Runtime, "paste", "missing operand")
 		stdopts.TryHelp(p.Runtime, "paste")
 		return &coreutils.ExitError{Code: 2}
 	}
@@ -96,7 +96,7 @@ func (p *Prog) Run(ctx context.Context, args ...string) error {
 			case err != nil && ctx.Err() != nil:
 				return ctx.Err()
 			case err != nil:
-				p.errorf("%s: %v", in.label(), patherr.Unwrap(err))
+				stdopts.Errorf(p.Runtime, "paste", "%s: %v", in.label(), patherr.Unwrap(err))
 				ok = false
 			case part != nil:
 				data = true
@@ -139,7 +139,7 @@ func (p *Prog) serial(ctx context.Context, opts options, operands []string) erro
 				if ctx.Err() != nil {
 					return ctx.Err()
 				}
-				p.errorf("%s: %v", in.label(), patherr.Unwrap(err))
+				stdopts.Errorf(p.Runtime, "paste", "%s: %v", in.label(), patherr.Unwrap(err))
 				ok = false
 				break
 			}
@@ -196,7 +196,7 @@ func (p *Prog) openInput(ctx context.Context, operand string) *input {
 // write writes an output line to the standard output.
 func (p *Prog) write(line string) error {
 	if _, err := io.WriteString(p.Stdout, line); err != nil {
-		p.errorf("write error: %v", err)
+		stdopts.Errorf(p.Runtime, "paste", "write error: %v", err)
 		return &coreutils.ExitError{Code: 1, Err: err}
 	}
 	return nil
@@ -205,15 +205,10 @@ func (p *Prog) write(line string) error {
 // openErrorf reports the error of an input which couldn't be opened.
 func (p *Prog) openErrorf(in *input) {
 	if in.operand == "" {
-		p.errorf("%v", in.err)
+		stdopts.Errorf(p.Runtime, "paste", "%v", in.err)
 		return
 	}
-	p.errorf("%s: %v", in.label(), patherr.Unwrap(in.err))
-}
-
-// errorf writes a diagnostic message to standard error.
-func (p *Prog) errorf(format string, args ...any) {
-	fmt.Fprintf(p.Stderr, "paste: "+format+"\n", args...)
+	stdopts.Errorf(p.Runtime, "paste", "%s: %v", in.label(), patherr.Unwrap(in.err))
 }
 
 // options holds the parsed command line options.
@@ -256,11 +251,7 @@ With no FILE, or when FILE is -, read standard input.
          paste one file at a time instead of in parallel
   -z, --zero-terminated
          line delimiter is NUL, not newline
-      --help
-         display this help and exit
-      --version
-         output version information and exit
-`
+` + stdopts.Tail
 
 // parseFlags parses the options and operands. Option parsing stops at the
 // first operand or at "--".

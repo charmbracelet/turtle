@@ -57,7 +57,7 @@ func (p *Prog) Run(ctx context.Context, args ...string) error {
 	}
 	opts, operands, err := parseFlags(args)
 	if err != nil {
-		p.errorf("%v", err)
+		stdopts.Errorf(p.Runtime, "date", "%v", err)
 		stdopts.TryHelp(p.Runtime, "date")
 		return &coreutils.ExitError{Code: 1}
 	}
@@ -68,12 +68,12 @@ func (p *Prog) Run(ctx context.Context, args ...string) error {
 		}
 	}
 	if specified > 1 {
-		p.errorf("the options to specify dates for printing are mutually exclusive")
+		stdopts.Errorf(p.Runtime, "date", "the options to specify dates for printing are mutually exclusive")
 		stdopts.TryHelp(p.Runtime, "date")
 		return &coreutils.ExitError{Code: 1}
 	}
 	if len(operands) > 1 {
-		p.errorf("extra operand '%s'", operands[1])
+		stdopts.Errorf(p.Runtime, "date", "extra operand '%s'", operands[1])
 		stdopts.TryHelp(p.Runtime, "date")
 		return &coreutils.ExitError{Code: 1}
 	}
@@ -90,14 +90,14 @@ func (p *Prog) Run(ctx context.Context, args ...string) error {
 		switch {
 		case strings.HasPrefix(operand, "+"):
 			if formatSet {
-				p.errorf("multiple output formats specified")
+				stdopts.Errorf(p.Runtime, "date", "multiple output formats specified")
 				stdopts.TryHelp(p.Runtime, "date")
 				return &coreutils.ExitError{Code: 1}
 			}
 			format = operand[1:]
 			formatSet = true
 		case specified > 0:
-			p.errorf("the argument '%s' lacks a leading '+'; when using an option to specify date(s), any non-option argument must be a format string beginning with '+'", operand)
+			stdopts.Errorf(p.Runtime, "date", "the argument '%s' lacks a leading '+'; when using an option to specify date(s), any non-option argument must be a format string beginning with '+'", operand)
 			stdopts.TryHelp(p.Runtime, "date")
 			return &coreutils.ExitError{Code: 1}
 		default:
@@ -116,12 +116,12 @@ func (p *Prog) Run(ctx context.Context, args ...string) error {
 	switch {
 	case opts.dateSet:
 		if t, err = gnudate.Parse(opts.dateStr, now, loc); err != nil {
-			p.errorf("invalid date '%s'", opts.dateStr)
+			stdopts.Errorf(p.Runtime, "date", "invalid date '%s'", opts.dateStr)
 			return &coreutils.ExitError{Code: 1}
 		}
 	case opts.refSet:
 		if t, err = p.referenceTime(opts.ref); err != nil {
-			p.errorf("%v", err)
+			stdopts.Errorf(p.Runtime, "date", "%v", err)
 			return &coreutils.ExitError{Code: 1}
 		}
 	}
@@ -133,10 +133,10 @@ func (p *Prog) Run(ctx context.Context, args ...string) error {
 // the system clock, it always fails in the end.
 func (p *Prog) setClock(operand string, loc *time.Location) error {
 	if _, err := parseSetTime(operand, p.Now(), loc); err != nil {
-		p.errorf("%v", err)
+		stdopts.Errorf(p.Runtime, "date", "%v", err)
 		return &coreutils.ExitError{Code: 1}
 	}
-	p.errorf("cannot set date: setting the system clock is not supported")
+	stdopts.Errorf(p.Runtime, "date", "cannot set date: setting the system clock is not supported")
 	return &coreutils.ExitError{Code: 1}
 }
 
@@ -147,7 +147,7 @@ func (p *Prog) datesFromFile(ctx context.Context, name, format string, loc *time
 	in := input.New(name)
 	r, err := input.Open(p.Runtime, ctx, in)
 	if err != nil {
-		p.errorf("%s: %v", in.Label(), patherr.Unwrap(err))
+		stdopts.Errorf(p.Runtime, "date", "%s: %v", in.Label(), patherr.Unwrap(err))
 		return &coreutils.ExitError{Code: 1, Err: err}
 	}
 	defer r.Close()
@@ -163,14 +163,14 @@ func (p *Prog) datesFromFile(ctx context.Context, name, format string, loc *time
 			if cerr := ctx.Err(); cerr != nil {
 				return cerr
 			}
-			p.errorf("%s: %v", in.Label(), patherr.Unwrap(rerr))
+			stdopts.Errorf(p.Runtime, "date", "%s: %v", in.Label(), patherr.Unwrap(rerr))
 			return &coreutils.ExitError{Code: 1, Err: rerr}
 		}
 		if line != "" {
 			line = strings.TrimSuffix(strings.TrimSuffix(line, "\n"), "\r")
 			t, err := gnudate.Parse(line, now, loc)
 			if err != nil {
-				p.errorf("invalid date '%s'", line)
+				stdopts.Errorf(p.Runtime, "date", "invalid date '%s'", line)
 				ok = false
 			} else if werr := p.write(strftime.Format(format, t.In(loc))); werr != nil {
 				return werr
@@ -284,15 +284,10 @@ func allDigits(s string) bool {
 // to the standard output.
 func (p *Prog) write(s string) error {
 	if _, err := io.WriteString(p.Stdout, s+"\n"); err != nil {
-		p.errorf("write error: %v", err)
+		stdopts.Errorf(p.Runtime, "date", "write error: %v", err)
 		return &coreutils.ExitError{Code: 1, Err: err}
 	}
 	return nil
-}
-
-// errorf writes a diagnostic message to the standard error.
-func (p *Prog) errorf(format string, args ...any) {
-	fmt.Fprintf(p.Stderr, "date: "+format+"\n", args...)
 }
 
 // options holds the -u flag, whether -d, -f or -r were given with their
@@ -376,11 +371,7 @@ Print or set the system date and time.
          output date and time in RFC 3339 format, FMT='date', 'seconds' or 'ns'
   -u, --utc, --universal
          print or set Coordinated Universal Time (UTC)
-      --help
-         display this help and exit
-      --version
-         output version information and exit
-`
+` + stdopts.Tail
 
 // parseFlags parses the options and operands. Option parsing stops at the
 // first operand or at "--". The -d, -f and -r options take an

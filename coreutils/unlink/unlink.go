@@ -37,24 +37,24 @@ func (p *Prog) Run(ctx context.Context, args ...string) error {
 	}
 	switch len(args) {
 	case 0:
-		p.errorf("missing operand")
+		stdopts.Errorf(p.Runtime, "unlink", "missing operand")
 		stdopts.TryHelp(p.Runtime, "unlink")
 		return &coreutils.ExitError{Code: 2}
 	case 1:
 	default:
-		p.errorf("extra operand '%s'", args[1])
+		stdopts.Errorf(p.Runtime, "unlink", "extra operand '%s'", args[1])
 		stdopts.TryHelp(p.Runtime, "unlink")
 		return &coreutils.ExitError{Code: 2}
 	}
 	if p.FS == nil {
-		p.errorf("no file system available")
+		stdopts.Errorf(p.Runtime, "unlink", "no file system available")
 		return &coreutils.ExitError{Code: 1}
 	}
 	if err := ctx.Err(); err != nil {
 		return err
 	}
 	if err := p.unlink(args[0]); err != nil {
-		p.errorf("%v", err)
+		stdopts.Errorf(p.Runtime, "unlink", "%v", err)
 		return &coreutils.ExitError{Code: 1}
 	}
 	return nil
@@ -84,20 +84,11 @@ func (p *Prog) unlink(operand string) error {
 // errIsDir is returned when the operand names a directory.
 var errIsDir = errors.New("is a directory")
 
-// errorf writes a diagnostic message to standard error.
-func (p *Prog) errorf(format string, args ...any) {
-	fmt.Fprintf(p.Stderr, "unlink: "+format+"\n", args...)
-}
-
 // usage describes the options of unlink.
 const usage = `Usage: unlink FILE
 Call the unlink function to remove the specified FILE.
 
-      --help
-         display this help and exit
-      --version
-         output version information and exit
-`
+` + stdopts.Tail
 
 var (
 	_ coreutils.Program = (*Prog)(nil)

@@ -53,9 +53,7 @@ func (p *Prog) Run(ctx context.Context, args ...string) error {
 	}
 	opts, operands, err := parseFlags(args)
 	if err != nil {
-		p.errorf("%v", err)
-		stdopts.TryHelp(p.Runtime, "head")
-		return &coreutils.ExitError{Code: 2}
+		return stdopts.UsageError(p.Runtime, "head", err)
 	}
 
 	inputs := make([]input.Input, 0, len(operands))
@@ -75,13 +73,13 @@ func (p *Prog) Run(ctx context.Context, args ...string) error {
 			return err
 		}
 		if !in.Stdin && in.Name == "" {
-			p.errorf("invalid zero-length file name")
+			stdopts.Errorf(p.Runtime, "head", "invalid zero-length file name")
 			ok = false
 			continue
 		}
 		r, err := input.Open(p.Runtime, ctx, in)
 		if err != nil {
-			p.errorf("%s: %v", in.Label(), patherr.Unwrap(err))
+			stdopts.Errorf(p.Runtime, "head", "%s: %v", in.Label(), patherr.Unwrap(err))
 			ok = false
 			continue
 		}
@@ -97,12 +95,12 @@ func (p *Prog) Run(ctx context.Context, args ...string) error {
 		var writeErr *writeError
 		switch {
 		case errors.As(err, &writeErr):
-			p.errorf("write error: %v", writeErr.err)
+			stdopts.Errorf(p.Runtime, "head", "write error: %v", writeErr.err)
 			return &coreutils.ExitError{Code: 1, Err: writeErr.err}
 		case ctx.Err() != nil:
 			return ctx.Err()
 		default:
-			p.errorf("%s: %v", in.Label(), patherr.Unwrap(err))
+			stdopts.Errorf(p.Runtime, "head", "%s: %v", in.Label(), patherr.Unwrap(err))
 			ok = false
 		}
 	}
@@ -231,11 +229,6 @@ func (p *Prog) writeHeader(in input.Input, leadingNewline bool) {
 	fmt.Fprintf(p.Stdout, "==> %s <==\n", in.Label())
 }
 
-// errorf writes a diagnostic message to standard error.
-func (p *Prog) errorf(format string, args ...any) {
-	fmt.Fprintf(p.Stderr, "head: "+format+"\n", args...)
-}
-
 // options holds how much of each input is copied and whether the headers
 // are printed.
 type options struct {
@@ -328,11 +321,7 @@ With no FILE, or when FILE is -, read standard input.
          always print headers giving file names
   -z, --zero-terminated
          line delimiter is NUL, not newline
-      --help
-         display this help and exit
-      --version
-         output version information and exit
-`
+` + stdopts.Tail
 
 func parseFlags(args []string) (options, []string, error) {
 	var opts options

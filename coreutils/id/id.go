@@ -54,7 +54,7 @@ func (p *Prog) Run(ctx context.Context, args ...string) error {
 	}
 	opts, operand, given, err := parseFlags(args)
 	if err != nil {
-		p.errorf("%v", err)
+		stdopts.Errorf(p.Runtime, "id", "%v", err)
 		stdopts.TryHelp(p.Runtime, "id")
 		return &coreutils.ExitError{Code: 1, Err: err}
 	}
@@ -64,11 +64,11 @@ func (p *Prog) Run(ctx context.Context, args ...string) error {
 		in, ok = p.lookupOperand(operand)
 		if !ok {
 			err := fmt.Errorf("'%s': no such user", operand)
-			p.errorf("%v", err)
+			stdopts.Errorf(p.Runtime, "id", "%v", err)
 			return &coreutils.ExitError{Code: 1, Err: err}
 		}
 	} else if in, err = p.identity(); err != nil {
-		p.errorf("%v", err)
+		stdopts.Errorf(p.Runtime, "id", "%v", err)
 		return &coreutils.ExitError{Code: 1, Err: err}
 	}
 	return p.write(in, opts)
@@ -312,11 +312,7 @@ process when it is omitted.
   -z, --zero
          delimit entries with NUL characters, not whitespace;
          not permitted in default format
-      --help
-         display this help and exit
-      --version
-         output version information and exit
-
+` + stdopts.Tail + `
 Without any OPTION, print some useful set of identified information.
 `
 
@@ -357,14 +353,6 @@ func parseFlags(args []string) (options, string, bool, error) {
 		return opts, operands[0], true, nil
 	}
 	return opts, "", false, nil
-}
-
-// errorf writes a diagnostic message to the standard error.
-func (p *Prog) errorf(format string, args ...any) {
-	if p.Stderr == nil {
-		return
-	}
-	fmt.Fprintf(p.Stderr, "id: "+format+"\n", args...)
 }
 
 var (

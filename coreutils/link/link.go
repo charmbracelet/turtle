@@ -38,28 +38,28 @@ func (p *Prog) Run(ctx context.Context, args ...string) error {
 	}
 	switch len(args) {
 	case 0:
-		p.errorf("missing file operand")
+		stdopts.Errorf(p.Runtime, "link", "missing file operand")
 		stdopts.TryHelp(p.Runtime, "link")
 		return &coreutils.ExitError{Code: 2}
 	case 1:
-		p.errorf("missing destination file operand after '%s'", args[0])
+		stdopts.Errorf(p.Runtime, "link", "missing destination file operand after '%s'", args[0])
 		stdopts.TryHelp(p.Runtime, "link")
 		return &coreutils.ExitError{Code: 2}
 	case 2:
 	default:
-		p.errorf("extra operand '%s'", args[2])
+		stdopts.Errorf(p.Runtime, "link", "extra operand '%s'", args[2])
 		stdopts.TryHelp(p.Runtime, "link")
 		return &coreutils.ExitError{Code: 2}
 	}
 	if p.FS == nil {
-		p.errorf("no file system available")
+		stdopts.Errorf(p.Runtime, "link", "no file system available")
 		return &coreutils.ExitError{Code: 1}
 	}
 	if err := ctx.Err(); err != nil {
 		return err
 	}
 	if err := p.link(args[0], args[1]); err != nil {
-		p.errorf("%v", err)
+		stdopts.Errorf(p.Runtime, "link", "%v", err)
 		return &coreutils.ExitError{Code: 1}
 	}
 	return nil
@@ -86,20 +86,11 @@ func unwrapLinkError(err error) error {
 	return patherr.Unwrap(err)
 }
 
-// errorf writes a diagnostic message to standard error.
-func (p *Prog) errorf(format string, args ...any) {
-	fmt.Fprintf(p.Stderr, "link: "+format+"\n", args...)
-}
-
 // usage describes the options of link.
 const usage = `Usage: link FILE1 FILE2
 Call the link function to create a link named FILE2 to an existing FILE1.
 
-      --help
-         display this help and exit
-      --version
-         output version information and exit
-`
+` + stdopts.Tail
 
 var (
 	_ coreutils.Program = (*Prog)(nil)

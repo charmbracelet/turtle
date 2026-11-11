@@ -85,7 +85,7 @@ func (p *Prog) Run(ctx context.Context, args ...string) error {
 	a := &archiver{rt: p.Runtime}
 	opts, operands, err := parseFlags(args)
 	if err != nil {
-		a.errorf("%v", err)
+		stdopts.Errorf(a.rt, "tar", "%v", err)
 		stdopts.TryHelp(p.Runtime, "tar")
 		return &coreutils.ExitError{Code: 2, Err: err}
 	}
@@ -165,11 +165,7 @@ Create, list, extract, append to and update archives.
          ask for confirmation before acting
   -x, --extract, --get
          restore the entries of the archive
-      --help
-         display this help and exit
-      --version
-         output version information and exit
-`
+` + stdopts.Tail
 
 // parseFlags parses the options and operands of a run, expanding a leading
 // old-style key, like "cvf", into the dashed options it stands for.
@@ -305,17 +301,12 @@ type nopCloser struct {
 // Close implements io.Closer.
 func (nopCloser) Close() error { return nil }
 
-// errorf writes a diagnostic message to standard error.
-func (a *archiver) errorf(format string, args ...any) {
-	fmt.Fprintf(a.rt.Stderr, "tar: "+format+"\n", args...)
-}
-
 // fail reports the error of an operation on name, marking the run as failed.
 func (a *archiver) fail(name string, err error) {
 	if name == "" {
-		a.errorf("%v", err)
+		stdopts.Errorf(a.rt, "tar", "%v", err)
 	} else {
-		a.errorf("%s: %v", name, patherr.Unwrap(err))
+		stdopts.Errorf(a.rt, "tar", "%s: %v", name, patherr.Unwrap(err))
 	}
 	a.failed = true
 }
@@ -392,7 +383,7 @@ func (a *archiver) relativeName(name string) string {
 		stripped = strings.TrimLeft(stripped[len(vol):], "/")
 	}
 	if stripped != name && !a.notedSlash {
-		a.errorf("Removing leading '/' from member names")
+		stdopts.Errorf(a.rt, "tar", "Removing leading '/' from member names")
 		a.notedSlash = true
 	}
 	return stripped

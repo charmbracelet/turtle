@@ -6,6 +6,7 @@ import (
 
 	"charm.land/snail/coreutils/internal/getopt"
 	"charm.land/snail/coreutils/internal/sizefmt"
+	"charm.land/snail/coreutils/internal/stdopts"
 )
 
 // followMode is how symbolic links are followed.
@@ -565,11 +566,7 @@ Sort entries alphabetically if none of -cftuvSUX nor --sort is specified.
          list one file per line
       --zero
          end each output line with NUL, not newline
-      --help
-         display this help and exit
-      --version
-         output version information and exit
-
+` + stdopts.Tail + `
 SIZE is an integer and optional unit (e.g., 10K is 10*1024, 10KB is
 10*1000). Units are K,M,G,T,P,E,Z,Y,R,Q (powers of 1024) or KB,MB,...
 (powers of 1000), or KiB,MiB,... (powers of 1024).

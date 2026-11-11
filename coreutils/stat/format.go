@@ -9,6 +9,7 @@ import (
 
 	"charm.land/snail/coreutils/internal/filemode"
 	"charm.land/snail/coreutils/internal/printfmt"
+	"charm.land/snail/coreutils/internal/stdopts"
 	"charm.land/snail/coreutils/internal/strftime"
 )
 
@@ -62,7 +63,7 @@ func (p *Prog) newRenderer() *renderer {
 		if style, found := quotingStyles[word]; found {
 			r.style = style
 		} else {
-			p.errorf("ignoring invalid value of environment variable QUOTING_STYLE: %s", word)
+			stdopts.Errorf(p.Runtime, "stat", "ignoring invalid value of environment variable QUOTING_STYLE: %s", word)
 		}
 	}
 	return r
@@ -140,7 +141,7 @@ func (r *renderer) expand(format string) (string, error) {
 			continue
 		}
 		if i+1 == len(format) {
-			r.prog.errorf("warning: backslash at end of format")
+			stdopts.Errorf(r.prog.Runtime, "stat", "warning: backslash at end of format")
 			b.WriteByte('\\')
 			break
 		}
@@ -152,7 +153,7 @@ func (r *renderer) expand(format string) (string, error) {
 			return "", err
 		}
 		if esc.Stop || esc.Unknown {
-			r.prog.errorf("warning: unrecognized escape '\\%c'", format[i+1])
+			stdopts.Errorf(r.prog.Runtime, "stat", "warning: unrecognized escape '\\%c'", format[i+1])
 			b.WriteByte(format[i+1])
 		} else {
 			b.WriteString(esc.Lit)
@@ -185,7 +186,7 @@ func (r *renderer) fileDirective(c byte, quoted bool, mod byte, spec printfmt.Sp
 	case 'B':
 		return numField(512, spec, 10), false, true
 	case 'C':
-		r.prog.errorf("failed to get security context of '%s'", st.name)
+		stdopts.Errorf(r.prog.Runtime, "stat", "failed to get security context of '%s'", st.name)
 		return "?", true, true
 	case 'd':
 		return numField(devicePart(st.dev, mod), spec, 10), false, true
@@ -217,7 +218,7 @@ func (r *renderer) fileDirective(c byte, quoted bool, mod byte, spec printfmt.Sp
 		case !st.isLink || st.follows:
 			return strField(name, spec), false, true
 		case st.linkErr != nil:
-			r.prog.errorf("cannot read symbolic link '%s': %v", st.name, st.linkErr)
+			stdopts.Errorf(r.prog.Runtime, "stat", "cannot read symbolic link '%s': %v", st.name, st.linkErr)
 			return "", true, true
 		default:
 			name += " -> " + quoteName(st.target, r.style)

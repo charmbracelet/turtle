@@ -23,11 +23,7 @@ func New(rt *coreutils.Runtime) coreutils.Program {
 const usage = `Usage: false [ignored command line arguments]
 Exit with a status code indicating failure.
 
-      --help
-         display this help and exit
-      --version
-         output version information and exit
-`
+` + stdopts.Tail
 
 // Run returns a non-zero exit status, after handling the common options.
 // As the GNU manual puts it, false always exits unsuccessfully, even when

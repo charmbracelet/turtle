@@ -122,11 +122,7 @@ Run COMMAND, then print system resource usage.
          (non-zero exit codes or signals)
   -v, --verbose
          print all resource usage information instead of the default format
-      --help
-         display this help and exit
-      --version
-         output version information and exit
-`
+` + stdopts.Tail
 
 // Run invokes the utility operand with the argument operands, and writes the
 // timing statistics of the run to the standard error, or to the file the -o
@@ -148,7 +144,7 @@ func (p *Prog) Run(ctx context.Context, args ...string) error {
 	p.chooseFormat(&opts)
 	out, closeOut, err := p.openOutput(ctx, &opts)
 	if err != nil {
-		p.errorf("%v", err)
+		stdopts.Errorf(p.Runtime, "time", "%v", err)
 		return &coreutils.ExitError{Code: 125, Err: err}
 	}
 	defer closeOut()
@@ -158,7 +154,7 @@ func (p *Prog) Run(ctx context.Context, args ...string) error {
 // usageError reports a usage error, followed by the standard hint, exiting
 // with 1.
 func (p *Prog) usageError(err error) error {
-	p.errorf("%v", err)
+	stdopts.Errorf(p.Runtime, "time", "%v", err)
 	stdopts.TryHelp(p.Runtime, "time")
 	return &coreutils.ExitError{Code: 1, Err: err}
 }
@@ -240,7 +236,7 @@ func (p *Prog) invoke(ctx context.Context, out io.Writer, opts settings, utility
 		return err
 	}
 	if p.Exec == nil {
-		p.errorf("no command execution available")
+		stdopts.Errorf(p.Runtime, "time", "no command execution available")
 		return &coreutils.ExitError{Code: 125}
 	}
 	before, haveBefore := p.usage()
@@ -252,7 +248,7 @@ func (p *Prog) invoke(ctx context.Context, out io.Writer, opts settings, utility
 		if ctxErr := ctx.Err(); ctxErr != nil {
 			return ctxErr
 		}
-		p.errorf("%v", err)
+		stdopts.Errorf(p.Runtime, "time", "%v", err)
 		return &coreutils.ExitError{Code: status, Err: err}
 	}
 	st := stats{
@@ -262,7 +258,7 @@ func (p *Prog) invoke(ctx context.Context, out io.Writer, opts settings, utility
 		command: command(utility, args),
 	}
 	if err := p.writeStats(out, opts, st, haveBefore && haveAfter); err != nil {
-		p.errorf("write error: %v", err)
+		stdopts.Errorf(p.Runtime, "time", "write error: %v", err)
 		return &coreutils.ExitError{Code: 1, Err: err}
 	}
 	if status != 0 {
@@ -481,11 +477,6 @@ func percentOf(cpu, elapsed time.Duration) uint64 {
 	}
 	quotient, _ := bits.Div64(hi, lo, uint64(elapsed))
 	return quotient
-}
-
-// errorf writes a diagnostic message to standard error.
-func (p *Prog) errorf(format string, args ...any) {
-	fmt.Fprintf(p.Stderr, "time: "+format+"\n", args...)
 }
 
 var (

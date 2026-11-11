@@ -15,6 +15,7 @@ import (
 	"time"
 
 	"charm.land/snail/coreutils/internal/ctxio"
+	"charm.land/snail/coreutils/internal/stdopts"
 	"charm.land/snail/fsx"
 )
 
@@ -60,7 +61,7 @@ func (a *archiver) extract(ctx context.Context, operands []string) error {
 			continue
 		}
 		if a.opts.verbose {
-			a.errorf("%s", hdr.Name)
+			stdopts.Errorf(a.rt, "tar", "%s", hdr.Name)
 		}
 		if err := a.extractEntry(ctx, tr, name, hdr, &dirs, &links); err != nil {
 			if ctx.Err() != nil {

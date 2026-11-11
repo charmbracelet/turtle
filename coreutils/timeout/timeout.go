@@ -76,11 +76,7 @@ Start COMMAND, and kill it if still running after DURATION.
          specify the signal to send on timeout, a name like HUP or a number
   -v, --verbose
          diagnose to standard error any signal sent upon timeout
-      --help
-         display this help and exit
-      --version
-         output version information and exit
-`
+` + stdopts.Tail
 
 // Run executes the command operand under the time limit of the duration
 // operand. When the limit elapses, the command is given up on and timeout
@@ -122,7 +118,7 @@ func (p *Prog) Run(ctx context.Context, args ...string) error {
 // usageError reports a usage error, followed by the standard hint, exiting
 // with 1.
 func (p *Prog) usageError(err error) error {
-	p.errorf("%v", err)
+	stdopts.Errorf(p.Runtime, "timeout", "%v", err)
 	stdopts.TryHelp(p.Runtime, "timeout")
 	return &coreutils.ExitError{Code: 1, Err: err}
 }
@@ -339,7 +335,7 @@ func (p *Prog) run(ctx context.Context, opts settings, duration time.Duration, i
 		return err
 	}
 	if p.Exec == nil {
-		p.errorf("no command execution available")
+		stdopts.Errorf(p.Runtime, "timeout", "no command execution available")
 		return &coreutils.ExitError{Code: 125}
 	}
 	child, cancel := context.WithCancel(ctx)
@@ -384,7 +380,7 @@ func (p *Prog) run(ctx context.Context, opts settings, duration time.Duration, i
 	// runtime gets to sending it the signal, and the execution reports it
 	// as terminated by a signal, unless it managed to exit in the race.
 	if opts.verbose {
-		p.errorf("sending signal %s to command '%s'", signalName(sig), command)
+		stdopts.Errorf(p.Runtime, "timeout", "sending signal %s to command '%s'", signalName(sig), command)
 	}
 	cancel()
 
@@ -401,7 +397,7 @@ func (p *Prog) run(ctx context.Context, opts settings, duration time.Duration, i
 				return err
 			}
 			if opts.verbose {
-				p.errorf("sending signal %s to command '%s'", signalName(sigKill), command)
+				stdopts.Errorf(p.Runtime, "timeout", "sending signal %s to command '%s'", signalName(sigKill), command)
 			}
 			// The KILL settles the status of the run, so there is no
 			// need to wait for the child to go.
@@ -420,7 +416,7 @@ func (p *Prog) run(ctx context.Context, opts settings, duration time.Duration, i
 func (p *Prog) report(ctx context.Context, command string, res execResult, timedOut, preserve bool, sig int) error {
 	if timedOut {
 		if res.err != nil && (res.status == 126 || res.status == 127) {
-			p.errorf("%s: %v", command, res.err)
+			stdopts.Errorf(p.Runtime, "timeout", "%s: %v", command, res.err)
 			return &coreutils.ExitError{Code: res.status, Err: res.err}
 		}
 		if preserve {
@@ -440,16 +436,8 @@ func (p *Prog) report(ctx context.Context, command string, res execResult, timed
 	if err := ctx.Err(); err != nil {
 		return err
 	}
-	p.errorf("%s: %v", command, res.err)
+	stdopts.Errorf(p.Runtime, "timeout", "%s: %v", command, res.err)
 	return &coreutils.ExitError{Code: res.status, Err: res.err}
-}
-
-// errorf writes a diagnostic message to the standard error.
-func (p *Prog) errorf(format string, args ...any) {
-	if p.Stderr == nil {
-		return
-	}
-	fmt.Fprintf(p.Stderr, "timeout: "+format+"\n", args...)
 }
 
 var (

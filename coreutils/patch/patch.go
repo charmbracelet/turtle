@@ -45,12 +45,10 @@ func (p *Prog) Run(ctx context.Context, args ...string) error {
 	}
 	opts, operands, err := parseFlags(args)
 	if err != nil {
-		p.errorf("%v", err)
-		stdopts.TryHelp(p.Runtime, "patch")
-		return &coreutils.ExitError{Code: 2}
+		return stdopts.UsageError(p.Runtime, "patch", err)
 	}
 	if len(operands) > 1 {
-		p.errorf("extra operand '%s'", operands[1])
+		stdopts.Errorf(p.Runtime, "patch", "extra operand '%s'", operands[1])
 		stdopts.TryHelp(p.Runtime, "patch")
 		return &coreutils.ExitError{Code: 2}
 	}
@@ -69,16 +67,16 @@ func (p *Prog) Run(ctx context.Context, args ...string) error {
 
 	format := detectFormat(string(data), opts)
 	if format == diff.UnknownPatch {
-		p.errorf("only garbage was found in the patch input")
+		stdopts.Errorf(p.Runtime, "patch", "only garbage was found in the patch input")
 		return &coreutils.ExitError{Code: 2}
 	}
 	patches, err := parsePatches(string(data), format)
 	if err != nil {
-		p.errorf("%v", err)
+		stdopts.Errorf(p.Runtime, "patch", "%v", err)
 		return &coreutils.ExitError{Code: 2}
 	}
 	if len(patches) == 0 {
-		p.errorf("only garbage was found in the patch input")
+		stdopts.Errorf(p.Runtime, "patch", "only garbage was found in the patch input")
 		return &coreutils.ExitError{Code: 2}
 	}
 
@@ -94,10 +92,10 @@ func (p *Prog) Run(ctx context.Context, args ...string) error {
 				return ctx.Err()
 			}
 			if pathErr, ok := errors.AsType[*pathError](err); ok {
-				p.errorf("%s: %v", pathErr.label, patherr.Unwrap(pathErr.err))
+				stdopts.Errorf(p.Runtime, "patch", "%s: %v", pathErr.label, patherr.Unwrap(pathErr.err))
 				return &coreutils.ExitError{Code: 2, Err: pathErr.err}
 			}
-			p.errorf("%v", err)
+			stdopts.Errorf(p.Runtime, "patch", "%v", err)
 			return &coreutils.ExitError{Code: 2}
 		}
 		status = status || failed
@@ -112,10 +110,10 @@ func (p *Prog) Run(ctx context.Context, args ...string) error {
 // given label.
 func (p *Prog) failRead(err error, label string) error {
 	if pathErr, ok := errors.AsType[*pathError](err); ok {
-		p.errorf("%s: %v", pathErr.label, patherr.Unwrap(pathErr.err))
+		stdopts.Errorf(p.Runtime, "patch", "%s: %v", pathErr.label, patherr.Unwrap(pathErr.err))
 		return &coreutils.ExitError{Code: 2, Err: pathErr.err}
 	}
-	p.errorf("%v", err)
+	stdopts.Errorf(p.Runtime, "patch", "%v", err)
 	return &coreutils.ExitError{Code: 2}
 }
 
@@ -161,11 +159,6 @@ func parsePatches(data string, format diff.PatchFormat) ([]diff.Patch, error) {
 		return diff.ParseContext(data)
 	}
 	return diff.ParseUnified(data)
-}
-
-// errorf writes a diagnostic message to standard error.
-func (p *Prog) errorf(format string, args ...any) {
-	fmt.Fprintf(p.Stderr, "patch: "+format+"\n", args...)
 }
 
 // messagef writes an informative message to standard error.
@@ -241,11 +234,7 @@ from the standard input unless -i names it.
          apply the patch in reverse
   -u
          read a unified format patch
-      --help
-         display this help and exit
-      --version
-         output version information and exit
-`
+` + stdopts.Tail
 
 // parseFlags parses the command line options. Option parsing stops at the
 // first operand or at "--".

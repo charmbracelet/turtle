@@ -9,7 +9,6 @@ package nohup
 import (
 	"context"
 	"errors"
-	"fmt"
 	"io"
 	"os"
 	"path/filepath"
@@ -45,11 +44,7 @@ possible, '$HOME/nohup.out' otherwise.
 If standard error is a terminal, redirect it to standard output.
 To save output to FILE, use 'nohup COMMAND > FILE'.
 
-      --help
-         display this help and exit
-      --version
-         output version information and exit
-`
+` + stdopts.Tail
 
 // Run redirects the terminal-bound standard streams as the specification
 // requires, then invokes the utility operand with the argument operands.
@@ -76,7 +71,7 @@ func (p *Prog) Run(ctx context.Context, args ...string) error {
 // usageError reports a usage error, followed by the standard hint, exiting
 // with 125, the status GNU nohup fails with.
 func (p *Prog) usageError(err error) error {
-	p.errorf("%v", err)
+	stdopts.Errorf(p.Runtime, "nohup", "%v", err)
 	stdopts.TryHelp(p.Runtime, "nohup")
 	return &coreutils.ExitError{Code: 125, Err: err}
 }
@@ -94,7 +89,7 @@ func (p *Prog) invoke(ctx context.Context, utility string, args []string) error 
 	}
 	defer closeOut()
 	if p.Exec == nil {
-		p.errorf("no command execution available")
+		stdopts.Errorf(p.Runtime, "nohup", "no command execution available")
 		return &coreutils.ExitError{Code: 125}
 	}
 	status, err := p.Exec(ctx, coreutils.ExecOpts{
@@ -108,7 +103,7 @@ func (p *Prog) invoke(ctx context.Context, utility string, args []string) error 
 		if ctxErr := ctx.Err(); ctxErr != nil {
 			return ctxErr
 		}
-		p.errorf("%v", err)
+		stdopts.Errorf(p.Runtime, "nohup", "%v", err)
 		return &coreutils.ExitError{Code: status, Err: err}
 	}
 	if status != 0 {
@@ -139,12 +134,12 @@ func (p *Prog) redirect() (stdout, stderr io.Writer, closeOut func(), err error)
 		out = file
 		closeOut = func() { file.Close() }
 		if ignoringInput {
-			p.errorf("ignoring input and appending output to '%s'", name)
+			stdopts.Errorf(p.Runtime, "nohup", "ignoring input and appending output to '%s'", name)
 		} else {
-			p.errorf("appending output to '%s'", name)
+			stdopts.Errorf(p.Runtime, "nohup", "appending output to '%s'", name)
 		}
 	} else if ignoringInput && !redirectErr {
-		p.errorf("ignoring input")
+		stdopts.Errorf(p.Runtime, "nohup", "ignoring input")
 	}
 
 	if redirectOut {
@@ -153,9 +148,9 @@ func (p *Prog) redirect() (stdout, stderr io.Writer, closeOut func(), err error)
 	if redirectErr {
 		if !redirectOut {
 			if ignoringInput {
-				p.errorf("ignoring input and redirecting standard error to standard output")
+				stdopts.Errorf(p.Runtime, "nohup", "ignoring input and redirecting standard error to standard output")
 			} else {
-				p.errorf("redirecting standard error to standard output")
+				stdopts.Errorf(p.Runtime, "nohup", "redirecting standard error to standard output")
 			}
 		}
 		stderr = out
@@ -174,7 +169,7 @@ func (p *Prog) redirect() (stdout, stderr io.Writer, closeOut func(), err error)
 // regardless of the umask.
 func (p *Prog) openNohupOut() (fsx.File, string, error) {
 	if p.FS == nil {
-		p.errorf("failed to open 'nohup.out': no file system available")
+		stdopts.Errorf(p.Runtime, "nohup", "failed to open 'nohup.out': no file system available")
 		return nil, "", &coreutils.ExitError{Code: 125}
 	}
 	const name = "nohup.out"
@@ -187,9 +182,9 @@ func (p *Prog) openNohupOut() (fsx.File, string, error) {
 			f, homeErr = p.openAppend(homeName)
 		}
 		if f == nil {
-			p.errorf("failed to open '%s': %v", name, patherr.Unwrap(localErr))
+			stdopts.Errorf(p.Runtime, "nohup", "failed to open '%s': %v", name, patherr.Unwrap(localErr))
 			if homeErr != nil {
-				p.errorf("failed to open '%s': %v", homeName, patherr.Unwrap(homeErr))
+				stdopts.Errorf(p.Runtime, "nohup", "failed to open '%s': %v", homeName, patherr.Unwrap(homeErr))
 			}
 			return nil, "", &coreutils.ExitError{Code: 125}
 		}
@@ -207,14 +202,6 @@ func (p *Prog) openAppend(name string) (fsx.File, error) {
 		os.O_WRONLY|os.O_CREATE|os.O_APPEND,
 		0o600,
 	)
-}
-
-// errorf writes a diagnostic message to the standard error.
-func (p *Prog) errorf(format string, args ...any) {
-	if p.Stderr == nil {
-		return
-	}
-	fmt.Fprintf(p.Stderr, "nohup: "+format+"\n", args...)
 }
 
 var (

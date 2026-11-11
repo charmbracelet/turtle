@@ -7,6 +7,7 @@ import (
 	"strings"
 
 	"charm.land/snail/coreutils/internal/patherr"
+	"charm.land/snail/coreutils/internal/stdopts"
 	"charm.land/snail/coreutils/internal/walk"
 )
 
@@ -79,7 +80,7 @@ func (p *Prog) walkOperand(ctx context.Context, m *matcher, opts options, name s
 				return ctx.Err()
 			}
 			if !opts.suppress {
-				p.errorf("%s: %v", trim(name), patherr.Unwrap(err))
+				stdopts.Errorf(p.Runtime, "grep", "%s: %v", trim(name), patherr.Unwrap(err))
 			}
 			*failed = true
 			return nil

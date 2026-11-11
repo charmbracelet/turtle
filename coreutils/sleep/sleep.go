@@ -32,9 +32,7 @@ func (p *Prog) Run(ctx context.Context, args ...string) error {
 	}
 	d, err := parseArgs(args)
 	if err != nil {
-		p.errorf("%v", err)
-		stdopts.TryHelp(p.Runtime, "sleep")
-		return &coreutils.ExitError{Code: 2}
+		return stdopts.UsageError(p.Runtime, "sleep", err)
 	}
 	if err := ctx.Err(); err != nil {
 		return err
@@ -102,11 +100,6 @@ func parseOperand(operand string) (time.Duration, error) {
 	return time.Duration(f * seconds * float64(time.Second)), nil
 }
 
-// errorf writes a diagnostic message to standard error.
-func (p *Prog) errorf(format string, args ...any) {
-	fmt.Fprintf(p.Stderr, "sleep: "+format+"\n", args...)
-}
-
 // usage describes the options of sleep.
 const usage = `Usage: sleep NUMBER[smhd]...
 Pause for NUMBER seconds.  SUFFIX may be 's' for seconds (the default),
@@ -114,11 +107,7 @@ Pause for NUMBER seconds.  SUFFIX may be 's' for seconds (the default),
 integer.  Given two or more arguments, pause for the amount of time
 specified by the sum of their values.
 
-      --help
-         display this help and exit
-      --version
-         output version information and exit
-`
+` + stdopts.Tail
 
 var (
 	_ coreutils.Program = (*Prog)(nil)

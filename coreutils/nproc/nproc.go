@@ -39,13 +39,11 @@ func (p *Prog) Run(ctx context.Context, args ...string) error {
 	}
 	opts, err := parseFlags(args)
 	if err != nil {
-		p.errorf("%v", err)
-		stdopts.TryHelp(p.Runtime, "nproc")
-		return &coreutils.ExitError{Code: 2}
+		return stdopts.UsageError(p.Runtime, "nproc", err)
 	}
 	count := p.count(opts)
 	if _, err := fmt.Fprintln(p.Stdout, count); err != nil {
-		p.errorf("write error: %v", err)
+		stdopts.Errorf(p.Runtime, "nproc", "write error: %v", err)
 		return &coreutils.ExitError{Code: 1, Err: err}
 	}
 	return nil
@@ -121,11 +119,6 @@ func parseFlags(args []string) (options, error) {
 	return opts, nil
 }
 
-// errorf writes a diagnostic message to standard error.
-func (p *Prog) errorf(format string, args ...any) {
-	fmt.Fprintf(p.Stderr, "nproc: "+format+"\n", args...)
-}
-
 // options holds the --all flag and the --ignore count.
 type options struct {
 	all    bool
@@ -162,11 +155,7 @@ result is guaranteed to be greater than zero.
          print the number of installed processors
       --ignore=N
          ignore up to N processors
-      --help
-         display this help and exit
-      --version
-         output version information and exit
-`
+` + stdopts.Tail
 
 var (
 	_ coreutils.Program = (*Prog)(nil)

@@ -55,7 +55,7 @@ func (p *Prog) Run(ctx context.Context, args ...string) error {
 		err = op.finalize()
 	}
 	if err != nil {
-		p.errorf("%v", err)
+		stdopts.Errorf(p.Runtime, "dd", "%v", err)
 		stdopts.TryHelp(p.Runtime, "dd")
 		return &coreutils.ExitError{Code: 1, Err: err}
 	}
@@ -96,8 +96,7 @@ func (p *Prog) standardOptions(args []string) (bool, error) {
 			}
 			return true, nil
 		case "--version":
-			out := fmt.Sprintf("dd (charm.land/snail/coreutils) %s\nhttps://charm.land/snail\n",
-				coreutils.Version)
+			out := stdopts.VersionText("dd")
 			if _, err := io.WriteString(p.Stdout, out); err != nil {
 				return true, &coreutils.ExitError{Code: 1, Err: err}
 			}
@@ -105,16 +104,12 @@ func (p *Prog) standardOptions(args []string) (bool, error) {
 		case "--":
 		default:
 			err := fmt.Errorf("unrecognized option '%s'", arg)
-			p.errorf("%v", err)
+			stdopts.Errorf(p.Runtime, "dd", "%v", err)
 			stdopts.TryHelp(p.Runtime, "dd")
 			return true, &coreutils.ExitError{Code: 1, Err: err}
 		}
 	}
 	return false, nil
-}
-
-func (p *Prog) errorf(format string, args ...any) {
-	fmt.Fprintf(p.Stderr, "dd: "+format+"\n", args...)
 }
 
 // engine holds the state of one copy: the open input and output, the
@@ -193,7 +188,7 @@ func (p *Prog) openInput(ctx context.Context, e *engine) error {
 	}
 	f, err := p.FS.Open(p.FsName(op.input))
 	if err != nil {
-		p.errorf("failed to open '%s': %v", op.input, patherr.Unwrap(err))
+		stdopts.Errorf(p.Runtime, "dd", "failed to open '%s': %v", op.input, patherr.Unwrap(err))
 		return &coreutils.ExitError{Code: 1, Err: err}
 	}
 	e.inFile = f
@@ -244,7 +239,7 @@ func (p *Prog) openOutput(e *engine) error {
 	f, err := p.FS.OpenFile(p.FsName(op.output),
 		flag, 0o666&^p.Umask.Perm())
 	if err != nil {
-		p.errorf("failed to open '%s': %v", op.output, patherr.Unwrap(err))
+		stdopts.Errorf(p.Runtime, "dd", "failed to open '%s': %v", op.output, patherr.Unwrap(err))
 		return &coreutils.ExitError{Code: 1, Err: err}
 	}
 	e.outF = f
@@ -339,12 +334,12 @@ func (e *engine) skipInput(ctx context.Context) error {
 				return ctxErr
 			}
 			if !op.conv.has(convNoerror) {
-				e.p.errorf("error reading '%s': %v", e.inputLabel(), err)
+				stdopts.Errorf(e.p.Runtime, "dd", "error reading '%s': %v", e.inputLabel(), err)
 				e.printStats()
 				return &coreutils.ExitError{Code: 1, Err: err}
 			}
 			if op.status != statusNone {
-				e.p.errorf("error reading '%s': %v", e.inputLabel(), err)
+				stdopts.Errorf(e.p.Runtime, "dd", "error reading '%s': %v", e.inputLabel(), err)
 			}
 			e.printStats()
 			if e.skipFailedBlock(blockStart, int(size)) {
@@ -360,7 +355,7 @@ func (e *engine) skipInput(ctx context.Context) error {
 		}
 	}
 	if off > 0 && op.status != statusNone {
-		e.p.errorf("'%s': cannot skip to specified offset", e.inputLabel())
+		stdopts.Errorf(e.p.Runtime, "dd", "'%s': cannot skip to specified offset", e.inputLabel())
 	}
 	return nil
 }
@@ -408,12 +403,12 @@ func (e *engine) loop(ctx context.Context) error {
 				return ctxErr
 			}
 			if !op.conv.has(convNoerror) {
-				e.p.errorf("error reading '%s': %v", e.inputLabel(), err)
+				stdopts.Errorf(e.p.Runtime, "dd", "error reading '%s': %v", e.inputLabel(), err)
 				e.failed = true
 				break
 			}
 			if op.status != statusNone {
-				e.p.errorf("error reading '%s': %v", e.inputLabel(), err)
+				stdopts.Errorf(e.p.Runtime, "dd", "error reading '%s': %v", e.inputLabel(), err)
 			}
 			e.printStats()
 			// The failed read leaves the rest of its block unread, which is
@@ -492,7 +487,7 @@ func (e *engine) skipFailedBlock(blockStart int64, size int) bool {
 	}
 	target := blockStart + int64(size)
 	if _, err := e.inSeek.Seek(target, io.SeekStart); err != nil {
-		e.p.errorf("'%s': cannot seek", e.inputLabel())
+		stdopts.Errorf(e.p.Runtime, "dd", "'%s': cannot seek", e.inputLabel())
 		return false
 	}
 	e.inputOffset = target
@@ -541,7 +536,7 @@ func (e *engine) finish() error {
 	}
 	if op.conv.has(convFsync) && e.outSync != nil {
 		if err := e.outSync.Sync(); err != nil {
-			e.p.errorf("error syncing '%s': %v", e.outputLabel(), err)
+			stdopts.Errorf(e.p.Runtime, "dd", "error syncing '%s': %v", e.outputLabel(), err)
 			return &coreutils.ExitError{Code: 1, Err: err}
 		}
 	}
@@ -555,7 +550,7 @@ func (e *engine) writeBlock(data []byte) error {
 		if err == nil {
 			err = errShortWrite
 		}
-		e.p.errorf("error writing '%s': %v", e.outputLabel(), err)
+		stdopts.Errorf(e.p.Runtime, "dd", "error writing '%s': %v", e.outputLabel(), err)
 		return &coreutils.ExitError{Code: 1, Err: err}
 	}
 	if n == int(e.op.obs) {
@@ -603,7 +598,7 @@ func (e *engine) flush() error {
 		if err == nil {
 			err = errShortWrite
 		}
-		e.p.errorf("error writing '%s': %v", e.outputLabel(), err)
+		stdopts.Errorf(e.p.Runtime, "dd", "error writing '%s': %v", e.outputLabel(), err)
 		return &coreutils.ExitError{Code: 1, Err: err}
 	}
 	if e.oc == len(e.obuf) {
@@ -666,12 +661,12 @@ func (e *engine) close() {
 
 // writeError reports a failure writing the output.
 func (e *engine) writeError(err error) error {
-	e.p.errorf("error writing '%s': %v", e.outputLabel(), err)
+	stdopts.Errorf(e.p.Runtime, "dd", "error writing '%s': %v", e.outputLabel(), err)
 	return &coreutils.ExitError{Code: 1, Err: err}
 }
 
 func (p *Prog) noStream(msg string) error {
-	p.errorf("%s", msg)
+	stdopts.Errorf(p.Runtime, "dd", "%s", msg)
 	return &coreutils.ExitError{Code: 1, Err: errors.New(msg)}
 }
 
@@ -750,8 +745,4 @@ Each FLAG symbol may be:
             suggested)
   fullblock  accumulate full blocks of input (iflag only)
 
-      --help
-         display this help and exit
-      --version
-         output version information and exit
-`
+` + stdopts.Tail

@@ -7,13 +7,14 @@ import (
 	"strings"
 
 	"charm.land/snail/coreutils"
+	"charm.land/snail/coreutils/internal/stdopts"
 )
 
 // runExec runs one utility invocation, reporting its exit status. A failure
 // to run it at all sets the failure flag of the traversal.
 func (s *state) runExec(dir string, args []string) int {
 	if s.p.Exec == nil {
-		s.p.errorf("no command execution available")
+		stdopts.Errorf(s.p.Runtime, "find", "no command execution available")
 		s.failed = true
 		return 1
 	}
@@ -28,7 +29,7 @@ func execResult(s *state, name string, status int, err error) int {
 		if s.ctx.Err() != nil {
 			return 1
 		}
-		s.p.errorf("%s: %v", name, err)
+		stdopts.Errorf(s.p.Runtime, "find", "%s: %v", name, err)
 		s.failed = true
 		return 1
 	}

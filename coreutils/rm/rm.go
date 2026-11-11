@@ -45,20 +45,18 @@ func (p *Prog) Run(ctx context.Context, args ...string) error {
 	}
 	opts, operands, err := parseFlags(args)
 	if err != nil {
-		p.errorf("%v", err)
-		stdopts.TryHelp(p.Runtime, "rm")
-		return &coreutils.ExitError{Code: 2}
+		return stdopts.UsageError(p.Runtime, "rm", err)
 	}
 	if len(operands) == 0 {
 		if opts.force {
 			return nil
 		}
-		p.errorf("missing operand")
+		stdopts.Errorf(p.Runtime, "rm", "missing operand")
 		stdopts.TryHelp(p.Runtime, "rm")
 		return &coreutils.ExitError{Code: 2}
 	}
 	if p.FS == nil {
-		p.errorf("no file system available")
+		stdopts.Errorf(p.Runtime, "rm", "no file system available")
 		return &coreutils.ExitError{Code: 1}
 	}
 
@@ -75,7 +73,7 @@ func (p *Prog) Run(ctx context.Context, args ...string) error {
 		case errors.Is(err, errFailed):
 			ok = false
 		default:
-			p.errorf("%v", err)
+			stdopts.Errorf(p.Runtime, "rm", "%v", err)
 			ok = false
 		}
 	}
@@ -150,7 +148,7 @@ func (p *Prog) removeTree(ctx context.Context, name, display string, opts option
 		case errors.Is(err, errFailed):
 			ok = false
 		default:
-			p.errorf("%v", err)
+			stdopts.Errorf(p.Runtime, "rm", "%v", err)
 			ok = false
 		}
 	}
@@ -237,11 +235,6 @@ var errSkipped = errors.New("skipped")
 // errFailed marks a hierarchy whose failure was already reported.
 var errFailed = errors.New("failed")
 
-// errorf writes a diagnostic message to standard error.
-func (p *Prog) errorf(format string, args ...any) {
-	fmt.Fprintf(p.Stderr, "rm: "+format+"\n", args...)
-}
-
 // options holds the -d, -f, -i, -r, -R and -v flags.
 type options struct {
 	empty       bool
@@ -277,11 +270,7 @@ Remove (unlink) the FILE(s).
          remove empty directories
   -v, --verbose
          explain what is being done
-      --help
-         display this help and exit
-      --version
-         output version information and exit
-`
+` + stdopts.Tail
 
 // parseFlags parses the options and operands. Option parsing stops at the
 // first operand or at "--", and the last of -f and -i wins.
