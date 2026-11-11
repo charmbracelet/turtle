@@ -13,11 +13,11 @@ jobs:
 
       - uses: jdx/mise-action@c37c93293d6b742fc901e1406b8f764f6fb19dac # v2.4.4
 
-      - name: Check formatting and modernization
+      - name: Check formatting, vetting and modernization
         run: |
-          task fmt modernize
+          task lint
           if [ -n "$(git status --porcelain)" ]; then
             git diff
-            echo "::error::Unformatted or non-modernized code found, run 'task fmt modernize' and commit the changes."
+            echo "::error::Unformatted or non-modernized code found, run 'task lint' and commit the changes."
             exit 1
           fi

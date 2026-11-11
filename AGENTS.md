@@ -18,7 +18,7 @@ This repository is a collection of tools and libraries for Go.
   as possible. Unexported things don't need a godoc comment at all.
 * In general, you should only write comments when really worth it, and if so,
   make them as clean and short as possible.
-* Run `task fmt modernize` to format the code before committing.
+* Run `task lint` to format and check the code before committing.
 * When writing tests, use sub-tests to group tests of the same topic when it
   makes sense.
 * Also on testing, use table-driven tests to make them legible and easy to read,
@@ -175,6 +175,63 @@ Code style guidelines:
 * Avoid `panic`s. We should return errors instead.
 * Make sure to implement code in smaller functions rather than having a big
   `Run` implementation.
+
+Before writing a new shared helper, check `coreutils/internal/` — these
+packages already exist:
+
+* `backup`: the backup scheme GNU cp, install, ln and mv share, before a
+  file is overwritten or removed. This is the home of the GNU backup-option
+  logic once cp, mv and ln implement it.
+* `basex`: the behavior shared by base32 and base64, on top of the RFC 4648
+  encodings of the standard library.
+* `bracket`: the POSIX bracket expressions shared by the basic and extended
+  regular expression translators.
+* `bre`: compiles POSIX basic regular expressions into Go ones.
+* `charset`: the character set syntax shared by the utilities that translate
+  characters, like tr and the y command of sed.
+* `cmdutil`: the `Main` helper the `cmd/{prog}` main packages delegate to.
+* `ctxio`: I/O helpers that stop operations once a context is done.
+* `digest`: the behavior shared by the checksum utilities (cksum, md5sum,
+  the sha*sum family), which differ only in the algorithm.
+* `diff`: the line diffing and the diff formats shared by diff and patch.
+* `ere`: compiles POSIX extended regular expressions into Go ones.
+* `fileinfo`: file information beyond `io/fs` (birth time, ownership, link
+  counts), read from the `Sys` value of a `FileInfo`, used by find, ls, stat
+  and du.
+* `filemode`: parsing of the mode operands (octal or symbolic) shared by the
+  utilities which match or change permission bits, like chmod, ls, stat and
+  find. `install` and `mkdir` should depend on this package for mode
+  parsing, not on the `chmod` program package.
+* `getopt`: the POSIX option syntax, described above.
+* `glob`: compiles shell filename expansion patterns into regular
+  expressions, as find's pattern primaries and grep's file selection options
+  take them.
+* `gnudate`: parses GNU-style date strings, like the `-d` options of date
+  and touch.
+* `input`: mapping the input operands to files or the standard input, and
+  opening them.
+* `patherr`: unwraps `*fs.PathError` so diagnostics don't repeat the file
+  name.
+* `printfmt`: the pieces of printf-style format strings shared by printf and
+  the `-printf`/`-fprintf` primaries of find.
+* `rex`: helpers shared by the basic and extended regular expression
+  translators.
+* `sizeparse`: parses GNU-style size operands with multiplicative suffixes,
+  like the bytes of head, tail, split and od.
+* `sizefmt`: formats sizes the GNU way: `--block-size` specs and the
+  human-readable notation of `-h`, used by du, ls and find.
+* `stdopts`: the `--help` and `--version` common options, described above.
+* `strftime`: strftime-style time formats, as the `+format` operand of date
+  takes.
+* `tabutil`: the tab stop handling shared by expand and unexpand.
+* `term`: reports whether file descriptors are terminals.
+* `textutil`: the line handling shared by the text processing utilities,
+  like skipping the fields or characters of a line.
+* `uux`: the formats shared by uuencode and uudecode.
+* `walk`: traverses the file hierarchies below starting points, following
+  symbolic links as `-H`/`-L`/`-P` ask, used by find, du and grep.
+* `zcore`: the behavior shared by the compression utilities, gzip and
+  compress, which differ only in options and defaults.
 
 `main` packages will look similar to this:
 
