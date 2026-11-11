@@ -23,10 +23,28 @@ tasks:
           MODULE: '{{.ITEM}}'
           CMD: go test ./...
 
+  cover:
+    desc: Run tests with coverage for all modules
+    cmds:
+      - for: { var: MODULES }
+        task: exec
+        vars:
+          MODULE: '{{.ITEM}}'
+          CMD: go test -cover ./...
+
   fmt:
     desc: Format all Go code
     cmds:
       - gofumpt -w .
+
+  vet:
+    desc: Run go vet for all modules
+    cmds:
+      - for: { var: MODULES }
+        task: exec
+        vars:
+          MODULE: '{{.ITEM}}'
+          CMD: go vet ./...
 
   modernize:
     desc: Modernize all Go code
@@ -36,6 +54,13 @@ tasks:
         vars:
           MODULE: '{{.ITEM}}'
           CMD: modernize -fix ./...
+
+  lint:
+    desc: Format, vet and modernize all Go code
+    cmds:
+      - task: fmt
+      - task: vet
+      - task: modernize
 
   bin:
     desc: Build all coreutils binaries into bin/
