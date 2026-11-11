@@ -10,6 +10,7 @@ import (
 	"io/fs"
 
 	"charm.land/snail/coreutils/internal/ctxio"
+	"charm.land/snail/coreutils/internal/textutil"
 )
 
 // searchInput is one input of a search: the standard input, a file operand,
@@ -61,10 +62,7 @@ func (p *Prog) searchFile(ctx context.Context, m *matcher, in searchInput, opts 
 		s.done = true
 	}
 	reader := bufio.NewReader(r)
-	term := byte('\n')
-	if opts.nullData {
-		term = 0
-	}
+	term := textutil.Delim(opts.nullData)
 	var offset int64
 	for !s.done {
 		if err := ctx.Err(); err != nil {

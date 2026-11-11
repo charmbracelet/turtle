@@ -1,6 +1,11 @@
 package textutil
 
-import "testing"
+import (
+	"context"
+	"errors"
+	"strings"
+	"testing"
+)
 
 func TestIsBlank(t *testing.T) {
 	for _, c := range []byte("abc1.\xff") {
@@ -102,4 +107,77 @@ func TestFields(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestDelim(t *testing.T) {
+	if got := Delim(false); got != '\n' {
+		t.Errorf("Delim(false) = %q, want newline", got)
+	}
+	if got := Delim(true); got != 0 {
+		t.Errorf("Delim(true) = %q, want NUL", got)
+	}
+}
+
+func TestEach(t *testing.T) {
+	tests := []struct {
+		name  string
+		input string
+		sep   byte
+		want  []string
+	}{
+		{name: "newlines", input: "ab\ncd\nef", sep: '\n', want: []string{"ab\n", "cd\n", "ef"}},
+		{name: "all terminated", input: "ab\ncd\n", sep: '\n', want: []string{"ab\n", "cd\n"}},
+		{name: "empty", input: "", sep: '\n', want: nil},
+		{name: "nuls", input: "ab\x00cd\x00\x00", sep: 0, want: []string{"ab\x00", "cd\x00", "\x00"}},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			var got []string
+			err := Each(t.Context(), strings.NewReader(test.input), test.sep, func(rec []byte) error {
+				got = append(got, string(rec))
+				return nil
+			})
+			if err != nil {
+				t.Fatalf("Each: %v", err)
+			}
+			if len(got) != len(test.want) {
+				t.Fatalf("Each called fn with %q, want %q", got, test.want)
+			}
+			for i := range got {
+				if got[i] != test.want[i] {
+					t.Errorf("record %d = %q, want %q", i, got[i], test.want[i])
+				}
+			}
+		})
+	}
+
+	t.Run("fn error", func(t *testing.T) {
+		boom := errors.New("boom")
+		count := 0
+		err := Each(t.Context(), strings.NewReader("a\nb\nc\n"), '\n', func(rec []byte) error {
+			count++
+			if count == 2 {
+				return boom
+			}
+			return nil
+		})
+		if !errors.Is(err, boom) {
+			t.Errorf("Each returned %v, want %v", err, boom)
+		}
+		if count != 2 {
+			t.Errorf("fn called %d times, want 2", count)
+		}
+	})
+
+	t.Run("context done", func(t *testing.T) {
+		ctx, cancel := context.WithCancel(t.Context())
+		cancel()
+		err := Each(ctx, strings.NewReader("a\nb\n"), '\n', func(rec []byte) error {
+			return nil
+		})
+		if !errors.Is(err, context.Canceled) {
+			t.Errorf("Each returned %v, want %v", err, context.Canceled)
+		}
+	})
 }

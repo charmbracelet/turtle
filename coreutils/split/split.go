@@ -9,7 +9,6 @@
 package split
 
 import (
-	"bufio"
 	"context"
 	"errors"
 	"fmt"
@@ -25,6 +24,7 @@ import (
 	"charm.land/snail/coreutils/internal/patherr"
 	"charm.land/snail/coreutils/internal/sizeparse"
 	"charm.land/snail/coreutils/internal/stdopts"
+	"charm.land/snail/coreutils/internal/textutil"
 	"charm.land/snail/fsx"
 )
 
@@ -241,33 +241,33 @@ func (w *pieceWriter) close() error {
 
 // splitLines writes pieces of at most n lines each.
 func splitLines(ctx context.Context, r io.Reader, w *pieceWriter, n int64) error {
-	br := bufio.NewReader(r)
 	var count int64
-	for {
-		if err := ctx.Err(); err != nil {
-			return err
-		}
-		line, err := br.ReadBytes('\n')
-		if len(line) > 0 {
-			if count == n {
-				if err := w.close(); err != nil {
-					return err
-				}
-				count = 0
-			}
-			if err := w.write(line); err != nil {
+	if err := textutil.Each(ctx, r, '\n', func(line []byte) error {
+		if count == n {
+			if err := w.close(); err != nil {
 				return err
 			}
-			count++
+			count = 0
 		}
-		if err != nil {
-			if errors.Is(err, io.EOF) {
-				break
-			}
-			return &readError{err: err}
+		if err := w.write(line); err != nil {
+			return err
 		}
+		count++
+		return nil
+	}); err != nil {
+		return readSide(err)
 	}
 	return w.close()
+}
+
+// readSide marks err as coming from reading the input, unless it came from
+// writing a piece: the record callbacks only return write errors.
+func readSide(err error) error {
+	var writeErr *writeError
+	if errors.As(err, &writeErr) || errors.Is(err, errSuffixesExhausted) {
+		return err
+	}
+	return &readError{err: err}
 }
 
 // splitBytes writes pieces of at most n bytes each.
@@ -307,45 +307,35 @@ func splitBytes(ctx context.Context, r io.Reader, w *pieceWriter, n int64) error
 // splitLineBytes writes pieces holding as many complete lines as fit in n
 // bytes. A line longer than n bytes is broken into multiple pieces.
 func splitLineBytes(ctx context.Context, r io.Reader, w *pieceWriter, n int64) error {
-	br := bufio.NewReader(r)
 	var size int64
-	for {
-		if err := ctx.Err(); err != nil {
-			return err
+	if err := textutil.Each(ctx, r, '\n', func(line []byte) error {
+		if size > 0 && size+int64(len(line)) > n {
+			if err := w.close(); err != nil {
+				return err
+			}
+			size = 0
 		}
-		line, err := br.ReadBytes('\n')
-		if len(line) > 0 {
-			if size > 0 && size+int64(len(line)) > n {
+		for off := 0; off < len(line); {
+			chunk := line[off:]
+			if size+int64(len(chunk)) > n {
+				chunk = chunk[:max(n-size, 0)]
+			}
+			if len(chunk) == 0 {
 				if err := w.close(); err != nil {
 					return err
 				}
 				size = 0
+				continue
 			}
-			for off := 0; off < len(line); {
-				chunk := line[off:]
-				if size+int64(len(chunk)) > n {
-					chunk = chunk[:max(n-size, 0)]
-				}
-				if len(chunk) == 0 {
-					if err := w.close(); err != nil {
-						return err
-					}
-					size = 0
-					continue
-				}
-				if err := w.write(chunk); err != nil {
-					return err
-				}
-				size += int64(len(chunk))
-				off += len(chunk)
+			if err := w.write(chunk); err != nil {
+				return err
 			}
+			size += int64(len(chunk))
+			off += len(chunk)
 		}
-		if err != nil {
-			if errors.Is(err, io.EOF) {
-				break
-			}
-			return &readError{err: err}
-		}
+		return nil
+	}); err != nil {
+		return readSide(err)
 	}
 	return w.close()
 }

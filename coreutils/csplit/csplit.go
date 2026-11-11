@@ -6,7 +6,6 @@
 package csplit
 
 import (
-	"bufio"
 	"context"
 	"errors"
 	"fmt"
@@ -24,6 +23,7 @@ import (
 	"charm.land/snail/coreutils/internal/input"
 	"charm.land/snail/coreutils/internal/patherr"
 	"charm.land/snail/coreutils/internal/stdopts"
+	"charm.land/snail/coreutils/internal/textutil"
 	"charm.land/snail/fsx"
 )
 
@@ -419,22 +419,13 @@ func (e *matchError) Error() string {
 // readLines reads the whole input as lines, keeping the newline of each.
 // The last line may not have one.
 func readLines(ctx context.Context, r io.Reader) ([][]byte, error) {
-	br := bufio.NewReader(r)
 	var lines [][]byte
-	for {
-		if err := ctx.Err(); err != nil {
-			return nil, err
-		}
-		line, err := br.ReadBytes('\n')
-		if len(line) > 0 {
-			lines = append(lines, line)
-		}
-		if err != nil {
-			if errors.Is(err, io.EOF) {
-				break
-			}
-			return nil, err
-		}
+	err := textutil.Each(ctx, r, '\n', func(rec []byte) error {
+		lines = append(lines, rec)
+		return nil
+	})
+	if err != nil {
+		return nil, err
 	}
 	return lines, nil
 }

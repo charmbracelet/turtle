@@ -7,12 +7,10 @@
 package cut
 
 import (
-	"bufio"
 	"bytes"
 	"context"
 	"errors"
 	"fmt"
-	"io"
 	"sort"
 	"strconv"
 	"strings"
@@ -24,6 +22,7 @@ import (
 	"charm.land/snail/coreutils/internal/input"
 	"charm.land/snail/coreutils/internal/patherr"
 	"charm.land/snail/coreutils/internal/stdopts"
+	"charm.land/snail/coreutils/internal/textutil"
 )
 
 // Prog is the cut core utility.
@@ -98,28 +97,10 @@ func (p *Prog) cut(ctx context.Context, in input.Input, opts options) error {
 	}
 	defer r.Close()
 
-	br := bufio.NewReader(r)
-	term := byte('\n')
-	if opts.zero {
-		term = 0
-	}
-	for {
-		if err := ctx.Err(); err != nil {
-			return err
-		}
-		line, err := br.ReadBytes(term)
-		if len(line) > 0 {
-			if cerr := p.cutLine(bytes.TrimSuffix(line, []byte{term}), opts); cerr != nil {
-				return cerr
-			}
-		}
-		if err != nil {
-			if errors.Is(err, io.EOF) {
-				return nil
-			}
-			return err
-		}
-	}
+	term := textutil.Delim(opts.zero)
+	return textutil.Each(ctx, r, term, func(rec []byte) error {
+		return p.cutLine(bytes.TrimSuffix(rec, []byte{term}), opts)
+	})
 }
 
 // cutLine writes the selected portions of a line to the standard output.
@@ -137,11 +118,7 @@ func (p *Prog) cutLine(line []byte, opts options) error {
 	default:
 		out = opts.cutBytes(line)
 	}
-	term := byte('\n')
-	if opts.zero {
-		term = 0
-	}
-	out = append(out, term)
+	out = append(out, textutil.Delim(opts.zero))
 	if _, err := p.Stdout.Write(out); err != nil {
 		return &writeError{err: err}
 	}

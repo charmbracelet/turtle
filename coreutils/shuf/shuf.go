@@ -7,6 +7,7 @@ package shuf
 
 import (
 	"bufio"
+	"bytes"
 	"context"
 	"crypto/rand"
 	"errors"
@@ -22,6 +23,7 @@ import (
 	"charm.land/snail/coreutils/internal/input"
 	"charm.land/snail/coreutils/internal/patherr"
 	"charm.land/snail/coreutils/internal/stdopts"
+	"charm.land/snail/coreutils/internal/textutil"
 	"charm.land/snail/fsx"
 )
 
@@ -144,24 +146,13 @@ func (p *Prog) readLines(ctx context.Context, opts options, operands []string) (
 	}
 	defer r.Close()
 
-	delim := opts.delim()
-	br := bufio.NewReader(r)
+	delim := textutil.Delim(opts.zeroTerminated)
 	var lines []string
-	for {
-		if err := ctx.Err(); err != nil {
-			return nil, err
-		}
-		line, err := br.ReadBytes(delim)
-		if len(line) > 0 {
-			lines = append(lines, strings.TrimSuffix(string(line), string(delim)))
-		}
-		if err != nil {
-			if errors.Is(err, io.EOF) {
-				return lines, nil
-			}
-			return nil, err
-		}
-	}
+	err = textutil.Each(ctx, r, delim, func(rec []byte) error {
+		lines = append(lines, string(bytes.TrimSuffix(rec, []byte{delim})))
+		return nil
+	})
+	return lines, err
 }
 
 // write reports the emptiness of a repeated input, opens the output file
@@ -215,7 +206,7 @@ func (p *Prog) write(ctx context.Context, g *rng, opts options, count uint64, li
 // writePermuted writes the first count lines of a random permutation of the
 // input.
 func (p *Prog) writePermuted(ctx context.Context, w *bufio.Writer, g *rng, opts options, count uint64, lines []string, lo, n uint64) error {
-	delim := opts.delim()
+	delim := textutil.Delim(opts.zeroTerminated)
 	if opts.inputRange {
 		idx, err := sampleIndices(ctx, g, n, min(count, n))
 		if err != nil {
@@ -251,7 +242,7 @@ func (p *Prog) writePermuted(ctx context.Context, w *bufio.Writer, g *rng, opts 
 // writeRepeated writes count lines chosen at random from the whole input,
 // with replacement, or forever when count is unbounded.
 func (p *Prog) writeRepeated(ctx context.Context, w *bufio.Writer, g *rng, opts options, count uint64, lines []string, lo, n uint64) error {
-	delim := opts.delim()
+	delim := textutil.Delim(opts.zeroTerminated)
 	for range count {
 		if err := ctx.Err(); err != nil {
 			return err

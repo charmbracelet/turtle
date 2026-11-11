@@ -20,6 +20,7 @@ import (
 	"charm.land/snail/coreutils/internal/patherr"
 	"charm.land/snail/coreutils/internal/sizeparse"
 	"charm.land/snail/coreutils/internal/stdopts"
+	"charm.land/snail/coreutils/internal/textutil"
 )
 
 // Prog is the head core utility.
@@ -116,12 +117,12 @@ func (p *Prog) Run(ctx context.Context, args ...string) error {
 func (p *Prog) copy(r io.Reader, opts options) error {
 	if opts.elide {
 		if opts.lines {
-			return p.elideLines(r, opts.count, opts.delim())
+			return p.elideLines(r, opts.count, textutil.Delim(opts.zero))
 		}
 		return p.elideBytes(r, opts.count)
 	}
 	if opts.lines {
-		return p.headLines(r, opts.count, opts.delim())
+		return p.headLines(r, opts.count, textutil.Delim(opts.zero))
 	}
 	return p.headBytes(r, opts.count)
 }

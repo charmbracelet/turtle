@@ -20,6 +20,7 @@ import (
 	"charm.land/snail/coreutils/internal/getopt"
 	"charm.land/snail/coreutils/internal/patherr"
 	"charm.land/snail/coreutils/internal/stdopts"
+	"charm.land/snail/coreutils/internal/textutil"
 )
 
 // Prog is the paste core utility.
@@ -90,7 +91,7 @@ func (p *Prog) Run(ctx context.Context, args ...string) error {
 			if i > 0 {
 				line.WriteString(opts.delims[(i-1)%len(opts.delims)])
 			}
-			part, err := in.readLine(opts.term())
+			part, err := in.readLine(textutil.Delim(opts.zero))
 			switch {
 			case err != nil && ctx.Err() != nil:
 				return ctx.Err()
@@ -105,7 +106,7 @@ func (p *Prog) Run(ctx context.Context, args ...string) error {
 		if !data {
 			break
 		}
-		line.WriteByte(opts.term())
+		line.WriteByte(textutil.Delim(opts.zero))
 		if err := p.write(line.String()); err != nil {
 			return err
 		}
@@ -133,7 +134,7 @@ func (p *Prog) serial(ctx context.Context, opts options, operands []string) erro
 		var line strings.Builder
 		delim := 0
 		for i := 0; ; i++ {
-			part, err := in.readLine(opts.term())
+			part, err := in.readLine(textutil.Delim(opts.zero))
 			if err != nil {
 				if ctx.Err() != nil {
 					return ctx.Err()
@@ -152,7 +153,7 @@ func (p *Prog) serial(ctx context.Context, opts options, operands []string) erro
 			line.WriteString(*part)
 		}
 		in.close()
-		line.WriteByte(opts.term())
+		line.WriteByte(textutil.Delim(opts.zero))
 		if err := p.write(line.String()); err != nil {
 			return err
 		}
