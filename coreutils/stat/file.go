@@ -51,7 +51,7 @@ func (p *Prog) newFileStat(name, path string, fi fs.FileInfo, opts options) file
 	}
 	st.atime, _ = fsx.Atime(fi)
 	st.ctime, _ = fileinfo.Ctime(fi)
-	st.btime, st.hasBtime = sysBtime(fi.Sys())
+	st.btime, st.hasBtime = fileinfo.Btime(fi)
 	if st.atime.IsZero() && !st.mtime.IsZero() {
 		// A file system that doesn't report the access time is written
 		// with its modification time, the way ls writes it.

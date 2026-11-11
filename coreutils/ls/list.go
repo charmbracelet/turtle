@@ -494,9 +494,9 @@ func (l *lister) timeOf(e entry) time.Time {
 // one.
 func (l *lister) birthOf(e entry) (time.Time, bool) {
 	if e.link != nil && !e.followed {
-		return sysBtime(e.link.Sys())
+		return fileinfo.Btime(e.link)
 	}
-	return sysBtime(e.fi.Sys())
+	return fileinfo.Btime(e.fi)
 }
 
 // blocksTotal returns the number of blocks the entries of a listing use,
