@@ -6,6 +6,9 @@ import (
 	"errors"
 	"io"
 	"io/fs"
+	"os"
+	"runtime"
+	"slices"
 	"strings"
 	"testing"
 
@@ -40,6 +43,26 @@ func (r *cancelReader) Read([]byte) (int, error) {
 	return 0, context.Canceled
 }
 
+// pipeInput holds a few one byte chunks and then ends, with io.EOF, or with
+// an error when fail is set: only a run which fails to stop copying early, as
+// the pipe modes ask, ever sees that error.
+type pipeInput struct {
+	left int
+	fail bool
+}
+
+func (r *pipeInput) Read(b []byte) (int, error) {
+	if r.left == 0 {
+		if r.fail {
+			return 0, errors.New("input still open")
+		}
+		return 0, io.EOF
+	}
+	r.left--
+	b[0] = 'x'
+	return 1, nil
+}
+
 // testFS holds the fixtures used by the tests:
 //
 //	a.txt:         "alpha\n"
@@ -69,12 +92,17 @@ func exitCode(t *testing.T, err error) int {
 }
 
 type testCase struct {
-	name      string
-	stdin     io.Reader
-	fsys      fsx.MemFS
-	dir       string
-	args      []string
-	want      string
+	name  string
+	stdin io.Reader
+	fsys  fsx.MemFS
+	dir   string
+	args  []string
+	// stdout replaces the standard output of the run, for the tests of a
+	// failing writer or of a pipe. want is then unchecked.
+	stdout io.Writer
+	want   string
+	// absent lists the files the run must not have created.
+	absent    []string
 	wantErr   string
 	wantExit  int
 	wantFiles map[string]string
@@ -91,6 +119,9 @@ func runCase(t *testing.T, test testCase) {
 		Stderr:     stderr,
 		WorkingDir: test.dir,
 	}
+	if test.stdout != nil {
+		rt.Stdout = test.stdout
+	}
 	if test.fsys != nil {
 		rt.FS = test.fsys
 	}
@@ -99,8 +130,10 @@ func runCase(t *testing.T, test testCase) {
 	if code := exitCode(t, err); code != test.wantExit {
 		t.Errorf("Run() exit code = %d, want %d (error = %v)", code, test.wantExit, err)
 	}
-	if got := stdout.String(); got != test.want {
-		t.Errorf("Run() stdout = %q, want %q", got, test.want)
+	if test.stdout == nil {
+		if got := stdout.String(); got != test.want {
+			t.Errorf("Run() stdout = %q, want %q", got, test.want)
+		}
 	}
 	if got := stderr.String(); got != test.wantErr {
 		t.Errorf("Run() stderr = %q, want %q", got, test.wantErr)
@@ -113,6 +146,11 @@ func runCase(t *testing.T, test testCase) {
 		}
 		if got := string(f.Data); got != want {
 			t.Errorf("Run() file %q = %q, want %q", name, got, want)
+		}
+	}
+	for _, name := range test.absent {
+		if test.fsys[name] != nil {
+			t.Errorf("Run() created file %q", name)
 		}
 	}
 }
@@ -328,6 +366,355 @@ func TestRunLongOptions(t *testing.T) {
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
 			runCase(t, test)
+		})
+	}
+}
+
+func TestRunOutputErrorOption(t *testing.T) {
+	tests := []testCase{
+		{
+			name:      "p is accepted",
+			stdin:     strings.NewReader("hello\n"),
+			fsys:      testFS(),
+			args:      []string{"-p", "new.txt"},
+			want:      "hello\n",
+			wantFiles: map[string]string{"new.txt": "hello\n"},
+		},
+		{
+			name:      "p in a group",
+			stdin:     strings.NewReader("more\n"),
+			fsys:      testFS(),
+			args:      []string{"-ap", "out.txt"},
+			want:      "more\n",
+			wantFiles: map[string]string{"out.txt": "old contents\nmore\n"},
+		},
+		{
+			name:      "p takes no option-argument",
+			stdin:     strings.NewReader("more\n"),
+			fsys:      testFS(),
+			args:      []string{"-p", "-a", "out.txt"},
+			want:      "more\n",
+			wantFiles: map[string]string{"out.txt": "old contents\nmore\n"},
+		},
+		{
+			name:      "output-error=warn",
+			stdin:     strings.NewReader("hello\n"),
+			fsys:      testFS(),
+			args:      []string{"--output-error=warn", "new.txt"},
+			want:      "hello\n",
+			wantFiles: map[string]string{"new.txt": "hello\n"},
+		},
+		{
+			name:      "output-error=warn-nopipe",
+			stdin:     strings.NewReader("hello\n"),
+			fsys:      testFS(),
+			args:      []string{"--output-error=warn-nopipe", "new.txt"},
+			want:      "hello\n",
+			wantFiles: map[string]string{"new.txt": "hello\n"},
+		},
+		{
+			name:      "output-error=exit",
+			stdin:     strings.NewReader("hello\n"),
+			fsys:      testFS(),
+			args:      []string{"--output-error=exit", "new.txt"},
+			want:      "hello\n",
+			wantFiles: map[string]string{"new.txt": "hello\n"},
+		},
+		{
+			name:      "output-error=exit-nopipe",
+			stdin:     strings.NewReader("hello\n"),
+			fsys:      testFS(),
+			args:      []string{"--output-error=exit-nopipe", "new.txt"},
+			want:      "hello\n",
+			wantFiles: map[string]string{"new.txt": "hello\n"},
+		},
+		{
+			name:      "output-error without a mode is warn-nopipe",
+			stdin:     strings.NewReader("hello\n"),
+			fsys:      testFS(),
+			args:      []string{"--output-error", "new.txt"},
+			want:      "hello\n",
+			wantFiles: map[string]string{"new.txt": "hello\n"},
+		},
+		{
+			name:     "an invalid output error mode",
+			args:     []string{"--output-error=bogus"},
+			wantErr:  "tee: invalid argument 'bogus' for '--output-error'\nTry 'tee --help' for more information.\n",
+			wantExit: 2,
+		},
+		{
+			name:     "an output error mode with the wrong case",
+			args:     []string{"--output-error=WARN"},
+			wantErr:  "tee: invalid argument 'WARN' for '--output-error'\nTry 'tee --help' for more information.\n",
+			wantExit: 2,
+		},
+		{
+			name:     "an output error mode held by the short option",
+			args:     []string{"-p=bogus"},
+			wantErr:  "tee: invalid option -- '='\nTry 'tee --help' for more information.\n",
+			wantExit: 2,
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			runCase(t, test)
+		})
+	}
+}
+
+func TestRunOutputErrorModes(t *testing.T) {
+	writeErr := errors.New("write failed")
+
+	// The standard output of every case fails, and it's never a pipe, so
+	// only the exit status of each mode is at stake here.
+	tests := []testCase{
+		{
+			name:      "the default mode diagnoses and keeps writing",
+			stdin:     strings.NewReader("hello\n"),
+			fsys:      testFS(),
+			stdout:    errorWriter{err: writeErr},
+			args:      []string{"new.txt"},
+			wantErr:   "tee: standard output: write failed\n",
+			wantExit:  1,
+			wantFiles: map[string]string{"new.txt": "hello\n"},
+		},
+		{
+			name:      "warn diagnoses and keeps writing",
+			stdin:     strings.NewReader("hello\n"),
+			fsys:      testFS(),
+			stdout:    errorWriter{err: writeErr},
+			args:      []string{"--output-error=warn", "new.txt"},
+			wantErr:   "tee: standard output: write failed\n",
+			wantExit:  1,
+			wantFiles: map[string]string{"new.txt": "hello\n"},
+		},
+		{
+			name:      "warn-nopipe diagnoses a non pipe and keeps writing",
+			stdin:     strings.NewReader("hello\n"),
+			fsys:      testFS(),
+			stdout:    errorWriter{err: writeErr},
+			args:      []string{"-p", "new.txt"},
+			wantErr:   "tee: standard output: write failed\n",
+			wantExit:  1,
+			wantFiles: map[string]string{"new.txt": "hello\n"},
+		},
+		{
+			name:      "exit stops at the first error",
+			stdin:     strings.NewReader("hello\n"),
+			fsys:      testFS(),
+			stdout:    errorWriter{err: writeErr},
+			args:      []string{"--output-error=exit", "new.txt"},
+			wantErr:   "tee: standard output: write failed\n",
+			wantExit:  1,
+			wantFiles: map[string]string{"new.txt": ""},
+		},
+		{
+			name:      "exit-nopipe stops at the error of a non pipe",
+			stdin:     strings.NewReader("hello\n"),
+			fsys:      testFS(),
+			stdout:    errorWriter{err: writeErr},
+			args:      []string{"--output-error=exit-nopipe", "new.txt"},
+			wantErr:   "tee: standard output: write failed\n",
+			wantExit:  1,
+			wantFiles: map[string]string{"new.txt": ""},
+		},
+		{
+			name:      "the last mode given wins with p last",
+			stdin:     strings.NewReader("hello\n"),
+			fsys:      testFS(),
+			stdout:    errorWriter{err: writeErr},
+			args:      []string{"--output-error=exit", "-p", "new.txt"},
+			wantErr:   "tee: standard output: write failed\n",
+			wantExit:  1,
+			wantFiles: map[string]string{"new.txt": "hello\n"},
+		},
+		{
+			name:      "the last mode given wins with exit last",
+			stdin:     strings.NewReader("hello\n"),
+			fsys:      testFS(),
+			stdout:    errorWriter{err: writeErr},
+			args:      []string{"-p", "--output-error=exit", "new.txt"},
+			wantErr:   "tee: standard output: write failed\n",
+			wantExit:  1,
+			wantFiles: map[string]string{"new.txt": ""},
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			runCase(t, test)
+		})
+	}
+}
+
+func TestRunOutputErrorOpen(t *testing.T) {
+	tests := []testCase{
+		{
+			name:      "warn keeps the other files after a failed open",
+			stdin:     strings.NewReader("hello\n"),
+			fsys:      testFS(),
+			args:      []string{"--output-error=warn", "no/such/out.txt", "good.txt"},
+			want:      "hello\n",
+			wantErr:   "tee: no/such/out.txt: file does not exist\n",
+			wantExit:  1,
+			wantFiles: map[string]string{"good.txt": "hello\n"},
+		},
+		{
+			name:     "exit stops at a failed open",
+			stdin:    strings.NewReader("hello\n"),
+			fsys:     testFS(),
+			args:     []string{"--output-error=exit", "no/such/out.txt", "good.txt"},
+			wantErr:  "tee: no/such/out.txt: file does not exist\n",
+			wantExit: 1,
+			absent:   []string{"good.txt"},
+		},
+		{
+			name:     "exit-nopipe stops at a failed open",
+			stdin:    strings.NewReader("hello\n"),
+			fsys:     testFS(),
+			args:     []string{"--output-error=exit-nopipe", "no/such/out.txt", "good.txt"},
+			wantErr:  "tee: no/such/out.txt: file does not exist\n",
+			wantExit: 1,
+			absent:   []string{"good.txt"},
+		},
+		{
+			name:     "exit stops at a zero-length file name",
+			stdin:    strings.NewReader("hello\n"),
+			fsys:     testFS(),
+			args:     []string{"--output-error=exit", ""},
+			wantErr:  "tee: invalid zero-length file name\n",
+			wantExit: 1,
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			runCase(t, test)
+		})
+	}
+}
+
+func TestRunOutputErrorPipes(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("the standard streams of a test aren't pipes on Windows")
+	}
+
+	tests := []struct {
+		name     string
+		args     []string
+		stdin    io.Reader
+		file     bool
+		wantErr  string
+		wantExit int
+		wantFile string
+	}{
+		{
+			name:     "the default mode stops at a broken pipe",
+			file:     true,
+			wantExit: 1,
+			wantFile: "",
+		},
+		{
+			name:     "warn diagnoses a broken pipe and keeps writing",
+			args:     []string{"--output-error=warn"},
+			file:     true,
+			wantErr:  "tee: standard output: ",
+			wantExit: 1,
+			wantFile: "xxx",
+		},
+		{
+			name:     "p writes around a broken pipe",
+			args:     []string{"-p"},
+			file:     true,
+			wantExit: 0,
+			wantFile: "xxx",
+		},
+		{
+			name:     "warn-nopipe writes around a broken pipe",
+			args:     []string{"--output-error=warn-nopipe"},
+			file:     true,
+			wantExit: 0,
+			wantFile: "xxx",
+		},
+		{
+			name:     "exit stops at a broken pipe",
+			args:     []string{"--output-error=exit"},
+			file:     true,
+			wantErr:  "tee: standard output: ",
+			wantExit: 1,
+			wantFile: "",
+		},
+		{
+			name:     "exit-nopipe writes around a broken pipe",
+			args:     []string{"--output-error=exit-nopipe"},
+			file:     true,
+			wantExit: 0,
+			wantFile: "xxx",
+		},
+		{
+			name:     "p stops once the only output is a broken pipe",
+			args:     []string{"-p"},
+			stdin:    &pipeInput{left: 3, fail: true},
+			wantExit: 0,
+		},
+		{
+			name:     "exit-nopipe stops once the only output is a broken pipe",
+			args:     []string{"--output-error=exit-nopipe"},
+			stdin:    &pipeInput{left: 3, fail: true},
+			wantExit: 0,
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			read, write, err := os.Pipe()
+			if err != nil {
+				t.Fatalf("os.Pipe() error = %v", err)
+			}
+			defer write.Close()
+			if err := read.Close(); err != nil {
+				t.Fatalf("Close() the read end error = %v", err)
+			}
+
+			args := test.args
+			fsys := testFS()
+			if test.file {
+				args = slices.Concat(args, []string{"new.txt"})
+			}
+
+			stderr := new(bytes.Buffer)
+			stdin := test.stdin
+			if stdin == nil {
+				stdin = &pipeInput{left: 3}
+			}
+			rt := &coreutils.Runtime{
+				Stdin:  stdin,
+				Stdout: write,
+				Stderr: stderr,
+				FS:     fsys,
+			}
+			err = New(rt).Run(t.Context(), args...)
+
+			if code := exitCode(t, err); code != test.wantExit {
+				t.Errorf("Run() exit code = %d, want %d (error = %v)", code, test.wantExit, err)
+			}
+			// The message of a broken pipe names its own file descriptor,
+			// so only its beginning is checked.
+			switch got := stderr.String(); {
+			case test.wantErr == "" && got != "":
+				t.Errorf("Run() stderr = %q, want empty", got)
+			case test.wantErr != "" && !strings.HasPrefix(got, test.wantErr):
+				t.Errorf("Run() stderr = %q, want it to start with %q", got, test.wantErr)
+			}
+			if test.file {
+				f := fsys["new.txt"]
+				if f == nil {
+					t.Error("Run() didn't create file \"new.txt\"")
+				} else if got := string(f.Data); got != test.wantFile {
+					t.Errorf("Run() file \"new.txt\" = %q, want %q", got, test.wantFile)
+				}
+			}
 		})
 	}
 }
