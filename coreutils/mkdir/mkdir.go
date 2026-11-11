@@ -79,7 +79,7 @@ func (p *Prog) Run(ctx context.Context, args ...string) error {
 // mode modified by u+wx. With verbose, every directory actually created is
 // announced on the standard output.
 func (p *Prog) mkdir(dir string, opts options, spec chmod.ModeSpec) error {
-	comps := coreutils.SplitPath(filepath.ToSlash(p.ResolvePath(dir)))
+	comps := coreutils.SplitPath(p.FsName(dir))
 	if len(comps) == 0 {
 		comps = []string{"."}
 	}

@@ -9,7 +9,6 @@ import (
 	"io/fs"
 	"math"
 	"os"
-	"path/filepath"
 	"strconv"
 	"strings"
 
@@ -95,7 +94,7 @@ func (p *Prog) resolveSize(opts options) (sizeSpec, int64, error) {
 	if !opts.referenceGiven {
 		return opts.size, -1, nil
 	}
-	fi, err := fs.Stat(p.FS, p.path(opts.reference))
+	fi, err := fs.Stat(p.FS, p.FsName(opts.reference))
 	if err != nil {
 		return sizeSpec{}, 0, fmt.Errorf("cannot stat %s: %v", opts.reference, patherr.Unwrap(err))
 	}
@@ -110,7 +109,7 @@ func (p *Prog) resolveSize(opts options) (sizeSpec, int64, error) {
 // current size of the file otherwise. A missing file is created, unless
 // noCreate says it must be skipped instead.
 func (p *Prog) truncateFile(name string, noCreate bool, spec sizeSpec, refSize int64) error {
-	path := p.path(name)
+	path := p.FsName(name)
 	fi, err := fs.Stat(p.FS, path)
 	if errors.Is(err, fs.ErrNotExist) {
 		if noCreate {
@@ -238,11 +237,6 @@ func openErr(name string, err error) error {
 // truncateErr wraps an error from setting the size of a file.
 func truncateErr(name string, want int64, err error) error {
 	return fmt.Errorf("failed to truncate %s at %d bytes: %v", name, want, patherr.Unwrap(err))
-}
-
-// path resolves a path operand for the runtime file system.
-func (p *Prog) path(name string) string {
-	return filepath.ToSlash(p.ResolvePath(name))
 }
 
 // errorf writes a diagnostic message to standard error.

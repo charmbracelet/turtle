@@ -11,8 +11,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"path/filepath"
-	"strings"
 
 	"charm.land/snail/coreutils"
 	"charm.land/snail/coreutils/internal/getopt"
@@ -69,7 +67,7 @@ func (p *Prog) unlink(operand string) error {
 	if operand == "" {
 		return errors.New("invalid zero-length file name")
 	}
-	name := p.resolve(operand)
+	name := p.FsAbs(operand)
 	fi, err := p.FS.Lstat(name)
 	if err != nil {
 		return fmt.Errorf("%s: %v", operand, patherr.Unwrap(err))
@@ -81,23 +79,6 @@ func (p *Prog) unlink(operand string) error {
 		return fmt.Errorf("%s: %v", operand, patherr.Unwrap(err))
 	}
 	return nil
-}
-
-// resolve converts an operand into the slash-separated path used with the
-// file system, relative to the working directory. The path isn't resolved
-// lexically: components like "." and ".." and a trailing slash are kept,
-// so only the file system resolves them, following symbolic links on the
-// way.
-func (p *Prog) resolve(operand string) string {
-	operand = filepath.ToSlash(operand)
-	if p.WorkingDir == "" || filepath.IsAbs(operand) {
-		return operand
-	}
-	wd := filepath.ToSlash(p.WorkingDir)
-	if strings.HasSuffix(wd, "/") {
-		return wd + operand
-	}
-	return wd + "/" + operand
 }
 
 // errIsDir is returned when the operand names a directory.

@@ -41,7 +41,7 @@ func (a *archiver) create(ctx context.Context, operands []string) error {
 			out.Close()
 			return err
 		}
-		a.archiveEntry(ctx, tw, operand, a.resolve(operand), nil)
+		a.archiveEntry(ctx, tw, operand, a.rt.FsPath(operand), nil)
 	}
 	if err := ctx.Err(); err != nil {
 		out.Close()
@@ -90,13 +90,13 @@ func (a *archiver) append(ctx context.Context, operands []string, update bool) e
 		}
 	}
 
-	src, err := a.rt.FS.Open(a.resolve(name))
+	src, err := a.rt.FS.Open(a.rt.FsPath(name))
 	if err != nil {
 		a.fail(name, err)
 		return a.exit(1)
 	}
 	tmpName := name + ".tmp"
-	tmp, err := a.rt.FS.OpenFile(a.resolve(tmpName), os.O_WRONLY|os.O_CREATE|os.O_TRUNC, 0o666&^a.rt.Umask.Perm())
+	tmp, err := a.rt.FS.OpenFile(a.rt.FsPath(tmpName), os.O_WRONLY|os.O_CREATE|os.O_TRUNC, 0o666&^a.rt.Umask.Perm())
 	if err != nil {
 		src.Close()
 		a.fail(tmpName, err)
@@ -112,7 +112,7 @@ func (a *archiver) append(ctx context.Context, operands []string, update bool) e
 			if ctx.Err() != nil {
 				break
 			}
-			a.archiveEntry(ctx, tw, operand, a.resolve(operand), existing)
+			a.archiveEntry(ctx, tw, operand, a.rt.FsPath(operand), existing)
 		}
 		err = tw.Close()
 	}
@@ -123,15 +123,15 @@ func (a *archiver) append(ctx context.Context, operands []string, update bool) e
 		err = closeErr
 	}
 	if ctxErr := ctx.Err(); ctxErr != nil {
-		a.rt.FS.Remove(a.resolve(tmpName))
+		a.rt.FS.Remove(a.rt.FsPath(tmpName))
 		return ctxErr
 	}
 	if err != nil {
-		a.rt.FS.Remove(a.resolve(tmpName))
+		a.rt.FS.Remove(a.rt.FsPath(tmpName))
 		a.fail(name, err)
 		return a.exit(1)
 	}
-	if err := a.rt.FS.Rename(a.resolve(tmpName), a.resolve(name)); err != nil {
+	if err := a.rt.FS.Rename(a.rt.FsPath(tmpName), a.rt.FsPath(name)); err != nil {
 		a.fail(name, err)
 	}
 	return a.exit(1)

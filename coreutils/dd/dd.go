@@ -14,7 +14,6 @@ import (
 	"io/fs"
 	"math"
 	"os"
-	"path/filepath"
 	"strings"
 	"time"
 
@@ -192,7 +191,7 @@ func (p *Prog) openInput(ctx context.Context, e *engine) error {
 	if p.FS == nil {
 		return p.noStream("no file system available")
 	}
-	f, err := p.FS.Open(filepath.ToSlash(p.ResolvePath(op.input)))
+	f, err := p.FS.Open(p.FsName(op.input))
 	if err != nil {
 		p.errorf("failed to open '%s': %v", op.input, patherr.Unwrap(err))
 		return &coreutils.ExitError{Code: 1, Err: err}
@@ -242,7 +241,7 @@ func (p *Prog) openOutput(e *engine) error {
 	if !op.conv.has(convNotrunc) {
 		flag |= os.O_TRUNC
 	}
-	f, err := p.FS.OpenFile(filepath.ToSlash(p.ResolvePath(op.output)),
+	f, err := p.FS.OpenFile(p.FsName(op.output),
 		flag, 0o666&^p.Umask.Perm())
 	if err != nil {
 		p.errorf("failed to open '%s': %v", op.output, patherr.Unwrap(err))
@@ -262,7 +261,7 @@ func (p *Prog) openOutput(e *engine) error {
 // readPrefix reads the first n bytes of name, which the copy seeks over and
 // preserves. A nil slice means there is nothing to preserve.
 func (e *engine) readPrefix(name string, n int64) []byte {
-	f, err := e.p.FS.Open(filepath.ToSlash(e.p.ResolvePath(name)))
+	f, err := e.p.FS.Open(e.p.FsName(name))
 	if err != nil {
 		return nil
 	}

@@ -12,8 +12,6 @@ import (
 	"errors"
 	"fmt"
 	"os"
-	"path/filepath"
-	"strings"
 
 	"charm.land/snail/coreutils"
 	"charm.land/snail/coreutils/internal/getopt"
@@ -73,27 +71,10 @@ func (p *Prog) link(source, target string) error {
 	if source == "" || target == "" {
 		return errors.New("invalid zero-length file name")
 	}
-	if err := p.FS.Link(p.resolve(source), p.resolve(target)); err != nil {
+	if err := p.FS.Link(p.FsAbs(source), p.FsAbs(target)); err != nil {
 		return fmt.Errorf("cannot create link '%s' to '%s': %v", target, source, unwrapLinkError(err))
 	}
 	return nil
-}
-
-// resolve converts an operand into the slash-separated path used with the
-// file system, relative to the working directory. The path isn't resolved
-// lexically: components like "." and ".." and a trailing slash are kept,
-// so only the file system resolves them, following symbolic links on the
-// way.
-func (p *Prog) resolve(operand string) string {
-	operand = filepath.ToSlash(operand)
-	if p.WorkingDir == "" || filepath.IsAbs(operand) {
-		return operand
-	}
-	wd := filepath.ToSlash(p.WorkingDir)
-	if strings.HasSuffix(wd, "/") {
-		return wd + operand
-	}
-	return wd + "/" + operand
 }
 
 // unwrapLinkError unwraps the errors of a link creation, which *os.LinkError

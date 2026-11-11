@@ -12,7 +12,6 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"path/filepath"
 	"strings"
 
 	"charm.land/snail/coreutils"
@@ -182,7 +181,7 @@ func (p *Prog) openInput(ctx context.Context, operand string) *input {
 	if p.FS == nil {
 		return &input{operand: operand, err: errors.New("no file system available")}
 	}
-	f, err := p.FS.Open(filepath.ToSlash(p.ResolvePath(operand)))
+	f, err := p.FS.Open(p.FsName(operand))
 	if err != nil {
 		return &input{operand: operand, err: err}
 	}

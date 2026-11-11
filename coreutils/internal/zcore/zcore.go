@@ -14,7 +14,6 @@ import (
 	"io/fs"
 	"os"
 	"path"
-	"path/filepath"
 	"time"
 
 	"charm.land/snail/coreutils"
@@ -669,5 +668,5 @@ func label(operand string, err error) string {
 
 // slash resolves an operand into a name usable with the file system.
 func (r *run) slash(operand string) string {
-	return filepath.ToSlash(r.rt.ResolvePath(operand))
+	return r.rt.FsName(operand)
 }

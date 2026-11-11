@@ -336,9 +336,9 @@ func (e *pathError) Unwrap() error {
 func (p *Prog) resolvePath(name string, opts options) string {
 	name = filepath.ToSlash(name)
 	if opts.dir != "" && !path.IsAbs(name) {
-		name = path.Join(filepath.ToSlash(p.ResolvePath(opts.dir)), name)
+		name = path.Join(p.FsName(opts.dir), name)
 	}
-	return filepath.ToSlash(p.ResolvePath(name))
+	return p.FsName(name)
 }
 
 // stripName removes n leading components of a patch file path name, keeping

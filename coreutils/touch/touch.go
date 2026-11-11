@@ -7,7 +7,6 @@ import (
 	"fmt"
 	"io/fs"
 	"os"
-	"path/filepath"
 	"strconv"
 	"strings"
 	"time"
@@ -148,7 +147,7 @@ func flexFraction(s string) string {
 // fileTimes returns the access and modification times of a file, following
 // or not following its final symbolic link as noDeref says.
 func (p *Prog) fileTimes(name string, noDeref bool) (time.Time, time.Time, error) {
-	path := filepath.ToSlash(p.ResolvePath(name))
+	path := p.FsName(name)
 	fi, err := fs.Stat(p.FS, path)
 	if noDeref {
 		fi, err = p.FS.Lstat(path)
@@ -180,7 +179,7 @@ func (p *Prog) location() *time.Location {
 // system whose Chtimes follows links, like the OS one, it still acts on the
 // file the link refers to.
 func (p *Prog) touch(name string, opts options, atime, mtime time.Time) error {
-	path := filepath.ToSlash(p.ResolvePath(name))
+	path := p.FsName(name)
 	fi, err := fs.Stat(p.FS, path)
 	if opts.noDeref {
 		// Lstat describes the link itself, so a dangling one is not an error.

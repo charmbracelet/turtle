@@ -26,7 +26,6 @@ import (
 	"math"
 	"math/bits"
 	"os"
-	"path/filepath"
 	"strings"
 	"time"
 
@@ -228,7 +227,7 @@ func (p *Prog) openOutput(opts *settings) (io.Writer, func(), error) {
 	} else {
 		flag |= os.O_TRUNC
 	}
-	f, err := p.FS.OpenFile(filepath.ToSlash(p.ResolvePath(opts.outfile)), flag, 0o666&^p.Umask.Perm())
+	f, err := p.FS.OpenFile(p.FsName(opts.outfile), flag, 0o666&^p.Umask.Perm())
 	if err != nil {
 		return nil, nil, err
 	}

@@ -82,7 +82,7 @@ func (p *Prog) Run(ctx context.Context, args ...string) error {
 
 	sources, target := destination(opts, operands)
 
-	dst := p.resolve(target)
+	dst := p.FsPath(target)
 	var targetIsDir bool
 	switch {
 	case opts.noTarget:
@@ -117,9 +117,9 @@ func (p *Prog) Run(ctx context.Context, args ...string) error {
 		if err := ctx.Err(); err != nil {
 			return err
 		}
-		e := pair{src: p.resolve(source), srcName: source, dst: dst, dstName: target}
+		e := pair{src: p.FsPath(source), srcName: source, dst: dst, dstName: target}
 		if targetIsDir {
-			base := baseName(source)
+			base := coreutils.FsBase(source)
 			e.dst = path.Join(dst, base)
 			e.dstName = path.Join(target, base)
 		}
@@ -344,18 +344,6 @@ func parseFlags(args []string) (options, []string, error) {
 		return options{}, nil, err
 	}
 	return opts, operands, nil
-}
-
-// resolve converts an operand into the slash-separated path used with the
-// file system, relative to the working directory.
-func (p *Prog) resolve(name string) string {
-	return path.Clean(filepath.ToSlash(p.ResolvePath(name)))
-}
-
-// baseName returns the last component of an operand as typed, so a trailing
-// slash is ignored.
-func baseName(name string) string {
-	return path.Base(filepath.ToSlash(name))
 }
 
 // maxSymlinks is the number of symbolic links that evalSymlinks follows before

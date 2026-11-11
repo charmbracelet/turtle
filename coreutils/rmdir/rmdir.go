@@ -6,7 +6,6 @@ import (
 	"errors"
 	"fmt"
 	"io/fs"
-	"path/filepath"
 	"syscall"
 
 	"charm.land/snail/coreutils"
@@ -84,7 +83,7 @@ func (p *Prog) rmdir(dir string, opts options) (string, error) {
 		if opts.verbose {
 			fmt.Fprintf(p.Stdout, "rmdir: removing directory, '%s'\n", display)
 		}
-		resolved := filepath.ToSlash(p.ResolvePath(name))
+		resolved := p.FsName(name)
 		if err := p.remove(resolved); err != nil {
 			if opts.ignoreFailOnNonEmpty && p.nonEmpty(resolved, err) {
 				return "", nil

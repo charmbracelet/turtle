@@ -22,7 +22,6 @@ import (
 	"fmt"
 	"io"
 	"os"
-	"path"
 	"path/filepath"
 	"strconv"
 	"strings"
@@ -283,7 +282,7 @@ func (a *archiver) openReader() (io.ReadCloser, error) {
 	if a.rt.FS == nil {
 		return nil, errors.New("no file system available")
 	}
-	return a.rt.FS.Open(a.resolve(name))
+	return a.rt.FS.Open(a.rt.FsPath(name))
 }
 
 // openWriter returns the archive to write, truncating an existing one.
@@ -298,7 +297,7 @@ func (a *archiver) openWriter() (io.WriteCloser, error) {
 	if a.rt.FS == nil {
 		return nil, errors.New("no file system available")
 	}
-	return a.rt.FS.OpenFile(a.resolve(name), os.O_WRONLY|os.O_CREATE|os.O_TRUNC, 0o666&^a.rt.Umask.Perm())
+	return a.rt.FS.OpenFile(a.rt.FsPath(name), os.O_WRONLY|os.O_CREATE|os.O_TRUNC, 0o666&^a.rt.Umask.Perm())
 }
 
 // nopCloser adapts a writer to io.WriteCloser without closing it.
@@ -308,12 +307,6 @@ type nopCloser struct {
 
 // Close implements io.Closer.
 func (nopCloser) Close() error { return nil }
-
-// resolve converts a name into the slash-separated path used with the file
-// system, relative to the working directory.
-func (a *archiver) resolve(name string) string {
-	return path.Clean(filepath.ToSlash(a.rt.ResolvePath(name)))
-}
 
 // errorf writes a diagnostic message to standard error.
 func (a *archiver) errorf(format string, args ...any) {

@@ -8,8 +8,6 @@ import (
 	"context"
 	"fmt"
 	"os"
-	"path/filepath"
-	"strings"
 
 	"charm.land/snail/coreutils"
 	"charm.land/snail/coreutils/internal/getopt"
@@ -99,7 +97,7 @@ func (p *Prog) syncAll() error {
 // whether every step succeeded. With -d, the metadata that a plain file
 // sync also flushes is kept, as the distinction can't be honored.
 func (p *Prog) syncFile(operand string) bool {
-	f, err := p.FS.OpenFile(p.resolve(operand), os.O_RDONLY, 0)
+	f, err := p.FS.OpenFile(p.FsAbs(operand), os.O_RDONLY, 0)
 	if err != nil {
 		p.errorf("error opening '%s': %v", operand, patherr.Unwrap(err))
 		return false
@@ -123,23 +121,6 @@ func (p *Prog) syncFile(operand string) bool {
 // open file.
 type syncer interface {
 	Sync() error
-}
-
-// resolve converts an operand into the slash-separated path used with the
-// file system, relative to the working directory. The path isn't resolved
-// lexically: components like "." and ".." and a trailing slash are kept,
-// so only the file system resolves them, following symbolic links on the
-// way.
-func (p *Prog) resolve(operand string) string {
-	operand = filepath.ToSlash(operand)
-	if p.WorkingDir == "" || filepath.IsAbs(operand) {
-		return operand
-	}
-	wd := filepath.ToSlash(p.WorkingDir)
-	if strings.HasSuffix(wd, "/") {
-		return wd + operand
-	}
-	return wd + "/" + operand
 }
 
 // errorf writes a diagnostic message to standard error.

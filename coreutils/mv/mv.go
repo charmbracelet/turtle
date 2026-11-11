@@ -73,7 +73,7 @@ func (p *Prog) Run(ctx context.Context, args ...string) error {
 		return &coreutils.ExitError{Code: 1}
 	}
 
-	dst := p.resolve(target)
+	dst := p.FsPath(target)
 	fi, err := fs.Stat(p.FS, dst)
 	if err != nil && !errors.Is(err, fs.ErrNotExist) {
 		p.errorf("cannot stat '%s': %v", target, patherr.Unwrap(err))
@@ -96,9 +96,9 @@ func (p *Prog) Run(ctx context.Context, args ...string) error {
 		if err := ctx.Err(); err != nil {
 			return err
 		}
-		e := pair{src: p.resolve(source), srcName: source, dst: dst, dstName: target}
+		e := pair{src: p.FsPath(source), srcName: source, dst: dst, dstName: target}
 		if moveInto {
-			base := baseName(source)
+			base := coreutils.FsBase(source)
 			e.dst = path.Join(dst, base)
 			e.dstName = path.Join(target, base)
 		}
@@ -312,18 +312,6 @@ func (e pair) child(name string) pair {
 		srcName: e.srcName + "/" + name,
 		dstName: e.dstName + "/" + name,
 	}
-}
-
-// resolve converts an operand into the slash-separated path used with the
-// file system, relative to the working directory.
-func (p *Prog) resolve(name string) string {
-	return path.Clean(filepath.ToSlash(p.ResolvePath(name)))
-}
-
-// baseName returns the last component of an operand as typed, so a trailing
-// slash is ignored.
-func baseName(name string) string {
-	return path.Base(filepath.ToSlash(name))
 }
 
 // confirm asks on the standard error whether dst should be overwritten and

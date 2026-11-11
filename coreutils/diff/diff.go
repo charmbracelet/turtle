@@ -203,7 +203,7 @@ func (p *Prog) operand(name string, opts options, side int, other string) (opera
 	if p.FS == nil {
 		return operand{}, errNoFS
 	}
-	op := operand{name: name, path: filepath.ToSlash(p.ResolvePath(name))}
+	op := operand{name: name, path: p.FsName(name)}
 	fi, err := fs.Stat(p.FS, op.path)
 	if err == nil {
 		op.isDir = fi.IsDir()
@@ -229,7 +229,7 @@ func (p *Prog) exists(name string) bool {
 	if p.FS == nil {
 		return false
 	}
-	_, err := fs.Stat(p.FS, filepath.ToSlash(p.ResolvePath(name)))
+	_, err := fs.Stat(p.FS, p.FsName(name))
 	return err == nil
 }
 

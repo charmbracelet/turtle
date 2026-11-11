@@ -15,8 +15,6 @@ import (
 	"fmt"
 	"io"
 	"os"
-	"path"
-	"path/filepath"
 	"strconv"
 	"strings"
 
@@ -77,7 +75,7 @@ func (p *Prog) Run(ctx context.Context, args ...string) error {
 		numeric: opts.numeric, hex: opts.hex, from: opts.from, count: opts.from,
 		addSuffix: opts.addSuffix,
 	}
-	if len(baseName(prefix))+opts.suffixLen+len(opts.addSuffix) > nameMax {
+	if len(coreutils.FsBase(prefix))+opts.suffixLen+len(opts.addSuffix) > nameMax {
 		p.errorf("%s: file name too long", w.nextName())
 		return &coreutils.ExitError{Code: 1}
 	}
@@ -185,7 +183,7 @@ func (w *pieceWriter) open() error {
 		return errSuffixesExhausted
 	}
 	name := w.nextName()
-	f, err := w.rt.FS.OpenFile(filepath.ToSlash(w.rt.ResolvePath(name)), os.O_WRONLY|os.O_CREATE|os.O_TRUNC, 0o666&^w.rt.Umask.Perm())
+	f, err := w.rt.FS.OpenFile(w.rt.FsName(name), os.O_WRONLY|os.O_CREATE|os.O_TRUNC, 0o666&^w.rt.Umask.Perm())
 	if err != nil {
 		return &writeError{name: name, err: err}
 	}
@@ -857,11 +855,6 @@ func intPow(base, exp int) int64 {
 		result *= int64(base)
 	}
 	return result
-}
-
-// baseName returns the last path element of prefix.
-func baseName(prefix string) string {
-	return path.Base(filepath.ToSlash(prefix))
 }
 
 // readError marks an error as coming from reading the input.

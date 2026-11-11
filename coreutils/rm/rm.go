@@ -96,7 +96,7 @@ func (p *Prog) removeOperand(ctx context.Context, operand string, opts options) 
 	if err := protectedErr(operand); err != nil {
 		return fmt.Errorf("%s: %v", operand, err)
 	}
-	return p.removeEntry(ctx, p.resolve(operand), operand, opts)
+	return p.removeEntry(ctx, p.FsPath(operand), operand, opts)
 }
 
 // removeEntry removes the entry named by name, which display shows in
@@ -204,12 +204,6 @@ func (p *Prog) confirm(action, display string) bool {
 		}
 	}
 	return answer == 'y' || answer == 'Y'
-}
-
-// resolve converts an operand into the slash-separated path used with the
-// file system, relative to the working directory.
-func (p *Prog) resolve(name string) string {
-	return path.Clean(filepath.ToSlash(p.ResolvePath(name)))
 }
 
 // protectedErr returns the refusal to remove an operand ending in dot or

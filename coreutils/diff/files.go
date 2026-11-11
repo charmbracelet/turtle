@@ -8,7 +8,6 @@ import (
 	"io"
 	"io/fs"
 	"path"
-	"path/filepath"
 	"strings"
 	"time"
 
@@ -263,7 +262,7 @@ func (p *Prog) loadExcludes(ctx context.Context, opts *options) error {
 		if p.FS == nil {
 			return errNoFS
 		}
-		f, err := p.FS.Open(filepath.ToSlash(p.ResolvePath(name)))
+		f, err := p.FS.Open(p.FsName(name))
 		if err != nil {
 			return &pathError{label: name, err: err}
 		}

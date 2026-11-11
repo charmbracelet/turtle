@@ -178,7 +178,7 @@ func (p *Prog) openNohupOut() (fsx.File, string, error) {
 		return nil, "", &coreutils.ExitError{Code: 125}
 	}
 	const name = "nohup.out"
-	f, localErr := p.openAppend(filepath.ToSlash(p.ResolvePath(name)))
+	f, localErr := p.openAppend(p.FsName(name))
 	homeErr := error(nil)
 	homeName := ""
 	if localErr != nil {

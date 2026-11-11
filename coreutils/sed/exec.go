@@ -183,7 +183,7 @@ func (s *source) open(name string) (io.ReadCloser, error) {
 	if s.p.FS == nil {
 		return nil, errors.New("no file system available")
 	}
-	f, err := s.p.FS.Open(s.p.path(name))
+	f, err := s.p.FS.Open(s.p.FsName(name))
 	if err != nil {
 		return nil, fmt.Errorf("can't read %s: %v", name, patherr.Unwrap(err))
 	}
@@ -292,7 +292,7 @@ func (p *Prog) editInPlace(ctx context.Context, cmds []*command, name string, o 
 	if p.FS == nil {
 		return runResult{}, errors.New("no file system available")
 	}
-	target := p.path(name)
+	target := p.FsName(name)
 	if o.followSymlinks {
 		target = p.followSymlink(target)
 	}
@@ -333,7 +333,7 @@ func (p *Prog) editInPlace(ctx context.Context, cmds []*command, name string, o 
 func (p *Prog) backupPath(name, target, suffix string) (string, string) {
 	if strings.Contains(suffix, "*") {
 		display := strings.ReplaceAll(suffix, "*", name)
-		return p.path(display), display
+		return p.FsName(display), display
 	}
 	return target + suffix, name + suffix
 }
@@ -912,7 +912,7 @@ func (r *runner) writeReader(name string) error {
 	if r.p.FS == nil {
 		return nil
 	}
-	f, err := r.p.FS.Open(r.p.path(name))
+	f, err := r.p.FS.Open(r.p.FsName(name))
 	if err != nil {
 		return nil
 	}
@@ -959,7 +959,7 @@ func (r *runner) openFileLine(name string) *rfile {
 	if r.p.FS == nil {
 		return &rfile{done: true}
 	}
-	f, err := r.p.FS.Open(r.p.path(name))
+	f, err := r.p.FS.Open(r.p.FsName(name))
 	if err != nil {
 		return &rfile{done: true} // a missing file is an empty one
 	}
@@ -998,7 +998,7 @@ func (r *runner) openWriters() error {
 			if r.p.FS == nil {
 				return errors.New("no file system available")
 			}
-			f, err := r.p.FS.OpenFile(r.p.path(name), os.O_WRONLY|os.O_CREATE|os.O_TRUNC, 0o666&^r.p.Umask.Perm())
+			f, err := r.p.FS.OpenFile(r.p.FsName(name), os.O_WRONLY|os.O_CREATE|os.O_TRUNC, 0o666&^r.p.Umask.Perm())
 			if err != nil {
 				return fmt.Errorf("can't create %s: %v", name, patherr.Unwrap(err))
 			}

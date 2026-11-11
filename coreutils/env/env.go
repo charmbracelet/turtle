@@ -14,8 +14,6 @@ import (
 	"errors"
 	"fmt"
 	"io/fs"
-	"path"
-	"path/filepath"
 	"strings"
 
 	"charm.land/snail/coreutils"
@@ -147,7 +145,7 @@ func parseFlags(args []string) (settings, []string, error) {
 // chdir changes the directory the utility runs in, checking that it is a
 // directory first.
 func (p *Prog) chdir(dir string) error {
-	resolved := path.Clean(filepath.ToSlash(p.ResolvePath(dir)))
+	resolved := p.FsPath(dir)
 	fi, err := fs.Stat(p.FS, resolved)
 	if err != nil {
 		p.errorf("cannot change directory to %s: %v", dir, patherr.Unwrap(err))

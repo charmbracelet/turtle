@@ -25,8 +25,6 @@ import (
 	"context"
 	"fmt"
 	"io/fs"
-	"path"
-	"path/filepath"
 
 	"charm.land/snail/coreutils"
 	"charm.land/snail/coreutils/internal/getopt"
@@ -208,7 +206,7 @@ func chooseFormat(opts options) (format string, escapes, given bool) {
 // by an operand, reporting failure when it can't be read.
 func (p *Prog) statOf(name string, opts options) (fileStat, bool) {
 	st := fileStat{name: name}
-	path := path.Clean(filepath.ToSlash(p.ResolvePath(name)))
+	path := p.FsPath(name)
 	var fi fs.FileInfo
 	var err error
 	if opts.deref {

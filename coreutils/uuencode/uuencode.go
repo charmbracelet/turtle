@@ -12,7 +12,6 @@ import (
 	"fmt"
 	"io"
 	"io/fs"
-	"path/filepath"
 
 	"charm.land/snail/coreutils"
 	"charm.land/snail/coreutils/internal/basex"
@@ -130,7 +129,7 @@ func (p *Prog) open(in input.Input) (io.ReadCloser, fs.FileMode, error) {
 	if p.FS == nil {
 		return nil, 0, errors.New("no file system available")
 	}
-	f, err := p.FS.Open(filepath.ToSlash(p.ResolvePath(in.Name)))
+	f, err := p.FS.Open(p.FsName(in.Name))
 	if err != nil {
 		return nil, 0, err
 	}

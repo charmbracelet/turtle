@@ -8,7 +8,6 @@ import (
 	"io/fs"
 	"os/user"
 	"path"
-	"path/filepath"
 	"strings"
 
 	"charm.land/snail/coreutils"
@@ -129,7 +128,7 @@ func (p *Prog) target(opts options, operands []string) (ownership, []string, err
 // referenceTarget returns the owner and group of the reference file, which a
 // symbolic link reference doesn't stand for, as GNU asks.
 func (p *Prog) referenceTarget(name string) (ownership, error) {
-	resolved := path.Clean(filepath.ToSlash(p.ResolvePath(name)))
+	resolved := p.FsPath(name)
 	fi, err := fs.Stat(p.FS, resolved)
 	if err != nil {
 		return ownership{}, err
@@ -155,7 +154,7 @@ func (p *Prog) preserveRoot(opts options, files []string) error {
 		return nil
 	}
 	for _, file := range files {
-		name := path.Clean(filepath.ToSlash(p.ResolvePath(file)))
+		name := p.FsPath(file)
 		if name == "/" {
 			return p.refuseRoot()
 		}
@@ -191,7 +190,7 @@ func (p *Prog) refuseRoot() error {
 // for every file it fails to change. It reports whether any file failed, and
 // only returns an error when the run must be aborted.
 func (p *Prog) chown(ctx context.Context, operand string, target ownership, opts options, cfs fsx.ChownFS) (bool, error) {
-	root := path.Clean(filepath.ToSlash(p.ResolvePath(operand)))
+	root := p.FsPath(operand)
 	return p.visit(ctx, operand, root, root, target, opts, true, make(map[string]bool), cfs)
 }
 
