@@ -72,10 +72,22 @@ func testFS() fsx.MemFS {
 	}
 }
 
-// header returns the expected five-line page header for a fixture file.
+// header returns the expected five-line page header for a fixture file: the
+// GNU layout, with the date at the left, the file name centered and the page
+// number at the right, padded to the page width.
 func header(name string, page int) string {
-	return fmt.Sprintf("\n\n%s %s Page %d\n\n\n",
-		modTime.In(time.Local).Format("Jan _2 15:04 2006"), name, page)
+	return headerOffset(name, page, 0)
+}
+
+// headerOffset returns the expected header with the given left margin.
+func headerOffset(name string, page, offset int) string {
+	date := modTime.In(time.Local).Format("2006-01-02 15:04")
+	pageStr := fmt.Sprintf("Page %d", page)
+	avail := max(defWidth-len(date)-len(name)-len(pageStr), 0)
+	lhs, rhs := avail/2, avail-avail/2
+	margin := strings.Repeat(" ", offset)
+	return margin + "\n\n" + margin + date + strings.Repeat(" ", lhs) + name +
+		strings.Repeat(" ", rhs) + pageStr + "\n\n\n"
 }
 
 // padded returns the page content followed by the newlines that fill the
@@ -103,6 +115,7 @@ type testCase struct {
 	fsys     fsx.FS
 	dir      string
 	args     []string
+	environ  []string
 	want     string
 	wantErr  string
 	wantExit int
@@ -119,6 +132,9 @@ func runCase(t *testing.T, test testCase) {
 		Stderr:     stderr,
 		FS:         test.fsys,
 		WorkingDir: test.dir,
+		Environ: func() []string {
+			return test.environ
+		},
 	}
 	err := New(rt).Run(t.Context(), test.args...)
 
@@ -282,10 +298,10 @@ func TestRunPages(t *testing.T) {
 				header("lorem.txt", 2) + "dolor\n\f",
 		},
 		{
-			name: "-t -F terminates each page with a form feed",
+			name: "-t -F is a no-op for the page separator",
 			fsys: testFS(),
 			args: []string{"-t", "-F", "-l", "2", "lorem.txt"},
-			want: "lorem\nipsum\n\f" + "dolor\n\f",
+			want: "lorem\nipsum\ndolor\n",
 		},
 		{
 			name: "-h replaces the file name in the header",
@@ -316,13 +332,6 @@ func TestRunPages(t *testing.T) {
 			runCase(t, test)
 		})
 	}
-}
-
-// headerOffset returns the expected header with the given left margin.
-func headerOffset(name string, page, offset int) string {
-	return fmt.Sprintf("\n\n%s%s %s Page %d\n\n\n",
-		strings.Repeat(" ", offset),
-		modTime.In(time.Local).Format("Jan _2 15:04 2006"), name, page)
 }
 
 func TestRunNumbers(t *testing.T) {
@@ -359,10 +368,10 @@ func TestRunNumbers(t *testing.T) {
 				"    1\ta\n    2\tb\n    3\tc\n    4\td\n    5\te\n",
 		},
 		{
-			name: "+page numbers the printed lines",
+			name: "+page numbers the lines of the input, not the printed page",
 			fsys: testFS(),
 			args: []string{"-t", "+2", "-l", "2", "-n", "lorem.txt"},
-			want: "    1\tdolor\n",
+			want: "    3\tdolor\n",
 		},
 	}
 	for _, test := range tests {
@@ -412,7 +421,7 @@ func TestRunColumns(t *testing.T) {
 			name: "-s separates columns without padding",
 			fsys: testFS(),
 			args: []string{"-t", "-2", "-s|", "odd.txt"},
-			want: "a|d\nb|e\nc|\n",
+			want: "a|d\nb|e\nc\n",
 		},
 		{
 			name: "-s with a tab contracts back to tab stops",
@@ -434,7 +443,7 @@ func TestRunColumns(t *testing.T) {
 			name: "a partial page is rebalanced",
 			fsys: testFS(),
 			args: []string{"-t", "-2", "-l", "4", "blanks.txt"},
-			want: "a\n\t\t\t\t    b\n",
+			want: "a\t\t\t\t    \n\t\t\t\t    b\n",
 		},
 		{
 			name: "a nearly full page is not rebalanced",
@@ -504,22 +513,37 @@ func TestRunMerge(t *testing.T) {
 			want: " 1.a\t\t\t\t      lorem\n" +
 				" 2.b\t\t\t\t      ipsum\n" +
 				" 3.c\t\t\t\t      dolor\n" +
-				" 4.d\n" +
-				" 5.e\n",
+				" 4.d\t\t\t\t      \n" +
+				" 5.e\t\t\t\t      \n",
 		},
 		{
-			name: "a short trailing file drops its columns",
+			name: "the columns of an ended file keep their padding",
 			fsys: testFS(),
 			args: []string{"-t", "-m", "odd.txt", "nonl.txt"},
 			want: "a\t\t\t\t    lorem\n" +
 				"b\t\t\t\t    ipsum\n" +
-				"c\n" + "d\n" + "e\n",
+				"c\t\t\t\t    \n" +
+				"d\t\t\t\t    \n" +
+				"e\t\t\t\t    \n",
 		},
 		{
 			name: "merging one file is single column output",
 			fsys: testFS(),
 			args: []string{"-t", "-m", "lorem.txt"},
 			want: "lorem\nipsum\ndolor\n",
+		},
+		{
+			name: "the merged header has a blank middle",
+			fsys: testFS(),
+			args: []string{"-m", "-l", "12", "-D", "DATE", "lorem.txt", "odd.txt"},
+			want: "\n\nDATE" + strings.Repeat(" ", 62) + "Page 1\n\n\n" +
+				"lorem\t\t\t\t    a\nipsum\t\t\t\t    b\n" +
+				strings.Repeat("\n", 7) +
+				"DATE" + strings.Repeat(" ", 62) + "Page 2\n\n\n" +
+				"dolor\t\t\t\t    c\n\t\t\t\t    d\n" +
+				strings.Repeat("\n", 7) +
+				"DATE" + strings.Repeat(" ", 62) + "Page 3\n\n\n" +
+				"\t\t\t\t    e\n" + strings.Repeat("\n", 6),
 		},
 		{
 			name: "merged files that are all empty produce no output",
@@ -610,7 +634,7 @@ func TestRunErrors(t *testing.T) {
 		{
 			name:     "an invalid page number",
 			args:     []string{"+0"},
-			wantErr:  "pr: +page number must be 1 or more\nTry 'pr --help' for more information.\n",
+			wantErr:  "pr: invalid page range '0'\nTry 'pr --help' for more information.\n",
 			wantExit: 1,
 		},
 		{
@@ -684,6 +708,72 @@ func TestRunErrors(t *testing.T) {
 			fsys:     testFS(),
 			args:     []string{"-t", "-3", "-w", "2", "lorem.txt"},
 			wantErr:  "pr: page width too narrow\nTry 'pr --help' for more information.\n",
+			wantExit: 1,
+		},
+		{
+			name:     "an unknown long option",
+			args:     []string{"--bogus"},
+			wantErr:  "pr: unrecognized option '--bogus'\nTry 'pr --help' for more information.\n",
+			wantExit: 1,
+		},
+		{
+			name:     "a long option without its argument",
+			args:     []string{"--width"},
+			wantErr:  "pr: option '--width' requires an argument\nTry 'pr --help' for more information.\n",
+			wantExit: 1,
+		},
+		{
+			name:     "a long option which takes no argument",
+			args:     []string{"--across=1"},
+			wantErr:  "pr: option '--across=1' doesn't allow an argument\nTry 'pr --help' for more information.\n",
+			wantExit: 1,
+		},
+		{
+			name:     "--pages without a range",
+			args:     []string{"--pages"},
+			wantErr:  "pr: option '--pages' requires an argument\nTry 'pr --help' for more information.\n",
+			wantExit: 1,
+		},
+		{
+			name:     "a negative page range",
+			args:     []string{"--pages=1:-1"},
+			wantErr:  "pr: invalid page range '1:-1'\nTry 'pr --help' for more information.\n",
+			wantExit: 1,
+		},
+		{
+			name:     "a decreasing page range",
+			args:     []string{"+2:1"},
+			wantErr:  "pr: invalid page range '2:1'\nTry 'pr --help' for more information.\n",
+			wantExit: 1,
+		},
+		{
+			name:     "a non numeric page range",
+			args:     []string{"+2:x"},
+			wantErr:  "pr: invalid page range '2:x'\nTry 'pr --help' for more information.\n",
+			wantExit: 1,
+		},
+		{
+			name:     "an invalid starting line number",
+			args:     []string{"-N", "x"},
+			wantErr:  "pr: invalid starting line number: 'x'\nTry 'pr --help' for more information.\n",
+			wantExit: 1,
+		},
+		{
+			name:     "an invalid -W width",
+			args:     []string{"-W", "0"},
+			wantErr:  "pr: -W width must be 1 or more: '0'\nTry 'pr --help' for more information.\n",
+			wantExit: 1,
+		},
+		{
+			name:     "a long separator without its argument",
+			args:     []string{"--separator"},
+			wantErr:  "pr: option '--separator' requires an argument\nTry 'pr --help' for more information.\n",
+			wantExit: 1,
+		},
+		{
+			name:     "an invalid column count",
+			args:     []string{"--columns=0"},
+			wantErr:  "pr: invalid number of columns: '0'\nTry 'pr --help' for more information.\n",
 			wantExit: 1,
 		},
 		{
@@ -829,4 +919,409 @@ func TestHelpVersion(t *testing.T) {
 			t.Errorf("Run() stdout = %q, want %q", got, want)
 		}
 	})
+}
+
+func TestRunShowChars(t *testing.T) {
+	tests := []testCase{
+		{
+			name:  "-c prints control characters in hat notation",
+			stdin: strings.NewReader("a\x07b\x7f\n"),
+			args:  []string{"-t", "-c"},
+			want:  "a^Gb^?\n",
+		},
+		{
+			name:  "-c prints other nonprinting characters in octal",
+			stdin: strings.NewReader("a\xc3b\n"),
+			args:  []string{"-t", "-c"},
+			want:  "a\\303b\n",
+		},
+		{
+			name:  "-c keeps tabs as they are",
+			stdin: strings.NewReader("a\tb\n"),
+			args:  []string{"-t", "-c"},
+			want:  "a\tb\n",
+		},
+		{
+			name:  "-v prints nonprinting characters in octal",
+			stdin: strings.NewReader("a\x07b\n"),
+			args:  []string{"-t", "-v"},
+			want:  "a\\007b\n",
+		},
+		{
+			name:  "-v keeps tabs as they are",
+			stdin: strings.NewReader("a\tb\n"),
+			args:  []string{"-t", "-v"},
+			want:  "a\tb\n",
+		},
+		{
+			name:  "-v counts the octal escapes towards the column width",
+			stdin: strings.NewReader("a\x07b\n"),
+			args:  []string{"-t", "-W4", "-v"},
+			want:  "a\n",
+		},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			runCase(t, test)
+		})
+	}
+}
+
+func TestRunDateFormat(t *testing.T) {
+	tests := []testCase{
+		{
+			name: "-D formats the header date as date +FORMAT does",
+			fsys: testFS(),
+			args: []string{"-l", "12", "-D", "Year %Y", "lorem.txt"},
+			want: "\n\nYear 2020                        lorem.txt" +
+				"                        Page 1\n\n\n" + padded("lorem\nipsum\n", 2, 2) +
+				"\n\nYear 2020                        lorem.txt" +
+				"                        Page 2\n\n\n" + padded("dolor\n", 2, 1),
+		},
+		{
+			name: "-D accepts a literal text in place of the date",
+			fsys: testFS(),
+			args: []string{"-l", "12", "-D", "-- Date/Time --", "lorem.txt"},
+			want: "\n\n-- Date/Time --                     lorem.txt" +
+				"                     Page 1\n\n\n" + padded("lorem\nipsum\n", 2, 2) +
+				"\n\n-- Date/Time --                     lorem.txt" +
+				"                     Page 2\n\n\n" + padded("dolor\n", 2, 1),
+		},
+		{
+			name:    "POSIXLY_CORRECT gives the POSIX date layout",
+			fsys:    testFS(),
+			args:    []string{"-l", "12", "lorem.txt"},
+			environ: []string{"POSIXLY_CORRECT=1"},
+			want: "\n\nJan  2 03:04 2020                    lorem.txt" +
+				"                    Page 1\n\n\n" + padded("lorem\nipsum\n", 2, 2) +
+				"\n\nJan  2 03:04 2020                    lorem.txt" +
+				"                    Page 2\n\n\n" + padded("dolor\n", 2, 1),
+		},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			runCase(t, test)
+		})
+	}
+}
+
+func TestRunJoin(t *testing.T) {
+	tests := []testCase{
+		{
+			name: "-J joins full lines with the default separator",
+			fsys: testFS(),
+			args: []string{"-t", "-2", "-J", "odd.txt"},
+			want: "a\td\nb\te\nc\n",
+		},
+		{
+			name: "-J keeps the -S separator",
+			fsys: testFS(),
+			args: []string{"-t", "-2", "-J", "-S::", "odd.txt"},
+			want: "a::d\nb::e\nc\n",
+		},
+		{
+			name: "-J turns off the -W truncation",
+			fsys: testFS(),
+			args: []string{"-t", "-W", "10", "-J", "-2", "odd.txt"},
+			want: "a\td\nb\te\nc\n",
+		},
+		{
+			name: "-J with -m joins the lines of the files",
+			fsys: testFS(),
+			args: []string{"-t", "-J", "-m", "lorem.txt", "odd.txt"},
+			want: "lorem\ta\nipsum\tb\ndolor\tc\n\td\n\te\n",
+		},
+		{
+			name:  "-J with -m joins the lines of the standard input",
+			stdin: strings.NewReader("a\nb\n"),
+			args:  []string{"-t", "--join-lines", "--merge"},
+			want:  "a\nb\n",
+		},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			runCase(t, test)
+		})
+	}
+}
+
+func TestRunFirstLineNumber(t *testing.T) {
+	tests := []testCase{
+		{
+			name: "-N starts the numbering at the given number",
+			fsys: testFS(),
+			args: []string{"-t", "-n", "-N", "10", "lorem.txt"},
+			want: "   10\tlorem\n   11\tipsum\n   12\tdolor\n",
+		},
+		{
+			name: "-N may be negative",
+			fsys: testFS(),
+			args: []string{"-t", "-n", "-N", "-1", "lorem.txt"},
+			want: "   -1\tlorem\n    0\tipsum\n    1\tdolor\n",
+		},
+		{
+			name: "-N overflows keeping the low-order digits",
+			fsys: testFS(),
+			args: []string{"-t", "-n2", "-N", "98", "ten.txt"},
+			want: "98\t1\n99\t2\n00\t3\n01\t4\n02\t5\n03\t6\n04\t7\n05\t8\n06\t9\n07\t10\n",
+		},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			runCase(t, test)
+		})
+	}
+}
+
+func TestRunSepString(t *testing.T) {
+	tests := []testCase{
+		{
+			name: "-S separates the columns with a string",
+			fsys: testFS(),
+			args: []string{"-t", "-2", "-S::", "odd.txt"},
+			want: "a\t\t\t\t   ::d\nb\t\t\t\t   ::e\nc\n",
+		},
+		{
+			name: "-S keeps the column alignment and truncation",
+			fsys: testFS(),
+			args: []string{"-t", "-2", "-S::", "long.txt"},
+			want: strings.Repeat("x", 35) + "\n",
+		},
+		{
+			name: "a bare -S gives an empty separator",
+			fsys: testFS(),
+			args: []string{"-t", "-2", "-S", "odd.txt"},
+			want: "a\t\t\t\t    d\nb\t\t\t\t    e\nc\n",
+		},
+		{
+			name: "-S dominates a later -s",
+			fsys: testFS(),
+			args: []string{"-t", "-2", "-S::", "-s|", "odd.txt"},
+			want: "a\t\t\t\t   ::d\nb\t\t\t\t   ::e\nc\n",
+		},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			runCase(t, test)
+		})
+	}
+}
+
+func TestRunOmitPagination(t *testing.T) {
+	tests := []testCase{
+		{
+			name:  "-T ignores a form feed in the middle of a line",
+			stdin: strings.NewReader("a\fb\n"),
+			args:  []string{"-t", "-T"},
+			want:  "ab\n",
+		},
+		{
+			name:  "-T drops a form feed with its newline",
+			stdin: strings.NewReader("a\n\f\nb\n"),
+			args:  []string{"-t", "-T"},
+			want:  "a\nb\n",
+		},
+		{
+			name:  "-t keeps a form feed in the middle of a line",
+			stdin: strings.NewReader("a\fb\n"),
+			args:  []string{"-t"},
+			want:  "a\n\fb\n",
+		},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			runCase(t, test)
+		})
+	}
+}
+
+func TestRunPageWidth(t *testing.T) {
+	tests := []testCase{
+		{
+			name: "-W truncates single column lines",
+			fsys: testFS(),
+			args: []string{"-t", "-W", "10", "long.txt"},
+			want: strings.Repeat("x", 10) + "\n",
+		},
+		{
+			name: "-w does not truncate single column lines",
+			fsys: testFS(),
+			args: []string{"-t", "-w", "10", "long.txt"},
+			want: strings.Repeat("x", 80) + "\n",
+		},
+		{
+			name: "a later -w turns the truncation off, as GNU pr does",
+			fsys: testFS(),
+			args: []string{"-t", "-W", "10", "-w", "40", "long.txt"},
+			want: strings.Repeat("x", 80) + "\n",
+		},
+		{
+			name: "-W truncates the lines numbered with -n",
+			fsys: testFS(),
+			args: []string{"-t", "-W", "10", "-n2", "long.txt"},
+			want: " 1\t" + strings.Repeat("x", 2) + "\n",
+		},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			runCase(t, test)
+		})
+	}
+}
+
+func TestRunPageRanges(t *testing.T) {
+	tests := []testCase{
+		{
+			name: "+FIRST:LAST stops with the last page",
+			fsys: testFS(),
+			args: []string{"+2:3", "-l", "12", "lorem.txt"},
+			want: header("lorem.txt", 2) + padded("dolor\n", 2, 1),
+		},
+		{
+			name: "--pages selects the same range",
+			fsys: testFS(),
+			args: []string{"--pages=2:2", "-l", "12", "lorem.txt"},
+			want: header("lorem.txt", 2) + padded("dolor\n", 2, 1),
+		},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			runCase(t, test)
+		})
+	}
+}
+
+func TestRunLongOptions(t *testing.T) {
+	tests := []testCase{
+		{
+			name: "the long forms of the page layout options",
+			fsys: testFS(),
+			args: []string{
+				"--omit-header", "--columns=2", "--sep-string=|",
+				"--length=8", "ten.txt",
+			},
+			want: "1\t\t\t\t   |6\n2\t\t\t\t   |7\n3\t\t\t\t   |8\n" +
+				"4\t\t\t\t   |9\n5\t\t\t\t   |10\n",
+		},
+		{
+			name: "the long forms of the merge options",
+			fsys: testFS(),
+			args: []string{
+				"--merge", "--omit-header", "--number-lines=.2",
+				"--indent=2", "odd.txt",
+			},
+			want: "   1.a\n   2.b\n   3.c\n   4.d\n   5.e\n",
+		},
+		{
+			name: "the long forms of the tab options",
+			fsys: testFS(),
+			args: []string{"-t", "--expand-tabs=4", "tabs.txt"},
+			want: "a   b\n",
+		},
+		{
+			name: "the long form of the double spacing option",
+			fsys: testFS(),
+			args: []string{"-t", "--double-space", "lorem.txt"},
+			want: "lorem\n\nipsum\n\ndolor\n\n",
+		},
+		{
+			name: "the long form of the form feed option",
+			fsys: testFS(),
+			args: []string{"--form-feed", "--length=12", "lorem.txt"},
+			want: header("lorem.txt", 1) + "lorem\nipsum\n\f" +
+				header("lorem.txt", 2) + "dolor\n\f",
+		},
+		{
+			name: "the long form of the header option",
+			fsys: testFS(),
+			args: []string{"--header=My Header", "-l", "12", "lorem.txt"},
+			want: header("My Header", 1) + padded("lorem\nipsum\n", 2, 2) +
+				header("My Header", 2) + padded("dolor\n", 2, 1),
+		},
+		{
+			name:     "the long form of the warnings option",
+			fsys:     testFS(),
+			args:     []string{"--no-file-warnings", "-t", "missing.txt", "lorem.txt"},
+			want:     "lorem\nipsum\ndolor\n",
+			wantExit: 1,
+		},
+		{
+			name: "long options take their argument in the next argument",
+			fsys: testFS(),
+			args: []string{"--length", "12", "lorem.txt"},
+			want: header("lorem.txt", 1) + padded("lorem\nipsum\n", 2, 2) +
+				header("lorem.txt", 2) + padded("dolor\n", 2, 1),
+		},
+		{
+			name: "--header takes its argument in the next argument",
+			fsys: testFS(),
+			args: []string{"--header", "My Header", "--length", "12", "lorem.txt"},
+			want: header("My Header", 1) + padded("lorem\nipsum\n", 2, 2) +
+				header("My Header", 2) + padded("dolor\n", 2, 1),
+		},
+		{
+			name: "--pages takes its range in the next argument",
+			fsys: testFS(),
+			args: []string{"--pages", "2:2", "--length", "12", "lorem.txt"},
+			want: header("lorem.txt", 2) + padded("dolor\n", 2, 1),
+		},
+		{
+			name: "--width takes its value in the next argument",
+			fsys: testFS(),
+			args: []string{"-t", "--width", "10", "long.txt"},
+			want: strings.Repeat("x", 80) + "\n",
+		},
+		{
+			name: "--columns takes its count in the next argument",
+			fsys: testFS(),
+			args: []string{"-t", "--columns", "2", "odd.txt"},
+			want: "a\t\t\t\t    d\nb\t\t\t\t    e\nc\n",
+		},
+		{
+			name: "--separator takes its character in the next argument",
+			fsys: testFS(),
+			args: []string{"-t", "--separator", "|", "--columns", "2", "odd.txt"},
+			want: "a|d\nb|e\nc\n",
+		},
+		{
+			name: "--first-line-number takes its value in the next argument",
+			fsys: testFS(),
+			args: []string{"-t", "-n", "--first-line-number", "10", "lorem.txt"},
+			want: "   10\tlorem\n   11\tipsum\n   12\tdolor\n",
+		},
+		{
+			name: "--date-format takes its format in the next argument",
+			fsys: testFS(),
+			args: []string{"--date-format", "Year %Y", "-l", "12", "lorem.txt"},
+			want: "\n\nYear 2020                        lorem.txt" +
+				"                        Page 1\n\n\n" + padded("lorem\nipsum\n", 2, 2) +
+				"\n\nYear 2020                        lorem.txt" +
+				"                        Page 2\n\n\n" + padded("dolor\n", 2, 1),
+		},
+		{
+			name: "--indent takes its margin in the next argument",
+			fsys: testFS(),
+			args: []string{"--indent", "4", "-l", "12", "odd.txt"},
+			want: headerOffset("odd.txt", 1, 4) + padded("    a\n    b\n", 2, 2) +
+				headerOffset("odd.txt", 2, 4) + padded("    c\n    d\n", 2, 2) +
+				headerOffset("odd.txt", 3, 4) + padded("    e\n", 2, 1),
+		},
+		{
+			name: "the long form of the printing across option",
+			fsys: testFS(),
+			args: []string{"-t", "--across", "--columns=2", "odd.txt"},
+			want: "a\t\t\t\t    b\nc\t\t\t\t    d\ne\n",
+		},
+		{
+			name: "the long form of the width option",
+			fsys: testFS(),
+			args: []string{"-t", "--page-width=10", "long.txt"},
+			want: strings.Repeat("x", 10) + "\n",
+		},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			runCase(t, test)
+		})
+	}
 }

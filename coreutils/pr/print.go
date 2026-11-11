@@ -14,6 +14,7 @@ import (
 
 	"charm.land/snail/coreutils/internal/ctxio"
 	"charm.land/snail/coreutils/internal/patherr"
+	"charm.land/snail/coreutils/internal/strftime"
 )
 
 // printer paginates and prints the input files.
@@ -108,17 +109,19 @@ func (p *printer) openSource(ctx context.Context, name string) (*source, error) 
 	// The header shows the file's modification time, or the current time
 	// for the standard input and for merged output.
 	if !p.opts.noHead {
+		var t time.Time
 		switch {
 		case p.opts.merged || stdin:
-			src.date = p.prog.now().Format(dateLayout)
+			t = p.prog.now()
 		default:
 			fi, err := src.file.Stat()
 			if err != nil {
 				src.rc.Close()
 				return nil, err
 			}
-			src.date = fi.ModTime().In(p.prog.location()).Format(dateLayout)
+			t = fi.ModTime().In(p.prog.location())
 		}
+		src.date = strftime.Format(p.opts.dateFmt, t)
 	}
 
 	switch {
@@ -147,61 +150,118 @@ func srcLabel(name string) string {
 
 // source is an input file being printed.
 type source struct {
-	label string // operand name, for diagnostics
-	disp  string // header field
-	date  string // header date
-	file  fs.File
-	rc    io.ReadCloser
-	br    *bufio.Reader
-	alive bool // merge: the file still has data
+	label    string // operand name, for diagnostics
+	disp     string // header field
+	date     string // header date
+	file     fs.File
+	rc       io.ReadCloser
+	br       *bufio.Reader
+	alive    bool // merge: the file still has data
+	held     bool // merge: a form feed holds the file until the next page
+	fullPage bool // the last page read filled the body exactly
 }
 
-// next returns the next input line, expanded and truncated to the column
+// line is one input line, terminated by a newline or by a form feed.
+type line struct {
+	text []byte
+	ff   bool // terminated by a form feed: a page break follows the line
+}
+
+// next returns the next input line, processed for the output: tabs expanded,
+// nonprinting characters converted, and the text truncated to the column
 // width. ok is false at the end of the file.
-func (s *source) next(ctx context.Context, o *options) ([]byte, bool, error) {
+//
+// A line terminated by a form feed, including an empty one, carries ff,
+// meaning the current page ends after it. With -T, form feeds are ignored
+// instead. A form feed which follows a page the input filled exactly, as the
+// one right after a full page, is dropped.
+func (s *source) next(ctx context.Context, o *options) (line, bool, error) {
 	if err := ctx.Err(); err != nil {
-		return nil, false, err
+		return line{}, false, err
 	}
-	line, err := s.br.ReadBytes('\n')
-	if err != nil && !errors.Is(err, io.EOF) {
-		return nil, false, err
+	if s.fullPage {
+		s.fullPage = false
+		s.dropFF()
 	}
-	if len(line) == 0 {
-		return nil, false, nil
-	}
-	if line[len(line)-1] == '\n' {
-		line = line[:len(line)-1]
-	}
-	return expandLine(line, o), true, nil
-}
-
-// skipLines discards n lines, reporting false if the file ended first.
-func (s *source) skipLines(ctx context.Context, n int) (bool, error) {
-	for ; n > 0; n-- {
-		if err := ctx.Err(); err != nil {
-			return false, err
-		}
-		line, err := s.br.ReadBytes('\n')
-		if err != nil {
-			if errors.Is(err, io.EOF) {
-				return len(line) > 0 && n == 1, nil
+	var text []byte
+	for {
+		c, err := s.br.ReadByte()
+		if err == io.EOF {
+			if len(text) == 0 {
+				return line{}, false, nil
 			}
-			return false, err
+			return line{text: processLine(text, o)}, true, nil
+		}
+		if err != nil {
+			return line{}, false, err
+		}
+		switch c {
+		case '\n':
+			return line{text: processLine(text, o)}, true, nil
+		case '\f':
+			// A newline right after a form feed belongs to it.
+			if b, err := s.br.Peek(1); err == nil && b[0] == '\n' {
+				s.br.ReadByte()
+			}
+			if o.omitPag {
+				continue
+			}
+			return line{text: processLine(text, o), ff: true}, true, nil
+		default:
+			text = append(text, c)
 		}
 	}
-	return true, nil
 }
 
-// expandLine expands the input tab characters of the line and truncates it
-// to the column width in columns.
-func expandLine(line []byte, o *options) []byte {
-	if !o.expand && o.colWidth == 0 {
-		return line
+// dropFF discards a form feed which follows a full page, and the newline
+// that may follow it.
+func (s *source) dropFF() {
+	b, err := s.br.Peek(1)
+	if err != nil || b[0] != '\f' {
+		return
 	}
-	width := o.colWidth
-	out := make([]byte, 0, len(line)+defGap)
+	s.br.ReadByte()
+	if b, err := s.br.Peek(1); err == nil && b[0] == '\n' {
+		s.br.ReadByte()
+	}
+}
+
+// skipPages discards n pages of the source, where a page holds lines lines
+// and ends early at a form feed. It returns the number of lines read, for
+// the line numbering, and false when the source ended first.
+func (s *source) skipPages(ctx context.Context, o *options, n, lines int) (int, bool, error) {
+	read := 0
+	for ; n > 0; n-- {
+		full := true
+		for range lines {
+			ln, ok, err := s.next(ctx, o)
+			if err != nil {
+				return 0, false, err
+			}
+			if !ok {
+				return read, false, nil
+			}
+			// A lone form feed doesn't count as a line.
+			if len(ln.text) > 0 || !ln.ff {
+				read++
+			}
+			if ln.ff {
+				full = false
+				break
+			}
+		}
+		s.fullPage = full
+	}
+	return read, true, nil
+}
+
+// processLine expands the input tab characters, converts the nonprinting
+// characters of -c and -v, and truncates the line to the column width.
+func processLine(text []byte, o *options) []byte {
+	width := o.textBudget
+	out := make([]byte, 0, len(text)+defGap)
 	col := 0
-	for _, c := range line {
+	for _, c := range text {
 		if o.expand && c == o.inChar {
 			n := o.inGap - col%o.inGap
 			if width > 0 && col+n > width {
@@ -213,27 +273,47 @@ func expandLine(line []byte, o *options) []byte {
 			col += n
 			continue
 		}
-		if width > 0 && col >= width {
+		clump, w := showChar(c, o)
+		if width > 0 && col+w > width {
 			break
 		}
-		out = append(out, c)
-		col++
+		out = append(out, clump...)
+		col += w
 	}
 	return out
+}
+
+// showChar returns the output form of one input character and its width in
+// columns, honoring -c and -v. A TAB is kept as is; it's expanded by
+// processLine when the option requires it.
+func showChar(c byte, o *options) ([]byte, int) {
+	if c == '\t' || (c >= 0x20 && c < 0x7f) {
+		return []byte{c}, 1
+	}
+	if o.showEsc {
+		return []byte(fmt.Sprintf("\\%03o", c)), 4
+	}
+	if o.showCtrl {
+		if c < 0x80 {
+			return []byte{'^', c ^ 0x40}, 2
+		}
+		return []byte(fmt.Sprintf("\\%03o", c)), 4
+	}
+	return []byte{c}, 1
 }
 
 // singleFile prints one file in the default single-column mode.
 func (p *printer) singleFile(ctx context.Context, src *source) error {
 	o := &p.opts
-	if ok, err := src.skipLines(ctx, (o.page-1)*o.bodyLines); err != nil || !ok {
+	skipped, ok, err := src.skipPages(ctx, o, o.page-1, o.bodyLines)
+	if err != nil || !ok {
 		return err
 	}
-	page, lineNo := o.page, 0
+	page, lineNo := o.page, o.startLineNo(skipped)
 	for {
-		count := 0
-		done := false
+		count, done, broke, headed := 0, false, false, false
 		for count < o.bodyLines {
-			line, ok, err := src.next(ctx, o)
+			ln, ok, err := src.next(ctx, o)
 			if err != nil {
 				return err
 			}
@@ -241,25 +321,59 @@ func (p *printer) singleFile(ctx context.Context, src *source) error {
 				done = true
 				break
 			}
-			if count == 0 && !o.noHead {
+			if len(ln.text) == 0 && ln.ff {
+				// A lone form feed ends the page, which still carries
+				// one blank line and the header.
+				if count == 0 && !o.noHead {
+					if err := p.header(page, src.disp, src.date); err != nil {
+						return err
+					}
+					if err := p.writeLine(nil); err != nil {
+						return err
+					}
+					count, headed = 1, true
+				}
+				broke = true
+				break
+			}
+			if count == 0 && !headed && !o.noHead {
 				if err := p.header(page, src.disp, src.date); err != nil {
 					return err
 				}
+				headed = true
 			}
 			lineNo++
 			row := appendSpaces(nil, o.offset)
-			row = append(row, p.numPrefix(lineNo)...)
-			if err := p.writeLine(append(row, line...)); err != nil {
+			row = append(row, p.numField(lineNo)...)
+			if err := p.writeLine(append(row, ln.text...)); err != nil {
 				return err
 			}
 			count++
+			if ln.ff {
+				broke = true
+				break
+			}
 		}
-		if count > 0 {
+		// A form feed which follows a page the input filled exactly is
+		// dropped, but not one which ended the page itself.
+		if count == o.bodyLines && !broke {
+			src.fullPage = true
+		}
+		if count > 0 || broke {
 			if err := p.trailer(o.bodyLines - count); err != nil {
 				return err
 			}
 		}
+		if broke && o.keepFF() {
+			// -t keeps the form feed in place of the page break.
+			if err := p.writeByte('\f'); err != nil {
+				return err
+			}
+		}
 		if done {
+			return nil
+		}
+		if o.lastPage != 0 && page >= o.lastPage {
 			return nil
 		}
 		page++
@@ -269,34 +383,54 @@ func (p *printer) singleFile(ctx context.Context, src *source) error {
 // columnsFile prints one file in multiple columns filled down the page.
 func (p *printer) columnsFile(ctx context.Context, src *source) error {
 	o := &p.opts
-	if ok, err := src.skipLines(ctx, (o.page-1)*o.bodyLines*o.cols); err != nil || !ok {
+	capacity := o.bodyLines * o.cols
+	skipped, ok, err := src.skipPages(ctx, o, o.page-1, capacity)
+	if err != nil || !ok {
 		return err
 	}
-	page, lineNo := o.page, 0
+	page, lineNo := o.page, o.startLineNo(skipped)
 	for {
 		var cells []cell
-		done := false
-		for c := 0; c < o.cols && !done; c++ {
-			for r := 0; r < o.bodyLines; r++ {
-				text, ok, err := src.next(ctx, o)
-				if err != nil {
-					return err
-				}
-				if !ok {
-					done = true
-					break
-				}
-				lineNo++
-				cells = append(cells, p.cellOf(lineNo, text))
+		done, broke := false, false
+		for len(cells) < capacity {
+			ln, ok, err := src.next(ctx, o)
+			if err != nil {
+				return err
+			}
+			if !ok {
+				done = true
+				break
+			}
+			if len(ln.text) == 0 && ln.ff {
+				broke = true
+				break
+			}
+			lineNo++
+			cells = append(cells, p.cellOf(lineNo, ln.text))
+			if ln.ff {
+				broke = true
+				break
 			}
 		}
-		if len(cells) == 0 {
+		if len(cells) == capacity && !broke {
+			src.fullPage = true
+		}
+		if len(cells) == 0 && !broke {
 			return nil
 		}
-		rows := o.bodyLines
-		if done && o.bodyLines*o.cols-len(cells) >= o.cols {
-			// Balance the last page into the minimum number of lines.
-			rows = (len(cells) + o.cols - 1) / o.cols
+		// The stored lines are balanced into the minimum number of
+		// lines, as GNU pr does with the columns it fills down.
+		rows := (len(cells) + o.cols - 1) / o.cols
+		if len(cells) == 0 {
+			// An empty page still carries one blank line.
+			if broke && !o.noHead {
+				rows = 1
+			} else {
+				rows = 0
+			}
+		}
+		if rows > o.bodyLines {
+			rows = o.bodyLines
 		}
 		if !o.noHead {
 			if err := p.header(page, src.disp, src.date); err != nil {
@@ -311,8 +445,10 @@ func (p *printer) columnsFile(ctx context.Context, src *source) error {
 					break
 				}
 				row = append(row, cells[i].data()...)
-				if c < o.cols-1 {
-					row = p.padCell(row, len(cells[i].text))
+				// The separator is written only when the next cell of
+				// the row holds a line, even an empty one.
+				if c < o.cols-1 && (c+1)*rows+r < len(cells) {
+					row = p.padCell(row, len(cells[i].data()))
 				}
 			}
 			if err := p.writeLine(row); err != nil {
@@ -322,7 +458,15 @@ func (p *printer) columnsFile(ctx context.Context, src *source) error {
 		if err := p.trailer(o.bodyLines - rows); err != nil {
 			return err
 		}
+		if broke && o.keepFF() {
+			if err := p.writeByte('\f'); err != nil {
+				return err
+			}
+		}
 		if done {
+			return nil
+		}
+		if o.lastPage != 0 && page >= o.lastPage {
 			return nil
 		}
 		page++
@@ -332,19 +476,19 @@ func (p *printer) columnsFile(ctx context.Context, src *source) error {
 // acrossFile prints one file in multiple columns filled across the page.
 func (p *printer) acrossFile(ctx context.Context, src *source) error {
 	o := &p.opts
-	if ok, err := src.skipLines(ctx, (o.page-1)*o.bodyLines*o.cols); err != nil || !ok {
+	skipped, ok, err := src.skipPages(ctx, o, o.page-1, o.bodyLines*o.cols)
+	if err != nil || !ok {
 		return err
 	}
-	page, lineNo := o.page, 0
+	page, lineNo := o.page, o.startLineNo(skipped)
 	for {
-		rows := 0
-		done := false
+		rows, done, broke, headed := 0, false, false, false
 		for rows < o.bodyLines {
 			row := appendSpaces(nil, o.offset)
 			var prev *cell
 			filled := 0
 			for c := 0; c < o.cols; c++ {
-				text, ok, err := src.next(ctx, o)
+				ln, ok, err := src.next(ctx, o)
 				if err != nil {
 					return err
 				}
@@ -352,36 +496,67 @@ func (p *printer) acrossFile(ctx context.Context, src *source) error {
 					done = true
 					break
 				}
+				if len(ln.text) == 0 && ln.ff {
+					if rows == 0 && !o.noHead {
+						// An empty page still carries the header and
+						// one blank line.
+						if err := p.header(page, src.disp, src.date); err != nil {
+							return err
+						}
+						if err := p.writeLine(nil); err != nil {
+							return err
+						}
+						rows, headed = 1, true
+					}
+					broke = true
+					break
+				}
 				lineNo++
-				cur := p.cellOf(lineNo, text)
+				cur := p.cellOf(lineNo, ln.text)
 				if prev != nil {
-					row = p.padCell(row, len(prev.text))
+					row = p.padCell(row, len(prev.data()))
 				}
 				row = append(row, cur.data()...)
 				prev = &cur
 				filled++
+				if ln.ff {
+					broke = true
+					break
+				}
 			}
 			if filled > 0 {
-				if rows == 0 && !o.noHead {
+				if rows == 0 && !headed && !o.noHead {
 					if err := p.header(page, src.disp, src.date); err != nil {
 						return err
 					}
+					headed = true
 				}
 				if err := p.writeLine(row); err != nil {
 					return err
 				}
 				rows++
 			}
-			if done {
+			if done || broke {
 				break
 			}
 		}
-		if rows > 0 {
+		if rows == o.bodyLines && !broke {
+			src.fullPage = true
+		}
+		if rows > 0 || broke {
 			if err := p.trailer(o.bodyLines - rows); err != nil {
 				return err
 			}
 		}
+		if broke && o.keepFF() {
+			if err := p.writeByte('\f'); err != nil {
+				return err
+			}
+		}
 		if done {
+			return nil
+		}
+		if o.lastPage != 0 && page >= o.lastPage {
 			return nil
 		}
 		page++
@@ -389,6 +564,8 @@ func (p *printer) acrossFile(ctx context.Context, src *source) error {
 }
 
 // printMerged prints the operands side by side, one line of each per row.
+// A form feed in one of the files empties its column for the rest of the
+// page, which still shows its padding and separator.
 func (p *printer) printMerged(ctx context.Context, operands []string) error {
 	o := &p.opts
 	var files []*source
@@ -413,86 +590,97 @@ func (p *printer) printMerged(ctx context.Context, operands []string) error {
 	}
 
 	// The merge layout puts one line number before all the columns.
-	o.cols = len(files)
-	if o.number {
-		o.colWidth = (o.width - o.cols*sepLen - o.numWidth) / o.cols
-	} else {
-		o.colWidth = (o.width + sepLen - o.cols*sepLen) / o.cols
-	}
-	if o.colWidth < 1 {
-		p.prog.errorf("page width too narrow")
+	if err := o.setupColumns(len(files)); err != nil {
+		p.prog.errorf("%v", err)
 		p.err = true
 		return nil
 	}
 
-	alive := 0
 	for _, f := range files {
-		ok, err := f.skipLines(ctx, (o.page-1)*o.bodyLines)
+		_, ok, err := f.skipPages(ctx, o, o.page-1, o.bodyLines)
 		if err != nil {
 			return err
 		}
 		f.alive = ok
-		if ok {
-			alive++
-		}
 	}
 
 	date := ""
 	if !o.noHead {
-		date = p.prog.now().Format(dateLayout)
+		date = strftime.Format(o.dateFmt, p.prog.now())
 	}
 	disp := ""
 	if o.hasHead {
 		disp = o.header
 	}
 
-	page, lineNo := o.page, 0
-	for alive > 0 {
-		rows := 0
-		for rows < o.bodyLines {
+	page, lineNo := o.page, o.startLineNo((o.page-1)*o.bodyLines)
+	for {
+		rows, ffSeen := 0, false
+		for rows < o.bodyLines && p.activeFiles(files) > 0 {
+			texts := make([][]byte, len(files))
+			read := make([]bool, len(files))
+			for i, f := range files {
+				if !f.alive || f.held {
+					continue
+				}
+				ln, ok, err := f.next(ctx, o)
+				if err != nil {
+					return err
+				}
+				if !ok {
+					f.alive = false
+					continue
+				}
+				read[i] = true
+				if len(ln.text) == 0 && ln.ff {
+					f.held, ffSeen = true, true
+					continue
+				}
+				texts[i] = ln.text
+				if ln.ff {
+					f.held, ffSeen = true, true
+				}
+			}
+
+			last := -1
+			for i, t := range texts {
+				if len(t) > 0 {
+					last = i
+				}
+			}
+			if !readAnything(read) {
+				// No file printed a line at all: the page is over.
+				break
+			}
 			row := appendSpaces(nil, o.offset)
-			if o.number {
+			if last >= 0 && o.number {
 				lineNo++
 				row = append(row, p.numField(lineNo)...)
 			}
-			end := o.offset
-			fproc := 0
-			for _, f := range files {
-				cnt := 0
-				if f.alive {
-					text, ok, err := f.next(ctx, o)
-					if err != nil {
-						return err
-					}
-					if ok {
-						row = append(row, text...)
-						end = len(row)
-						cnt = len(text)
-						fproc++
-					} else {
-						f.alive = false
-						alive--
-					}
+			// Every column is rendered, with its padding and separator,
+			// even when its file has no line for the row; the trailing
+			// blanks end at the last separator, as GNU pr keeps them.
+			for i, t := range texts {
+				row = append(row, t...)
+				if i < len(texts)-1 {
+					row = p.padCell(row, len(t))
 				}
-				if fproc >= alive {
-					break
-				}
-				row = p.padCell(row, cnt)
-			}
-			if end <= o.offset {
-				break
 			}
 			if rows == 0 && !o.noHead {
 				if err := p.header(page, disp, date); err != nil {
 					return err
 				}
 			}
-			if err := p.writeLine(row[:end]); err != nil {
+			if err := p.writeRow(row, false); err != nil {
 				return err
 			}
 			rows++
-			if alive == 0 {
-				break
+		}
+		if rows == o.bodyLines {
+			for _, f := range files {
+				if f.alive && !f.held {
+					f.fullPage = true
+				}
 			}
 		}
 		if rows > 0 {
@@ -500,9 +688,86 @@ func (p *printer) printMerged(ctx context.Context, operands []string) error {
 				return err
 			}
 		}
+		if ffSeen && o.keepFF() {
+			if err := p.writeByte('\f'); err != nil {
+				return err
+			}
+		}
+		// A held file rejoins the lineup in the next page.
+		for _, f := range files {
+			f.held = false
+		}
+		if p.activeFiles(files) == 0 {
+			return nil
+		}
+		if o.lastPage != 0 && page >= o.lastPage {
+			return nil
+		}
 		page++
 	}
+}
+
+// activeFiles returns the number of merged files which still have a line to
+// print in the current page.
+func (p *printer) activeFiles(files []*source) int {
+	n := 0
+	for _, f := range files {
+		if f.alive && !f.held {
+			n++
+		}
+	}
+	return n
+}
+
+// readAnything reports whether any of the merged files printed a line.
+func readAnything(read []bool) bool {
+	for _, ok := range read {
+		if ok {
+			return true
+		}
+	}
+	return false
+}
+
+// setupColumns settles the number of merged columns and their width for the
+// files which could be opened.
+func (o *options) setupColumns(n int) error {
+	o.cols = n
+	if !o.truncate {
+		return nil
+	}
+	used := 0
+	if o.number {
+		// The number of a merged line stands outside the columns.
+		used = o.numFieldW
+	}
+	o.colWidth = (o.width - used - (n-1)*o.sepLen) / n
+	if o.colWidth < 1 {
+		return errors.New("page width too narrow")
+	}
+	o.textBudget = o.colWidth
+	o.cuts = o.cuts[:0]
+	o.cuts = append(o.cuts, o.offset)
+	for k := 1; k < n; k++ {
+		o.cuts = append(o.cuts, o.offset+used+k*(o.colWidth+o.sepLen))
+	}
 	return nil
+}
+
+// startLineNo returns the value the line counter starts at, so that the
+// first printed line carries the -N number, or the number of the lines of
+// the skipped pages plus one, as GNU pr counts them too.
+func (o *options) startLineNo(skipped int) int {
+	if o.numSet {
+		return o.firstNum - 1
+	}
+	return skipped
+}
+
+// keepFF reports whether the input form feeds are kept in the output, as -t
+// does, but -T doesn't.
+func (o *options) keepFF() bool {
+	return o.noHead && !o.omitPag
 }
 
 // cell is a text column cell: an optional line number and the content.
@@ -525,18 +790,13 @@ func (c cell) data() []byte {
 	return append(c.num, c.text...)
 }
 
-// numPrefix returns the line number field of a single-column line.
-func (p *printer) numPrefix(lineNo int) []byte {
-	if !p.opts.number {
-		return nil
-	}
-	return p.numField(lineNo)
-}
-
 // numField renders the line number right justified in the -n width, keeping
 // the low-order digits when the number is wider, followed by the separator
 // character.
 func (p *printer) numField(n int) []byte {
+	if !p.opts.number {
+		return nil
+	}
 	s := strconv.Itoa(n)
 	if w := p.opts.numWidth; len(s) > w {
 		s = s[len(s)-w:]
@@ -546,27 +806,53 @@ func (p *printer) numField(n int) []byte {
 	return append([]byte(s), p.opts.numChar)
 }
 
-// padCell appends the padding that follows a cell of the given content
-// width: the separator character when -s is in use, blanks up to the next
-// cell otherwise.
-func (p *printer) padCell(line []byte, cnt int) []byte {
-	if p.opts.hasSep {
-		return append(line, p.opts.sep)
+// padCell appends the padding and the separator that follow a cell of the
+// given width: blanks up to the column width and then the separator, or just
+// the separator when the lines are joined.
+func (p *printer) padCell(row []byte, cnt int) []byte {
+	o := &p.opts
+	if o.join || o.colWidth == 0 {
+		return append(row, o.sep...)
 	}
-	return appendSpaces(line, p.opts.pitch()-cnt)
+	row = appendSpaces(row, o.colWidth-cnt)
+	return append(row, o.sep...)
 }
 
-// header writes the five-line page header.
+// header writes the five-line page header: two blank lines, the date at the
+// left, the centered file name and the page number at the right, padded to
+// the page width, and two more blank lines.
 func (p *printer) header(page int, disp, date string) error {
+	o := &p.opts
+	// The left margin ends the first blank line, as GNU pr writes it.
+	if err := p.writeOffset(o.offset); err != nil {
+		return err
+	}
 	if err := p.writeString("\n\n"); err != nil {
 		return err
 	}
-	if p.opts.offset > 0 {
-		if err := p.writeOffset(p.opts.offset); err != nil {
-			return err
-		}
+	row := appendSpaces(nil, o.offset)
+	row = append(row, p.headerText(page, disp, date)...)
+	if err := p.writeBytes(row); err != nil {
+		return err
 	}
-	return p.writeString(fmt.Sprintf("%s %s Page %d\n\n\n", date, disp, page))
+	return p.writeString("\n\n\n")
+}
+
+// headerText builds the text line of the header.
+func (p *printer) headerText(page int, disp, date string) []byte {
+	pageStr := fmt.Sprintf("Page %d", page)
+	avail := p.opts.width - len(date) - len(disp) - len(pageStr)
+	lhs, rhs := 1, 1
+	if avail > 2 {
+		// The parts keep at least one blank between them.
+		lhs, rhs = avail/2, avail-avail/2
+	}
+	out := make([]byte, 0, p.opts.width)
+	out = append(out, date...)
+	out = appendSpaces(out, lhs)
+	out = append(out, disp...)
+	out = appendSpaces(out, rhs)
+	return append(out, pageStr...)
 }
 
 // trailer fills the page to its length with newlines, or a form feed with
@@ -574,11 +860,6 @@ func (p *printer) header(page int, disp, date string) error {
 func (p *printer) trailer(missing int) error {
 	o := &p.opts
 	if o.noHead {
-		// Without a header there's no padding, but the form feed
-		// that terminates each page is still written.
-		if o.formfeed {
-			return p.writeByte('\f')
-		}
 		return nil
 	}
 	if o.formfeed {
@@ -603,10 +884,17 @@ func (p *printer) trailer(missing int) error {
 // writeLine writes one output line and its terminator, double-spaced when
 // requested.
 func (p *printer) writeLine(line []byte) error {
+	return p.writeRow(line, false)
+}
+
+// writeRow writes one output line and its terminator, double-spaced when
+// requested. flush keeps the trailing blanks of the line, as the ones of a
+// cut off column separator.
+func (p *printer) writeRow(line []byte, flush bool) error {
 	var err error
 	if p.opts.contract {
-		err = p.writeContracted(line, false)
-	} else if len(line) > 0 {
+		err = p.writeContracted(line, flush)
+	} else if len(line) > 0 || flush {
 		err = p.writeBytes(line)
 	}
 	if err != nil {
@@ -629,17 +917,20 @@ func (p *printer) writeOffset(offset int) error {
 	return p.writeBytes(spaces(offset))
 }
 
+var debugRuns bool
+
 // writeContracted writes the line replacing runs of blanks that reach a tab
 // stop by the output tab character. Trailing blanks are dropped unless flush
-// is set.
+// is set. A run which crosses the end of a column separator is split there,
+// as GNU pr flushes its pending blanks at each separator.
 func (p *printer) writeContracted(line []byte, flush bool) error {
 	gap := p.opts.outGap
 	ips, ops := 0, 0
-	fill := func() error {
+	contract := func(end int) error {
 		// Tab only where it doesn't overshoot and saves a character.
-		for ips-ops > 1 {
+		for end-ops > 1 {
 			next := ops + gap - ops%gap
-			if next > ips {
+			if next > end {
 				break
 			}
 			if err := p.writeByte(p.opts.outChar); err != nil {
@@ -647,19 +938,43 @@ func (p *printer) writeContracted(line []byte, flush bool) error {
 			}
 			ops = next
 		}
-		for ; ops < ips; ops++ {
+		for ; ops < end; ops++ {
 			if err := p.writeByte(' '); err != nil {
 				return err
 			}
 		}
 		return nil
 	}
+	fill := func() error {
+		if debugRuns {
+			fmt.Printf("DBG run [%d,%d) cuts=%v\n", ops, ips, p.opts.cuts)
+		}
+		start := ops
+		for _, cut := range p.opts.cuts {
+			if cut > start && cut < ips {
+				if err := contract(cut); err != nil {
+					return err
+				}
+				start = cut
+			}
+		}
+		return contract(ips)
+	}
 	for _, c := range line {
 		switch c {
 		case ' ':
 			ips++
 		case p.opts.outChar:
-			ips += gap - ips%gap
+			// A TAB is written as is, counting one column, as the
+			// separator tabs of GNU pr do, after the pending blanks.
+			if err := fill(); err != nil {
+				return err
+			}
+			if err := p.writeByte(c); err != nil {
+				return err
+			}
+			ips++
+			ops++
 		default:
 			if err := fill(); err != nil {
 				return err
@@ -672,6 +987,18 @@ func (p *printer) writeContracted(line []byte, flush bool) error {
 		}
 	}
 	if flush {
+		return fill()
+	}
+	// The blanks which GNU pr flushes at the column separators are kept,
+	// up to the last one; only the padding of the last column is dropped.
+	keep := 0
+	for _, cut := range p.opts.cuts {
+		if cut > keep && cut <= ips {
+			keep = cut
+		}
+	}
+	if keep > ops {
+		ips = keep
 		return fill()
 	}
 	return nil
