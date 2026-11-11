@@ -12,11 +12,22 @@ import (
 )
 
 // address is the address of an editing command: the last line of the input,
-// a line number, or a regular expression matching the pattern space.
+// a line number, or a regular expression matching the pattern space. GNU
+// extensions add the first~step form, the +N and ~N second addresses, and
+// the 0 first address, whose range ends on its own first line when the
+// second address matches it.
 type address struct {
 	last bool
 	line int
+	step int
 	re   *regexp.Regexp
+	// rel is the line count of a +N second address, mod the divisor of a
+	// ~N one, and both are zero for the other kinds of address.
+	rel int
+	mod int
+	// zero tells the 0 first address of a 0,/re/ range apart from a line
+	// number, which would never match.
+	zero bool
 }
 
 // command is a single editing command of the script.
@@ -25,18 +36,25 @@ type command struct {
 	neg    bool
 	verb   byte
 
-	// inRange holds the state of a two-address range, and rangeEnd tells
-	// whether the current cycle closes it.
-	inRange  bool
-	rangeEnd bool
+	// inRange holds the state of a two-address range, rangeStart and
+	// rangeEnd tell whether the current cycle opens or closes it, and
+	// endLine holds the closing line of a +N or ~N second address.
+	inRange    bool
+	rangeStart bool
+	rangeEnd   bool
+	endLine    int
 
 	label string
-	jump  int // resolved target of a b or t command
+	jump  int // resolved target of a b, t or T command
 
-	text     string // a, i and c text
-	file     string // r and w file
-	sub      *subst
+	text  string // a, i and c text
+	file  string // r, R, w and W file
+	sub   *subst
+	width int // the wrap width of an l command, -1 when it takes none
+
 	translit map[rune]rune
+	// exit is the status a q or Q command asks for.
+	exit int
 
 	// end is the index of the command following the matching `}` of a `{`
 	// command, used to skip the block when it isn't selected.
@@ -54,10 +72,12 @@ type subst struct {
 }
 
 // replItem is a part of the replacement of an s command: a literal string,
-// the whole match (group -1), or a group \n of the pattern.
+// the whole match (group -1), a group \n of the pattern, or one of the case
+// conversion escapes of GNU.
 type replItem struct {
 	literal string
 	group   int
+	caseOp  byte // 0, or one of u l U L E
 }
 
 // literalItem builds the replItem of a literal string.
@@ -70,11 +90,13 @@ type parser struct {
 	s        string
 	i        int
 	extended bool
+	posix    bool
+	nullData bool
 	lastRE   *regexp.Regexp
 }
 
-func parseScript(script string, extended bool) ([]*command, error) {
-	p := &parser{s: script, extended: extended}
+func parseScript(script string, o *options) ([]*command, error) {
+	p := &parser{s: script, extended: o.extended, posix: o.posix, nullData: o.nullData}
 	cmds, err := p.commands()
 	if err != nil {
 		return nil, err
@@ -83,6 +105,12 @@ func parseScript(script string, extended bool) ([]*command, error) {
 		return nil, err
 	}
 	return cmds, nil
+}
+
+// gnuErr reports a GNU extension the script isn't allowed to use with
+// --posix.
+func gnuErr(what string) error {
+	return fmt.Errorf("%s is a GNU extension, not allowed with --posix", what)
 }
 
 // commands parses commands until the end of the script, tracking the brace
@@ -133,7 +161,7 @@ func (p *parser) commands() ([]*command, error) {
 
 // command parses a single editing command, starting at its first address.
 func (p *parser) command() (*command, error) {
-	cmd := &command{verb: 0}
+	cmd := &command{verb: 0, width: -1}
 	var err error
 	if cmd.a1, err = p.address(); err != nil {
 		return nil, err
@@ -142,12 +170,18 @@ func (p *parser) command() (*command, error) {
 	if p.peek() == ',' {
 		p.i++
 		p.blanks()
-		if cmd.a2, err = p.address(); err != nil {
+		if cmd.a2, err = p.rangeEnd(); err != nil {
 			return nil, err
 		}
 		if cmd.a2 == nil {
 			return nil, errors.New("missing address after ,")
 		}
+		if cmd.a2.step > 0 {
+			return nil, errors.New("a step address can't close a range")
+		}
+	}
+	if cmd.a1 != nil && cmd.a1.zero && cmd.a2 == nil {
+		return nil, errors.New("0 address can only be the first of a range")
 	}
 	p.blanks()
 	for p.peek() == '!' {
@@ -169,20 +203,48 @@ func (p *parser) command() (*command, error) {
 	if cmd.a2 != nil {
 		addresses++
 	}
-	if limit := maxAddresses(c); addresses > limit {
+	if limit := p.maxAddresses(c); addresses > limit {
 		return nil, fmt.Errorf("too many addresses for command: %c", c)
 	}
 
 	switch c {
-	case ':', 'b', 't':
+	case 'T', 'Q', 'z', 'F', 'W', 'R':
+		if p.posix {
+			return nil, gnuErr(fmt.Sprintf("the %c command", c))
+		}
+	}
+	switch c {
+	case ':', 'b', 't', 'T':
 		cmd.label = p.labelArg()
-	case '{', '=', 'd', 'D', 'g', 'G', 'h', 'H', 'l', 'n', 'N', 'p', 'P', 'q', 'x':
+	case 'l':
+		if p.peek() >= '0' && p.peek() <= '9' {
+			if p.posix {
+				return nil, gnuErr("the width of the l command")
+			}
+			if cmd.width, err = p.number(); err != nil {
+				return nil, err
+			}
+		}
+	case 'q', 'Q':
+		p.blanks()
+		if p.peek() >= '0' && p.peek() <= '9' {
+			if p.posix {
+				return nil, gnuErr("the exit status of the " + string(c) + " command")
+			}
+			if cmd.exit, err = p.number(); err != nil {
+				return nil, err
+			}
+			if cmd.exit > 255 {
+				return nil, errors.New("exit status out of range")
+			}
+		}
+	case '{', '=', 'd', 'D', 'g', 'G', 'h', 'H', 'n', 'N', 'p', 'P', 'x', 'z', 'F':
 		// No argument.
 	case 'a', 'i', 'c':
 		if cmd.text, err = p.textArg(); err != nil {
 			return nil, err
 		}
-	case 'r', 'w':
+	case 'r', 'R', 'w', 'W':
 		cmd.file = p.fileArg()
 		if cmd.file == "" {
 			return nil, fmt.Errorf("filename expected for %c command", c)
@@ -204,18 +266,23 @@ func (p *parser) command() (*command, error) {
 }
 
 // maxAddresses returns the maximum number of addresses an editing command
-// accepts, as marked by the [0addr], [1addr] and [2addr] synopses of the
-// editing commands: only # : } take none, a i q r = take at most one, and
-// every other command takes up to two.
-func maxAddresses(verb byte) int {
+// accepts: only # : } take none, q and Q take at most one, and every other
+// command takes up to two. The GNU extensions letting a, i, r and = take a
+// range are rejected with --posix.
+func (p *parser) maxAddresses(verb byte) int {
 	switch verb {
 	case '#', ':', '}':
 		return 0
-	case '=', 'a', 'i', 'q', 'r':
+	case 'q', 'Q':
 		return 1
-	default:
-		return 2
 	}
+	if p.posix {
+		switch verb {
+		case '=', 'a', 'i', 'r':
+			return 1
+		}
+	}
+	return 2
 }
 
 // address parses an address, returning nil when the next character doesn't
@@ -226,13 +293,29 @@ func (p *parser) address() (*address, error) {
 		p.i++
 		return &address{last: true}, nil
 	case c >= '0' && c <= '9':
-		start := p.i
-		for c := p.peek(); c >= '0' && c <= '9'; c = p.peek() {
-			p.i++
-		}
-		n, err := strconv.Atoi(p.s[start:p.i])
+		n, err := p.number()
 		if err != nil {
 			return nil, err
+		}
+		if p.peek() == '~' {
+			if p.posix {
+				return nil, gnuErr("the first~step address")
+			}
+			p.i++
+			step, err := p.number()
+			if err != nil {
+				return nil, errors.New("missing step after ~")
+			}
+			if step <= 0 {
+				return nil, errors.New("step can't be 0")
+			}
+			return &address{line: n, step: step}, nil
+		}
+		if n == 0 {
+			if p.posix {
+				return nil, gnuErr("the 0 address")
+			}
+			return &address{zero: true}, nil
 		}
 		return &address{line: n}, nil
 	case c == '/':
@@ -248,25 +331,77 @@ func (p *parser) address() (*address, error) {
 	return nil, nil
 }
 
+// rangeEnd parses the second address of a range, which the GNU extensions
+// also let be a count of lines from the first one (+N) or the next multiple
+// of a divisor (~N).
+func (p *parser) rangeEnd() (*address, error) {
+	switch p.peek() {
+	case '+':
+		if p.posix {
+			return nil, gnuErr("the addr1,+N address")
+		}
+		p.i++
+		n, err := p.number()
+		if err != nil {
+			return nil, errors.New("missing number after +")
+		}
+		return &address{line: n, rel: n}, nil
+	case '~':
+		if p.posix {
+			return nil, gnuErr("the addr1,~N address")
+		}
+		p.i++
+		n, err := p.number()
+		if err != nil {
+			return nil, errors.New("missing number after ~")
+		}
+		if n <= 0 {
+			return nil, errors.New("the number after ~ must be positive")
+		}
+		return &address{line: n, mod: n}, nil
+	}
+	return p.address()
+}
+
 // regexAddress parses a context address, whose regular expression is
-// delimited by the given character. The opening delimiter was consumed.
+// delimited by the given character. The opening delimiter was consumed. The
+// I and M modifiers of GNU, uppercase only since a command letter may
+// follow, select case-insensitive and multi-line matching.
 func (p *parser) regexAddress(delim byte) (*address, error) {
 	p.i++
 	re, err := p.scanDelimited(delim, scanRE)
 	if err != nil {
-		return nil, fmt.Errorf("unterminated regular expression")
+		return nil, errors.New("unterminated regular expression")
 	}
-	compiled, err := p.compileRE(re, false)
-	if err != nil {
-		return nil, err
+	fold, multi := false, false
+	for {
+		switch p.peek() {
+		case 'I':
+			if p.posix {
+				return nil, gnuErr("the I modifier of an address")
+			}
+			fold = true
+			p.i++
+		case 'M':
+			if p.posix {
+				return nil, gnuErr("the M modifier of an address")
+			}
+			multi = true
+			p.i++
+		default:
+			compiled, err := p.compileRE(re, fold, multi)
+			if err != nil {
+				return nil, err
+			}
+			return &address{re: compiled}, nil
+		}
 	}
-	return &address{re: compiled}, nil
 }
 
 // compileRE compiles a regular expression, extended or not, matching case
-// insensitively or not, and keeps it as the last one for the empty REs of
-// later commands.
-func (p *parser) compileRE(re string, fold bool) (*regexp.Regexp, error) {
+// insensitively or not and across the embedded newlines of the pattern space
+// or not, and keeps it as the last one for the empty REs of later commands.
+func (p *parser) compileRE(re string, fold, multi bool) (*regexp.Regexp, error) {
 	if re == "" {
 		if p.lastRE == nil {
 			return nil, errors.New("no previous regular expression")
@@ -275,10 +410,18 @@ func (p *parser) compileRE(re string, fold bool) (*regexp.Regexp, error) {
 	}
 	// The period doesn't match the newlines of the pattern space, as POSIX
 	// requires; a pattern matches embedded newlines only explicitly, through
-	// an escape like \n or the joined lines of an explicit newline.
+	// an escape like \n or the joined lines of an explicit newline. The M
+	// modifier makes ^ and $ match them, and with -z the newline is an
+	// ordinary character of the NUL-separated record.
 	flags := ""
 	if fold {
-		flags = "(?i)"
+		flags += "(?i)"
+	}
+	if multi {
+		flags += "(?m)"
+	}
+	if p.nullData {
+		flags += "(?s)"
 	}
 	var compiled *regexp.Regexp
 	var err error
@@ -367,21 +510,31 @@ func (p *parser) scanDelimited(delim byte, kind scanKind) (string, error) {
 	return "", errors.New("unterminated text")
 }
 
-// labelArg reads the label of a :, b or t command, which extends to the end
-// of the line: the command can't be followed by a semicolon, so the
-// semicolons belong to the label, as do its trailing blanks. The leading
-// blanks are skipped.
+// labelArg reads the label of a :, b, t or T command. The label ends at the
+// first <semicolon>, as in GNU sed, or at the end of the line, and an
+// escaped <semicolon> belongs to the name. The leading blanks are skipped
+// and the trailing ones dropped.
 func (p *parser) labelArg() string {
 	p.blanks()
-	start := p.i
-	for c := p.peek(); c != 0 && c != '\n'; c = p.peek() {
+	var b strings.Builder
+	for p.i < len(p.s) {
+		c := p.s[p.i]
+		if c == '\n' || c == ';' {
+			break
+		}
+		if c == '\\' && p.i+1 < len(p.s) && p.s[p.i+1] == ';' {
+			b.WriteByte(';')
+			p.i += 2
+			continue
+		}
+		b.WriteByte(c)
 		p.i++
 	}
-	return strings.TrimRight(p.s[start:p.i], " \t")
+	return strings.TrimRight(b.String(), " \t")
 }
 
-// fileArg reads the file argument of an r or w command, which extends to the
-// end of the line and terminates the command.
+// fileArg reads the file argument of an r, R, w or W command, which extends
+// to the end of the line and terminates the command.
 func (p *parser) fileArg() string {
 	p.blanks()
 	start := p.i
@@ -393,15 +546,29 @@ func (p *parser) fileArg() string {
 
 // textArg reads the text of an a, i or c command. The text starts right
 // after the backslash of the command, or on the next line, and continues on
-// the following lines while they end with an escaped newline.
+// the following lines while they end with an escaped newline. The GNU
+// one-line forms also let the text follow the command without a backslash,
+// on the same line or on the one after it.
 func (p *parser) textArg() (string, error) {
 	p.blanks()
-	if p.peek() != '\\' {
-		return "", errors.New(`text must start with \`)
-	}
-	p.i++
-	if p.peek() == '\n' {
-		p.i++ // the text starts on the next line
+	switch c := p.peek(); {
+	case c == '\\':
+		p.i++
+		if p.peek() == '\n' {
+			p.i++ // the text starts on the next line
+		}
+	case c == '\n', c == 0:
+		if p.posix {
+			return "", errors.New(`text must start with \`)
+		}
+		if c == '\n' {
+			p.i++ // the text starts on the next line
+		}
+	default:
+		if p.posix {
+			return "", errors.New(`text must start with \`)
+		}
+		// the text starts on the same line
 	}
 
 	var b strings.Builder
@@ -466,7 +633,7 @@ func (p *parser) substArg() (*subst, error) {
 	}
 
 	sub := &subst{}
-	fold := false
+	fold, multi := false, false
 flags:
 	for p.i < len(p.s) {
 		switch c := p.s[p.i]; {
@@ -478,8 +645,19 @@ flags:
 		case c == 'p':
 			sub.print = true
 			p.i++
-		case c == 'i':
+		case c == 'i', c == 'I':
+			// The lowercase i is in the POSIX specification; only the
+			// uppercase I is GNU's alias for it.
+			if c == 'I' && p.posix {
+				return nil, gnuErr("the I flag of the s command")
+			}
 			fold = true
+			p.i++
+		case c == 'm', c == 'M':
+			if p.posix {
+				return nil, gnuErr("the M flag of the s command")
+			}
+			multi = true
 			p.i++
 		case c == 'w':
 			p.i++
@@ -499,13 +677,16 @@ flags:
 			return nil, fmt.Errorf("unknown flag in s command: %c", c)
 		}
 	}
+	if p.posix && sub.nth > 0 && sub.global {
+		return nil, gnuErr("a number with the g flag of the s command")
+	}
 
-	re, err := p.compileRE(reText, fold)
+	re, err := p.compileRE(reText, fold, multi)
 	if err != nil {
 		return nil, err
 	}
 	sub.re = re
-	if sub.tmpl, err = compileRepl(replText); err != nil {
+	if sub.tmpl, err = p.compileRepl(replText); err != nil {
 		return nil, err
 	}
 	return sub, nil
@@ -579,8 +760,8 @@ func (p *parser) scanTranslit(delim byte) ([]rune, error) {
 	return nil, errors.New("unterminated string in y command")
 }
 
-// resolve matches the braces and labels of the script, giving the b and t
-// commands their jump targets.
+// resolve matches the braces and labels of the script, giving the b, t and
+// T commands their jump targets.
 func resolve(cmds []*command) error {
 	labels := map[string]int{}
 	for i, cmd := range cmds {
@@ -592,7 +773,7 @@ func resolve(cmds []*command) error {
 	}
 	for _, cmd := range cmds {
 		switch cmd.verb {
-		case 'b', 't':
+		case 'b', 't', 'T':
 			if cmd.label == "" {
 				cmd.jump = len(cmds) // branch to the end of the script
 				continue
@@ -618,6 +799,22 @@ func (p *parser) peek() byte {
 	return p.s[p.i]
 }
 
+// number parses the digits at the cursor, failing when there are none.
+func (p *parser) number() (int, error) {
+	start := p.i
+	for c := p.peek(); c >= '0' && c <= '9'; c = p.peek() {
+		p.i++
+	}
+	if start == p.i {
+		return 0, errors.New("missing number")
+	}
+	n, err := strconv.Atoi(p.s[start:p.i])
+	if err != nil {
+		return 0, errors.New("number out of range")
+	}
+	return n, nil
+}
+
 func (p *parser) blanks() {
 	for p.i < len(p.s) && (p.s[p.i] == ' ' || p.s[p.i] == '\t') {
 		p.i++
@@ -632,10 +829,11 @@ func (p *parser) skipLine() {
 
 // compileRepl compiles the replacement of an s command, keeping the raw text
 // as the parser scanned it. A backslash escapes the next character: a digit
-// refers to a group of the pattern, and an ampersand, a newline or the
-// delimiter loses its special meaning. An unescaped ampersand stands for the
-// whole match.
-func compileRepl(raw string) ([]replItem, error) {
+// refers to a group of the pattern, an ampersand, a newline or the delimiter
+// loses its special meaning, and the case conversion escapes of GNU change
+// how the text which follows them is written. An unescaped ampersand stands
+// for the whole match.
+func (p *parser) compileRepl(raw string) ([]replItem, error) {
 	var items []replItem
 	var lit strings.Builder
 	flush := func() {
@@ -656,6 +854,12 @@ func compileRepl(raw string) ([]replItem, error) {
 			case d >= '0' && d <= '9':
 				flush()
 				items = append(items, replItem{group: int(d - '0')})
+			case d == 'u' || d == 'l' || d == 'U' || d == 'L' || d == 'E':
+				if p.posix {
+					return nil, gnuErr(`the \` + string(d) + ` escape of a replacement`)
+				}
+				flush()
+				items = append(items, replItem{caseOp: d})
 			default:
 				lit.WriteByte(d)
 			}
