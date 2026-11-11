@@ -4,10 +4,11 @@ import "time"
 
 // File describes one of the compared files for the headers of the context
 // and unified formats: its name and modification time, which is the current
-// time for the standard input.
+// time for the standard input. Label, when set, takes the place of both.
 type File struct {
-	Name string
-	Time time.Time
+	Name  string
+	Time  time.Time
+	Label string
 }
 
 // hunk holds the changes of one group, which sit close enough to share

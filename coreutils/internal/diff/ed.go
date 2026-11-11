@@ -12,14 +12,15 @@ import (
 // fed to ed with a trailing w command. The changes come from the end of the
 // file to its beginning, so the line numbers of the edits still to apply
 // stay valid.
-func Ed(w io.Writer, b []string, changes []Change) error {
+func Ed(w io.Writer, b []string, changes []Change, o ...LineOpts) error {
+	lo := lineOpts(o)
 	for _, c := range slices.Backward(changes) {
 		switch {
 		case c.A0 == c.A1:
 			if _, err := fmt.Fprintf(w, "%da\n", c.A0); err != nil {
 				return err
 			}
-			if err := edText(w, b, c, c.A0+1); err != nil {
+			if err := edText(w, b, c, c.A0+1, lo); err != nil {
 				return err
 			}
 		case c.B0 == c.B1:
@@ -30,7 +31,7 @@ func Ed(w io.Writer, b []string, changes []Change) error {
 			if _, err := fmt.Fprintf(w, "%sc\n", edRange(c.A0, c.A1)); err != nil {
 				return err
 			}
-			if err := edText(w, b, c, c.A0+1); err != nil {
+			if err := edText(w, b, c, c.A0+1, lo); err != nil {
 				return err
 			}
 		}
@@ -42,7 +43,8 @@ func Ed(w io.Writer, b []string, changes []Change) error {
 // but from the beginning of the file to its end, with the command letter
 // before the lines, which are then space separated. The result isn't meant
 // to be fed to ed.
-func ForwardEd(w io.Writer, b []string, changes []Change) error {
+func ForwardEd(w io.Writer, b []string, changes []Change, o ...LineOpts) error {
+	lo := lineOpts(o)
 	for _, c := range changes {
 		var cmd string
 		switch {
@@ -58,7 +60,7 @@ func ForwardEd(w io.Writer, b []string, changes []Change) error {
 		}
 		if c.B0 != c.B1 {
 			for _, line := range b[c.B0:c.B1] {
-				if err := writeText(w, line); err != nil {
+				if err := writeText(w, line, lo); err != nil {
 					return err
 				}
 			}
@@ -74,7 +76,7 @@ func ForwardEd(w io.Writer, b []string, changes []Change) error {
 // with its closing period. A line consisting of a lone period, which would
 // end the text, comes out as two periods that a substitute command then
 // turns back into one.
-func edText(w io.Writer, b []string, c Change, start int) error {
+func edText(w io.Writer, b []string, c Change, start int, lo LineOpts) error {
 	var subs []int
 	for i, j := c.B0, 0; i < c.B1; i, j = i+1, j+1 {
 		line := b[i]
@@ -82,7 +84,7 @@ func edText(w io.Writer, b []string, c Change, start int) error {
 			subs = append(subs, start+j)
 			line = "..\n"
 		}
-		if err := writeText(w, line); err != nil {
+		if err := writeText(w, line, lo); err != nil {
 			return err
 		}
 	}
@@ -98,7 +100,10 @@ func edText(w io.Writer, b []string, c Change, start int) error {
 }
 
 // writeText writes a line of ed script text, always ending in a newline.
-func writeText(w io.Writer, line string) error {
+func writeText(w io.Writer, line string, lo LineOpts) error {
+	if lo.ExpandTabs {
+		line = expandTabs(line, lo.tabSize())
+	}
 	if !strings.HasSuffix(line, "\n") {
 		line += "\n"
 	}
