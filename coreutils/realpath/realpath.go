@@ -12,8 +12,6 @@ import (
 	"fmt"
 	"io"
 	"io/fs"
-	"path"
-	"path/filepath"
 	"slices"
 	"strings"
 
@@ -116,7 +114,7 @@ func (p *Prog) Run(ctx context.Context, args ...string) error {
 		if err := ctx.Err(); err != nil {
 			return err
 		}
-		out, err := p.canonicalize(ctx, p.absolute(name), opts)
+		out, err := p.canonicalize(ctx, p.FsAbs(name), opts)
 		if err != nil {
 			if ctxErr := ctx.Err(); ctxErr != nil {
 				return ctxErr
@@ -306,7 +304,7 @@ func (p *Prog) relativeDirs(ctx context.Context, opts options) (relTo, relBase s
 // canonicalizeDir resolves a relative option directory, requiring it to be a
 // directory when -e asks for existing files.
 func (p *Prog) canonicalizeDir(ctx context.Context, name string, opts options) (string, error) {
-	dir, err := p.canonicalize(ctx, p.absolute(name), opts)
+	dir, err := p.canonicalize(ctx, p.FsAbs(name), opts)
 	if err != nil {
 		return "", fmt.Errorf("%s: %v", name, patherr.Unwrap(err))
 	}
@@ -472,24 +470,6 @@ func parseFlags(args []string) (options, []string, error) {
 		return options{}, nil, err
 	}
 	return opts, operands, nil
-}
-
-// absolute makes an operand a name of the file system, relative to the
-// working directory, without applying its "." and ".." components.
-func (p *Prog) absolute(name string) string {
-	if filepath.IsAbs(name) {
-		// A Windows drive-absolute name stays absolute; its slash form
-		// doesn't look absolute to path.IsAbs.
-		return filepath.ToSlash(name)
-	}
-	name = filepath.ToSlash(name)
-	if path.IsAbs(name) || p.WorkingDir == "" {
-		return name
-	}
-	if wd := path.Clean(filepath.ToSlash(p.WorkingDir)); wd != "." {
-		return wd + "/" + name
-	}
-	return name
 }
 
 // needsDirCheck reports whether the remaining name asks the component just

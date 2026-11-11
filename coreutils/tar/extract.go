@@ -120,7 +120,7 @@ func (a *archiver) extractEntry(ctx context.Context, tr *tar.Reader, name string
 	if err := a.refuseSymlink(name); err != nil {
 		return err
 	}
-	resolved := a.resolve(name)
+	resolved := a.rt.FsPath(name)
 	parent := path.Dir(resolved)
 	switch hdr.Typeflag {
 	case tar.TypeDir:
@@ -183,7 +183,7 @@ func (a *archiver) extractEntry(ctx context.Context, tr *tar.Reader, name string
 		if err := removeExisting(a.rt.FS, resolved); err != nil {
 			return err
 		}
-		if err := a.rt.FS.Link(a.resolve(target), resolved); err != nil {
+		if err := a.rt.FS.Link(a.rt.FsPath(target), resolved); err != nil {
 			*links = append(*links, pendingLink{target, name, err})
 		}
 	case tar.TypeFifo, tar.TypeChar, tar.TypeBlock:
@@ -205,7 +205,7 @@ func (a *archiver) refuseSymlink(name string) error {
 			prefix += "/"
 		}
 		prefix += comp
-		fi, err := a.rt.FS.Lstat(a.resolve(prefix))
+		fi, err := a.rt.FS.Lstat(a.rt.FsPath(prefix))
 		switch {
 		case errors.Is(err, fs.ErrNotExist):
 			// Deeper components can't exist either.
@@ -231,7 +231,7 @@ func (a *archiver) retryLinks(links []pendingLink) {
 				a.fail(l.name, err)
 				continue
 			}
-			if err := a.rt.FS.Link(a.resolve(l.target), a.resolve(l.name)); err != nil {
+			if err := a.rt.FS.Link(a.rt.FsPath(l.target), a.rt.FsPath(l.name)); err != nil {
 				l.err = err
 				pending = append(pending, l)
 				continue

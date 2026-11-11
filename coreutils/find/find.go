@@ -102,7 +102,7 @@ func (p *Prog) Run(ctx context.Context, args ...string) error {
 		if quit {
 			break
 		}
-		fsName := path.Clean(filepath.ToSlash(p.ResolvePath(root)))
+		fsName := p.FsPath(root)
 		err := walk.Walk(ctx, p.FS, walk.Options{
 			Follow:   opts.follow,
 			Depth:    opts.depth,
@@ -181,7 +181,7 @@ func (p *Prog) readPaths0(ctx context.Context, name string) ([]string, error) {
 			return nil, fmt.Errorf("cannot read the standard input: %v", err)
 		}
 	} else {
-		fsName := path.Clean(filepath.ToSlash(p.ResolvePath(name)))
+		fsName := p.FsPath(name)
 		f, err := p.FS.Open(fsName)
 		if err != nil {
 			return nil, fmt.Errorf("cannot open '%s': %v", name, patherr.Unwrap(err))
@@ -220,7 +220,7 @@ func (s *state) openOutFiles(names []string) error {
 			s.outFiles[name] = s.p.Stderr
 			continue
 		}
-		fsName := path.Clean(filepath.ToSlash(s.p.ResolvePath(name)))
+		fsName := s.p.FsPath(name)
 		f, err := s.p.FS.OpenFile(fsName, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, 0o666&^s.p.Umask.Perm())
 		if err != nil {
 			s.p.errorf("cannot open '%s' for writing: %v", name, patherr.Unwrap(err))

@@ -19,7 +19,6 @@ import (
 	"fmt"
 	"io"
 	"os"
-	"path/filepath"
 	"runtime"
 	"strconv"
 	"strings"
@@ -266,7 +265,7 @@ func (p *Prog) openInput(file string, given bool) (io.Reader, io.Closer, error) 
 	if p.FS == nil {
 		return nil, nil, fmt.Errorf("%s: no file system available", file)
 	}
-	f, err := p.FS.Open(filepath.ToSlash(p.ResolvePath(file)))
+	f, err := p.FS.Open(p.FsName(file))
 	if err != nil {
 		return nil, nil, fmt.Errorf("%s: %v", file, patherr.Unwrap(err))
 	}

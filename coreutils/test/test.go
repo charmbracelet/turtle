@@ -12,7 +12,6 @@ import (
 	"fmt"
 	"io/fs"
 	"os"
-	"path/filepath"
 	"strconv"
 	"strings"
 
@@ -233,7 +232,7 @@ func (p *Prog) unary(op, arg string) (bool, error) {
 	if p.FS == nil {
 		return false, errNoFS
 	}
-	name := filepath.ToSlash(p.ResolvePath(arg))
+	name := p.FsName(arg)
 	if op == "-h" || op == "-L" {
 		fi, err := p.FS.Lstat(name)
 		return err == nil && fi.Mode()&fs.ModeSymlink != 0, nil
@@ -349,8 +348,8 @@ func (p *Prog) fileBinary(a, op, b string) (bool, error) {
 	if p.FS == nil {
 		return false, errNoFS
 	}
-	fi, fia := fs.Stat(p.FS, filepath.ToSlash(p.ResolvePath(a)))
-	fj, fib := fs.Stat(p.FS, filepath.ToSlash(p.ResolvePath(b)))
+	fi, fia := fs.Stat(p.FS, p.FsName(a))
+	fj, fib := fs.Stat(p.FS, p.FsName(b))
 	switch op {
 	case "-nt":
 		switch {

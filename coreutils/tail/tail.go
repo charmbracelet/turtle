@@ -26,7 +26,6 @@ import (
 	"io/fs"
 	"math"
 	"os"
-	"path/filepath"
 	"slices"
 	"strconv"
 	"strings"
@@ -201,7 +200,7 @@ func (p *Prog) runFollow(ctx context.Context, inputs []input.Input, opts options
 			rc:           ctxio.ReadCloser{Ctx: ctx, RC: rc},
 			f:            f,
 			out:          out,
-			path:         p.path(in),
+			path:         p.FsName(in.Name),
 			byName:       opts.byName && !in.Stdin,
 			retry:        opts.retry,
 			sleep:        opts.sleep,
@@ -887,7 +886,7 @@ func (p *Prog) open(in input.Input) (io.ReadCloser, fsx.SeekFile, error) {
 	if p.FS == nil {
 		return nil, nil, errors.New("no file system available")
 	}
-	f, err := p.FS.Open(p.path(in))
+	f, err := p.FS.Open(p.FsName(in.Name))
 	if err != nil {
 		return nil, nil, err
 	}
@@ -896,11 +895,6 @@ func (p *Prog) open(in input.Input) (io.ReadCloser, fsx.SeekFile, error) {
 		seek = s
 	}
 	return f, seek, nil
-}
-
-// path returns the resolved, slash form of the name of an input.
-func (p *Prog) path(in input.Input) string {
-	return filepath.ToSlash(p.ResolvePath(in.Name))
 }
 
 // stdinIsPipe reports whether the standard input is a FIFO or a pipe, which

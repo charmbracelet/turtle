@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"io/fs"
 	"path"
-	"path/filepath"
 	"strings"
 
 	"charm.land/snail/coreutils"
@@ -102,7 +101,7 @@ func (p *Prog) spec(opts options, operands []string) (ModeSpec, []string, error)
 // referenceSpec returns a specification which uses the mode of the reference
 // file. A symbolic link reference is followed.
 func (p *Prog) referenceSpec(name string) (ModeSpec, error) {
-	resolved := path.Clean(filepath.ToSlash(p.ResolvePath(name)))
+	resolved := p.FsPath(name)
 	fi, err := fs.Stat(p.FS, resolved)
 	if err != nil {
 		return nil, err
@@ -115,7 +114,7 @@ func (p *Prog) referenceSpec(name string) (ModeSpec, error) {
 // file it fails to change. It reports whether any file failed, and only
 // returns an error when the run must be aborted.
 func (p *Prog) chmod(ctx context.Context, name string, spec ModeSpec, opts options) (bool, error) {
-	resolved := path.Clean(filepath.ToSlash(p.ResolvePath(name)))
+	resolved := p.FsPath(name)
 	umask := p.Umask.Perm()
 	failed := false
 

@@ -6,7 +6,6 @@ import (
 	"context"
 	"errors"
 	"io"
-	"path/filepath"
 
 	"charm.land/snail/coreutils"
 	"charm.land/snail/coreutils/internal/ctxio"
@@ -57,7 +56,7 @@ func Open(rt *coreutils.Runtime, ctx context.Context, in Input) (io.ReadCloser, 
 	if rt.FS == nil {
 		return nil, errors.New("no file system available")
 	}
-	f, err := rt.FS.Open(filepath.ToSlash(rt.ResolvePath(in.Name)))
+	f, err := rt.FS.Open(rt.FsName(in.Name))
 	if err != nil {
 		return nil, err
 	}

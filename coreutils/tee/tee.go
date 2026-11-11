@@ -13,7 +13,6 @@ import (
 	"io"
 	"io/fs"
 	"os"
-	"path/filepath"
 
 	"charm.land/snail/coreutils"
 
@@ -144,7 +143,7 @@ func (p *Prog) openFile(name string, append bool) (fsx.File, error) {
 	} else {
 		flag |= os.O_TRUNC
 	}
-	return p.FS.OpenFile(filepath.ToSlash(p.ResolvePath(name)), flag, 0o666&^p.Umask.Perm())
+	return p.FS.OpenFile(p.FsName(name), flag, 0o666&^p.Umask.Perm())
 }
 
 // errorf writes a diagnostic message to standard error.

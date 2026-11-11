@@ -981,28 +981,6 @@ func TestRunRootBase(t *testing.T) {
 	})
 }
 
-func TestAbsolute(t *testing.T) {
-	p := &Prog{Runtime: &coreutils.Runtime{WorkingDir: "work"}}
-	tests := []struct {
-		name, operand, want string
-	}{
-		{"a relative operand joins the working directory", "a/b", "work/a/b"},
-		{"a rooted operand is used as given", "/a/b", "/a/b"},
-	}
-	for _, test := range tests {
-		if got := p.absolute(test.operand); got != test.want {
-			t.Errorf("absolute(%q) = %q, want %q", test.operand, got, test.want)
-		}
-	}
-	if runtime.GOOS == "windows" {
-		// A drive-absolute operand is absolute before the separators
-		// are normalized, and keeps its volume.
-		if got := p.absolute(`C:\dir\file`); got != "C:/dir/file" {
-			t.Errorf("absolute(%q) = %q, want %q", `C:\dir\file`, got, "C:/dir/file")
-		}
-	}
-}
-
 // optionToken matches a usage option token: a short form alone, a combined
 // short and long form, as in "-a, --all", or a long-only form, each with an
 // optional "=ARGUMENT" suffix.

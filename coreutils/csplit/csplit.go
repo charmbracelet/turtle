@@ -13,8 +13,6 @@ import (
 	"io"
 	"math"
 	"os"
-	"path"
-	"path/filepath"
 	"regexp"
 	"strconv"
 	"strings"
@@ -73,7 +71,7 @@ func (p *Prog) Run(ctx context.Context, args ...string) error {
 		p.errorf("%v", err)
 		return &coreutils.ExitError{Code: 1}
 	}
-	if len(baseName(opts.prefix))+max(opts.digits, 10) > nameMax {
+	if len(coreutils.FsBase(opts.prefix))+max(opts.digits, 10) > nameMax {
 		p.errorf("'%s': file name too long", opts.prefix)
 		return &coreutils.ExitError{Code: 1}
 	}
@@ -338,7 +336,7 @@ func (s *splitter) createFile() error {
 		suffix = fmt.Sprintf(s.opts.suffixFmt, len(s.created))
 	}
 	name := s.opts.prefix + suffix
-	f, err := s.p.FS.OpenFile(filepath.ToSlash(s.p.ResolvePath(name)), os.O_WRONLY|os.O_CREATE|os.O_TRUNC, 0o666&^s.p.Umask.Perm())
+	f, err := s.p.FS.OpenFile(s.p.FsName(name), os.O_WRONLY|os.O_CREATE|os.O_TRUNC, 0o666&^s.p.Umask.Perm())
 	if err != nil {
 		return &writeError{name: name, err: err}
 	}
@@ -361,7 +359,7 @@ func (s *splitter) closeFile() error {
 		return &writeError{name: s.outName, err: err}
 	}
 	if s.opts.elide && s.written == 0 && !s.failed {
-		s.p.FS.Remove(filepath.ToSlash(s.p.ResolvePath(s.outName)))
+		s.p.FS.Remove(s.p.FsName(s.outName))
 		s.written = 0
 		return nil
 	}
@@ -383,7 +381,7 @@ func (s *splitter) fail(err error) error {
 	s.closeFile()
 	if !s.opts.keep {
 		for _, name := range s.created {
-			s.p.FS.Remove(filepath.ToSlash(s.p.ResolvePath(name)))
+			s.p.FS.Remove(s.p.FsName(name))
 		}
 	}
 	return err
@@ -667,11 +665,6 @@ func isDecimal(s string) bool {
 		}
 	}
 	return true
-}
-
-// baseName returns the last path element of prefix.
-func baseName(prefix string) string {
-	return path.Base(filepath.ToSlash(prefix))
 }
 
 // writeError marks an error as coming from writing to an output file.

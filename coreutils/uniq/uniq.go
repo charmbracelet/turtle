@@ -14,7 +14,6 @@ import (
 	"fmt"
 	"io"
 	"os"
-	"path/filepath"
 	"slices"
 	"strconv"
 	"unicode/utf8"
@@ -270,7 +269,7 @@ func (p *Prog) openOutput(name string) (io.Writer, error) {
 	if p.FS == nil {
 		return nil, errors.New("no file system available")
 	}
-	return p.FS.OpenFile(filepath.ToSlash(p.ResolvePath(name)), os.O_WRONLY|os.O_CREATE|os.O_TRUNC, 0o666&^p.Umask.Perm())
+	return p.FS.OpenFile(p.FsName(name), os.O_WRONLY|os.O_CREATE|os.O_TRUNC, 0o666&^p.Umask.Perm())
 }
 
 // errorf writes a diagnostic message to standard error.

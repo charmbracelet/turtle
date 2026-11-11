@@ -133,7 +133,7 @@ func (p *Prog) Run(ctx context.Context, args ...string) error {
 		return &coreutils.ExitError{Code: 2}
 	}
 
-	dst := p.resolve(target)
+	dst := p.FsPath(target)
 	into := false
 	if opts.targetDirSet {
 		if opts.createParents {
@@ -171,9 +171,9 @@ func (p *Prog) Run(ctx context.Context, args ...string) error {
 		if err := ctx.Err(); err != nil {
 			return err
 		}
-		e := pair{src: p.resolve(source), srcName: source, dst: dst, dstName: target}
+		e := pair{src: p.FsPath(source), srcName: source, dst: dst, dstName: target}
 		if into {
-			base := path.Base(filepath.ToSlash(source))
+			base := coreutils.FsBase(source)
 			e.dst, e.dstName = path.Join(dst, base), path.Join(target, base)
 		}
 		if err := p.installFile(ctx, e, set); err != nil {
@@ -426,7 +426,7 @@ func (p *Prog) sameContent(ctx context.Context, e pair, size int64) (bool, error
 // or not, gets the mode, owner and group the options ask for. Unlike mkdir
 // -p, an existing directory isn't left alone.
 func (p *Prog) installDir(dir string, set settings) error {
-	comps := coreutils.SplitPath(filepath.ToSlash(p.ResolvePath(dir)))
+	comps := coreutils.SplitPath(p.FsName(dir))
 	if len(comps) == 0 {
 		comps = []string{"."}
 	}
@@ -493,7 +493,7 @@ func (p *Prog) createParents(dest string, set settings) error {
 // skip is zero, or the ones above the last when it skips one, with the
 // default attributes: mode 'u=rwx,go=rx', regardless of the current umask.
 func (p *Prog) createHierarchy(dir string, skip int, set settings) error {
-	comps := coreutils.SplitPath(filepath.ToSlash(p.ResolvePath(dir)))
+	comps := coreutils.SplitPath(p.FsName(dir))
 	disp := coreutils.SplitPath(path.Clean(filepath.ToSlash(dir)))
 	for i := range comps {
 		if i >= len(comps)-skip {
@@ -615,12 +615,6 @@ func parseGroup(s string) (int, error) {
 type pair struct {
 	src, dst         string
 	srcName, dstName string
-}
-
-// resolve converts an operand into the slash-separated path used with the
-// file system, relative to the working directory.
-func (p *Prog) resolve(name string) string {
-	return path.Clean(filepath.ToSlash(p.ResolvePath(name)))
 }
 
 // resolveSymlinks resolves every component of name, following the symbolic

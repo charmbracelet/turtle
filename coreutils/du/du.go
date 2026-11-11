@@ -26,7 +26,6 @@ import (
 	"fmt"
 	"io/fs"
 	"math"
-	"path"
 	"path/filepath"
 	"strconv"
 
@@ -136,7 +135,7 @@ func (r *runner) operand(ctx context.Context, name string) error {
 		return nil
 	}
 	acc := accumulator{}
-	fsName := path.Clean(filepath.ToSlash(r.p.ResolvePath(name)))
+	fsName := r.p.FsPath(name)
 	return walk.Walk(ctx, r.p.FS, walk.Options{
 		Follow:   r.opts.follow,
 		Depth:    true,

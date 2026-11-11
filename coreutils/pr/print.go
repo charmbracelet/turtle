@@ -7,7 +7,6 @@ import (
 	"fmt"
 	"io"
 	"io/fs"
-	"path/filepath"
 	"strconv"
 	"strings"
 	"time"
@@ -97,7 +96,7 @@ func (p *printer) openSource(ctx context.Context, name string) (*source, error) 
 		if p.prog.FS == nil {
 			return nil, errors.New("no file system available")
 		}
-		f, err := p.prog.FS.Open(filepath.ToSlash(p.prog.ResolvePath(name)))
+		f, err := p.prog.FS.Open(p.prog.FsName(name))
 		if err != nil {
 			return nil, err
 		}

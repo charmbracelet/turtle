@@ -30,7 +30,6 @@ import (
 	"fmt"
 	"io/fs"
 	"path"
-	"path/filepath"
 	"slices"
 	"strconv"
 	"strings"
@@ -97,7 +96,7 @@ func (p *Prog) Run(ctx context.Context, args ...string) error {
 			l.failed = true
 			continue
 		}
-		e, err := l.entryFor(p.resolve(arg), arg, true)
+		e, err := l.entryFor(p.FsPath(arg), arg, true)
 		if err != nil {
 			p.errorf("cannot access '%s': %v", arg, patherr.Unwrap(err))
 			l.failed = true
@@ -721,11 +720,6 @@ func (l *lister) writeHeader(name string) {
 	quoted, _ := quoteName(name, l.opts.quoting, l.hideControl, ":")
 	fmt.Fprintf(l.prog.Stdout, "%s:\n", quoted)
 	l.printed = true
-}
-
-// resolve returns the path to use with the file system for a given name.
-func (p *Prog) resolve(name string) string {
-	return path.Clean(filepath.ToSlash(p.ResolvePath(name)))
 }
 
 // displayWidth returns the width the column formats write within: the one

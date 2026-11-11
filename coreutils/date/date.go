@@ -17,7 +17,6 @@ import (
 	"fmt"
 	"io"
 	"io/fs"
-	"path/filepath"
 	"strconv"
 	"strings"
 	"time"
@@ -197,7 +196,7 @@ func (p *Prog) referenceTime(name string) (time.Time, error) {
 		// working directory would stat the directory itself.
 		return time.Time{}, fmt.Errorf("failed to get timestamp of '': file does not exist")
 	}
-	fi, err := fs.Stat(p.FS, filepath.ToSlash(p.ResolvePath(name)))
+	fi, err := fs.Stat(p.FS, p.FsName(name))
 	if err != nil {
 		return time.Time{}, fmt.Errorf("failed to get timestamp of '%s': %v", name, patherr.Unwrap(err))
 	}

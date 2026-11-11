@@ -10,8 +10,6 @@ import (
 	"errors"
 	"fmt"
 	"io/fs"
-	"path"
-	"path/filepath"
 	"slices"
 
 	"charm.land/snail/coreutils"
@@ -101,7 +99,7 @@ func (p *Prog) Run(ctx context.Context, args ...string) error {
 // link it names, or its canonicalized name in canonicalize mode.
 func (p *Prog) value(ctx context.Context, operand string, opts options) (string, error) {
 	if !opts.canonical {
-		name := p.resolve(operand)
+		name := p.FsPath(operand)
 		fi, err := p.FS.Lstat(name)
 		if err != nil {
 			return "", patherr.Unwrap(err)
@@ -115,7 +113,7 @@ func (p *Prog) value(ctx context.Context, operand string, opts options) (string,
 		}
 		return target, nil
 	}
-	return realpath.Canonicalize(ctx, p.FS, p.absolute(operand), realpath.Options{Mode: opts.mode})
+	return realpath.Canonicalize(ctx, p.FS, p.FsAbs(operand), realpath.Options{Mode: opts.mode})
 }
 
 // options holds the readlink flags. mode starts as AllButLast, and -f, -e
@@ -204,30 +202,6 @@ func parseFlags(args []string) (options, []string, error) {
 		return options{}, nil, err
 	}
 	return opts, operands, nil
-}
-
-// resolve converts an operand into the slash-separated path used with the
-// file system, relative to the working directory.
-func (p *Prog) resolve(name string) string {
-	return path.Clean(filepath.ToSlash(p.ResolvePath(name)))
-}
-
-// absolute makes operand absolute, relative to the working directory,
-// without applying its "." and ".." components.
-func (p *Prog) absolute(operand string) string {
-	if filepath.IsAbs(operand) {
-		// A Windows drive-absolute name stays absolute; its slash form
-		// doesn't look absolute to path.IsAbs.
-		return filepath.ToSlash(operand)
-	}
-	operand = filepath.ToSlash(operand)
-	if path.IsAbs(operand) || p.WorkingDir == "" {
-		return operand
-	}
-	if wd := path.Clean(filepath.ToSlash(p.WorkingDir)); wd != "." {
-		return wd + "/" + operand
-	}
-	return operand
 }
 
 // usageError reports a usage error, with the hint that follows them.

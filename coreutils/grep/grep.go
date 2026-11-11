@@ -6,7 +6,6 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"path/filepath"
 	"strings"
 
 	"charm.land/snail/coreutils"
@@ -238,7 +237,7 @@ func slashPath(p *Prog, name string) string {
 	if p.FS == nil {
 		return name
 	}
-	return filepath.ToSlash(p.ResolvePath(name))
+	return p.FsName(name)
 }
 
 var _ coreutils.Program = (*Prog)(nil)

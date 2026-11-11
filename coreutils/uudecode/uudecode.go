@@ -14,7 +14,6 @@ import (
 	"io"
 	"io/fs"
 	"os"
-	"path/filepath"
 	"strings"
 
 	"charm.land/snail/coreutils"
@@ -209,7 +208,7 @@ func (p *Prog) output(name string, mode fs.FileMode) (*errWriter, func() error, 
 	if p.FS == nil {
 		return nil, nil, errors.New("no file system available")
 	}
-	path := filepath.ToSlash(p.ResolvePath(name))
+	path := p.FsName(name)
 	f, err := p.FS.OpenFile(path, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, mode)
 	if err != nil {
 		return nil, nil, err

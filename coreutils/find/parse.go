@@ -5,8 +5,6 @@ import (
 	"fmt"
 	"io/fs"
 	"os/user"
-	"path"
-	"path/filepath"
 	"regexp"
 	"strconv"
 	"strings"
@@ -606,7 +604,7 @@ func (p *parser) parseSamefile() (expr, error) {
 // statRef describes the reference file of the primaries which take one,
 // following symbolic links as the options ask for.
 func (p *parser) statRef(arg string) (fs.FileInfo, error) {
-	name := path.Clean(filepath.ToSlash(p.rt.ResolvePath(arg)))
+	name := p.rt.FsPath(arg)
 	fi, err := walk.Stat(p.rt.FS, p.follow, name, true)
 	if err != nil && errors.Is(err, fs.ErrNotExist) {
 		// A link whose target doesn't exist is described as itself; the

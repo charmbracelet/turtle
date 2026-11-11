@@ -7,7 +7,6 @@ import (
 	"io/fs"
 	"os/user"
 	"path"
-	"path/filepath"
 	"strconv"
 
 	"charm.land/snail/coreutils"
@@ -103,7 +102,7 @@ func (p *Prog) group(opts options, operands []string) (int, []string, error) {
 // referenceGroup returns the group of the reference file, which a symbolic
 // link stands for.
 func (p *Prog) referenceGroup(name string) (int, error) {
-	resolved := path.Clean(filepath.ToSlash(p.ResolvePath(name)))
+	resolved := p.FsPath(name)
 	fi, err := fs.Stat(p.FS, resolved)
 	if err != nil {
 		return 0, fmt.Errorf("failed to get attributes of %s: %v", name, patherr.Unwrap(err))
@@ -127,7 +126,7 @@ type run struct {
 
 // file changes the group of one operand, shown as given.
 func (r *run) file(ctx context.Context, operand string) error {
-	resolved := path.Clean(filepath.ToSlash(r.p.ResolvePath(operand)))
+	resolved := r.p.FsPath(operand)
 	fi, err := r.p.FS.Lstat(resolved)
 	if err != nil {
 		r.report(operand, err)

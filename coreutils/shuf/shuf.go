@@ -14,7 +14,6 @@ import (
 	"io"
 	"math"
 	"os"
-	"path/filepath"
 	"strconv"
 	"strings"
 
@@ -124,7 +123,7 @@ func (p *Prog) newRNG(ctx context.Context, opts options) (*rng, error) {
 		p.errorf("%s: no file system available", opts.randomSource)
 		return nil, &coreutils.ExitError{Code: 1}
 	}
-	f, err := p.FS.Open(filepath.ToSlash(p.ResolvePath(opts.randomSource)))
+	f, err := p.FS.Open(p.FsName(opts.randomSource))
 	if err != nil {
 		p.errorf("%s: %v", opts.randomSource, patherr.Unwrap(err))
 		return nil, &coreutils.ExitError{Code: 1, Err: err}
@@ -287,7 +286,7 @@ func (p *Prog) openOutput(name string) (fsx.File, error) {
 	if p.FS == nil {
 		return nil, errors.New("no file system available")
 	}
-	return p.FS.OpenFile(filepath.ToSlash(p.ResolvePath(name)), os.O_WRONLY|os.O_CREATE|os.O_TRUNC, 0o666&^p.Umask.Perm())
+	return p.FS.OpenFile(p.FsName(name), os.O_WRONLY|os.O_CREATE|os.O_TRUNC, 0o666&^p.Umask.Perm())
 }
 
 // usageErrorf reports a usage error, followed by the hint, and exits with

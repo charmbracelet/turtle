@@ -14,7 +14,6 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"path/filepath"
 	"slices"
 	"strconv"
 	"strings"
@@ -336,7 +335,7 @@ func (p *Prog) readFile(name string) (string, error) {
 	if p.FS == nil {
 		return "", errors.New("no file system available")
 	}
-	f, err := p.FS.Open(p.path(name))
+	f, err := p.FS.Open(p.FsName(name))
 	if err != nil {
 		return "", err
 	}
@@ -346,11 +345,6 @@ func (p *Prog) readFile(name string) (string, error) {
 		return "", err
 	}
 	return string(content), nil
-}
-
-// path resolves a path operand for the runtime file system.
-func (p *Prog) path(name string) string {
-	return filepath.ToSlash(p.ResolvePath(name))
 }
 
 func (p *Prog) errorf(format string, args ...any) {
