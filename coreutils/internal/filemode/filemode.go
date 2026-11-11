@@ -10,9 +10,29 @@ import (
 	"strings"
 )
 
+// AccessBits is the set of fs.FileMode bits that Octal converts: the
+// permission bits plus setuid, setgid and sticky.
+const AccessBits = fs.ModePerm | fs.ModeSetuid | fs.ModeSetgid | fs.ModeSticky
+
 // Spec computes the mode of a file from its current mode, whether it's a
 // directory, and the file mode creation mask.
 type Spec func(cur fs.FileMode, isDir bool, umask fs.FileMode) fs.FileMode
+
+// Octal returns the POSIX octal permission bits of a file mode: the
+// permission bits plus the set-user-ID, set-group-ID and sticky bits.
+func Octal(m fs.FileMode) uint32 {
+	o := uint32(m.Perm())
+	if m&fs.ModeSetuid != 0 {
+		o |= 0o4000
+	}
+	if m&fs.ModeSetgid != 0 {
+		o |= 0o2000
+	}
+	if m&fs.ModeSticky != 0 {
+		o |= 0o1000
+	}
+	return o
+}
 
 // errInvalidMode is returned for mode operands that are neither a valid octal
 // number nor a valid symbolic mode expression.
@@ -224,7 +244,7 @@ func (a action) apply(who uint8, mode, orig fs.FileMode, isDir bool, umask fs.Fi
 		mode &^= bits | special
 	case '=':
 		if who == 0 {
-			mode &^= fs.ModePerm | fs.ModeSetuid | fs.ModeSetgid | fs.ModeSticky
+			mode &^= AccessBits
 		} else {
 			mode &^= whoMask(who)
 		}

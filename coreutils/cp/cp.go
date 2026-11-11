@@ -25,6 +25,7 @@ import (
 	"charm.land/snail/coreutils"
 
 	"charm.land/snail/coreutils/internal/ctxio"
+	"charm.land/snail/coreutils/internal/filemode"
 	"charm.land/snail/coreutils/internal/getopt"
 	"charm.land/snail/coreutils/internal/patherr"
 	"charm.land/snail/coreutils/internal/stdopts"
@@ -201,7 +202,7 @@ func (p *Prog) copyFile(ctx context.Context, e pair, fi fs.FileInfo, opts option
 	}
 
 	if opts.preserveMode {
-		if err := p.FS.Chmod(e.dst, fi.Mode()&chmodBits); err != nil {
+		if err := p.FS.Chmod(e.dst, fi.Mode()&filemode.AccessBits); err != nil {
 			return fmt.Errorf("cannot set mode of '%s': %v", e.dstName, patherr.Unwrap(err))
 		}
 	}
@@ -516,9 +517,6 @@ func atime(fi fs.FileInfo) time.Time {
 	}
 	return fi.ModTime()
 }
-
-// chmodBits are the mode bits that preservation duplicates.
-const chmodBits = fs.ModePerm | fs.ModeSetuid | fs.ModeSetgid | fs.ModeSticky
 
 // errSkipped marks a copy declined through -n, -u or -i, which isn't a
 // failure.

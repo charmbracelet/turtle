@@ -10,14 +10,11 @@ import (
 	"strings"
 
 	"charm.land/snail/coreutils"
+	"charm.land/snail/coreutils/internal/filemode"
 	"charm.land/snail/coreutils/internal/getopt"
 	"charm.land/snail/coreutils/internal/patherr"
 	"charm.land/snail/coreutils/internal/stdopts"
 )
-
-// chmodModeBits holds the bits a mode operand may change: the permissions and
-// the special bits, without the file type bits.
-const chmodModeBits = fs.ModePerm | fs.ModeSetuid | fs.ModeSetgid | fs.ModeSticky
 
 // Prog is the chmod core utility.
 type Prog struct {
@@ -110,7 +107,7 @@ func (p *Prog) referenceSpec(name string) (ModeSpec, error) {
 	if err != nil {
 		return nil, err
 	}
-	mode := fi.Mode() & chmodModeBits
+	mode := fi.Mode() & filemode.AccessBits
 	return func(fs.FileMode, bool, fs.FileMode) fs.FileMode { return mode }, nil
 }
 
@@ -213,12 +210,12 @@ func (p *Prog) link(name string, d fs.DirEntry) bool {
 // apply changes the mode of the file at name, shown as given in diagnostics,
 // and reports the change when the verbosity asks for it.
 func (p *Prog) apply(name, shown string, spec ModeSpec, umask fs.FileMode, fi fs.FileInfo, verbosity int) error {
-	old := fi.Mode() & chmodModeBits
+	old := fi.Mode() & filemode.AccessBits
 	mode := spec(fi.Mode(), fi.IsDir(), umask)
 	if err := p.FS.Chmod(name, mode); err != nil {
 		return err
 	}
-	p.describe(shown, old, mode&chmodModeBits, verbosity)
+	p.describe(shown, old, mode&filemode.AccessBits, verbosity)
 	return nil
 }
 
@@ -229,11 +226,11 @@ func (p *Prog) describe(name string, old, mode fs.FileMode, verbosity int) {
 	}
 	if old != mode {
 		fmt.Fprintf(p.Stdout, "mode of '%s' changed from %04o (%s) to %04o (%s)\n",
-			name, modeOctal(old), modeString(old), modeOctal(mode), modeString(mode))
+			name, filemode.Octal(old), modeString(old), filemode.Octal(mode), modeString(mode))
 		return
 	}
 	fmt.Fprintf(p.Stdout, "mode of '%s' retained as %04o (%s)\n",
-		name, modeOctal(mode), modeString(mode))
+		name, filemode.Octal(mode), modeString(mode))
 }
 
 // errorf writes a diagnostic message to standard error.

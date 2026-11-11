@@ -69,6 +69,22 @@ func TestRunPrintf(t *testing.T) {
 			want: "644 0644\n",
 		},
 		{
+			name: "the mode with special bits",
+			args: []string{"dir/a", "-printf", "%m %#m\n"},
+			files: fsx.MemFS{
+				"dir/a": {Mode: 0o755 | fs.ModeSetuid},
+			},
+			want: "4755 04755\n",
+		},
+		{
+			name: "the mode with the sticky bit",
+			args: []string{"dir/a", "-printf", "%m %#m\n"},
+			files: fsx.MemFS{
+				"dir/a": {Mode: 0o644 | fs.ModeSticky},
+			},
+			want: "1644 01644\n",
+		},
+		{
 			name: "the symbolic mode",
 			args: []string{"dir/a", "-printf", "%M\n"},
 			want: "-rw-r--r--\n",
@@ -296,6 +312,23 @@ func TestRunFprintFamily(t *testing.T) {
 		runTest(t, []string{".", "-name", "a", "-fprint", "out"}, files, nil, nil, "", "", 0)
 		if got, want := string(files["out"].Data), "./a\n"; got != want {
 			t.Errorf("out = %q, want %q", got, want)
+		}
+	})
+
+	t.Run("fprint applies the umask", func(t *testing.T) {
+		files := fsx.MemFS{"a": {}}
+		runtime := &coreutils.Runtime{
+			Stdout: new(bytes.Buffer),
+			Stderr: new(bytes.Buffer),
+			FS:     files,
+			Clock:  func() time.Time { return testNow },
+			Umask:  0o022,
+		}
+		if err := New(runtime).Run(t.Context(), ".", "-name", "a", "-fprint", "out"); err != nil {
+			t.Fatalf("Run() error = %v", err)
+		}
+		if got, want := files["out"].Mode.Perm(), fs.FileMode(0o644); got != want {
+			t.Errorf("mode = %v, want %v", got, want)
 		}
 	})
 

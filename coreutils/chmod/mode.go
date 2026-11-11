@@ -16,22 +16,6 @@ func ParseMode(s string) (ModeSpec, error) {
 	return filemode.Parse(s)
 }
 
-// modeOctal returns the numeric octal mode of the permission and special
-// bits, as in 0o644 or 0o4755.
-func modeOctal(m fs.FileMode) uint32 {
-	oct := uint32(m.Perm())
-	if m&fs.ModeSetuid != 0 {
-		oct |= 0o4000
-	}
-	if m&fs.ModeSetgid != 0 {
-		oct |= 0o2000
-	}
-	if m&fs.ModeSticky != 0 {
-		oct |= 0o1000
-	}
-	return oct
-}
-
 // modeString renders the permission and special bits of a mode like ls does,
 // as in "rw-r--r--", with s, S, t and T in the execute columns.
 func modeString(m fs.FileMode) string {

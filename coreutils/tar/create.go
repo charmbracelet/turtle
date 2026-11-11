@@ -14,6 +14,7 @@ import (
 	"charm.land/snail/coreutils"
 
 	"charm.land/snail/coreutils/internal/ctxio"
+	"charm.land/snail/coreutils/internal/filemode"
 	"charm.land/snail/coreutils/internal/patherr"
 	"charm.land/snail/fsx"
 )
@@ -254,7 +255,7 @@ func (a *archiver) writeEntry(ctx context.Context, tw *tar.Writer, name, resolve
 func (a *archiver) header(name, resolved string, fi fs.FileInfo) (*tar.Header, error) {
 	hdr := &tar.Header{
 		Name:    name,
-		Mode:    headerMode(fi.Mode()),
+		Mode:    int64(filemode.Octal(fi.Mode())),
 		ModTime: fi.ModTime(),
 	}
 	if uid, gid, ok := fsx.Owner(fi); ok {
@@ -283,22 +284,6 @@ func (a *archiver) header(name, resolved string, fi fs.FileInfo) (*tar.Header, e
 		return nil, errors.New("unsupported file type ignored")
 	}
 	return hdr, nil
-}
-
-// headerMode converts the permission and special bits of a file mode into
-// the numeric mode of an archive header.
-func headerMode(mode fs.FileMode) int64 {
-	m := int64(mode.Perm())
-	if mode&fs.ModeSetuid != 0 {
-		m |= 0o4000
-	}
-	if mode&fs.ModeSetgid != 0 {
-		m |= 0o2000
-	}
-	if mode&fs.ModeSticky != 0 {
-		m |= 0o1000
-	}
-	return m
 }
 
 // padToRecord writes zero blocks so the archive length becomes a multiple of

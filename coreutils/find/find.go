@@ -221,7 +221,7 @@ func (s *state) openOutFiles(names []string) error {
 			continue
 		}
 		fsName := path.Clean(filepath.ToSlash(s.p.ResolvePath(name)))
-		f, err := s.p.FS.OpenFile(fsName, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, 0o666)
+		f, err := s.p.FS.OpenFile(fsName, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, 0o666&^s.p.Umask.Perm())
 		if err != nil {
 			s.p.errorf("cannot open '%s' for writing: %v", name, patherr.Unwrap(err))
 			s.failed = true

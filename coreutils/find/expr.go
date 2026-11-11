@@ -189,9 +189,6 @@ func (e xtypeExpr) eval(s *state, f file) bool {
 	return matchType(e.typs, tfi.Mode().Type())
 }
 
-// permBits is the set of file mode bits a -perm primary matches.
-const permBits = fs.ModePerm | fs.ModeSetuid | fs.ModeSetgid | fs.ModeSticky
-
 // permExpr is the -perm primary. With all set, at least the bits of the
 // template must match; with any set, at least one of them must.
 type permExpr struct {
@@ -201,8 +198,8 @@ type permExpr struct {
 }
 
 func (e permExpr) eval(s *state, f file) bool {
-	want := e.spec(0, f.fi.IsDir(), 0) & permBits
-	have := f.fi.Mode() & permBits
+	want := e.spec(0, f.fi.IsDir(), 0) & filemode.AccessBits
+	have := f.fi.Mode() & filemode.AccessBits
 	switch {
 	case e.all:
 		return have&want == want
