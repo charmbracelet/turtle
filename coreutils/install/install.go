@@ -26,13 +26,12 @@ import (
 	"slices"
 	"strconv"
 	"strings"
-	"time"
 
 	"charm.land/snail/coreutils"
-	"charm.land/snail/coreutils/chmod"
 	"charm.land/snail/coreutils/internal/backup"
 	"charm.land/snail/coreutils/internal/ctxio"
 	"charm.land/snail/coreutils/internal/filemode"
+	"charm.land/snail/coreutils/internal/fsop"
 	"charm.land/snail/coreutils/internal/getopt"
 	"charm.land/snail/coreutils/internal/patherr"
 	"charm.land/snail/coreutils/internal/stdopts"
@@ -122,7 +121,7 @@ func (p *Prog) Run(ctx context.Context, args ...string) error {
 		return nil
 	}
 
-	sources, target, err := splitOperands(operands, opts)
+	sources, target, err := fsop.SplitOperands(operands, opts.targetDir, opts.targetDirSet, opts.noTarget)
 	if err != nil {
 		return stdopts.UsageError(p.Runtime, "install", err)
 	}
@@ -165,10 +164,10 @@ func (p *Prog) Run(ctx context.Context, args ...string) error {
 		if err := ctx.Err(); err != nil {
 			return err
 		}
-		e := pair{src: p.FsPath(source), srcName: source, dst: dst, dstName: target}
+		e := fsop.Pair{Src: p.FsPath(source), SrcName: source, Dst: dst, DstName: target}
 		if into {
 			base := coreutils.FsBase(source)
-			e.dst, e.dstName = path.Join(dst, base), path.Join(target, base)
+			e.Dst, e.DstName = path.Join(dst, base), path.Join(target, base)
 		}
 		if err := p.installFile(ctx, e, set); err != nil {
 			switch {
@@ -194,7 +193,7 @@ func (p *Prog) Run(ctx context.Context, args ...string) error {
 func (p *Prog) settings(opts options, bk backup.Options) (settings, error) {
 	set := settings{opts: opts, bk: bk, uid: -1, gid: -1, fileMode: 0o755, dirMode: 0o755}
 	if opts.modeSet {
-		spec, err := chmod.ParseMode(opts.mode)
+		spec, err := filemode.Parse(opts.mode)
 		if err != nil {
 			return set, err
 		}
@@ -223,24 +222,24 @@ func (p *Prog) settings(opts options, bk backup.Options) (settings, error) {
 // owner, group and times the options ask for. A destination which exists is
 // replaced, after a backup of it was made when asked, so a symbolic link
 // never gets written through.
-func (p *Prog) installFile(ctx context.Context, e pair, set settings) error {
-	fi, err := fs.Stat(p.FS, e.src)
+func (p *Prog) installFile(ctx context.Context, e fsop.Pair, set settings) error {
+	fi, err := fs.Stat(p.FS, e.Src)
 	if err != nil {
-		return fmt.Errorf("cannot stat '%s': %v", e.srcName, patherr.Unwrap(err))
+		return fmt.Errorf("cannot stat '%s': %v", e.SrcName, patherr.Unwrap(err))
 	}
 	if fi.IsDir() {
-		return fmt.Errorf("omitting directory '%s'", e.srcName)
+		return fmt.Errorf("omitting directory '%s'", e.SrcName)
 	}
-	if p.resolveSymlinks(e.src) == p.resolveSymlinks(e.dst) {
-		return fmt.Errorf("'%s' and '%s' are the same file", e.srcName, e.dstName)
+	if fsop.ResolveSymlinks(p.FS, e.Src) == fsop.ResolveSymlinks(p.FS, e.Dst) {
+		return fmt.Errorf("'%s' and '%s' are the same file", e.SrcName, e.DstName)
 	}
-	dfi, derr := p.FS.Lstat(e.dst)
+	dfi, derr := p.FS.Lstat(e.Dst)
 	if derr != nil && !errors.Is(derr, fs.ErrNotExist) {
-		return fmt.Errorf("cannot stat '%s': %v", e.dstName, patherr.Unwrap(derr))
+		return fmt.Errorf("cannot stat '%s': %v", e.DstName, patherr.Unwrap(derr))
 	}
 	destExists := derr == nil
 	if destExists && dfi.IsDir() && set.bk.Method == backup.None {
-		return fmt.Errorf("cannot overwrite directory '%s' with non-directory '%s'", e.dstName, e.srcName)
+		return fmt.Errorf("cannot overwrite directory '%s' with non-directory '%s'", e.DstName, e.SrcName)
 	}
 	if set.opts.compare && destExists {
 		up, err := p.upToDate(ctx, e, fi, dfi, set)
@@ -249,8 +248,8 @@ func (p *Prog) installFile(ctx context.Context, e pair, set settings) error {
 		}
 		if up {
 			if set.opts.preserveTimes {
-				if err := p.FS.Chtimes(e.dst, atime(fi), fi.ModTime()); err != nil {
-					return fmt.Errorf("cannot set timestamps for '%s': %v", e.dstName, patherr.Unwrap(err))
+				if err := p.FS.Chtimes(e.Dst, fsop.Atime(fi), fi.ModTime()); err != nil {
+					return fmt.Errorf("cannot set timestamps for '%s': %v", e.DstName, patherr.Unwrap(err))
 				}
 			}
 			return nil
@@ -261,56 +260,56 @@ func (p *Prog) installFile(ctx context.Context, e pair, set settings) error {
 	switch {
 	case !destExists:
 	case set.bk.Method != backup.None:
-		name, err := backup.Name(p.FS, e.dst, set.bk)
+		name, err := backup.Name(p.FS, e.Dst, set.bk)
 		if err != nil {
-			return fmt.Errorf("cannot backup '%s': %v", e.dstName, patherr.Unwrap(err))
+			return fmt.Errorf("cannot backup '%s': %v", e.DstName, patherr.Unwrap(err))
 		}
-		if name == e.src {
-			return fmt.Errorf("backing up '%s' might destroy source; '%s' not copied", e.dstName, e.srcName)
+		if name == e.Src {
+			return fmt.Errorf("backing up '%s' might destroy source; '%s' not copied", e.DstName, e.SrcName)
 		}
-		if err := p.FS.Rename(e.dst, name); err != nil {
-			return fmt.Errorf("cannot backup '%s': %v", e.dstName, patherr.Unwrap(err))
+		if err := p.FS.Rename(e.Dst, name); err != nil {
+			return fmt.Errorf("cannot backup '%s': %v", e.DstName, patherr.Unwrap(err))
 		}
 		backupName = name
 	default:
-		if err := p.FS.Remove(e.dst); err != nil {
-			return fmt.Errorf("cannot remove '%s': %v", e.dstName, patherr.Unwrap(err))
+		if err := p.FS.Remove(e.Dst); err != nil {
+			return fmt.Errorf("cannot remove '%s': %v", e.DstName, patherr.Unwrap(err))
 		}
 		if set.opts.verbose && p.Stdout != nil {
-			fmt.Fprintf(p.Stdout, "removed '%s'\n", e.dstName)
+			fmt.Fprintf(p.Stdout, "removed '%s'\n", e.DstName)
 		}
 	}
 
 	// O_TRUNC matters only when the backup kept the destination itself, as
 	// a suffix of "" asks: a shorter source would leave bytes behind.
-	out, err := p.FS.OpenFile(e.dst, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, set.fileMode.Perm())
+	out, err := p.FS.OpenFile(e.Dst, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, set.fileMode.Perm())
 	if err != nil {
-		return fmt.Errorf("cannot create '%s': %v", e.dstName, patherr.Unwrap(err))
+		return fmt.Errorf("cannot create '%s': %v", e.DstName, patherr.Unwrap(err))
 	}
-	in, err := p.FS.Open(e.src)
+	in, err := p.FS.Open(e.Src)
 	if err != nil {
 		out.Close()
-		return fmt.Errorf("cannot open '%s': %v", e.srcName, patherr.Unwrap(err))
+		return fmt.Errorf("cannot open '%s': %v", e.SrcName, patherr.Unwrap(err))
 	}
 	_, copyErr := io.Copy(out, ctxio.NewReader(ctx, in))
 	inErr := in.Close()
 	outErr := out.Close()
 	switch {
 	case copyErr != nil:
-		return fmt.Errorf("cannot copy '%s' to '%s': %v", e.srcName, e.dstName, patherr.Unwrap(copyErr))
+		return fmt.Errorf("cannot copy '%s' to '%s': %v", e.SrcName, e.DstName, patherr.Unwrap(copyErr))
 	case outErr != nil:
-		return fmt.Errorf("cannot close '%s': %v", e.dstName, patherr.Unwrap(outErr))
+		return fmt.Errorf("cannot close '%s': %v", e.DstName, patherr.Unwrap(outErr))
 	case inErr != nil:
-		return fmt.Errorf("cannot close '%s': %v", e.srcName, patherr.Unwrap(inErr))
+		return fmt.Errorf("cannot close '%s': %v", e.SrcName, patherr.Unwrap(inErr))
 	}
 	if err := p.setAttrs(e, fi, set); err != nil {
 		return err
 	}
 	if set.opts.verbose && p.Stdout != nil {
 		if backupName != "" {
-			fmt.Fprintf(p.Stdout, "'%s' -> '%s' (backup: '%s')\n", e.srcName, e.dstName, e.dstName+strings.TrimPrefix(backupName, e.dst))
+			fmt.Fprintf(p.Stdout, "'%s' -> '%s' (backup: '%s')\n", e.SrcName, e.DstName, e.DstName+strings.TrimPrefix(backupName, e.Dst))
 		} else {
-			fmt.Fprintf(p.Stdout, "'%s' -> '%s'\n", e.srcName, e.dstName)
+			fmt.Fprintf(p.Stdout, "'%s' -> '%s'\n", e.SrcName, e.DstName)
 		}
 	}
 	return nil
@@ -319,18 +318,18 @@ func (p *Prog) installFile(ctx context.Context, e pair, set settings) error {
 // setAttrs gives an installed file its mode, owner, group and, with -p, the
 // times of the source file it came from. The mode is set after the ownership,
 // so the special bits survive a change of owner.
-func (p *Prog) setAttrs(e pair, fi fs.FileInfo, set settings) error {
+func (p *Prog) setAttrs(e fsop.Pair, fi fs.FileInfo, set settings) error {
 	if runtime.GOOS != "windows" && (set.uid >= 0 || set.gid >= 0) {
-		if err := p.chown(e.dst, set.uid, set.gid); err != nil {
-			return fmt.Errorf("cannot change ownership of '%s': %v", e.dstName, patherr.Unwrap(err))
+		if err := p.chown(e.Dst, set.uid, set.gid); err != nil {
+			return fmt.Errorf("cannot change ownership of '%s': %v", e.DstName, patherr.Unwrap(err))
 		}
 	}
-	if err := p.FS.Chmod(e.dst, set.fileMode&filemode.AccessBits); err != nil {
-		return fmt.Errorf("cannot change permissions of '%s': %v", e.dstName, patherr.Unwrap(err))
+	if err := p.FS.Chmod(e.Dst, set.fileMode&filemode.AccessBits); err != nil {
+		return fmt.Errorf("cannot change permissions of '%s': %v", e.DstName, patherr.Unwrap(err))
 	}
 	if set.opts.preserveTimes {
-		if err := p.FS.Chtimes(e.dst, atime(fi), fi.ModTime()); err != nil {
-			return fmt.Errorf("cannot set timestamps for '%s': %v", e.dstName, patherr.Unwrap(err))
+		if err := p.FS.Chtimes(e.Dst, fsop.Atime(fi), fi.ModTime()); err != nil {
+			return fmt.Errorf("cannot set timestamps for '%s': %v", e.DstName, patherr.Unwrap(err))
 		}
 	}
 	return nil
@@ -339,7 +338,7 @@ func (p *Prog) setAttrs(e pair, fi fs.FileInfo, set settings) error {
 // upToDate reports whether installing e would leave its destination as it
 // is: the same content, mode, owner and group it has now. A context error
 // is returned as is, so a cancelled comparison stops the installation.
-func (p *Prog) upToDate(ctx context.Context, e pair, fi, dfi fs.FileInfo, set settings) (bool, error) {
+func (p *Prog) upToDate(ctx context.Context, e fsop.Pair, fi, dfi fs.FileInfo, set settings) (bool, error) {
 	if !fi.Mode().IsRegular() || !dfi.Mode().IsRegular() {
 		return false, nil
 	}
@@ -364,16 +363,16 @@ func (p *Prog) upToDate(ctx context.Context, e pair, fi, dfi fs.FileInfo, set se
 
 // sameContent reports whether the source and destination of e hold the same
 // bytes. A cancelled context stops the comparison with its error.
-func (p *Prog) sameContent(ctx context.Context, e pair, size int64) (bool, error) {
+func (p *Prog) sameContent(ctx context.Context, e fsop.Pair, size int64) (bool, error) {
 	if err := ctx.Err(); err != nil {
 		return false, err
 	}
-	in, err := p.FS.Open(e.src)
+	in, err := p.FS.Open(e.Src)
 	if err != nil {
 		return false, nil
 	}
 	defer in.Close()
-	out, err := p.FS.Open(e.dst)
+	out, err := p.FS.Open(e.Dst)
 	if err != nil {
 		return false, nil
 	}
@@ -604,67 +603,6 @@ func parseGroup(s string) (int, error) {
 	return n, nil
 }
 
-// pair holds a source and its destination, both as the path used with the
-// file system and as the name shown in diagnostics.
-type pair struct {
-	src, dst         string
-	srcName, dstName string
-}
-
-// resolveSymlinks resolves every component of name, following the symbolic
-// links found on the way, and returns the canonical path it names. Broken
-// links and loops give up and keep the remaining components as they are.
-func (p *Prog) resolveSymlinks(name string) string {
-	var resolved []string
-	for comp := range strings.SplitSeq(path.Clean(name), "/") {
-		switch comp {
-		case "", ".":
-			continue
-		case "..":
-			if len(resolved) > 0 {
-				resolved = resolved[:len(resolved)-1]
-			}
-			continue
-		}
-		resolved = append(resolved, comp)
-		for range 40 {
-			link := path.Join(resolved...)
-			fi, err := p.FS.Lstat(link)
-			if err != nil || fi.Mode()&fs.ModeSymlink == 0 {
-				break
-			}
-			target, err := p.FS.ReadLink(link)
-			if err != nil {
-				break
-			}
-			resolved = resolved[:len(resolved)-1]
-			for tc := range strings.SplitSeq(path.Clean(target), "/") {
-				switch tc {
-				case "", ".":
-				case "..":
-					if len(resolved) > 0 {
-						resolved = resolved[:len(resolved)-1]
-					}
-				default:
-					resolved = append(resolved, tc)
-				}
-			}
-		}
-	}
-	if len(resolved) == 0 {
-		return "."
-	}
-	return path.Join(resolved...)
-}
-
-// atime returns the access time of fi, falling back to its modification time.
-func atime(fi fs.FileInfo) time.Time {
-	if t, ok := fsx.Atime(fi); ok {
-		return t
-	}
-	return fi.ModTime()
-}
-
 // specialBits are the mode bits beyond the plain permissions.
 const specialBits = fs.ModeSetuid | fs.ModeSetgid | fs.ModeSticky
 
@@ -759,30 +697,6 @@ existing DIRECTORY, while setting permission modes and owner/group. In the
   -v, --verbose
          print the name of each file as it is installed
 ` + stdopts.Tail
-
-// splitOperands splits the operands into the sources and the target,
-// following the -t and -T options.
-func splitOperands(operands []string, opts options) (sources []string, target string, err error) {
-	if opts.targetDirSet {
-		if len(operands) == 0 {
-			return nil, "", errors.New("missing file operand")
-		}
-		return operands, opts.targetDir, nil
-	}
-	switch len(operands) {
-	case 0:
-		return nil, "", errors.New("missing file operand")
-	case 1:
-		return nil, "", fmt.Errorf("missing destination file operand after '%s'", operands[0])
-	}
-	if opts.noTarget {
-		if len(operands) > 2 {
-			return nil, "", fmt.Errorf("extra operand '%s'", operands[2])
-		}
-		return operands[:1], operands[1], nil
-	}
-	return operands[:len(operands)-1], operands[len(operands)-1], nil
-}
 
 // parseFlags parses the options and operands. Option parsing stops at the
 // first operand or at "--", -t can't be combined with -T, with -d, nor

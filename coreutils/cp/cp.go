@@ -20,12 +20,12 @@ import (
 	"path/filepath"
 	"slices"
 	"strings"
-	"time"
 
 	"charm.land/snail/coreutils"
 
 	"charm.land/snail/coreutils/internal/ctxio"
 	"charm.land/snail/coreutils/internal/filemode"
+	"charm.land/snail/coreutils/internal/fsop"
 	"charm.land/snail/coreutils/internal/getopt"
 	"charm.land/snail/coreutils/internal/patherr"
 	"charm.land/snail/coreutils/internal/stdopts"
@@ -54,7 +54,7 @@ func (p *Prog) Run(ctx context.Context, args ...string) error {
 	if err != nil {
 		return stdopts.UsageError(p.Runtime, "cp", err)
 	}
-	sources, target, err := splitOperands(operands, opts)
+	sources, target, err := fsop.SplitOperands(operands, opts.targetDir, opts.targetDirSet, opts.noTarget)
 	if err != nil {
 		return stdopts.UsageError(p.Runtime, "cp", err)
 	}
@@ -90,11 +90,11 @@ func (p *Prog) Run(ctx context.Context, args ...string) error {
 		if err := ctx.Err(); err != nil {
 			return err
 		}
-		e := pair{src: p.FsPath(source), srcName: source, dst: dst, dstName: target}
+		e := fsop.Pair{Src: p.FsPath(source), SrcName: source, Dst: dst, DstName: target}
 		if into {
 			base := coreutils.FsBase(source)
-			e.dst = path.Join(dst, base)
-			e.dstName = path.Join(target, base)
+			e.Dst = path.Join(dst, base)
+			e.DstName = path.Join(target, base)
 		}
 		err := p.copyEntry(ctx, e, opts, opts.links.operand(opts.recursive))
 		switch {
@@ -120,26 +120,26 @@ func (p *Prog) Run(ctx context.Context, args ...string) error {
 // returned ready to be reported; errSkipped is returned when a copy was
 // declined through -n, -u or -i, and errFailed when the failure, somewhere
 // inside a hierarchy, was already reported.
-func (p *Prog) copyEntry(ctx context.Context, e pair, opts options, follow bool) error {
+func (p *Prog) copyEntry(ctx context.Context, e fsop.Pair, opts options, follow bool) error {
 	return p.copyEntryVisited(ctx, e, opts, follow, nil)
 }
 
 // copyEntryVisited copies one entry, tracking the directories the walk of
 // which it is part already entered, so cycles through symbolic links are
 // caught.
-func (p *Prog) copyEntryVisited(ctx context.Context, e pair, opts options, follow bool, visited map[string]bool) error {
-	fi, err := p.stat(e.src, follow)
+func (p *Prog) copyEntryVisited(ctx context.Context, e fsop.Pair, opts options, follow bool, visited map[string]bool) error {
+	fi, err := p.stat(e.Src, follow)
 	if err != nil {
-		return fmt.Errorf("cannot stat '%s': %v", e.srcName, patherr.Unwrap(err))
+		return fmt.Errorf("cannot stat '%s': %v", e.SrcName, patherr.Unwrap(err))
 	}
 	switch {
 	case fi.IsDir():
 		if !opts.recursive {
-			return fmt.Errorf("-R not specified; omitting directory '%s'", e.srcName)
+			return fmt.Errorf("-R not specified; omitting directory '%s'", e.SrcName)
 		}
 		return p.copyDir(ctx, e, fi, opts, opts.links.tree(), visited)
-	case e.src == e.dst:
-		return fmt.Errorf("'%s' and '%s' are the same file", e.srcName, e.dstName)
+	case e.Src == e.Dst:
+		return fmt.Errorf("'%s' and '%s' are the same file", e.SrcName, e.DstName)
 	case fi.Mode()&fs.ModeSymlink != 0:
 		return p.copySymlink(e, fi, opts)
 	default:
@@ -149,16 +149,16 @@ func (p *Prog) copyEntryVisited(ctx context.Context, e pair, opts options, follo
 
 // copyFile copies a regular file, applying the -n, -u and -i policies to an
 // existing destination and preserving the requested attributes.
-func (p *Prog) copyFile(ctx context.Context, e pair, fi fs.FileInfo, opts options) error {
-	if p.danglingLink(e.dst) {
-		return fmt.Errorf("not writing through dangling symlink '%s'", e.dstName)
+func (p *Prog) copyFile(ctx context.Context, e fsop.Pair, fi fs.FileInfo, opts options) error {
+	if p.danglingLink(e.Dst) {
+		return fmt.Errorf("not writing through dangling symlink '%s'", e.DstName)
 	}
-	dfi, err := fs.Stat(p.FS, e.dst)
+	dfi, err := fs.Stat(p.FS, e.Dst)
 	switch {
 	case err == nil && dfi.IsDir():
-		return fmt.Errorf("cannot overwrite directory '%s' with non-directory '%s'", e.dstName, e.srcName)
+		return fmt.Errorf("cannot overwrite directory '%s' with non-directory '%s'", e.DstName, e.SrcName)
 	case err != nil && !errors.Is(err, fs.ErrNotExist):
-		return fmt.Errorf("cannot stat '%s': %v", e.dstName, patherr.Unwrap(err))
+		return fmt.Errorf("cannot stat '%s': %v", e.DstName, patherr.Unwrap(err))
 	}
 	if err == nil {
 		switch {
@@ -166,7 +166,7 @@ func (p *Prog) copyFile(ctx context.Context, e pair, fi fs.FileInfo, opts option
 			return errSkipped
 		case opts.update && !fi.ModTime().After(dfi.ModTime()):
 			return errSkipped
-		case opts.clobber == clobberPrompt && !p.confirm(e.dstName):
+		case opts.clobber == clobberPrompt && !fsop.Confirm(p.Runtime, "cp", "overwrite", e.DstName):
 			return errSkipped
 		}
 	}
@@ -175,14 +175,14 @@ func (p *Prog) copyFile(ctx context.Context, e pair, fi fs.FileInfo, opts option
 	if !opts.preserveMode {
 		perm &^= p.Umask.Perm()
 	}
-	out, err := p.openDest(e.dst, perm, opts.force)
+	out, err := p.openDest(e.Dst, perm, opts.force)
 	if err != nil {
-		return fmt.Errorf("cannot create '%s': %v", e.dstName, patherr.Unwrap(err))
+		return fmt.Errorf("cannot create '%s': %v", e.DstName, patherr.Unwrap(err))
 	}
-	in, err := p.FS.Open(e.src)
+	in, err := p.FS.Open(e.Src)
 	if err != nil {
 		out.Close()
-		return fmt.Errorf("cannot open '%s': %v", e.srcName, patherr.Unwrap(err))
+		return fmt.Errorf("cannot open '%s': %v", e.SrcName, patherr.Unwrap(err))
 	}
 
 	_, copyErr := io.Copy(out, ctxio.NewReader(ctx, in))
@@ -190,40 +190,40 @@ func (p *Prog) copyFile(ctx context.Context, e pair, fi fs.FileInfo, opts option
 	outErr := out.Close()
 	switch {
 	case copyErr != nil:
-		return fmt.Errorf("cannot copy '%s' to '%s': %v", e.srcName, e.dstName, patherr.Unwrap(copyErr))
+		return fmt.Errorf("cannot copy '%s' to '%s': %v", e.SrcName, e.DstName, patherr.Unwrap(copyErr))
 	case outErr != nil:
-		return fmt.Errorf("cannot close '%s': %v", e.dstName, patherr.Unwrap(outErr))
+		return fmt.Errorf("cannot close '%s': %v", e.DstName, patherr.Unwrap(outErr))
 	case inErr != nil:
-		return fmt.Errorf("cannot close '%s': %v", e.srcName, patherr.Unwrap(inErr))
+		return fmt.Errorf("cannot close '%s': %v", e.SrcName, patherr.Unwrap(inErr))
 	}
 
 	if opts.preserveMode {
-		if err := p.FS.Chmod(e.dst, fi.Mode()&filemode.AccessBits); err != nil {
-			return fmt.Errorf("cannot set mode of '%s': %v", e.dstName, patherr.Unwrap(err))
+		if err := p.FS.Chmod(e.Dst, fi.Mode()&filemode.AccessBits); err != nil {
+			return fmt.Errorf("cannot set mode of '%s': %v", e.DstName, patherr.Unwrap(err))
 		}
 	}
 	if err := p.preserve(e, fi, opts); err != nil {
 		return err
 	}
 	if opts.verbose && p.Stdout != nil {
-		fmt.Fprintf(p.Stdout, "'%s' -> '%s'\n", e.srcName, e.dstName)
+		fmt.Fprintf(p.Stdout, "'%s' -> '%s'\n", e.SrcName, e.DstName)
 	}
 	return nil
 }
 
 // copySymlink copies a symbolic link as itself, with the same target, after
 // the -n, -u and -i policies were applied to an existing destination.
-func (p *Prog) copySymlink(e pair, fi fs.FileInfo, opts options) error {
-	target, err := p.FS.ReadLink(e.src)
+func (p *Prog) copySymlink(e fsop.Pair, fi fs.FileInfo, opts options) error {
+	target, err := p.FS.ReadLink(e.Src)
 	if err != nil {
-		return fmt.Errorf("cannot read link '%s': %v", e.srcName, patherr.Unwrap(err))
+		return fmt.Errorf("cannot read link '%s': %v", e.SrcName, patherr.Unwrap(err))
 	}
-	dfi, err := fs.Stat(p.FS, e.dst)
+	dfi, err := fs.Stat(p.FS, e.Dst)
 	switch {
 	case err == nil && dfi.IsDir():
-		return fmt.Errorf("cannot overwrite directory '%s' with non-directory '%s'", e.dstName, e.srcName)
+		return fmt.Errorf("cannot overwrite directory '%s' with non-directory '%s'", e.DstName, e.SrcName)
 	case err != nil && !errors.Is(err, fs.ErrNotExist):
-		return fmt.Errorf("cannot stat '%s': %v", e.dstName, patherr.Unwrap(err))
+		return fmt.Errorf("cannot stat '%s': %v", e.DstName, patherr.Unwrap(err))
 	}
 	if err == nil {
 		switch {
@@ -231,18 +231,18 @@ func (p *Prog) copySymlink(e pair, fi fs.FileInfo, opts options) error {
 			return errSkipped
 		case opts.update && !fi.ModTime().After(dfi.ModTime()):
 			return errSkipped
-		case opts.clobber == clobberPrompt && !p.confirm(e.dstName):
+		case opts.clobber == clobberPrompt && !fsop.Confirm(p.Runtime, "cp", "overwrite", e.DstName):
 			return errSkipped
 		}
-		if err := p.FS.Remove(e.dst); err != nil {
-			return fmt.Errorf("cannot remove '%s': %v", e.dstName, patherr.Unwrap(err))
+		if err := p.FS.Remove(e.Dst); err != nil {
+			return fmt.Errorf("cannot remove '%s': %v", e.DstName, patherr.Unwrap(err))
 		}
 	}
-	if err := p.FS.Symlink(target, e.dst); err != nil {
-		return fmt.Errorf("cannot create symbolic link '%s' to '%s': %v", e.dstName, target, patherr.Unwrap(err))
+	if err := p.FS.Symlink(target, e.Dst); err != nil {
+		return fmt.Errorf("cannot create symbolic link '%s' to '%s': %v", e.DstName, target, patherr.Unwrap(err))
 	}
 	if opts.verbose && p.Stdout != nil {
-		fmt.Fprintf(p.Stdout, "'%s' -> '%s'\n", e.srcName, e.dstName)
+		fmt.Fprintf(p.Stdout, "'%s' -> '%s'\n", e.SrcName, e.DstName)
 	}
 	return nil
 }
@@ -251,46 +251,46 @@ func (p *Prog) copySymlink(e pair, fi fs.FileInfo, opts options) error {
 // is created with the source mode, and each entry that fails is reported
 // while the remaining ones are still copied. follow tells whether the
 // symbolic links inside the hierarchy are dereferenced.
-func (p *Prog) copyDir(ctx context.Context, e pair, fi fs.FileInfo, opts options, follow bool, visited map[string]bool) error {
-	if insideSelf(p.resolveSymlinks(e.src), p.resolveSymlinks(e.dst)) {
-		return fmt.Errorf("cannot copy a directory, '%s', into itself, '%s'", e.srcName, e.dstName)
+func (p *Prog) copyDir(ctx context.Context, e fsop.Pair, fi fs.FileInfo, opts options, follow bool, visited map[string]bool) error {
+	if insideSelf(fsop.ResolveSymlinks(p.FS, e.Src), fsop.ResolveSymlinks(p.FS, e.Dst)) {
+		return fmt.Errorf("cannot copy a directory, '%s', into itself, '%s'", e.SrcName, e.DstName)
 	}
 
 	// A symbolic link dereferenced to a directory already being copied
 	// would recurse forever: like GNU, it is refused.
-	resolved := p.resolveSymlinks(e.src)
+	resolved := fsop.ResolveSymlinks(p.FS, e.Src)
 	if visited == nil {
 		visited = make(map[string]bool)
 	}
 	if visited[resolved] {
-		return fmt.Errorf("cannot copy cyclic directory symlink '%s'", e.srcName)
+		return fmt.Errorf("cannot copy cyclic directory symlink '%s'", e.SrcName)
 	}
 	visited[resolved] = true
 	defer delete(visited, resolved)
 
-	dfi, err := fs.Stat(p.FS, e.dst)
+	dfi, err := fs.Stat(p.FS, e.Dst)
 	created := false
 	perm := dirPerm(fi, p.Umask.Perm(), opts.preserveMode)
 	switch {
 	case err == nil && dfi.IsDir():
 	case err == nil:
-		return fmt.Errorf("cannot overwrite non-directory '%s' with directory '%s'", e.dstName, e.srcName)
+		return fmt.Errorf("cannot overwrite non-directory '%s' with directory '%s'", e.DstName, e.SrcName)
 	case !errors.Is(err, fs.ErrNotExist):
-		return fmt.Errorf("cannot stat '%s': %v", e.dstName, patherr.Unwrap(err))
+		return fmt.Errorf("cannot stat '%s': %v", e.DstName, patherr.Unwrap(err))
 	default:
-		if err := p.FS.Mkdir(e.dst, perm|0o700); err != nil {
-			return fmt.Errorf("cannot create directory '%s': %v", e.dstName, patherr.Unwrap(err))
+		if err := p.FS.Mkdir(e.Dst, perm|0o700); err != nil {
+			return fmt.Errorf("cannot create directory '%s': %v", e.DstName, patherr.Unwrap(err))
 		}
 		created = true
 	}
 
 	if opts.verbose && p.Stdout != nil {
-		fmt.Fprintf(p.Stdout, "'%s' -> '%s'\n", e.srcName, e.dstName)
+		fmt.Fprintf(p.Stdout, "'%s' -> '%s'\n", e.SrcName, e.DstName)
 	}
 
-	entries, err := fs.ReadDir(p.FS, e.src)
+	entries, err := fs.ReadDir(p.FS, e.Src)
 	if err != nil {
-		return fmt.Errorf("cannot read directory '%s': %v", e.srcName, patherr.Unwrap(err))
+		return fmt.Errorf("cannot read directory '%s': %v", e.SrcName, patherr.Unwrap(err))
 	}
 
 	ok := true
@@ -298,7 +298,7 @@ func (p *Prog) copyDir(ctx context.Context, e pair, fi fs.FileInfo, opts options
 		if err := ctx.Err(); err != nil {
 			return err
 		}
-		err := p.copyEntryVisited(ctx, e.child(entry.Name()), opts, follow, visited)
+		err := p.copyEntryVisited(ctx, e.Child(entry.Name()), opts, follow, visited)
 		switch {
 		case err == nil, errors.Is(err, errSkipped):
 		case ctx.Err() != nil:
@@ -318,8 +318,8 @@ func (p *Prog) copyDir(ctx context.Context, e pair, fi fs.FileInfo, opts options
 	// already applied by Mkdir, and changing the mode again would undo it.
 	if created {
 		if opts.preserveMode || perm|0o700 != perm {
-			if err := p.FS.Chmod(e.dst, perm); err != nil {
-				return fmt.Errorf("cannot set mode of '%s': %v", e.dstName, patherr.Unwrap(err))
+			if err := p.FS.Chmod(e.Dst, perm); err != nil {
+				return fmt.Errorf("cannot set mode of '%s': %v", e.DstName, patherr.Unwrap(err))
 			}
 		}
 		if err := p.preserve(e, fi, opts); err != nil {
@@ -334,10 +334,10 @@ func (p *Prog) copyDir(ctx context.Context, e pair, fi fs.FileInfo, opts options
 
 // preserve duplicates the requested times and owner of the source entry at
 // the destination.
-func (p *Prog) preserve(e pair, fi fs.FileInfo, opts options) error {
+func (p *Prog) preserve(e fsop.Pair, fi fs.FileInfo, opts options) error {
 	if opts.preserveTimes {
-		if err := p.FS.Chtimes(e.dst, atime(fi), fi.ModTime()); err != nil {
-			return fmt.Errorf("cannot set times of '%s': %v", e.dstName, patherr.Unwrap(err))
+		if err := p.FS.Chtimes(e.Dst, fsop.Atime(fi), fi.ModTime()); err != nil {
+			return fmt.Errorf("cannot set times of '%s': %v", e.DstName, patherr.Unwrap(err))
 		}
 	}
 	if opts.preserveOwnership {
@@ -349,8 +349,8 @@ func (p *Prog) preserve(e pair, fi fs.FileInfo, opts options) error {
 		if !ok {
 			return nil
 		}
-		if err := chowner.Chown(e.dst, uid, gid); err != nil {
-			return fmt.Errorf("cannot set owner of '%s': %v", e.dstName, patherr.Unwrap(err))
+		if err := chowner.Chown(e.Dst, uid, gid); err != nil {
+			return fmt.Errorf("cannot set owner of '%s': %v", e.DstName, patherr.Unwrap(err))
 		}
 	}
 	return nil
@@ -369,104 +369,12 @@ func (p *Prog) openDest(dst string, perm fs.FileMode, force bool) (fsx.File, err
 	return out, err
 }
 
-// confirm asks on the standard error whether dst should be overwritten and
-// reads the answer from the standard input. Only a response starting with
-// 'y' or 'Y' is taken as affirmative.
-func (p *Prog) confirm(dst string) bool {
-	fmt.Fprintf(p.Stderr, "cp: overwrite '%s'? ", dst)
-	if p.Stdin == nil {
-		return false
-	}
-	var (
-		buf    [1]byte
-		answer byte
-	)
-	for {
-		n, err := p.Stdin.Read(buf[:])
-		if n > 0 {
-			if buf[0] == '\n' {
-				break
-			}
-			if answer == 0 {
-				answer = buf[0]
-			}
-		}
-		if err != nil {
-			break
-		}
-	}
-	return answer == 'y' || answer == 'Y'
-}
-
 // stat describes name, following a final symbolic link only when asked.
 func (p *Prog) stat(name string, follow bool) (fs.FileInfo, error) {
 	if follow {
 		return fs.Stat(p.FS, name)
 	}
 	return p.FS.Lstat(name)
-}
-
-// resolveSymlinks resolves every component of name, following the symbolic
-// links found on the way, and returns the canonical path it names. Broken
-// links and loops give up and keep the remaining components as they are.
-func (p *Prog) resolveSymlinks(name string) string {
-	var resolved []string
-	for comp := range strings.SplitSeq(path.Clean(name), "/") {
-		switch comp {
-		case "", ".":
-			continue
-		case "..":
-			if len(resolved) > 0 {
-				resolved = resolved[:len(resolved)-1]
-			}
-			continue
-		}
-		resolved = append(resolved, comp)
-		for range 40 {
-			link := path.Join(resolved...)
-			fi, err := p.FS.Lstat(link)
-			if err != nil || fi.Mode()&fs.ModeSymlink == 0 {
-				break
-			}
-			target, err := p.FS.ReadLink(link)
-			if err != nil {
-				break
-			}
-			resolved = resolved[:len(resolved)-1]
-			for tc := range strings.SplitSeq(path.Clean(target), "/") {
-				switch tc {
-				case "", ".":
-				case "..":
-					if len(resolved) > 0 {
-						resolved = resolved[:len(resolved)-1]
-					}
-				default:
-					resolved = append(resolved, tc)
-				}
-			}
-		}
-	}
-	if len(resolved) == 0 {
-		return "."
-	}
-	return path.Join(resolved...)
-}
-
-// pair holds a source and its destination, both as the path used with the
-// file system and as the name shown in diagnostics.
-type pair struct {
-	src, dst         string
-	srcName, dstName string
-}
-
-// child returns the pair for an entry of the source directory.
-func (e pair) child(name string) pair {
-	return pair{
-		src:     path.Join(e.src, name),
-		dst:     path.Join(e.dst, name),
-		srcName: e.srcName + "/" + name,
-		dstName: e.dstName + "/" + name,
-	}
 }
 
 // insideSelf reports whether dst is src itself or inside it, so a directory
@@ -491,14 +399,6 @@ func dirPerm(fi fs.FileInfo, umask fs.FileMode, preserveMode bool) fs.FileMode {
 		perm &^= umask
 	}
 	return perm
-}
-
-// atime returns the access time of fi, falling back to its modification time.
-func atime(fi fs.FileInfo) time.Time {
-	if t, ok := fsx.Atime(fi); ok {
-		return t
-	}
-	return fi.ModTime()
 }
 
 // errSkipped marks a copy declined through -n, -u or -i, which isn't a
@@ -637,30 +537,6 @@ Copy SOURCE to DEST, or multiple SOURCE(s) to DIRECTORY.
   -v, --verbose
          explain what is being done
 ` + stdopts.Tail
-
-// splitOperands splits the operands into the sources and the target,
-// following the -t and -T options.
-func splitOperands(operands []string, opts options) (sources []string, target string, err error) {
-	if opts.targetDirSet {
-		if len(operands) == 0 {
-			return nil, "", errors.New("missing file operand")
-		}
-		return operands, opts.targetDir, nil
-	}
-	switch len(operands) {
-	case 0:
-		return nil, "", errors.New("missing file operand")
-	case 1:
-		return nil, "", fmt.Errorf("missing destination file operand after '%s'", operands[0])
-	}
-	if opts.noTarget {
-		if len(operands) > 2 {
-			return nil, "", fmt.Errorf("extra operand '%s'", operands[2])
-		}
-		return operands[:1], operands[1], nil
-	}
-	return operands[:len(operands)-1], operands[len(operands)-1], nil
-}
 
 // setPreserve applies a --preserve or --no-preserve attribute list, where an
 // empty list selects the default attributes.

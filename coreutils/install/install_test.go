@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"charm.land/snail/coreutils"
+	"charm.land/snail/coreutils/internal/fsop"
 	"charm.land/snail/fsx"
 )
 
@@ -993,7 +994,7 @@ func TestCompareContext(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			_, err = p.upToDate(ctx, pair{src: "a", dst: "b"}, fi, dfi, settings{fileMode: 0o755})
+			_, err = p.upToDate(ctx, fsop.Pair{Src: "a", Dst: "b"}, fi, dfi, settings{fileMode: 0o755})
 			if !errors.Is(err, context.Canceled) {
 				t.Errorf("upToDate() error = %v, want context.Canceled", err)
 			}
@@ -1014,7 +1015,7 @@ func TestCompareContextFinalRead(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	_, err = p.upToDate(ctx, pair{src: "a", dst: "b"}, fi, dfi, settings{fileMode: 0o755})
+	_, err = p.upToDate(ctx, fsop.Pair{Src: "a", Dst: "b"}, fi, dfi, settings{fileMode: 0o755})
 	if !errors.Is(err, context.Canceled) {
 		t.Errorf("upToDate() error = %v, want context.Canceled", err)
 	}

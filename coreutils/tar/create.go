@@ -14,6 +14,7 @@ import (
 
 	"charm.land/snail/coreutils/internal/ctxio"
 	"charm.land/snail/coreutils/internal/filemode"
+	"charm.land/snail/coreutils/internal/fsop"
 	"charm.land/snail/coreutils/internal/output"
 	"charm.land/snail/coreutils/internal/patherr"
 	"charm.land/snail/coreutils/internal/stdopts"
@@ -224,7 +225,7 @@ func (a *archiver) writeEntry(ctx context.Context, tw *tar.Writer, name, resolve
 			return
 		}
 	}
-	if a.opts.interactive && !a.confirm("add", hdr.Name) {
+	if a.opts.interactive && !fsop.Confirm(a.rt, "tar", "add", hdr.Name) {
 		return
 	}
 	if a.opts.verbose {

@@ -15,6 +15,7 @@ import (
 	"time"
 
 	"charm.land/snail/coreutils/internal/ctxio"
+	"charm.land/snail/coreutils/internal/fsop"
 	"charm.land/snail/coreutils/internal/stdopts"
 	"charm.land/snail/fsx"
 )
@@ -57,7 +58,7 @@ func (a *archiver) extract(ctx context.Context, operands []string) error {
 			continue
 		}
 		markMatched(matched, hdr.Name)
-		if a.opts.interactive && !a.confirm("extract", hdr.Name) {
+		if a.opts.interactive && !fsop.Confirm(a.rt, "tar", "extract", hdr.Name) {
 			continue
 		}
 		if a.opts.verbose {

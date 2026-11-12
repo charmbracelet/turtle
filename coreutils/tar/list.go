@@ -7,6 +7,8 @@ import (
 	"fmt"
 	"io"
 	"strconv"
+
+	"charm.land/snail/coreutils/internal/fsop"
 )
 
 // list writes the names of the entries of the archive to the standard
@@ -41,7 +43,7 @@ func (a *archiver) list(ctx context.Context, operands []string) error {
 			continue
 		}
 		markMatched(matched, hdr.Name)
-		if a.opts.interactive && !a.confirm("list", hdr.Name) {
+		if a.opts.interactive && !fsop.Confirm(a.rt, "tar", "list", hdr.Name) {
 			continue
 		}
 		if a.opts.verbose {
