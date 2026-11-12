@@ -8,6 +8,7 @@ import (
 	"testing"
 
 	"charm.land/snail/coreutils"
+	"charm.land/snail/coreutils/internal/testutil"
 )
 
 type spyReader struct {
@@ -17,14 +18,6 @@ type spyReader struct {
 func (r *spyReader) Read([]byte) (int, error) {
 	r.read = true
 	return 0, io.EOF
-}
-
-type errorWriter struct {
-	err error
-}
-
-func (w errorWriter) Write([]byte) (int, error) {
-	return 0, w.err
 }
 
 func runPrintf(t *testing.T, args ...string) (string, string, error) {
@@ -795,7 +788,7 @@ func TestRun(t *testing.T) {
 
 	t.Run("write error", func(t *testing.T) {
 		rt := &coreutils.Runtime{
-			Stdout: errorWriter{err: errors.New("boom")},
+			Stdout: testutil.ErrorWriter{Err: errors.New("boom")},
 			Stderr: new(bytes.Buffer),
 		}
 		err := New(rt).Run(t.Context(), "hi\n")
@@ -806,7 +799,7 @@ func TestRun(t *testing.T) {
 		if !ok || exitErr.Code != 1 {
 			t.Errorf("Run() error = %v, want exit status 1", err)
 		}
-		if !errors.Is(err, rt.Stdout.(errorWriter).err) {
+		if !errors.Is(err, rt.Stdout.(testutil.ErrorWriter).Err) {
 			t.Errorf("Run() error = %v, want it to wrap the write error", err)
 		}
 	})

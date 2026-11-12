@@ -12,6 +12,7 @@ import (
 	"testing"
 
 	"charm.land/snail/coreutils"
+	"charm.land/snail/coreutils/internal/testutil"
 	"charm.land/snail/fsx"
 )
 
@@ -204,14 +205,6 @@ func (f removeErrFS) Remove(name string) error {
 	return f.MemFS.Remove(name)
 }
 
-// errorWriter always fails to be written to.
-type errorWriter struct{}
-
-// Write implements io.Writer.
-func (errorWriter) Write([]byte) (int, error) {
-	return 0, errors.New("no space left on device")
-}
-
 // gzData builds the contents of a gzip file holding data.
 func gzData(t *testing.T, data string) []byte {
 	t.Helper()
@@ -346,7 +339,7 @@ func TestStdoutWriteFailure(t *testing.T) {
 			}
 			rt := &coreutils.Runtime{
 				Stdin:   test.stdin,
-				Stdout:  errorWriter{},
+				Stdout:  testutil.ErrorWriter{Err: errors.New("no space left on device")},
 				Stderr:  io.Discard,
 				FS:      test.fsys,
 				Environ: func() []string { return nil },

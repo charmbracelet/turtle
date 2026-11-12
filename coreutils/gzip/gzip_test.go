@@ -13,6 +13,7 @@ import (
 	"time"
 
 	"charm.land/snail/coreutils"
+	"charm.land/snail/coreutils/internal/testutil"
 	"charm.land/snail/fsx"
 )
 
@@ -1030,7 +1031,7 @@ func TestGzipContext(t *testing.T) {
 	var stdout bytes.Buffer
 	ctx, cancel := context.WithCancel(t.Context())
 	rt := &coreutils.Runtime{
-		Stdin:   &cancelReader{cancel: cancel},
+		Stdin:   &testutil.CancelReader{Cancel: cancel},
 		Stdout:  &stdout,
 		Stderr:  io.Discard,
 		FS:      testFS(),
@@ -1057,18 +1058,6 @@ func TestGzipWindowsPaths(t *testing.T) {
 	if _, ok := fsys["sub/c.txt.gz"]; !ok {
 		t.Errorf("files = %v, want sub/c.txt.gz", names(fsys))
 	}
-}
-
-// cancelReader cancels the context of the run on its first read, simulating a
-// context which is done while input is being read.
-type cancelReader struct {
-	cancel context.CancelFunc
-}
-
-// Read implements io.Reader.
-func (r *cancelReader) Read([]byte) (int, error) {
-	r.cancel()
-	return 0, context.Canceled
 }
 
 // readHeader reads the header of the gzip file at name.

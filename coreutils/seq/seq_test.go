@@ -8,6 +8,7 @@ import (
 	"testing"
 
 	"charm.land/snail/coreutils"
+	"charm.land/snail/coreutils/internal/testutil"
 )
 
 // runSeq runs seq with the given arguments, returning its standard output and
@@ -38,14 +39,6 @@ func runSeqErr(t *testing.T, args ...string) (string, string, int) {
 		t.Fatalf("Run() error = %v, want an *coreutils.ExitError", err)
 	}
 	return stdout.String(), stderr.String(), exitErr.Code
-}
-
-type errorWriter struct {
-	err error
-}
-
-func (w errorWriter) Write([]byte) (int, error) {
-	return 0, w.err
 }
 
 func TestRun(t *testing.T) {
@@ -702,7 +695,7 @@ func TestInterrupted(t *testing.T) {
 
 	t.Run("write error stops an infinite sequence", func(t *testing.T) {
 		boom := errors.New("boom")
-		rt := &coreutils.Runtime{Stdout: errorWriter{err: boom}, Stderr: new(bytes.Buffer)}
+		rt := &coreutils.Runtime{Stdout: testutil.ErrorWriter{Err: boom}, Stderr: new(bytes.Buffer)}
 		err := New(rt).Run(t.Context(), "1", "inf")
 		exitErr, ok := errors.AsType[*coreutils.ExitError](err)
 		if !ok {
@@ -718,7 +711,7 @@ func TestInterrupted(t *testing.T) {
 
 	t.Run("write error on the usage output", func(t *testing.T) {
 		boom := errors.New("boom")
-		rt := &coreutils.Runtime{Stdout: errorWriter{err: boom}, Stderr: new(bytes.Buffer)}
+		rt := &coreutils.Runtime{Stdout: testutil.ErrorWriter{Err: boom}, Stderr: new(bytes.Buffer)}
 		err := New(rt).Run(t.Context(), "--help")
 		exitErr, ok := errors.AsType[*coreutils.ExitError](err)
 		if !ok {
