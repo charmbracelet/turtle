@@ -22,6 +22,7 @@ import (
 	"charm.land/snail/coreutils"
 
 	"charm.land/snail/coreutils/internal/getopt"
+	"charm.land/snail/coreutils/internal/numparse"
 	"charm.land/snail/coreutils/internal/stdopts"
 )
 
@@ -400,7 +401,7 @@ func (p *parser) parsePage(arg string) error {
 // --pages option do.
 func (p *parser) setPage(value, arg string) error {
 	first, last, hasLast := strings.Cut(value, ":")
-	if !allDigits(first) {
+	if !numparse.AllDigits(first) {
 		bad := byte('+')
 		if first != "" {
 			bad = first[0]
@@ -415,7 +416,7 @@ func (p *parser) setPage(value, arg string) error {
 	if !hasLast {
 		return nil
 	}
-	if !allDigits(last) {
+	if !numparse.AllDigits(last) {
 		return fmt.Errorf("invalid page range '%s'", value)
 	}
 	lastPage, err := strconv.Atoi(last)
@@ -430,9 +431,9 @@ func (p *parser) setPage(value, arg string) error {
 // the bare number of the -column option.
 func (p *parser) parseGroup(arg string) error {
 	for j := 1; j < len(arg); {
-		if c := arg[j]; isDigit(c) {
+		if c := arg[j]; numparse.IsDigit(c) {
 			k := j
-			for k < len(arg) && isDigit(arg[k]) {
+			for k < len(arg) && numparse.IsDigit(arg[k]) {
 				k++
 			}
 			n, err := strconv.Atoi(arg[j:k])
@@ -578,7 +579,7 @@ func (p *parser) setOptional(opt byte, value string) error {
 		return nil
 	case 'n':
 		sep, width := byte('\t'), defNumWidth
-		if value != "" && !isDigit(value[0]) {
+		if value != "" && !numparse.IsDigit(value[0]) {
 			sep = value[0]
 			value = value[1:]
 		}
@@ -616,7 +617,7 @@ func (p *parser) setOptional(opt byte, value string) error {
 // parseGap parses the "[char][gap]" argument of -e and -i.
 func parseGap(value string, char *byte, opt byte) (int, error) {
 	gap := defGap
-	if value != "" && !isDigit(value[0]) {
+	if value != "" && !numparse.IsDigit(value[0]) {
 		*char = value[0]
 		value = value[1:]
 	}
@@ -776,20 +777,6 @@ func parseNumber(s string) (int, error) {
 		return 0, errors.New("not a number")
 	}
 	return n, nil
-}
-
-func isDigit(c byte) bool { return c >= '0' && c <= '9' }
-
-func allDigits(s string) bool {
-	if s == "" {
-		return false
-	}
-	for i := 0; i < len(s); i++ {
-		if !isDigit(s[i]) {
-			return false
-		}
-	}
-	return true
 }
 
 // location returns the time zone of the header dates, honoring TZ.

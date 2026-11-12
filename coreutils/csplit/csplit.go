@@ -20,6 +20,7 @@ import (
 	"charm.land/snail/coreutils/internal/bre"
 	"charm.land/snail/coreutils/internal/getopt"
 	"charm.land/snail/coreutils/internal/input"
+	"charm.land/snail/coreutils/internal/numparse"
 	"charm.land/snail/coreutils/internal/output"
 	"charm.land/snail/coreutils/internal/patherr"
 	"charm.land/snail/coreutils/internal/stdopts"
@@ -493,7 +494,7 @@ func parseFlags(args []string) (options, []string, error) {
 			opts.prefix = value
 		case 'n':
 			n, err := strconv.ParseInt(value, 10, 0)
-			if err != nil || n < 0 || !isDecimal(value) {
+			if err != nil || n < 0 || !numparse.AllDigits(value) {
 				return fmt.Errorf("invalid number: '%s'", value)
 			}
 			opts.digits = int(n)
@@ -572,8 +573,8 @@ func parseControls(args []string) ([]control, error) {
 		case strings.HasPrefix(arg, "{"):
 			return nil, fmt.Errorf("'%s': invalid pattern", arg)
 		default:
-			n, err := strconv.ParseInt(arg, 10, 64)
-			if err != nil || !isDecimal(arg) {
+			n, err := numparse.Unsigned(arg)
+			if err != nil {
 				return nil, fmt.Errorf("'%s': invalid pattern", arg)
 			}
 			if n == 0 {
@@ -629,24 +630,11 @@ func parseRepeat(arg string) (int64, bool, error) {
 	if inner == "*" {
 		return 0, true, nil
 	}
-	n, err := strconv.ParseInt(inner, 10, 64)
-	if err != nil || n < 1 || !isDecimal(inner) {
+	n, err := numparse.Unsigned(inner)
+	if err != nil || n < 1 {
 		return 0, false, fmt.Errorf("'%s': integer required between '{' and '}'", arg)
 	}
 	return n, false, nil
-}
-
-// isDecimal reports whether s holds only decimal digits.
-func isDecimal(s string) bool {
-	if s == "" {
-		return false
-	}
-	for i := 0; i < len(s); i++ {
-		if s[i] < '0' || s[i] > '9' {
-			return false
-		}
-	}
-	return true
 }
 
 // writeError marks an error as coming from writing to an output file.

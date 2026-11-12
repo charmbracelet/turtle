@@ -21,6 +21,7 @@ import (
 	"charm.land/snail/coreutils/internal/fileinfo"
 	"charm.land/snail/coreutils/internal/getopt"
 	"charm.land/snail/coreutils/internal/input"
+	"charm.land/snail/coreutils/internal/numparse"
 	"charm.land/snail/coreutils/internal/output"
 	"charm.land/snail/coreutils/internal/patherr"
 	"charm.land/snail/coreutils/internal/stdopts"
@@ -533,7 +534,7 @@ options:
 				i++
 				level = args[i]
 			}
-			if level == "" || !allDigits(level) {
+			if level == "" || !numparse.AllDigits(level) {
 				return options{}, nil, nil, fmt.Errorf("invalid optimisation level '%s'", level)
 			}
 			// The optimisation only reorders the evaluation, which this
@@ -560,16 +561,6 @@ options:
 		i++
 	}
 	return opts, paths, args[i:], nil
-}
-
-// allDigits reports whether s consists of decimal digits only.
-func allDigits(s string) bool {
-	for _, c := range s {
-		if c < '0' || c > '9' {
-			return false
-		}
-	}
-	return s != ""
 }
 
 // debugFeatures are the debug options -D accepts.

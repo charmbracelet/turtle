@@ -14,6 +14,7 @@ import (
 	"charm.land/snail/coreutils"
 	"charm.land/snail/coreutils/internal/getopt"
 	"charm.land/snail/coreutils/internal/gnudate"
+	"charm.land/snail/coreutils/internal/numparse"
 	"charm.land/snail/coreutils/internal/patherr"
 	"charm.land/snail/coreutils/internal/stdopts"
 	"charm.land/snail/fsx"
@@ -136,7 +137,7 @@ func flexTimes(s string, opts options, atime, mtime time.Time, loc *time.Locatio
 // "ss.frac", the form gnudate parses.
 func flexFraction(s string) string {
 	i := strings.LastIndex(s, ",")
-	if i < 2 || s[i+1:] == "" || !allDigits(s[i+1:]) || !allDigits(s[i-2:i]) {
+	if i < 2 || s[i+1:] == "" || !numparse.AllDigits(s[i+1:]) || !numparse.AllDigits(s[i-2:i]) {
 		return s
 	}
 	return s[:i] + "." + s[i+1:]
@@ -334,7 +335,7 @@ func parseFlags(args []string) (options, []string, error) {
 func parseTime(s string, loc *time.Location, now time.Time) (time.Time, error) {
 	bad := fmt.Errorf("invalid date format %q", s)
 	main, second, hasSecond := strings.Cut(s, ".")
-	if !allDigits(main) {
+	if !numparse.AllDigits(main) {
 		return time.Time{}, bad
 	}
 
@@ -369,7 +370,7 @@ func parseTime(s string, loc *time.Location, now time.Time) (time.Time, error) {
 	}
 	sec := 0
 	if hasSecond {
-		if len(second) != 2 || !allDigits(second) {
+		if len(second) != 2 || !numparse.AllDigits(second) {
 			return time.Time{}, bad
 		}
 		if sec = twoDigits(second); sec > 60 {
@@ -382,16 +383,6 @@ func parseTime(s string, loc *time.Location, now time.Time) (time.Time, error) {
 // twoDigits parses the decimal value of a two digit string.
 func twoDigits(s string) int {
 	return int(s[0]-'0')*10 + int(s[1]-'0')
-}
-
-// allDigits reports whether s is only made of decimal digits.
-func allDigits(s string) bool {
-	for i := 0; i < len(s); i++ {
-		if s[i] < '0' || s[i] > '9' {
-			return false
-		}
-	}
-	return true
 }
 
 var (

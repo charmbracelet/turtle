@@ -37,6 +37,7 @@ import (
 	"charm.land/snail/coreutils/internal/ctxio"
 	"charm.land/snail/coreutils/internal/getopt"
 	"charm.land/snail/coreutils/internal/input"
+	"charm.land/snail/coreutils/internal/numparse"
 	"charm.land/snail/coreutils/internal/patherr"
 	"charm.land/snail/coreutils/internal/sizeparse"
 	"charm.land/snail/coreutils/internal/stdopts"
@@ -1062,7 +1063,7 @@ func parseFlags(args []string) (options, []string, error) {
 		default:
 			// A digit can only be left when the obsolete form didn't
 			// apply, like on "tail -n 2 -5".
-			if isDigit(byte(opt)) {
+			if numparse.IsDigit(byte(opt)) {
 				return fmt.Errorf("option used in invalid context -- '%c'", opt)
 			}
 			return getopt.InvalidOption(opt)
@@ -1161,9 +1162,9 @@ func parseObsolete(args []string) (options, []string, bool) {
 
 	// The count defaults to the default number of lines.
 	n, i := 10, 0
-	if i < len(rest) && isDigit(rest[i]) {
+	if i < len(rest) && numparse.IsDigit(rest[i]) {
 		n = 0
-		for ; i < len(rest) && isDigit(rest[i]); i++ {
+		for ; i < len(rest) && numparse.IsDigit(rest[i]); i++ {
 			if d := int(rest[i] - '0'); n <= (math.MaxInt-d)/10 {
 				n = n*10 + d
 			} else {
@@ -1210,10 +1211,6 @@ func obsoleteShape(args []string) bool {
 		return args[1] == "--"
 	}
 	return false
-}
-
-func isDigit(b byte) bool {
-	return '0' <= b && b <= '9'
 }
 
 // fileSize returns the current size of f.

@@ -9,6 +9,8 @@ import (
 	"strconv"
 	"strings"
 	"unicode/utf8"
+
+	"charm.land/snail/coreutils/internal/numparse"
 )
 
 // Spec is the argument number, flags, width and precision of a conversion
@@ -37,7 +39,7 @@ func ScanSpec(s string, argNum bool) (Spec, int) {
 	i := 1
 	if argNum {
 		start := i
-		for i < len(s) && isDigit(s[i]) {
+		for i < len(s) && numparse.IsDigit(s[i]) {
 			i++
 		}
 		if i > start && i < len(s) && s[i] == '$' {
@@ -53,7 +55,7 @@ func ScanSpec(s string, argNum bool) (Spec, int) {
 	}
 	spec.Flags = s[start:i]
 	start = i
-	for i < len(s) && isDigit(s[i]) {
+	for i < len(s) && numparse.IsDigit(s[i]) {
 		i++
 	}
 	if i > start {
@@ -63,7 +65,7 @@ func ScanSpec(s string, argNum bool) (Spec, int) {
 		i++
 		spec.Prec = 0
 		start = i
-		for i < len(s) && isDigit(s[i]) {
+		for i < len(s) && numparse.IsDigit(s[i]) {
 			i++
 		}
 		if i > start {
@@ -169,7 +171,7 @@ func ScanEscape(s string, es Escapes) (Esc, int, error) {
 		}
 		return esc, 1 + n, nil
 	default:
-		if es.Octal == OctalNone || !octalDigit(c) ||
+		if es.Octal == OctalNone || !numparse.IsOctalDigit(c) ||
 			es.Octal == OctalZero && c != '0' {
 			return unknown(c), 1, nil
 		}
@@ -179,7 +181,7 @@ func ScanEscape(s string, es Escapes) (Esc, int, error) {
 			lim = 4
 		}
 		n := 1
-		for n < lim && n < len(s) && octalDigit(s[n]) {
+		for n < lim && n < len(s) && numparse.IsOctalDigit(s[n]) {
 			v = v*8 + int(s[n]-'0')
 			n++
 		}
@@ -252,7 +254,7 @@ func unicodeEscape(esc byte, s string) (rune, error) {
 func scanHex(s string, lim int) (int64, int) {
 	var v int64
 	n := 0
-	for n < lim && n < len(s) && isHexDigit(s[n]) {
+	for n < lim && n < len(s) && numparse.IsHexDigit(s[n]) {
 		d := s[n]
 		switch {
 		case d >= '0' && d <= '9':
@@ -278,16 +280,4 @@ func parseNumber(digits string) int64 {
 		return n
 	}
 	return math.MaxInt32
-}
-
-func isDigit(c byte) bool {
-	return c >= '0' && c <= '9'
-}
-
-func octalDigit(c byte) bool {
-	return c >= '0' && c <= '7'
-}
-
-func isHexDigit(c byte) bool {
-	return c >= '0' && c <= '9' || c >= 'a' && c <= 'f' || c >= 'A' && c <= 'F'
 }

@@ -7,6 +7,8 @@ import (
 	"strconv"
 	"strings"
 	"time"
+
+	"charm.land/snail/coreutils/internal/numparse"
 )
 
 // Parse parses the GNU date string s relative to base, interpreting zoneless
@@ -358,7 +360,7 @@ func parseNumber(tok string) (int, bool) {
 	if s != "" && (s[0] == '+' || s[0] == '-') {
 		s = s[1:]
 	}
-	if s == "" || !allDigits(s) {
+	if s == "" || !numparse.AllDigits(s) {
 		return 0, false
 	}
 	n, err := strconv.Atoi(s)
@@ -369,16 +371,6 @@ func parseNumber(tok string) (int, bool) {
 		return -n, true
 	}
 	return n, true
-}
-
-// allDigits reports whether s is only made of decimal digits.
-func allDigits(s string) bool {
-	for i := 0; i < len(s); i++ {
-		if s[i] < '0' || s[i] > '9' {
-			return false
-		}
-	}
-	return true
 }
 
 // months and weekdays hold the names matched by their three-letter
@@ -496,7 +488,7 @@ func zoneOf(tok string) (*time.Location, bool) {
 	} else if len(t) != 2 {
 		return nil, false
 	}
-	if len(hh) != 2 || len(mm) != 2 || !allDigits(hh) || !allDigits(mm) {
+	if len(hh) != 2 || len(mm) != 2 || !numparse.AllDigits(hh) || !numparse.AllDigits(mm) {
 		return nil, false
 	}
 	h, err1 := strconv.Atoi(hh)

@@ -8,6 +8,8 @@ import (
 	"fmt"
 	"strconv"
 	"strings"
+
+	"charm.land/snail/coreutils/internal/numparse"
 )
 
 // Stops holds the tab stops of a line, counted in columns from its start: a
@@ -57,10 +59,8 @@ func Parse(tablist string) (Stops, error) {
 
 // parseStop parses a positive decimal tab stop position.
 func parseStop(s string) (int, error) {
-	for i := 0; i < len(s); i++ {
-		if s[i] < '0' || s[i] > '9' {
-			return 0, fmt.Errorf("invalid tab stop: '%s'", s)
-		}
+	if !numparse.AllDigits(s) {
+		return 0, fmt.Errorf("invalid tab stop: '%s'", s)
 	}
 	n, err := strconv.Atoi(s)
 	if err != nil || n < 1 {
