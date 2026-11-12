@@ -4,289 +4,239 @@ import (
 	"bytes"
 	"context"
 	"errors"
-	"io"
 	"runtime"
 	"testing"
 
 	"charm.land/snail/coreutils"
+	"charm.land/snail/coreutils/internal/testutil"
 )
 
-type spyReader struct {
-	read bool
-}
-
-func (r *spyReader) Read([]byte) (int, error) {
-	r.read = true
-	return 0, io.EOF
-}
-
-type errorWriter struct {
-	err error
-}
-
-func (w errorWriter) Write([]byte) (int, error) {
-	return 0, w.err
-}
-
-type testCase struct {
-	name     string
-	args     []string
-	want     string
-	wantErr  string
-	wantExit int
-}
-
-func runCase(t *testing.T, test testCase) {
+// runCase runs a single case, also checking that dirname never reads the
+// standard input: it only takes operands. It stays local for that extra
+// assertion, which testutil.Run has no room for.
+func runCase(t *testing.T, test testutil.Case) {
 	t.Helper()
 
-	stdin := &spyReader{}
-	stdout := new(bytes.Buffer)
-	stderr := new(bytes.Buffer)
-	rt := &coreutils.Runtime{
-		Stdin:  stdin,
-		Stdout: stdout,
-		Stderr: stderr,
+	stdin := &testutil.SpyReader{}
+	test.Stdin = stdin
+	test.Check = func(t *testing.T, rt *coreutils.Runtime) {
+		if stdin.Reads > 0 {
+			t.Error("Run() used stdin, want it untouched")
+		}
 	}
-
-	err := New(rt).Run(t.Context(), test.args...)
-
-	if code := exitCode(t, err); code != test.wantExit {
-		t.Errorf("Run() exit code = %d, want %d (error = %v)", code, test.wantExit, err)
-	}
-	if got := stdout.String(); got != test.want {
-		t.Errorf("Run() stdout = %q, want %q", got, test.want)
-	}
-	if got := stderr.String(); got != test.wantErr {
-		t.Errorf("Run() stderr = %q, want %q", got, test.wantErr)
-	}
-	if stdin.read {
-		t.Error("Run() used stdin, want it untouched")
-	}
-}
-
-func exitCode(t *testing.T, err error) int {
-	t.Helper()
-
-	if err == nil {
-		return 0
-	}
-	var exitErr *coreutils.ExitError
-	if !errors.As(err, &exitErr) {
-		t.Fatalf("Run() error = %v, want *coreutils.ExitError", err)
-	}
-	return exitErr.Code
+	testutil.Once(t, New, test)
 }
 
 func TestRun(t *testing.T) {
 	t.Run("string", func(t *testing.T) {
-		tests := []testCase{
+		tests := []testutil.Case{
 			{
-				name: "a simple name has no directory",
-				args: []string{"usr"},
-				want: ".\n",
+				Name: "a simple name has no directory",
+				Args: []string{"usr"},
+				Want: ".\n",
 			},
 			{
-				name: "a null string gives the current directory",
-				args: []string{""},
-				want: ".\n",
+				Name: "a null string gives the current directory",
+				Args: []string{""},
+				Want: ".\n",
 			},
 			{
-				name: "a single slash is kept",
-				args: []string{"/"},
-				want: "/\n",
+				Name: "a single slash is kept",
+				Args: []string{"/"},
+				Want: "/\n",
 			},
 			{
-				name: "a double slash collapses to a single slash",
-				args: []string{"//"},
-				want: "/\n",
+				Name: "a double slash collapses to a single slash",
+				Args: []string{"//"},
+				Want: "/\n",
 			},
 			{
-				name: "multiple slashes become a single slash",
-				args: []string{"///"},
-				want: "/\n",
+				Name: "multiple slashes become a single slash",
+				Args: []string{"///"},
+				Want: "/\n",
 			},
 			{
-				name: "a trailing slash is not counted",
-				args: []string{"usr/"},
-				want: ".\n",
+				Name: "a trailing slash is not counted",
+				Args: []string{"usr/"},
+				Want: ".\n",
 			},
 			{
-				name: "the directory portion of a pathname",
-				args: []string{"/usr/lib"},
-				want: "/usr\n",
+				Name: "the directory portion of a pathname",
+				Args: []string{"/usr/lib"},
+				Want: "/usr\n",
 			},
 			{
-				name: "a trailing slash is removed",
-				args: []string{"/usr/lib/"},
-				want: "/usr\n",
+				Name: "a trailing slash is removed",
+				Args: []string{"/usr/lib/"},
+				Want: "/usr\n",
 			},
 			{
-				name: "redundant slashes are removed",
-				args: []string{"//usr//lib//"},
-				want: "//usr\n",
+				Name: "redundant slashes are removed",
+				Args: []string{"//usr//lib//"},
+				Want: "//usr\n",
 			},
 			{
-				name: "repeated internal slashes are collapsed",
-				args: []string{"a//b"},
-				want: "a\n",
+				Name: "repeated internal slashes are collapsed",
+				Args: []string{"a//b"},
+				Want: "a\n",
 			},
 			{
-				name: "leading slashes beyond a double slash keep",
-				args: []string{"///a///b"},
-				want: "///a\n",
+				Name: "leading slashes beyond a double slash keep",
+				Args: []string{"///a///b"},
+				Want: "///a\n",
 			},
 			{
-				name: "a trailing slash after a directory",
-				args: []string{"///a//b/"},
-				want: "///a\n",
+				Name: "a trailing slash after a directory",
+				Args: []string{"///a//b/"},
+				Want: "///a\n",
 			},
 			{
-				name: "a relative pathname",
-				args: []string{"relative/path"},
-				want: "relative\n",
+				Name: "a relative pathname",
+				Args: []string{"relative/path"},
+				Want: "relative\n",
 			},
 			{
-				name: "several components",
-				args: []string{"a/b/c/d"},
-				want: "a/b/c\n",
+				Name: "several components",
+				Args: []string{"a/b/c/d"},
+				Want: "a/b/c\n",
 			},
 			{
-				name: "a dot component is not removed by itself",
-				args: []string{"dir/."},
-				want: "dir\n",
+				Name: "a dot component is not removed by itself",
+				Args: []string{"dir/."},
+				Want: "dir\n",
 			},
 			{
-				name: "a dot-dot component is not removed",
-				args: []string{"dir/.."},
-				want: "dir\n",
+				Name: "a dot-dot component is not removed",
+				Args: []string{"dir/.."},
+				Want: "dir\n",
 			},
 			{
-				name: "a dot-dot before the last component is kept",
-				args: []string{"a/../b"},
-				want: "a/..\n",
+				Name: "a dot-dot before the last component is kept",
+				Args: []string{"a/../b"},
+				Want: "a/..\n",
 			},
 			{
-				name: "a lone dot-dot has no directory",
-				args: []string{".."},
-				want: ".\n",
+				Name: "a lone dot-dot has no directory",
+				Args: []string{".."},
+				Want: ".\n",
 			},
 			{
-				name: "a lone dot has no directory",
-				args: []string{"."},
-				want: ".\n",
+				Name: "a lone dot has no directory",
+				Args: []string{"."},
+				Want: ".\n",
 			},
 			{
-				name: "a lone dash is an operand",
-				args: []string{"-"},
-				want: ".\n",
+				Name: "a lone dash is an operand",
+				Args: []string{"-"},
+				Want: ".\n",
 			},
 			{
-				name: "multi-byte characters",
-				args: []string{"dir/ção"},
-				want: "dir\n",
+				Name: "multi-byte characters",
+				Args: []string{"dir/ção"},
+				Want: "dir\n",
 			},
 		}
 
 		for _, test := range tests {
-			t.Run(test.name, func(t *testing.T) {
+			t.Run(test.Name, func(t *testing.T) {
 				runCase(t, test)
 			})
 		}
 	})
 
 	t.Run("multiple names", func(t *testing.T) {
-		tests := []testCase{
+		tests := []testutil.Case{
 			{
-				name: "two names",
-				args: []string{"dir1/str", "dir2/str"},
-				want: "dir1\ndir2\n",
+				Name: "two names",
+				Args: []string{"dir1/str", "dir2/str"},
+				Want: "dir1\ndir2\n",
 			},
 			{
-				name: "three names",
-				args: []string{"a/b", "c", "/d/e"},
-				want: "a\n.\n/d\n",
+				Name: "three names",
+				Args: []string{"a/b", "c", "/d/e"},
+				Want: "a\n.\n/d\n",
 			},
 			{
-				name: "a name after the first may start with a dash",
-				args: []string{"a/b", "-x"},
-				want: "a\n.\n",
+				Name: "a name after the first may start with a dash",
+				Args: []string{"a/b", "-x"},
+				Want: "a\n.\n",
 			},
 			{
-				name: "an empty name among others",
-				args: []string{"a/b", ""},
-				want: "a\n.\n",
+				Name: "an empty name among others",
+				Args: []string{"a/b", ""},
+				Want: "a\n.\n",
 			},
 		}
 
 		for _, test := range tests {
-			t.Run(test.name, func(t *testing.T) {
+			t.Run(test.Name, func(t *testing.T) {
 				runCase(t, test)
 			})
 		}
 	})
 
 	t.Run("zero", func(t *testing.T) {
-		tests := []testCase{
+		tests := []testutil.Case{
 			{
-				name: "a single name",
-				args: []string{"-z", "dir/str"},
-				want: "dir\x00",
+				Name: "a single name",
+				Args: []string{"-z", "dir/str"},
+				Want: "dir\x00",
 			},
 			{
-				name: "the long form",
-				args: []string{"--zero", "dir/str"},
-				want: "dir\x00",
+				Name: "the long form",
+				Args: []string{"--zero", "dir/str"},
+				Want: "dir\x00",
 			},
 			{
-				name: "the option may be grouped",
-				args: []string{"-zz", "dir/str"},
-				want: "dir\x00",
+				Name: "the option may be grouped",
+				Args: []string{"-zz", "dir/str"},
+				Want: "dir\x00",
 			},
 			{
-				name: "each name ends with a NUL byte",
-				args: []string{"-z", "dir1/str", "dir2/str"},
-				want: "dir1\x00dir2\x00",
+				Name: "each name ends with a NUL byte",
+				Args: []string{"-z", "dir1/str", "dir2/str"},
+				Want: "dir1\x00dir2\x00",
 			},
 			{
-				name: "names with embedded newlines stay parseable",
-				args: []string{"-z", "dir\nname/str"},
-				want: "dir\nname\x00",
+				Name: "names with embedded newlines stay parseable",
+				Args: []string{"-z", "dir\nname/str"},
+				Want: "dir\nname\x00",
 			},
 			{
-				name: "options end at a double dash",
-				args: []string{"-z", "--", "-z"},
-				want: ".\x00",
+				Name: "options end at a double dash",
+				Args: []string{"-z", "--", "-z"},
+				Want: ".\x00",
 			},
 		}
 
 		for _, test := range tests {
-			t.Run(test.name, func(t *testing.T) {
+			t.Run(test.Name, func(t *testing.T) {
 				runCase(t, test)
 			})
 		}
 	})
 
 	t.Run("double dash", func(t *testing.T) {
-		tests := []testCase{
+		tests := []testutil.Case{
 			{
-				name: "a leading double dash is skipped",
-				args: []string{"--", "foo"},
-				want: ".\n",
+				Name: "a leading double dash is skipped",
+				Args: []string{"--", "foo"},
+				Want: ".\n",
 			},
 			{
-				name: "operands after a leading double dash",
-				args: []string{"--", "dir/file"},
-				want: "dir\n",
+				Name: "operands after a leading double dash",
+				Args: []string{"--", "dir/file"},
+				Want: "dir\n",
 			},
 			{
-				name: "a double dash operand after a leading double dash",
-				args: []string{"--", "--"},
-				want: ".\n",
+				Name: "a double dash operand after a leading double dash",
+				Args: []string{"--", "--"},
+				Want: ".\n",
 			},
 		}
 
 		for _, test := range tests {
-			t.Run(test.name, func(t *testing.T) {
+			t.Run(test.Name, func(t *testing.T) {
 				runCase(t, test)
 			})
 		}
@@ -298,21 +248,21 @@ func TestRun(t *testing.T) {
 				t.Skip("backslashes are separators on Windows")
 			}
 
-			tests := []testCase{
+			tests := []testutil.Case{
 				{
-					name: "backslashes are ordinary characters",
-					args: []string{`a\b\c`},
-					want: ".\n",
+					Name: "backslashes are ordinary characters",
+					Args: []string{`a\b\c`},
+					Want: ".\n",
 				},
 				{
-					name: "a forward slash splits the path",
-					args: []string{`a\b/c`},
-					want: "a\\b\n",
+					Name: "a forward slash splits the path",
+					Args: []string{`a\b/c`},
+					Want: "a\\b\n",
 				},
 			}
 
 			for _, test := range tests {
-				t.Run(test.name, func(t *testing.T) {
+				t.Run(test.Name, func(t *testing.T) {
 					runCase(t, test)
 				})
 			}
@@ -323,26 +273,26 @@ func TestRun(t *testing.T) {
 				t.Skip("backslashes are only separators on Windows")
 			}
 
-			tests := []testCase{
+			tests := []testutil.Case{
 				{
-					name: "backslashes are separators",
-					args: []string{`C:\Users\me\file.txt`},
-					want: "C:/Users/me\n",
+					Name: "backslashes are separators",
+					Args: []string{`C:\Users\me\file.txt`},
+					Want: "C:/Users/me\n",
 				},
 				{
-					name: "a trailing backslash is not counted",
-					args: []string{`C:\Users\me\`},
-					want: "C:/Users\n",
+					Name: "a trailing backslash is not counted",
+					Args: []string{`C:\Users\me\`},
+					Want: "C:/Users\n",
 				},
 				{
-					name: "a mix of separators",
-					args: []string{`C:\Users/me/file.txt`},
-					want: "C:/Users/me\n",
+					Name: "a mix of separators",
+					Args: []string{`C:\Users/me/file.txt`},
+					Want: "C:/Users/me\n",
 				},
 			}
 
 			for _, test := range tests {
-				t.Run(test.name, func(t *testing.T) {
+				t.Run(test.Name, func(t *testing.T) {
 					runCase(t, test)
 				})
 			}
@@ -350,47 +300,47 @@ func TestRun(t *testing.T) {
 	})
 
 	t.Run("errors", func(t *testing.T) {
-		tests := []testCase{
+		tests := []testutil.Case{
 			{
-				name:     "no operands",
-				args:     []string{},
-				wantErr:  "dirname: missing operand\nTry 'dirname --help' for more information.\n",
-				wantExit: 2,
+				Name:     "no operands",
+				Args:     []string{},
+				WantErr:  "dirname: missing operand\nTry 'dirname --help' for more information.\n",
+				WantExit: 2,
 			},
 			{
-				name:     "a lone double dash",
-				args:     []string{"--"},
-				wantErr:  "dirname: missing operand\nTry 'dirname --help' for more information.\n",
-				wantExit: 2,
+				Name:     "a lone double dash",
+				Args:     []string{"--"},
+				WantErr:  "dirname: missing operand\nTry 'dirname --help' for more information.\n",
+				WantExit: 2,
 			},
 			{
-				name:     "only an option",
-				args:     []string{"-z"},
-				wantErr:  "dirname: missing operand\nTry 'dirname --help' for more information.\n",
-				wantExit: 2,
+				Name:     "only an option",
+				Args:     []string{"-z"},
+				WantErr:  "dirname: missing operand\nTry 'dirname --help' for more information.\n",
+				WantExit: 2,
 			},
 			{
-				name:     "an invalid option",
-				args:     []string{"-x", "dir/str"},
-				wantErr:  "dirname: invalid option -- 'x'\nTry 'dirname --help' for more information.\n",
-				wantExit: 2,
+				Name:     "an invalid option",
+				Args:     []string{"-x", "dir/str"},
+				WantErr:  "dirname: invalid option -- 'x'\nTry 'dirname --help' for more information.\n",
+				WantExit: 2,
 			},
 			{
-				name:     "an unrecognized long option",
-				args:     []string{"--bogus", "dir/str"},
-				wantErr:  "dirname: unrecognized option '--bogus'\nTry 'dirname --help' for more information.\n",
-				wantExit: 2,
+				Name:     "an unrecognized long option",
+				Args:     []string{"--bogus", "dir/str"},
+				WantErr:  "dirname: unrecognized option '--bogus'\nTry 'dirname --help' for more information.\n",
+				WantExit: 2,
 			},
 			{
-				name:     "a long option taking an argument",
-				args:     []string{"--zero=", "dir/str"},
-				wantErr:  "dirname: option '--zero=' doesn't allow an argument\nTry 'dirname --help' for more information.\n",
-				wantExit: 2,
+				Name:     "a long option taking an argument",
+				Args:     []string{"--zero=", "dir/str"},
+				WantErr:  "dirname: option '--zero=' doesn't allow an argument\nTry 'dirname --help' for more information.\n",
+				WantExit: 2,
 			},
 		}
 
 		for _, test := range tests {
-			t.Run(test.name, func(t *testing.T) {
+			t.Run(test.Name, func(t *testing.T) {
 				runCase(t, test)
 			})
 		}
@@ -401,13 +351,13 @@ func TestRunWriteError(t *testing.T) {
 	writeErr := errors.New("write failed")
 
 	rt := &coreutils.Runtime{
-		Stdin:  &spyReader{},
-		Stdout: errorWriter{err: writeErr},
+		Stdin:  &testutil.SpyReader{},
+		Stdout: testutil.ErrorWriter{Err: writeErr},
 		Stderr: new(bytes.Buffer),
 	}
 	err := New(rt).Run(t.Context(), "foo/bar")
 
-	if code := exitCode(t, err); code != 1 {
+	if code := testutil.ExitCode(t, err); code != 1 {
 		t.Fatalf("Run() exit code = %d, want 1 (error = %v)", code, err)
 	}
 	if !errors.Is(err, writeErr) {
@@ -420,7 +370,7 @@ func TestRunContext(t *testing.T) {
 	cancel()
 
 	rt := &coreutils.Runtime{
-		Stdin:  &spyReader{},
+		Stdin:  &testutil.SpyReader{},
 		Stdout: new(bytes.Buffer),
 		Stderr: new(bytes.Buffer),
 	}
@@ -433,18 +383,18 @@ func TestRunContext(t *testing.T) {
 
 func TestHelpVersion(t *testing.T) {
 	t.Run("help", func(t *testing.T) {
-		runCase(t, testCase{
-			name: "help",
-			args: []string{"--help"},
-			want: usage,
+		runCase(t, testutil.Case{
+			Name: "help",
+			Args: []string{"--help"},
+			Want: usage,
 		})
 	})
 
 	t.Run("version", func(t *testing.T) {
-		runCase(t, testCase{
-			name: "version",
-			args: []string{"--version"},
-			want: "dirname (charm.land/snail/coreutils) " + coreutils.Version + "\nhttps://charm.land/snail\n",
+		runCase(t, testutil.Case{
+			Name: "version",
+			Args: []string{"--version"},
+			Want: "dirname (charm.land/snail/coreutils) " + coreutils.Version + "\nhttps://charm.land/snail\n",
 		})
 	})
 }

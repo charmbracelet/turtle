@@ -2,7 +2,6 @@ package chmod
 
 import (
 	"bytes"
-	"errors"
 	"io"
 	"io/fs"
 	"os"
@@ -11,6 +10,7 @@ import (
 	"testing"
 
 	"charm.land/snail/coreutils"
+	"charm.land/snail/coreutils/internal/testutil"
 	"charm.land/snail/fsx"
 )
 
@@ -19,69 +19,55 @@ func dir(mode fs.FileMode) fs.FileMode {
 	return fs.ModeDir | mode
 }
 
+// testCase is the fields of a testutil.Case plus the file fixtures of the
+// tests, and the modes the files must have after the run.
 type testCase struct {
-	name     string
-	files    fsx.MemFS
-	umask    fs.FileMode
-	args     []string
-	want     map[string]fs.FileMode
-	wantOut  string
-	wantErr  string
-	wantExit int
+	Name     string
+	Args     []string
+	Want     string
+	WantErr  string
+	WantExit int
+	Umask    fs.FileMode
+
+	Files     fsx.MemFS
+	WantModes map[string]fs.FileMode
 }
 
+// runCase runs a single case, checking the modes of its files. testutil.Case
+// can't replace this one: its mode assertion always stats, while the wanted
+// modes of symbolic links are checked with Lstat.
 func runCase(t *testing.T, test testCase) {
 	t.Helper()
 
-	stdout, stderr := new(bytes.Buffer), new(bytes.Buffer)
-	rt := &coreutils.Runtime{
-		Stdout: stdout,
-		Stderr: stderr,
-		FS:     test.files,
-		Umask:  test.umask,
+	c := testutil.Case{
+		Name:     test.Name,
+		Args:     test.Args,
+		Want:     test.Want,
+		WantErr:  test.WantErr,
+		WantExit: test.WantExit,
+		Umask:    test.Umask,
+		FS:       test.Files,
 	}
-
-	err := New(rt).Run(t.Context(), test.args...)
-
-	if code := exitCode(t, err); code != test.wantExit {
-		t.Errorf("Run() exit code = %d, want %d (error = %v)", code, test.wantExit, err)
-	}
-	if got := stdout.String(); got != test.wantOut {
-		t.Errorf("Run() stdout = %q, want %q", got, test.wantOut)
-	}
-	if got := stderr.String(); got != test.wantErr {
-		t.Errorf("Run() stderr = %q, want %q", got, test.wantErr)
-	}
-
-	for name, want := range test.want {
-		var fi fs.FileInfo
-		var err error
-		if want.Type()&fs.ModeSymlink != 0 {
-			fi, err = test.files.Lstat(name)
-		} else {
-			fi, err = fs.Stat(test.files, name)
-		}
-		if err != nil {
-			t.Errorf("Stat(%q) error = %v", name, err)
-			continue
-		}
-		if got := fi.Mode(); got != want {
-			t.Errorf("%s mode = %v, want %v", name, got, want)
+	wantModes := test.WantModes
+	c.Check = func(t *testing.T, rt *coreutils.Runtime) {
+		for name, want := range wantModes {
+			var fi fs.FileInfo
+			var err error
+			if want.Type()&fs.ModeSymlink != 0 {
+				fi, err = rt.FS.Lstat(name)
+			} else {
+				fi, err = fs.Stat(rt.FS, name)
+			}
+			if err != nil {
+				t.Errorf("Stat(%q) error = %v", name, err)
+				continue
+			}
+			if got := fi.Mode(); got != want {
+				t.Errorf("%s mode = %v, want %v", name, got, want)
+			}
 		}
 	}
-}
-
-func exitCode(t *testing.T, err error) int {
-	t.Helper()
-
-	if err == nil {
-		return 0
-	}
-	var exitErr *coreutils.ExitError
-	if !errors.As(err, &exitErr) {
-		t.Fatalf("Run() error = %v, want *coreutils.ExitError", err)
-	}
-	return exitErr.Code
+	testutil.Once(t, New, c)
 }
 
 // runTests runs the given cases as subtests.
@@ -89,7 +75,7 @@ func runTests(t *testing.T, tests []testCase) {
 	t.Helper()
 
 	for _, test := range tests {
-		t.Run(test.name, func(t *testing.T) {
+		t.Run(test.Name, func(t *testing.T) {
 			runCase(t, test)
 		})
 	}
@@ -98,64 +84,64 @@ func runTests(t *testing.T, tests []testCase) {
 func TestRunOctal(t *testing.T) {
 	runTests(t, []testCase{
 		{
-			name:  "sets an absolute mode",
-			files: fsx.MemFS{"file.txt": {Mode: 0o644}},
-			args:  []string{"755", "file.txt"},
-			want:  map[string]fs.FileMode{"file.txt": 0o755},
+			Name:      "sets an absolute mode",
+			Files:     fsx.MemFS{"file.txt": {Mode: 0o644}},
+			Args:      []string{"755", "file.txt"},
+			WantModes: map[string]fs.FileMode{"file.txt": 0o755},
 		},
 		{
-			name:  "sets the mode of every file",
-			files: fsx.MemFS{"a.txt": {Mode: 0o600}, "b.txt": {Mode: 0o600}},
-			args:  []string{"644", "a.txt", "b.txt"},
-			want:  map[string]fs.FileMode{"a.txt": 0o644, "b.txt": 0o644},
+			Name:      "sets the mode of every file",
+			Files:     fsx.MemFS{"a.txt": {Mode: 0o600}, "b.txt": {Mode: 0o600}},
+			Args:      []string{"644", "a.txt", "b.txt"},
+			WantModes: map[string]fs.FileMode{"a.txt": 0o644, "b.txt": 0o644},
 		},
 		{
-			name:  "a leading zero is valid",
-			files: fsx.MemFS{"file.txt": {Mode: 0o644}},
-			args:  []string{"0755", "file.txt"},
-			want:  map[string]fs.FileMode{"file.txt": 0o755},
+			Name:      "a leading zero is valid",
+			Files:     fsx.MemFS{"file.txt": {Mode: 0o644}},
+			Args:      []string{"0755", "file.txt"},
+			WantModes: map[string]fs.FileMode{"file.txt": 0o755},
 		},
 		{
-			name:  "a single digit sets the other bits",
-			files: fsx.MemFS{"file.txt": {Mode: 0o777}},
-			args:  []string{"4", "file.txt"},
-			want:  map[string]fs.FileMode{"file.txt": 0o004},
+			Name:      "a single digit sets the other bits",
+			Files:     fsx.MemFS{"file.txt": {Mode: 0o777}},
+			Args:      []string{"4", "file.txt"},
+			WantModes: map[string]fs.FileMode{"file.txt": 0o004},
 		},
 		{
-			name:  "clears every bit",
-			files: fsx.MemFS{"file.txt": {Mode: 0o755 | fs.ModeSetuid}},
-			args:  []string{"0", "file.txt"},
-			want:  map[string]fs.FileMode{"file.txt": 0},
+			Name:      "clears every bit",
+			Files:     fsx.MemFS{"file.txt": {Mode: 0o755 | fs.ModeSetuid}},
+			Args:      []string{"0", "file.txt"},
+			WantModes: map[string]fs.FileMode{"file.txt": 0},
 		},
 		{
-			name:  "sets the set-user-ID bit",
-			files: fsx.MemFS{"file.txt": {Mode: 0o644}},
-			args:  []string{"4755", "file.txt"},
-			want:  map[string]fs.FileMode{"file.txt": 0o755 | fs.ModeSetuid},
+			Name:      "sets the set-user-ID bit",
+			Files:     fsx.MemFS{"file.txt": {Mode: 0o644}},
+			Args:      []string{"4755", "file.txt"},
+			WantModes: map[string]fs.FileMode{"file.txt": 0o755 | fs.ModeSetuid},
 		},
 		{
-			name:  "sets the set-group-ID bit",
-			files: fsx.MemFS{"file.txt": {Mode: 0o644}},
-			args:  []string{"2750", "file.txt"},
-			want:  map[string]fs.FileMode{"file.txt": 0o750 | fs.ModeSetgid},
+			Name:      "sets the set-group-ID bit",
+			Files:     fsx.MemFS{"file.txt": {Mode: 0o644}},
+			Args:      []string{"2750", "file.txt"},
+			WantModes: map[string]fs.FileMode{"file.txt": 0o750 | fs.ModeSetgid},
 		},
 		{
-			name:  "sets the sticky bit",
-			files: fsx.MemFS{"file.txt": {Mode: 0o644}},
-			args:  []string{"1755", "file.txt"},
-			want:  map[string]fs.FileMode{"file.txt": 0o755 | fs.ModeSticky},
+			Name:      "sets the sticky bit",
+			Files:     fsx.MemFS{"file.txt": {Mode: 0o644}},
+			Args:      []string{"1755", "file.txt"},
+			WantModes: map[string]fs.FileMode{"file.txt": 0o755 | fs.ModeSticky},
 		},
 		{
-			name:  "clears the special bits that are not given",
-			files: fsx.MemFS{"file.txt": {Mode: 0o755 | fs.ModeSetuid | fs.ModeSetgid | fs.ModeSticky}},
-			args:  []string{"755", "file.txt"},
-			want:  map[string]fs.FileMode{"file.txt": 0o755},
+			Name:      "clears the special bits that are not given",
+			Files:     fsx.MemFS{"file.txt": {Mode: 0o755 | fs.ModeSetuid | fs.ModeSetgid | fs.ModeSticky}},
+			Args:      []string{"755", "file.txt"},
+			WantModes: map[string]fs.FileMode{"file.txt": 0o755},
 		},
 		{
-			name:  "changes a directory",
-			files: fsx.MemFS{"dir": {Mode: dir(0o755)}},
-			args:  []string{"700", "dir"},
-			want:  map[string]fs.FileMode{"dir": dir(0o700)},
+			Name:      "changes a directory",
+			Files:     fsx.MemFS{"dir": {Mode: dir(0o755)}},
+			Args:      []string{"700", "dir"},
+			WantModes: map[string]fs.FileMode{"dir": dir(0o700)},
 		},
 	})
 }
@@ -163,76 +149,76 @@ func TestRunOctal(t *testing.T) {
 func TestRunSymbolic(t *testing.T) {
 	runTests(t, []testCase{
 		{
-			name:  "sets the bits of one class",
-			files: fsx.MemFS{"file.txt": {Mode: 0}},
-			args:  []string{"u+x", "file.txt"},
-			want:  map[string]fs.FileMode{"file.txt": 0o100},
+			Name:      "sets the bits of one class",
+			Files:     fsx.MemFS{"file.txt": {Mode: 0}},
+			Args:      []string{"u+x", "file.txt"},
+			WantModes: map[string]fs.FileMode{"file.txt": 0o100},
 		},
 		{
-			name:  "clears the bits of the given classes",
-			files: fsx.MemFS{"file.txt": {Mode: 0o666}},
-			args:  []string{"go-w", "file.txt"},
-			want:  map[string]fs.FileMode{"file.txt": 0o644},
+			Name:      "clears the bits of the given classes",
+			Files:     fsx.MemFS{"file.txt": {Mode: 0o666}},
+			Args:      []string{"go-w", "file.txt"},
+			WantModes: map[string]fs.FileMode{"file.txt": 0o644},
 		},
 		{
-			name:  "a means every class",
-			files: fsx.MemFS{"file.txt": {Mode: 0}},
-			args:  []string{"a+rw", "file.txt"},
-			want:  map[string]fs.FileMode{"file.txt": 0o666},
+			Name:      "a means every class",
+			Files:     fsx.MemFS{"file.txt": {Mode: 0}},
+			Args:      []string{"a+rw", "file.txt"},
+			WantModes: map[string]fs.FileMode{"file.txt": 0o666},
 		},
 		{
-			name:  "a wholist can join classes",
-			files: fsx.MemFS{"file.txt": {Mode: 0}},
-			args:  []string{"ug+rw", "file.txt"},
-			want:  map[string]fs.FileMode{"file.txt": 0o660},
+			Name:      "a wholist can join classes",
+			Files:     fsx.MemFS{"file.txt": {Mode: 0}},
+			Args:      []string{"ug+rw", "file.txt"},
+			WantModes: map[string]fs.FileMode{"file.txt": 0o660},
 		},
 		{
-			name:  "a clause can have multiple actions",
-			files: fsx.MemFS{"file.txt": {Mode: 0o777}},
-			args:  []string{"u+x-w", "file.txt"},
-			want:  map[string]fs.FileMode{"file.txt": 0o577},
+			Name:      "a clause can have multiple actions",
+			Files:     fsx.MemFS{"file.txt": {Mode: 0o777}},
+			Args:      []string{"u+x-w", "file.txt"},
+			WantModes: map[string]fs.FileMode{"file.txt": 0o577},
 		},
 		{
-			name:  "multiple clauses are applied in order",
-			files: fsx.MemFS{"file.txt": {Mode: 0o777}},
-			args:  []string{"u=rwx,g=rx,o=", "file.txt"},
-			want:  map[string]fs.FileMode{"file.txt": 0o750},
+			Name:      "multiple clauses are applied in order",
+			Files:     fsx.MemFS{"file.txt": {Mode: 0o777}},
+			Args:      []string{"u=rwx,g=rx,o=", "file.txt"},
+			WantModes: map[string]fs.FileMode{"file.txt": 0o750},
 		},
 		{
-			name:  "equals clears the selected classes first",
-			files: fsx.MemFS{"file.txt": {Mode: 0o777}},
-			args:  []string{"u=rw", "file.txt"},
-			want:  map[string]fs.FileMode{"file.txt": 0o677},
+			Name:      "equals clears the selected classes first",
+			Files:     fsx.MemFS{"file.txt": {Mode: 0o777}},
+			Args:      []string{"u=rw", "file.txt"},
+			WantModes: map[string]fs.FileMode{"file.txt": 0o677},
 		},
 		{
-			name:  "equals with no perm clears the class",
-			files: fsx.MemFS{"file.txt": {Mode: 0o777}},
-			args:  []string{"u=", "file.txt"},
-			want:  map[string]fs.FileMode{"file.txt": 0o077},
+			Name:      "equals with no perm clears the class",
+			Files:     fsx.MemFS{"file.txt": {Mode: 0o777}},
+			Args:      []string{"u=", "file.txt"},
+			WantModes: map[string]fs.FileMode{"file.txt": 0o077},
 		},
 		{
-			name:  "a with no perm clears every class",
-			files: fsx.MemFS{"file.txt": {Mode: 0o777}},
-			args:  []string{"a=", "file.txt"},
-			want:  map[string]fs.FileMode{"file.txt": 0},
+			Name:      "a with no perm clears every class",
+			Files:     fsx.MemFS{"file.txt": {Mode: 0o777}},
+			Args:      []string{"a=", "file.txt"},
+			WantModes: map[string]fs.FileMode{"file.txt": 0},
 		},
 		{
-			name:  "an action with no perm changes nothing",
-			files: fsx.MemFS{"file.txt": {Mode: 0o644}},
-			args:  []string{"u+", "file.txt"},
-			want:  map[string]fs.FileMode{"file.txt": 0o644},
+			Name:      "an action with no perm changes nothing",
+			Files:     fsx.MemFS{"file.txt": {Mode: 0o644}},
+			Args:      []string{"u+", "file.txt"},
+			WantModes: map[string]fs.FileMode{"file.txt": 0o644},
 		},
 		{
-			name:  "bits are relative to the mode of each file",
-			files: fsx.MemFS{"a.txt": {Mode: 0o600}, "b.txt": {Mode: 0o060}},
-			args:  []string{"u+x", "a.txt", "b.txt"},
-			want:  map[string]fs.FileMode{"a.txt": 0o700, "b.txt": 0o160},
+			Name:      "bits are relative to the mode of each file",
+			Files:     fsx.MemFS{"a.txt": {Mode: 0o600}, "b.txt": {Mode: 0o060}},
+			Args:      []string{"u+x", "a.txt", "b.txt"},
+			WantModes: map[string]fs.FileMode{"a.txt": 0o700, "b.txt": 0o160},
 		},
 		{
-			name:  "changes a directory",
-			files: fsx.MemFS{"dir": {Mode: dir(0o775)}},
-			args:  []string{"g-w", "dir"},
-			want:  map[string]fs.FileMode{"dir": dir(0o755)},
+			Name:      "changes a directory",
+			Files:     fsx.MemFS{"dir": {Mode: dir(0o775)}},
+			Args:      []string{"g-w", "dir"},
+			WantModes: map[string]fs.FileMode{"dir": dir(0o755)},
 		},
 	})
 }
@@ -240,45 +226,45 @@ func TestRunSymbolic(t *testing.T) {
 func TestRunSymbolicWithoutWho(t *testing.T) {
 	runTests(t, []testCase{
 		{
-			name:  "sets the bits of every class",
-			files: fsx.MemFS{"file.txt": {Mode: 0}},
-			args:  []string{"+x", "file.txt"},
-			want:  map[string]fs.FileMode{"file.txt": 0o111},
+			Name:      "sets the bits of every class",
+			Files:     fsx.MemFS{"file.txt": {Mode: 0}},
+			Args:      []string{"+x", "file.txt"},
+			WantModes: map[string]fs.FileMode{"file.txt": 0o111},
 		},
 		{
-			name:  "the umask filters the bits that are set",
-			files: fsx.MemFS{"file.txt": {Mode: 0}},
-			umask: 0o022,
-			args:  []string{"+w", "file.txt"},
-			want:  map[string]fs.FileMode{"file.txt": 0o200},
+			Name:      "the umask filters the bits that are set",
+			Files:     fsx.MemFS{"file.txt": {Mode: 0}},
+			Umask:     0o022,
+			Args:      []string{"+w", "file.txt"},
+			WantModes: map[string]fs.FileMode{"file.txt": 0o200},
 		},
 		{
-			name:  "the umask filters the bits that are cleared",
-			files: fsx.MemFS{"file.txt": {Mode: 0o666}},
-			umask: 0o022,
-			args:  []string{"--", "-w", "file.txt"},
-			want:  map[string]fs.FileMode{"file.txt": 0o466},
+			Name:      "the umask filters the bits that are cleared",
+			Files:     fsx.MemFS{"file.txt": {Mode: 0o666}},
+			Umask:     0o022,
+			Args:      []string{"--", "-w", "file.txt"},
+			WantModes: map[string]fs.FileMode{"file.txt": 0o466},
 		},
 		{
-			name:  "the umask filters the bits that equals sets",
-			files: fsx.MemFS{"file.txt": {Mode: 0o777}},
-			umask: 0o022,
-			args:  []string{"=rw", "file.txt"},
-			want:  map[string]fs.FileMode{"file.txt": 0o644},
+			Name:      "the umask filters the bits that equals sets",
+			Files:     fsx.MemFS{"file.txt": {Mode: 0o777}},
+			Umask:     0o022,
+			Args:      []string{"=rw", "file.txt"},
+			WantModes: map[string]fs.FileMode{"file.txt": 0o644},
 		},
 		{
-			name:  "a who is not filtered by the umask",
-			files: fsx.MemFS{"file.txt": {Mode: 0}},
-			umask: 0o022,
-			args:  []string{"a+rw", "file.txt"},
-			want:  map[string]fs.FileMode{"file.txt": 0o666},
+			Name:      "a who is not filtered by the umask",
+			Files:     fsx.MemFS{"file.txt": {Mode: 0}},
+			Umask:     0o022,
+			Args:      []string{"a+rw", "file.txt"},
+			WantModes: map[string]fs.FileMode{"file.txt": 0o666},
 		},
 		{
-			name:  "the special bits are not filtered by the umask",
-			files: fsx.MemFS{"file.txt": {Mode: 0}},
-			umask: 0o077,
-			args:  []string{"+s", "file.txt"},
-			want:  map[string]fs.FileMode{"file.txt": fs.ModeSetuid | fs.ModeSetgid},
+			Name:      "the special bits are not filtered by the umask",
+			Files:     fsx.MemFS{"file.txt": {Mode: 0}},
+			Umask:     0o077,
+			Args:      []string{"+s", "file.txt"},
+			WantModes: map[string]fs.FileMode{"file.txt": fs.ModeSetuid | fs.ModeSetgid},
 		},
 	})
 }
@@ -286,34 +272,34 @@ func TestRunSymbolicWithoutWho(t *testing.T) {
 func TestRunSymbolicX(t *testing.T) {
 	runTests(t, []testCase{
 		{
-			name:  "X sets the execute bits of a directory",
-			files: fsx.MemFS{"dir": {Mode: dir(0o644)}},
-			args:  []string{"a+X", "dir"},
-			want:  map[string]fs.FileMode{"dir": dir(0o755)},
+			Name:      "X sets the execute bits of a directory",
+			Files:     fsx.MemFS{"dir": {Mode: dir(0o644)}},
+			Args:      []string{"a+X", "dir"},
+			WantModes: map[string]fs.FileMode{"dir": dir(0o755)},
 		},
 		{
-			name:  "X sets the execute bits of a file with an execute bit",
-			files: fsx.MemFS{"file.txt": {Mode: 0o741}},
-			args:  []string{"a+X", "file.txt"},
-			want:  map[string]fs.FileMode{"file.txt": 0o751},
+			Name:      "X sets the execute bits of a file with an execute bit",
+			Files:     fsx.MemFS{"file.txt": {Mode: 0o741}},
+			Args:      []string{"a+X", "file.txt"},
+			WantModes: map[string]fs.FileMode{"file.txt": 0o751},
 		},
 		{
-			name:  "X is ignored on a file without execute bits",
-			files: fsx.MemFS{"file.txt": {Mode: 0o644}},
-			args:  []string{"a+X", "file.txt"},
-			want:  map[string]fs.FileMode{"file.txt": 0o644},
+			Name:      "X is ignored on a file without execute bits",
+			Files:     fsx.MemFS{"file.txt": {Mode: 0o644}},
+			Args:      []string{"a+X", "file.txt"},
+			WantModes: map[string]fs.FileMode{"file.txt": 0o644},
 		},
 		{
-			name:  "X clears the execute bits of a file with an execute bit",
-			files: fsx.MemFS{"file.txt": {Mode: 0o755}},
-			args:  []string{"a-X", "file.txt"},
-			want:  map[string]fs.FileMode{"file.txt": 0o644},
+			Name:      "X clears the execute bits of a file with an execute bit",
+			Files:     fsx.MemFS{"file.txt": {Mode: 0o755}},
+			Args:      []string{"a-X", "file.txt"},
+			WantModes: map[string]fs.FileMode{"file.txt": 0o644},
 		},
 		{
-			name:  "X is ignored when clearing on a file without execute bits",
-			files: fsx.MemFS{"file.txt": {Mode: 0o644}},
-			args:  []string{"a-X", "file.txt"},
-			want:  map[string]fs.FileMode{"file.txt": 0o644},
+			Name:      "X is ignored when clearing on a file without execute bits",
+			Files:     fsx.MemFS{"file.txt": {Mode: 0o644}},
+			Args:      []string{"a-X", "file.txt"},
+			WantModes: map[string]fs.FileMode{"file.txt": 0o644},
 		},
 	})
 }
@@ -321,65 +307,65 @@ func TestRunSymbolicX(t *testing.T) {
 func TestRunSymbolicSpecial(t *testing.T) {
 	runTests(t, []testCase{
 		{
-			name:  "u+s sets the set-user-ID bit",
-			files: fsx.MemFS{"file.txt": {Mode: 0o644}},
-			args:  []string{"u+s", "file.txt"},
-			want:  map[string]fs.FileMode{"file.txt": 0o644 | fs.ModeSetuid},
+			Name:      "u+s sets the set-user-ID bit",
+			Files:     fsx.MemFS{"file.txt": {Mode: 0o644}},
+			Args:      []string{"u+s", "file.txt"},
+			WantModes: map[string]fs.FileMode{"file.txt": 0o644 | fs.ModeSetuid},
 		},
 		{
-			name:  "g+s sets the set-group-ID bit",
-			files: fsx.MemFS{"file.txt": {Mode: 0o644}},
-			args:  []string{"g+s", "file.txt"},
-			want:  map[string]fs.FileMode{"file.txt": 0o644 | fs.ModeSetgid},
+			Name:      "g+s sets the set-group-ID bit",
+			Files:     fsx.MemFS{"file.txt": {Mode: 0o644}},
+			Args:      []string{"g+s", "file.txt"},
+			WantModes: map[string]fs.FileMode{"file.txt": 0o644 | fs.ModeSetgid},
 		},
 		{
-			name:  "o+s changes nothing",
-			files: fsx.MemFS{"file.txt": {Mode: 0o644}},
-			args:  []string{"o+s", "file.txt"},
-			want:  map[string]fs.FileMode{"file.txt": 0o644},
+			Name:      "o+s changes nothing",
+			Files:     fsx.MemFS{"file.txt": {Mode: 0o644}},
+			Args:      []string{"o+s", "file.txt"},
+			WantModes: map[string]fs.FileMode{"file.txt": 0o644},
 		},
 		{
-			name:  "go+s sets only the set-group-ID bit",
-			files: fsx.MemFS{"file.txt": {Mode: 0o644}},
-			args:  []string{"go+s", "file.txt"},
-			want:  map[string]fs.FileMode{"file.txt": 0o644 | fs.ModeSetgid},
+			Name:      "go+s sets only the set-group-ID bit",
+			Files:     fsx.MemFS{"file.txt": {Mode: 0o644}},
+			Args:      []string{"go+s", "file.txt"},
+			WantModes: map[string]fs.FileMode{"file.txt": 0o644 | fs.ModeSetgid},
 		},
 		{
-			name:  "s without a who sets both bits",
-			files: fsx.MemFS{"file.txt": {Mode: 0o644}},
-			args:  []string{"+s", "file.txt"},
-			want:  map[string]fs.FileMode{"file.txt": 0o644 | fs.ModeSetuid | fs.ModeSetgid},
+			Name:      "s without a who sets both bits",
+			Files:     fsx.MemFS{"file.txt": {Mode: 0o644}},
+			Args:      []string{"+s", "file.txt"},
+			WantModes: map[string]fs.FileMode{"file.txt": 0o644 | fs.ModeSetuid | fs.ModeSetgid},
 		},
 		{
-			name:  "u-s clears the set-user-ID bit",
-			files: fsx.MemFS{"file.txt": {Mode: 0o644 | fs.ModeSetuid}},
-			args:  []string{"u-s", "file.txt"},
-			want:  map[string]fs.FileMode{"file.txt": 0o644},
+			Name:      "u-s clears the set-user-ID bit",
+			Files:     fsx.MemFS{"file.txt": {Mode: 0o644 | fs.ModeSetuid}},
+			Args:      []string{"u-s", "file.txt"},
+			WantModes: map[string]fs.FileMode{"file.txt": 0o644},
 		},
 		{
-			name:  "+t sets the sticky bit",
-			files: fsx.MemFS{"file.txt": {Mode: 0o644}},
-			args:  []string{"+t", "file.txt"},
-			want:  map[string]fs.FileMode{"file.txt": 0o644 | fs.ModeSticky},
+			Name:      "+t sets the sticky bit",
+			Files:     fsx.MemFS{"file.txt": {Mode: 0o644}},
+			Args:      []string{"+t", "file.txt"},
+			WantModes: map[string]fs.FileMode{"file.txt": 0o644 | fs.ModeSticky},
 		},
 		{
-			name:  "a-t clears the sticky bit",
-			files: fsx.MemFS{"file.txt": {Mode: 0o644 | fs.ModeSticky}},
-			args:  []string{"a-t", "file.txt"},
-			want:  map[string]fs.FileMode{"file.txt": 0o644},
+			Name:      "a-t clears the sticky bit",
+			Files:     fsx.MemFS{"file.txt": {Mode: 0o644 | fs.ModeSticky}},
+			Args:      []string{"a-t", "file.txt"},
+			WantModes: map[string]fs.FileMode{"file.txt": 0o644},
 		},
 		{
-			name:  "equals without a who clears the special bits",
-			files: fsx.MemFS{"file.txt": {Mode: 0o755 | fs.ModeSetuid}},
-			umask: 0o022,
-			args:  []string{"=rw", "file.txt"},
-			want:  map[string]fs.FileMode{"file.txt": 0o644},
+			Name:      "equals without a who clears the special bits",
+			Files:     fsx.MemFS{"file.txt": {Mode: 0o755 | fs.ModeSetuid}},
+			Umask:     0o022,
+			Args:      []string{"=rw", "file.txt"},
+			WantModes: map[string]fs.FileMode{"file.txt": 0o644},
 		},
 		{
-			name:  "equals keeps the special bits of other classes",
-			files: fsx.MemFS{"file.txt": {Mode: 0o755 | fs.ModeSetuid}},
-			args:  []string{"u=rw", "file.txt"},
-			want:  map[string]fs.FileMode{"file.txt": 0o655 | fs.ModeSetuid},
+			Name:      "equals keeps the special bits of other classes",
+			Files:     fsx.MemFS{"file.txt": {Mode: 0o755 | fs.ModeSetuid}},
+			Args:      []string{"u=rw", "file.txt"},
+			WantModes: map[string]fs.FileMode{"file.txt": 0o655 | fs.ModeSetuid},
 		},
 	})
 }
@@ -387,62 +373,62 @@ func TestRunSymbolicSpecial(t *testing.T) {
 func TestRunSymbolicCopy(t *testing.T) {
 	runTests(t, []testCase{
 		{
-			name:  "g=u copies the user permissions",
-			files: fsx.MemFS{"file.txt": {Mode: 0o741}},
-			args:  []string{"g=u", "file.txt"},
-			want:  map[string]fs.FileMode{"file.txt": 0o771},
+			Name:      "g=u copies the user permissions",
+			Files:     fsx.MemFS{"file.txt": {Mode: 0o741}},
+			Args:      []string{"g=u", "file.txt"},
+			WantModes: map[string]fs.FileMode{"file.txt": 0o771},
 		},
 		{
-			name:  "o=u copies the user permissions",
-			files: fsx.MemFS{"file.txt": {Mode: 0o750}},
-			args:  []string{"o=u", "file.txt"},
-			want:  map[string]fs.FileMode{"file.txt": 0o757},
+			Name:      "o=u copies the user permissions",
+			Files:     fsx.MemFS{"file.txt": {Mode: 0o750}},
+			Args:      []string{"o=u", "file.txt"},
+			WantModes: map[string]fs.FileMode{"file.txt": 0o757},
 		},
 		{
-			name:  "a permcopy with no who applies to every class",
-			files: fsx.MemFS{"file.txt": {Mode: 0o640}},
-			args:  []string{"=u", "file.txt"},
-			want:  map[string]fs.FileMode{"file.txt": 0o666},
+			Name:      "a permcopy with no who applies to every class",
+			Files:     fsx.MemFS{"file.txt": {Mode: 0o640}},
+			Args:      []string{"=u", "file.txt"},
+			WantModes: map[string]fs.FileMode{"file.txt": 0o666},
 		},
 		{
-			name:  "actions are applied in order, like o=u-g from the spec",
-			files: fsx.MemFS{"file.txt": {Mode: 0o750}},
-			args:  []string{"o=u-g", "file.txt"},
-			want:  map[string]fs.FileMode{"file.txt": 0o752},
+			Name:      "actions are applied in order, like o=u-g from the spec",
+			Files:     fsx.MemFS{"file.txt": {Mode: 0o750}},
+			Args:      []string{"o=u-g", "file.txt"},
+			WantModes: map[string]fs.FileMode{"file.txt": 0o752},
 		},
 		{
-			name:  "uo=g matches the spec example",
-			files: fsx.MemFS{"file.txt": {Mode: 0o641}},
-			args:  []string{"uo=g", "file.txt"},
-			want:  map[string]fs.FileMode{"file.txt": 0o444},
+			Name:      "uo=g matches the spec example",
+			Files:     fsx.MemFS{"file.txt": {Mode: 0o641}},
+			Args:      []string{"uo=g", "file.txt"},
+			WantModes: map[string]fs.FileMode{"file.txt": 0o444},
 		},
 		{
-			name:  "the permissions are copied from each file",
-			files: fsx.MemFS{"a.txt": {Mode: 0o600}, "b.txt": {Mode: 0o060}},
-			args:  []string{"g=u", "a.txt", "b.txt"},
-			want:  map[string]fs.FileMode{"a.txt": 0o660, "b.txt": 0},
+			Name:      "the permissions are copied from each file",
+			Files:     fsx.MemFS{"a.txt": {Mode: 0o600}, "b.txt": {Mode: 0o060}},
+			Args:      []string{"g=u", "a.txt", "b.txt"},
+			WantModes: map[string]fs.FileMode{"a.txt": 0o660, "b.txt": 0},
 		},
 	})
 }
 
 func TestRunInvalidModes(t *testing.T) {
 	tests := []testCase{
-		{name: "an invalid octal digit", args: []string{"888", "file.txt"}},
-		{name: "too many digits", args: []string{"12345", "file.txt"}},
-		{name: "octal and symbolic mixed", args: []string{"77+x", "file.txt"}},
-		{name: "an unknown perm letter", args: []string{"q+x", "file.txt"}},
-		{name: "a who without actions", args: []string{"u", "file.txt"}},
-		{name: "an empty clause", args: []string{"u+x,,g+w", "file.txt"}},
-		{name: "a permcopy followed by perms", args: []string{"o=ug", "file.txt"}},
-		{name: "a missing op", args: []string{"ur", "file.txt"}},
-		{name: "a perm without an op", args: []string{"rw", "file.txt"}},
-		{name: "an empty mode", args: []string{"", "file.txt"}},
+		{Name: "an invalid octal digit", Args: []string{"888", "file.txt"}},
+		{Name: "too many digits", Args: []string{"12345", "file.txt"}},
+		{Name: "octal and symbolic mixed", Args: []string{"77+x", "file.txt"}},
+		{Name: "an unknown perm letter", Args: []string{"q+x", "file.txt"}},
+		{Name: "a who without actions", Args: []string{"u", "file.txt"}},
+		{Name: "an empty clause", Args: []string{"u+x,,g+w", "file.txt"}},
+		{Name: "a permcopy followed by perms", Args: []string{"o=ug", "file.txt"}},
+		{Name: "a missing op", Args: []string{"ur", "file.txt"}},
+		{Name: "a perm without an op", Args: []string{"rw", "file.txt"}},
+		{Name: "an empty mode", Args: []string{"", "file.txt"}},
 	}
 	for i := range tests {
-		tests[i].files = fsx.MemFS{"file.txt": {Mode: 0o644}}
-		tests[i].want = map[string]fs.FileMode{"file.txt": 0o644}
-		tests[i].wantErr = "chmod: invalid mode: \"" + tests[i].args[0] + "\"\nTry 'chmod --help' for more information.\n"
-		tests[i].wantExit = 1
+		tests[i].Files = fsx.MemFS{"file.txt": {Mode: 0o644}}
+		tests[i].WantModes = map[string]fs.FileMode{"file.txt": 0o644}
+		tests[i].WantErr = "chmod: invalid mode: \"" + tests[i].Args[0] + "\"\nTry 'chmod --help' for more information.\n"
+		tests[i].WantExit = 1
 	}
 	runTests(t, tests)
 }
@@ -459,10 +445,10 @@ func TestRunRecursive(t *testing.T) {
 
 	runTests(t, []testCase{
 		{
-			name:  "R changes every file below the directory",
-			files: tree(),
-			args:  []string{"-R", "700", "dir"},
-			want: map[string]fs.FileMode{
+			Name:  "R changes every file below the directory",
+			Files: tree(),
+			Args:  []string{"-R", "700", "dir"},
+			WantModes: map[string]fs.FileMode{
 				"dir":           dir(0o700),
 				"dir/a.txt":     0o700,
 				"dir/sub":       dir(0o700),
@@ -470,16 +456,16 @@ func TestRunRecursive(t *testing.T) {
 			},
 		},
 		{
-			name:  "R on a plain file works like without R",
-			files: fsx.MemFS{"file.txt": {Mode: 0o644}},
-			args:  []string{"-R", "600", "file.txt"},
-			want:  map[string]fs.FileMode{"file.txt": 0o600},
+			Name:      "R on a plain file works like without R",
+			Files:     fsx.MemFS{"file.txt": {Mode: 0o644}},
+			Args:      []string{"-R", "600", "file.txt"},
+			WantModes: map[string]fs.FileMode{"file.txt": 0o600},
 		},
 		{
-			name:  "R with a symbolic mode",
-			files: tree(),
-			args:  []string{"-R", "go-w", "dir"},
-			want: map[string]fs.FileMode{
+			Name:  "R with a symbolic mode",
+			Files: tree(),
+			Args:  []string{"-R", "go-w", "dir"},
+			WantModes: map[string]fs.FileMode{
 				"dir":           dir(0o755),
 				"dir/a.txt":     0o644,
 				"dir/sub":       dir(0o755),
@@ -487,10 +473,10 @@ func TestRunRecursive(t *testing.T) {
 			},
 		},
 		{
-			name:  "R with X only touches files that have an execute bit",
-			files: tree(),
-			args:  []string{"-R", "a+X", "dir"},
-			want: map[string]fs.FileMode{
+			Name:  "R with X only touches files that have an execute bit",
+			Files: tree(),
+			Args:  []string{"-R", "a+X", "dir"},
+			WantModes: map[string]fs.FileMode{
 				"dir":           dir(0o755),
 				"dir/a.txt":     0o644,
 				"dir/sub":       dir(0o755),
@@ -498,21 +484,21 @@ func TestRunRecursive(t *testing.T) {
 			},
 		},
 		{
-			name:  "R with X adds the execute bits to directories",
-			files: fsx.MemFS{"dir": {Mode: dir(0o644)}, "dir/a.txt": {Mode: 0o744}},
-			args:  []string{"-R", "a+X", "dir"},
-			want: map[string]fs.FileMode{
+			Name:  "R with X adds the execute bits to directories",
+			Files: fsx.MemFS{"dir": {Mode: dir(0o644)}, "dir/a.txt": {Mode: 0o744}},
+			Args:  []string{"-R", "a+X", "dir"},
+			WantModes: map[string]fs.FileMode{
 				"dir":       dir(0o755),
 				"dir/a.txt": 0o755,
 			},
 		},
 		{
-			name:     "R keeps going after a missing file",
-			files:    fsx.MemFS{"file.txt": {Mode: 0o644}},
-			args:     []string{"-R", "700", "missing", "file.txt"},
-			want:     map[string]fs.FileMode{"file.txt": 0o700},
-			wantErr:  "chmod: missing: file does not exist\n",
-			wantExit: 1,
+			Name:      "R keeps going after a missing file",
+			Files:     fsx.MemFS{"file.txt": {Mode: 0o644}},
+			Args:      []string{"-R", "700", "missing", "file.txt"},
+			WantModes: map[string]fs.FileMode{"file.txt": 0o700},
+			WantErr:   "chmod: missing: file does not exist\n",
+			WantExit:  1,
 		},
 	})
 }
@@ -525,10 +511,10 @@ func symlink(target string) *fsx.MemFile {
 func TestRunLongOptions(t *testing.T) {
 	runTests(t, []testCase{
 		{
-			name:  "recursive changes every file below the directory",
-			files: fsx.MemFS{"dir": {Mode: dir(0o755)}, "dir/a.txt": {Mode: 0o644}},
-			args:  []string{"--recursive", "700", "dir"},
-			want: map[string]fs.FileMode{
+			Name:  "recursive changes every file below the directory",
+			Files: fsx.MemFS{"dir": {Mode: dir(0o755)}, "dir/a.txt": {Mode: 0o644}},
+			Args:  []string{"--recursive", "700", "dir"},
+			WantModes: map[string]fs.FileMode{
 				"dir":       dir(0o700),
 				"dir/a.txt": 0o700,
 			},
@@ -539,56 +525,56 @@ func TestRunLongOptions(t *testing.T) {
 func TestRunGeneral(t *testing.T) {
 	runTests(t, []testCase{
 		{
-			name:     "a missing operand is an error",
-			files:    fsx.MemFS{"file.txt": {Mode: 0o644}},
-			args:     nil,
-			want:     map[string]fs.FileMode{"file.txt": 0o644},
-			wantErr:  "chmod: missing operand\nTry 'chmod --help' for more information.\n",
-			wantExit: 2,
+			Name:      "a missing operand is an error",
+			Files:     fsx.MemFS{"file.txt": {Mode: 0o644}},
+			Args:      nil,
+			WantModes: map[string]fs.FileMode{"file.txt": 0o644},
+			WantErr:   "chmod: missing operand\nTry 'chmod --help' for more information.\n",
+			WantExit:  2,
 		},
 		{
-			name:     "a missing file operand is an error",
-			files:    fsx.MemFS{"file.txt": {Mode: 0o644}},
-			args:     []string{"755"},
-			want:     map[string]fs.FileMode{"file.txt": 0o644},
-			wantErr:  "chmod: missing file operand\nTry 'chmod --help' for more information.\n",
-			wantExit: 2,
+			Name:      "a missing file operand is an error",
+			Files:     fsx.MemFS{"file.txt": {Mode: 0o644}},
+			Args:      []string{"755"},
+			WantModes: map[string]fs.FileMode{"file.txt": 0o644},
+			WantErr:   "chmod: missing file operand\nTry 'chmod --help' for more information.\n",
+			WantExit:  2,
 		},
 		{
-			name:     "an invalid option is an error",
-			files:    fsx.MemFS{"file.txt": {Mode: 0o644}},
-			args:     []string{"-x", "755", "file.txt"},
-			want:     map[string]fs.FileMode{"file.txt": 0o644},
-			wantErr:  "chmod: invalid option -- 'x'\nTry 'chmod --help' for more information.\n",
-			wantExit: 2,
+			Name:      "an invalid option is an error",
+			Files:     fsx.MemFS{"file.txt": {Mode: 0o644}},
+			Args:      []string{"-x", "755", "file.txt"},
+			WantModes: map[string]fs.FileMode{"file.txt": 0o644},
+			WantErr:   "chmod: invalid option -- 'x'\nTry 'chmod --help' for more information.\n",
+			WantExit:  2,
 		},
 		{
-			name:     "an unrecognized long option",
-			files:    fsx.MemFS{"file.txt": {Mode: 0o644}},
-			args:     []string{"--bogus", "755", "file.txt"},
-			want:     map[string]fs.FileMode{"file.txt": 0o644},
-			wantErr:  "chmod: unrecognized option '--bogus'\nTry 'chmod --help' for more information.\n",
-			wantExit: 2,
+			Name:      "an unrecognized long option",
+			Files:     fsx.MemFS{"file.txt": {Mode: 0o644}},
+			Args:      []string{"--bogus", "755", "file.txt"},
+			WantModes: map[string]fs.FileMode{"file.txt": 0o644},
+			WantErr:   "chmod: unrecognized option '--bogus'\nTry 'chmod --help' for more information.\n",
+			WantExit:  2,
 		},
 		{
-			name:  "a mode starting with a dash can follow a double dash",
-			files: fsx.MemFS{"file.txt": {Mode: 0o666}},
-			args:  []string{"--", "-w", "file.txt"},
-			want:  map[string]fs.FileMode{"file.txt": 0o444},
+			Name:      "a mode starting with a dash can follow a double dash",
+			Files:     fsx.MemFS{"file.txt": {Mode: 0o666}},
+			Args:      []string{"--", "-w", "file.txt"},
+			WantModes: map[string]fs.FileMode{"file.txt": 0o444},
 		},
 		{
-			name:  "a file named like an option can follow a double dash",
-			files: fsx.MemFS{"-w": {Mode: 0o644}},
-			args:  []string{"--", "600", "-w"},
-			want:  map[string]fs.FileMode{"-w": 0o600},
+			Name:      "a file named like an option can follow a double dash",
+			Files:     fsx.MemFS{"-w": {Mode: 0o644}},
+			Args:      []string{"--", "600", "-w"},
+			WantModes: map[string]fs.FileMode{"-w": 0o600},
 		},
 		{
-			name:     "a missing file is an error, but the others are changed",
-			files:    fsx.MemFS{"file.txt": {Mode: 0o644}},
-			args:     []string{"755", "missing", "file.txt"},
-			want:     map[string]fs.FileMode{"file.txt": 0o755},
-			wantErr:  "chmod: missing: file does not exist\n",
-			wantExit: 1,
+			Name:      "a missing file is an error, but the others are changed",
+			Files:     fsx.MemFS{"file.txt": {Mode: 0o644}},
+			Args:      []string{"755", "missing", "file.txt"},
+			WantModes: map[string]fs.FileMode{"file.txt": 0o755},
+			WantErr:   "chmod: missing: file does not exist\n",
+			WantExit:  1,
 		},
 	})
 }
@@ -596,40 +582,40 @@ func TestRunGeneral(t *testing.T) {
 func TestRunReference(t *testing.T) {
 	runTests(t, []testCase{
 		{
-			name:  "uses the mode of the reference file",
-			files: fsx.MemFS{"ref": {Mode: 0o640}, "file.txt": {Mode: 0o600}},
-			args:  []string{"--reference=ref", "file.txt"},
-			want:  map[string]fs.FileMode{"file.txt": 0o640},
+			Name:      "uses the mode of the reference file",
+			Files:     fsx.MemFS{"ref": {Mode: 0o640}, "file.txt": {Mode: 0o600}},
+			Args:      []string{"--reference=ref", "file.txt"},
+			WantModes: map[string]fs.FileMode{"file.txt": 0o640},
 		},
 		{
-			name:  "the reference can be a separate argument",
-			files: fsx.MemFS{"ref": {Mode: 0o640}, "file.txt": {Mode: 0o600}},
-			args:  []string{"--reference", "ref", "file.txt"},
-			want:  map[string]fs.FileMode{"file.txt": 0o640},
+			Name:      "the reference can be a separate argument",
+			Files:     fsx.MemFS{"ref": {Mode: 0o640}, "file.txt": {Mode: 0o600}},
+			Args:      []string{"--reference", "ref", "file.txt"},
+			WantModes: map[string]fs.FileMode{"file.txt": 0o640},
 		},
 		{
-			name:  "the mode applies to every file",
-			files: fsx.MemFS{"ref": {Mode: 0o600}, "a.txt": {Mode: 0o644}, "b.txt": {Mode: 0o755}},
-			args:  []string{"--reference=ref", "a.txt", "b.txt"},
-			want:  map[string]fs.FileMode{"a.txt": 0o600, "b.txt": 0o600},
+			Name:      "the mode applies to every file",
+			Files:     fsx.MemFS{"ref": {Mode: 0o600}, "a.txt": {Mode: 0o644}, "b.txt": {Mode: 0o755}},
+			Args:      []string{"--reference=ref", "a.txt", "b.txt"},
+			WantModes: map[string]fs.FileMode{"a.txt": 0o600, "b.txt": 0o600},
 		},
 		{
-			name:  "the special bits are copied",
-			files: fsx.MemFS{"ref": {Mode: 0o755 | fs.ModeSetuid | fs.ModeSticky}, "file.txt": {Mode: 0o644}},
-			args:  []string{"--reference=ref", "file.txt"},
-			want:  map[string]fs.FileMode{"file.txt": 0o755 | fs.ModeSetuid | fs.ModeSticky},
+			Name:      "the special bits are copied",
+			Files:     fsx.MemFS{"ref": {Mode: 0o755 | fs.ModeSetuid | fs.ModeSticky}, "file.txt": {Mode: 0o644}},
+			Args:      []string{"--reference=ref", "file.txt"},
+			WantModes: map[string]fs.FileMode{"file.txt": 0o755 | fs.ModeSetuid | fs.ModeSticky},
 		},
 		{
-			name:  "a reference to a symbolic link is dereferenced",
-			files: fsx.MemFS{"ref": {Mode: 0o640}, "link": symlink("ref"), "file.txt": {Mode: 0o600}},
-			args:  []string{"--reference=link", "file.txt"},
-			want:  map[string]fs.FileMode{"file.txt": 0o640},
+			Name:      "a reference to a symbolic link is dereferenced",
+			Files:     fsx.MemFS{"ref": {Mode: 0o640}, "link": symlink("ref"), "file.txt": {Mode: 0o600}},
+			Args:      []string{"--reference=link", "file.txt"},
+			WantModes: map[string]fs.FileMode{"file.txt": 0o640},
 		},
 		{
-			name:  "a reference can be combined with R",
-			files: fsx.MemFS{"ref": {Mode: 0o700}, "dir": {Mode: dir(0o755)}, "dir/a.txt": {Mode: 0o644}},
-			args:  []string{"-R", "--reference=ref", "dir"},
-			want: map[string]fs.FileMode{
+			Name:  "a reference can be combined with R",
+			Files: fsx.MemFS{"ref": {Mode: 0o700}, "dir": {Mode: dir(0o755)}, "dir/a.txt": {Mode: 0o644}},
+			Args:  []string{"-R", "--reference=ref", "dir"},
+			WantModes: map[string]fs.FileMode{
 				"ref":       0o700,
 				"dir":       dir(0o700),
 				"dir/a.txt": 0o700,
@@ -638,40 +624,40 @@ func TestRunReference(t *testing.T) {
 		{
 			// With --reference, every operand is a file: a mode-looking
 			// name is just a missing file.
-			name:     "a mode-looking operand is a file with --reference",
-			files:    fsx.MemFS{"ref": {Mode: 0o640}, "file.txt": {Mode: 0o644}},
-			args:     []string{"--reference=ref", "644", "file.txt"},
-			want:     map[string]fs.FileMode{"ref": 0o640, "file.txt": 0o640},
-			wantErr:  "chmod: 644: file does not exist\n",
-			wantExit: 1,
+			Name:      "a mode-looking operand is a file with --reference",
+			Files:     fsx.MemFS{"ref": {Mode: 0o640}, "file.txt": {Mode: 0o644}},
+			Args:      []string{"--reference=ref", "644", "file.txt"},
+			WantModes: map[string]fs.FileMode{"ref": 0o640, "file.txt": 0o640},
+			WantErr:   "chmod: 644: file does not exist\n",
+			WantExit:  1,
 		},
 		{
-			name:     "a missing reference file is an error",
-			files:    fsx.MemFS{"file.txt": {Mode: 0o644}},
-			args:     []string{"--reference=missing", "file.txt"},
-			want:     map[string]fs.FileMode{"file.txt": 0o644},
-			wantErr:  "chmod: failed to get attributes of missing: file does not exist\n",
-			wantExit: 1,
+			Name:      "a missing reference file is an error",
+			Files:     fsx.MemFS{"file.txt": {Mode: 0o644}},
+			Args:      []string{"--reference=missing", "file.txt"},
+			WantModes: map[string]fs.FileMode{"file.txt": 0o644},
+			WantErr:   "chmod: failed to get attributes of missing: file does not exist\n",
+			WantExit:  1,
 		},
 		{
-			name:     "no operands is a usage error",
-			files:    fsx.MemFS{"ref": {Mode: 0o640}},
-			args:     []string{"--reference=ref"},
-			want:     map[string]fs.FileMode{"ref": 0o640},
-			wantErr:  "chmod: missing operand\nTry 'chmod --help' for more information.\n",
-			wantExit: 2,
+			Name:      "no operands is a usage error",
+			Files:     fsx.MemFS{"ref": {Mode: 0o640}},
+			Args:      []string{"--reference=ref"},
+			WantModes: map[string]fs.FileMode{"ref": 0o640},
+			WantErr:   "chmod: missing operand\nTry 'chmod --help' for more information.\n",
+			WantExit:  2,
 		},
 		{
-			name:  "a lone operand is a file, not a mode",
-			files: fsx.MemFS{"ref": {Mode: 0o640}, "u+x": {Mode: 0o600}},
-			args:  []string{"--reference=ref", "u+x"},
-			want:  map[string]fs.FileMode{"u+x": 0o640},
+			Name:      "a lone operand is a file, not a mode",
+			Files:     fsx.MemFS{"ref": {Mode: 0o640}, "u+x": {Mode: 0o600}},
+			Args:      []string{"--reference=ref", "u+x"},
+			WantModes: map[string]fs.FileMode{"u+x": 0o640},
 		},
 		{
-			name:  "--reference works with the mode-like file x+y", // sanity: non-mode operand
-			files: fsx.MemFS{"ref": {Mode: 0o640}, "x+y": {Mode: 0o600}},
-			args:  []string{"--reference=ref", "x+y"},
-			want:  map[string]fs.FileMode{"x+y": 0o640},
+			Name:      "--reference works with the mode-like file x+y", // sanity: non-mode operand
+			Files:     fsx.MemFS{"ref": {Mode: 0o640}, "x+y": {Mode: 0o600}},
+			Args:      []string{"--reference=ref", "x+y"},
+			WantModes: map[string]fs.FileMode{"x+y": 0o640},
 		},
 	})
 }
@@ -679,99 +665,99 @@ func TestRunReference(t *testing.T) {
 func TestRunVerbose(t *testing.T) {
 	runTests(t, []testCase{
 		{
-			name:    "v reports a change",
-			files:   fsx.MemFS{"file.txt": {Mode: 0o600}},
-			args:    []string{"-v", "644", "file.txt"},
-			want:    map[string]fs.FileMode{"file.txt": 0o644},
-			wantOut: "mode of 'file.txt' changed from 0600 (rw-------) to 0644 (rw-r--r--)\n",
+			Name:      "v reports a change",
+			Files:     fsx.MemFS{"file.txt": {Mode: 0o600}},
+			Args:      []string{"-v", "644", "file.txt"},
+			WantModes: map[string]fs.FileMode{"file.txt": 0o644},
+			Want:      "mode of 'file.txt' changed from 0600 (rw-------) to 0644 (rw-r--r--)\n",
 		},
 		{
-			name:    "v reports a retained mode",
-			files:   fsx.MemFS{"file.txt": {Mode: 0o644}},
-			args:    []string{"-v", "644", "file.txt"},
-			want:    map[string]fs.FileMode{"file.txt": 0o644},
-			wantOut: "mode of 'file.txt' retained as 0644 (rw-r--r--)\n",
+			Name:      "v reports a retained mode",
+			Files:     fsx.MemFS{"file.txt": {Mode: 0o644}},
+			Args:      []string{"-v", "644", "file.txt"},
+			WantModes: map[string]fs.FileMode{"file.txt": 0o644},
+			Want:      "mode of 'file.txt' retained as 0644 (rw-r--r--)\n",
 		},
 		{
-			name:    "c reports only the files whose mode changed",
-			files:   fsx.MemFS{"a.txt": {Mode: 0o600}, "b.txt": {Mode: 0o644}},
-			args:    []string{"-c", "644", "a.txt", "b.txt"},
-			want:    map[string]fs.FileMode{"a.txt": 0o644, "b.txt": 0o644},
-			wantOut: "mode of 'a.txt' changed from 0600 (rw-------) to 0644 (rw-r--r--)\n",
+			Name:      "c reports only the files whose mode changed",
+			Files:     fsx.MemFS{"a.txt": {Mode: 0o600}, "b.txt": {Mode: 0o644}},
+			Args:      []string{"-c", "644", "a.txt", "b.txt"},
+			WantModes: map[string]fs.FileMode{"a.txt": 0o644, "b.txt": 0o644},
+			Want:      "mode of 'a.txt' changed from 0600 (rw-------) to 0644 (rw-r--r--)\n",
 		},
 		{
-			name:  "c reports nothing when no mode changes",
-			files: fsx.MemFS{"file.txt": {Mode: 0o644}},
-			args:  []string{"-c", "644", "file.txt"},
-			want:  map[string]fs.FileMode{"file.txt": 0o644},
+			Name:      "c reports nothing when no mode changes",
+			Files:     fsx.MemFS{"file.txt": {Mode: 0o644}},
+			Args:      []string{"-c", "644", "file.txt"},
+			WantModes: map[string]fs.FileMode{"file.txt": 0o644},
 		},
 		{
-			name:  "without c or v nothing is reported",
-			files: fsx.MemFS{"file.txt": {Mode: 0o600}},
-			args:  []string{"644", "file.txt"},
-			want:  map[string]fs.FileMode{"file.txt": 0o644},
+			Name:      "without c or v nothing is reported",
+			Files:     fsx.MemFS{"file.txt": {Mode: 0o600}},
+			Args:      []string{"644", "file.txt"},
+			WantModes: map[string]fs.FileMode{"file.txt": 0o644},
 		},
 		{
-			name:    "the last of c and v wins",
-			files:   fsx.MemFS{"file.txt": {Mode: 0o644}},
-			args:    []string{"-c", "-v", "644", "file.txt"},
-			want:    map[string]fs.FileMode{"file.txt": 0o644},
-			wantOut: "mode of 'file.txt' retained as 0644 (rw-r--r--)\n",
+			Name:      "the last of c and v wins",
+			Files:     fsx.MemFS{"file.txt": {Mode: 0o644}},
+			Args:      []string{"-c", "-v", "644", "file.txt"},
+			WantModes: map[string]fs.FileMode{"file.txt": 0o644},
+			Want:      "mode of 'file.txt' retained as 0644 (rw-r--r--)\n",
 		},
 		{
-			name:  "the last of v and c wins",
-			files: fsx.MemFS{"file.txt": {Mode: 0o644}},
-			args:  []string{"-v", "-c", "644", "file.txt"},
-			want:  map[string]fs.FileMode{"file.txt": 0o644},
+			Name:      "the last of v and c wins",
+			Files:     fsx.MemFS{"file.txt": {Mode: 0o644}},
+			Args:      []string{"-v", "-c", "644", "file.txt"},
+			WantModes: map[string]fs.FileMode{"file.txt": 0o644},
 		},
 		{
-			name:    "the long options work",
-			files:   fsx.MemFS{"file.txt": {Mode: 0o600}},
-			args:    []string{"--changes", "644", "file.txt"},
-			want:    map[string]fs.FileMode{"file.txt": 0o644},
-			wantOut: "mode of 'file.txt' changed from 0600 (rw-------) to 0644 (rw-r--r--)\n",
+			Name:      "the long options work",
+			Files:     fsx.MemFS{"file.txt": {Mode: 0o600}},
+			Args:      []string{"--changes", "644", "file.txt"},
+			WantModes: map[string]fs.FileMode{"file.txt": 0o644},
+			Want:      "mode of 'file.txt' changed from 0600 (rw-------) to 0644 (rw-r--r--)\n",
 		},
 		{
-			name:    "v reports the special bits like ls does",
-			files:   fsx.MemFS{"file.txt": {Mode: 0o644}},
-			args:    []string{"-v", "4755", "file.txt"},
-			want:    map[string]fs.FileMode{"file.txt": 0o755 | fs.ModeSetuid},
-			wantOut: "mode of 'file.txt' changed from 0644 (rw-r--r--) to 4755 (rwsr-xr-x)\n",
+			Name:      "v reports the special bits like ls does",
+			Files:     fsx.MemFS{"file.txt": {Mode: 0o644}},
+			Args:      []string{"-v", "4755", "file.txt"},
+			WantModes: map[string]fs.FileMode{"file.txt": 0o755 | fs.ModeSetuid},
+			Want:      "mode of 'file.txt' changed from 0644 (rw-r--r--) to 4755 (rwsr-xr-x)\n",
 		},
 		{
-			name:    "v reports the special bits without execute like ls does",
-			files:   fsx.MemFS{"file.txt": {Mode: 0o644}},
-			args:    []string{"-v", "2644", "file.txt"},
-			want:    map[string]fs.FileMode{"file.txt": 0o644 | fs.ModeSetgid},
-			wantOut: "mode of 'file.txt' changed from 0644 (rw-r--r--) to 2644 (rw-r-Sr--)\n",
+			Name:      "v reports the special bits without execute like ls does",
+			Files:     fsx.MemFS{"file.txt": {Mode: 0o644}},
+			Args:      []string{"-v", "2644", "file.txt"},
+			WantModes: map[string]fs.FileMode{"file.txt": 0o644 | fs.ModeSetgid},
+			Want:      "mode of 'file.txt' changed from 0644 (rw-r--r--) to 2644 (rw-r-Sr--)\n",
 		},
 		{
-			name:    "v reports the sticky bit like ls does",
-			files:   fsx.MemFS{"dir": {Mode: dir(0o755)}},
-			args:    []string{"-v", "1755", "dir"},
-			want:    map[string]fs.FileMode{"dir": dir(0o755) | fs.ModeSticky},
-			wantOut: "mode of 'dir' changed from 0755 (rwxr-xr-x) to 1755 (rwxr-xr-t)\n",
+			Name:      "v reports the sticky bit like ls does",
+			Files:     fsx.MemFS{"dir": {Mode: dir(0o755)}},
+			Args:      []string{"-v", "1755", "dir"},
+			WantModes: map[string]fs.FileMode{"dir": dir(0o755) | fs.ModeSticky},
+			Want:      "mode of 'dir' changed from 0755 (rwxr-xr-x) to 1755 (rwxr-xr-t)\n",
 		},
 		{
-			name:    "v reports the operand as given",
-			files:   fsx.MemFS{"file.txt": {Mode: 0o600}},
-			args:    []string{"-v", "644", "./file.txt"},
-			want:    map[string]fs.FileMode{"file.txt": 0o644},
-			wantOut: "mode of './file.txt' changed from 0600 (rw-------) to 0644 (rw-r--r--)\n",
+			Name:      "v reports the operand as given",
+			Files:     fsx.MemFS{"file.txt": {Mode: 0o600}},
+			Args:      []string{"-v", "644", "./file.txt"},
+			WantModes: map[string]fs.FileMode{"file.txt": 0o644},
+			Want:      "mode of './file.txt' changed from 0600 (rw-------) to 0644 (rw-r--r--)\n",
 		},
 		{
-			name:    "v with a symbolic mode reports the resulting mode",
-			files:   fsx.MemFS{"file.txt": {Mode: 0o600}},
-			args:    []string{"-v", "g+r,o+r", "file.txt"},
-			want:    map[string]fs.FileMode{"file.txt": 0o644},
-			wantOut: "mode of 'file.txt' changed from 0600 (rw-------) to 0644 (rw-r--r--)\n",
+			Name:      "v with a symbolic mode reports the resulting mode",
+			Files:     fsx.MemFS{"file.txt": {Mode: 0o600}},
+			Args:      []string{"-v", "g+r,o+r", "file.txt"},
+			WantModes: map[string]fs.FileMode{"file.txt": 0o644},
+			Want:      "mode of 'file.txt' changed from 0600 (rw-------) to 0644 (rw-r--r--)\n",
 		},
 		{
-			name:    "v with --reference reports the change",
-			files:   fsx.MemFS{"ref": {Mode: 0o640}, "file.txt": {Mode: 0o600}},
-			args:    []string{"-v", "--reference=ref", "file.txt"},
-			want:    map[string]fs.FileMode{"file.txt": 0o640},
-			wantOut: "mode of 'file.txt' changed from 0600 (rw-------) to 0640 (rw-r-----)\n",
+			Name:      "v with --reference reports the change",
+			Files:     fsx.MemFS{"ref": {Mode: 0o640}, "file.txt": {Mode: 0o600}},
+			Args:      []string{"-v", "--reference=ref", "file.txt"},
+			WantModes: map[string]fs.FileMode{"file.txt": 0o640},
+			Want:      "mode of 'file.txt' changed from 0600 (rw-------) to 0640 (rw-r-----)\n",
 		},
 	})
 }
@@ -788,25 +774,25 @@ func TestRunVerboseRecursive(t *testing.T) {
 
 	runTests(t, []testCase{
 		{
-			name:  "v reports every file of the walk",
-			files: tree(),
-			args:  []string{"-Rv", "700", "dir"},
-			want: map[string]fs.FileMode{
+			Name:  "v reports every file of the walk",
+			Files: tree(),
+			Args:  []string{"-Rv", "700", "dir"},
+			WantModes: map[string]fs.FileMode{
 				"dir":           dir(0o700),
 				"dir/a.txt":     0o700,
 				"dir/sub":       dir(0o700),
 				"dir/sub/b.txt": 0o700,
 			},
-			wantOut: "mode of 'dir' changed from 0755 (rwxr-xr-x) to 0700 (rwx------)\n" +
+			Want: "mode of 'dir' changed from 0755 (rwxr-xr-x) to 0700 (rwx------)\n" +
 				"mode of 'dir/a.txt' changed from 0644 (rw-r--r--) to 0700 (rwx------)\n" +
 				"mode of 'dir/sub' changed from 0755 (rwxr-xr-x) to 0700 (rwx------)\n" +
 				"mode of 'dir/sub/b.txt' changed from 0600 (rw-------) to 0700 (rwx------)\n",
 		},
 		{
-			name:  "c reports only the files whose mode changed",
-			files: tree(),
-			args:  []string{"-Rc", "a+X", "dir"},
-			want: map[string]fs.FileMode{
+			Name:  "c reports only the files whose mode changed",
+			Files: tree(),
+			Args:  []string{"-Rc", "a+X", "dir"},
+			WantModes: map[string]fs.FileMode{
 				"dir":           dir(0o755),
 				"dir/a.txt":     0o644,
 				"dir/sub":       dir(0o755),
@@ -819,71 +805,71 @@ func TestRunVerboseRecursive(t *testing.T) {
 func TestRunRecursiveSymlinks(t *testing.T) {
 	runTests(t, []testCase{
 		{
-			name: "R ignores a symbolic link of the walk",
-			files: fsx.MemFS{
+			Name: "R ignores a symbolic link of the walk",
+			Files: fsx.MemFS{
 				"dir":       {Mode: dir(0o755)},
 				"dir/a.txt": {Mode: 0o644},
 				"dir/link":  symlink("a.txt"),
 			},
-			args: []string{"-R", "700", "dir"},
-			want: map[string]fs.FileMode{
+			Args: []string{"-R", "700", "dir"},
+			WantModes: map[string]fs.FileMode{
 				"dir":       dir(0o700),
 				"dir/a.txt": 0o700,
 				"dir/link":  fs.ModeSymlink | 0o777,
 			},
 		},
 		{
-			name: "R ignores a dangling symbolic link",
-			files: fsx.MemFS{
+			Name: "R ignores a dangling symbolic link",
+			Files: fsx.MemFS{
 				"dir":       {Mode: dir(0o755)},
 				"dir/a.txt": {Mode: 0o644},
 				"dir/link":  symlink("missing"),
 			},
-			args: []string{"-R", "700", "dir"},
-			want: map[string]fs.FileMode{
+			Args: []string{"-R", "700", "dir"},
+			WantModes: map[string]fs.FileMode{
 				"dir":       dir(0o700),
 				"dir/a.txt": 0o700,
 				"dir/link":  fs.ModeSymlink | 0o777,
 			},
 		},
 		{
-			name: "R does not act on what a link of the walk points at",
-			files: fsx.MemFS{
+			Name: "R does not act on what a link of the walk points at",
+			Files: fsx.MemFS{
 				"dir":      {Mode: dir(0o755)},
 				"dir/link": symlink("target"),
 				"target":   {Mode: 0o600},
 			},
-			args: []string{"-R", "700", "dir"},
-			want: map[string]fs.FileMode{
+			Args: []string{"-R", "700", "dir"},
+			WantModes: map[string]fs.FileMode{
 				"dir":      dir(0o700),
 				"dir/link": fs.ModeSymlink | 0o777,
 				"target":   0o600,
 			},
 		},
 		{
-			name: "R follows a symbolic link operand to a directory, like -H",
-			files: fsx.MemFS{
+			Name: "R follows a symbolic link operand to a directory, like -H",
+			Files: fsx.MemFS{
 				"dir":       {Mode: dir(0o755)},
 				"dir/a.txt": {Mode: 0o644},
 				"dlink":     symlink("dir"),
 			},
-			args: []string{"-R", "700", "dlink"},
-			want: map[string]fs.FileMode{
+			Args: []string{"-R", "700", "dlink"},
+			WantModes: map[string]fs.FileMode{
 				"dir":       dir(0o700),
 				"dir/a.txt": 0o700,
 				"dlink":     fs.ModeSymlink | 0o777,
 			},
 		},
 		{
-			name: "R does not follow a symbolic link to a directory",
-			files: fsx.MemFS{
+			Name: "R does not follow a symbolic link to a directory",
+			Files: fsx.MemFS{
 				"dir":       {Mode: dir(0o755)},
 				"dir/a.txt": {Mode: 0o644},
 				"dir/sub":   {Mode: dir(0o755)},
 				"dir/link":  symlink("sub"),
 			},
-			args: []string{"-R", "700", "dir"},
-			want: map[string]fs.FileMode{
+			Args: []string{"-R", "700", "dir"},
+			WantModes: map[string]fs.FileMode{
 				"dir":       dir(0o700),
 				"dir/a.txt": 0o700,
 				"dir/sub":   dir(0o700),
@@ -891,19 +877,19 @@ func TestRunRecursiveSymlinks(t *testing.T) {
 			},
 		},
 		{
-			name: "v does not report the links ignored in the walk",
-			files: fsx.MemFS{
+			Name: "v does not report the links ignored in the walk",
+			Files: fsx.MemFS{
 				"dir":       {Mode: dir(0o755)},
 				"dir/a.txt": {Mode: 0o644},
 				"dir/link":  symlink("a.txt"),
 			},
-			args: []string{"-Rv", "700", "dir"},
-			want: map[string]fs.FileMode{
+			Args: []string{"-Rv", "700", "dir"},
+			WantModes: map[string]fs.FileMode{
 				"dir":       dir(0o700),
 				"dir/a.txt": 0o700,
 				"dir/link":  fs.ModeSymlink | 0o777,
 			},
-			wantOut: "mode of 'dir' changed from 0755 (rwxr-xr-x) to 0700 (rwx------)\n" +
+			Want: "mode of 'dir' changed from 0755 (rwxr-xr-x) to 0700 (rwx------)\n" +
 				"mode of 'dir/a.txt' changed from 0644 (rw-r--r--) to 0700 (rwx------)\n",
 		},
 	})
@@ -967,26 +953,5 @@ func TestRunSymlinksOsFS(t *testing.T) {
 }
 
 func TestHelpVersion(t *testing.T) {
-	t.Run("help", func(t *testing.T) {
-		stdout := new(bytes.Buffer)
-		rt := &coreutils.Runtime{Stdout: stdout, Stderr: new(bytes.Buffer)}
-		if err := New(rt).Run(t.Context(), "--help"); err != nil {
-			t.Fatalf("Run() error = %v, want nil (exit status 0)", err)
-		}
-		if got, want := stdout.String(), usage; got != want {
-			t.Errorf("Run() stdout = %q, want %q", got, want)
-		}
-	})
-
-	t.Run("version", func(t *testing.T) {
-		stdout := new(bytes.Buffer)
-		rt := &coreutils.Runtime{Stdout: stdout, Stderr: new(bytes.Buffer)}
-		if err := New(rt).Run(t.Context(), "--version"); err != nil {
-			t.Fatalf("Run() error = %v, want nil (exit status 0)", err)
-		}
-		want := "chmod (charm.land/snail/coreutils) " + coreutils.Version + "\nhttps://charm.land/snail\n"
-		if got := stdout.String(); got != want {
-			t.Errorf("Run() stdout = %q, want %q", got, want)
-		}
-	})
+	testutil.HelpVersion(t, New, "chmod", usage)
 }

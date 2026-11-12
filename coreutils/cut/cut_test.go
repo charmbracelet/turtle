@@ -2,43 +2,15 @@ package cut
 
 import (
 	"bytes"
-	"context"
 	"errors"
-	"io"
 	"io/fs"
 	"strings"
 	"testing"
 
 	"charm.land/snail/coreutils"
+	"charm.land/snail/coreutils/internal/testutil"
 	"charm.land/snail/fsx"
 )
-
-type errorReader struct {
-	err error
-}
-
-func (r errorReader) Read([]byte) (int, error) {
-	return 0, r.err
-}
-
-type errorWriter struct {
-	err error
-}
-
-func (w errorWriter) Write([]byte) (int, error) {
-	return 0, w.err
-}
-
-// cancelReader cancels its context on the first read, simulating a context
-// that is done while input is being read.
-type cancelReader struct {
-	cancel context.CancelFunc
-}
-
-func (r *cancelReader) Read([]byte) (int, error) {
-	r.cancel()
-	return 0, context.Canceled
-}
 
 // testFS holds the fixtures used by the tests:
 //
@@ -63,915 +35,818 @@ func testFS() fsx.MemFS {
 	}
 }
 
-func exitCode(t *testing.T, err error) int {
-	t.Helper()
-
-	if err == nil {
-		return 0
-	}
-	var exitErr *coreutils.ExitError
-	if !errors.As(err, &exitErr) {
-		t.Fatalf("Run() error = %v, want *coreutils.ExitError", err)
-	}
-	return exitErr.Code
-}
-
-type testCase struct {
-	name     string
-	stdin    io.Reader
-	fsys     fsx.FS
-	dir      string
-	args     []string
-	want     string
-	wantErr  string
-	wantExit int
-}
-
-func runCase(t *testing.T, test testCase) {
-	t.Helper()
-
-	stdout := new(bytes.Buffer)
-	stderr := new(bytes.Buffer)
-	rt := &coreutils.Runtime{
-		Stdin:      test.stdin,
-		Stdout:     stdout,
-		Stderr:     stderr,
-		FS:         test.fsys,
-		WorkingDir: test.dir,
-	}
-	err := New(rt).Run(t.Context(), test.args...)
-
-	if code := exitCode(t, err); code != test.wantExit {
-		t.Errorf("Run() exit code = %d, want %d (error = %v)", code, test.wantExit, err)
-	}
-	if got := stdout.String(); got != test.want {
-		t.Errorf("Run() stdout = %q, want %q", got, test.want)
-	}
-	if got := stderr.String(); got != test.wantErr {
-		t.Errorf("Run() stderr = %q, want %q", got, test.wantErr)
-	}
-}
-
 func TestRunBytes(t *testing.T) {
-	tests := []testCase{
+	tests := []testutil.Case{
 		{
-			name:  "a single byte",
-			stdin: strings.NewReader("abcdefg\nxyz\n"),
-			args:  []string{"-b", "1"},
-			want:  "a\nx\n",
+			Name:  "a single byte",
+			Stdin: strings.NewReader("abcdefg\nxyz\n"),
+			Args:  []string{"-b", "1"},
+			Want:  "a\nx\n",
 		},
 		{
-			name:  "a list of bytes",
-			stdin: strings.NewReader("abcdefg\n"),
-			args:  []string{"-b", "1,3,5"},
-			want:  "ace\n",
+			Name:  "a list of bytes",
+			Stdin: strings.NewReader("abcdefg\n"),
+			Args:  []string{"-b", "1,3,5"},
+			Want:  "ace\n",
 		},
 		{
-			name:  "a range of bytes",
-			stdin: strings.NewReader("abcdefg\n"),
-			args:  []string{"-b", "2-4"},
-			want:  "bcd\n",
+			Name:  "a range of bytes",
+			Stdin: strings.NewReader("abcdefg\n"),
+			Args:  []string{"-b", "2-4"},
+			Want:  "bcd\n",
 		},
 		{
-			name:  "a range from the start",
-			stdin: strings.NewReader("abcdefg\n"),
-			args:  []string{"-b", "-3"},
-			want:  "abc\n",
+			Name:  "a range from the start",
+			Stdin: strings.NewReader("abcdefg\n"),
+			Args:  []string{"-b", "-3"},
+			Want:  "abc\n",
 		},
 		{
-			name:  "a range to the end",
-			stdin: strings.NewReader("abcdefg\n"),
-			args:  []string{"-b", "5-"},
-			want:  "efg\n",
+			Name:  "a range to the end",
+			Stdin: strings.NewReader("abcdefg\n"),
+			Args:  []string{"-b", "5-"},
+			Want:  "efg\n",
 		},
 		{
-			name:  "an attached list",
-			stdin: strings.NewReader("abcdefg\n"),
-			args:  []string{"-b2-4"},
-			want:  "bcd\n",
+			Name:  "an attached list",
+			Stdin: strings.NewReader("abcdefg\n"),
+			Args:  []string{"-b2-4"},
+			Want:  "bcd\n",
 		},
 		{
-			name:  "a blank-separated list",
-			stdin: strings.NewReader("abcdefg\n"),
-			args:  []string{"-b", "1 3"},
-			want:  "ac\n",
+			Name:  "a blank-separated list",
+			Stdin: strings.NewReader("abcdefg\n"),
+			Args:  []string{"-b", "1 3"},
+			Want:  "ac\n",
 		},
 		{
-			name:  "positions follow the order of the input data",
-			stdin: strings.NewReader("abcdefghi\n"),
-			args:  []string{"-b", "6,2,4-7,1"},
-			want:  "abdefg\n",
+			Name:  "positions follow the order of the input data",
+			Stdin: strings.NewReader("abcdefghi\n"),
+			Args:  []string{"-b", "6,2,4-7,1"},
+			Want:  "abdefg\n",
 		},
 		{
-			name:  "overlapping ranges are written once",
-			stdin: strings.NewReader("abcdefg\n"),
-			args:  []string{"-b", "1-3,2-4"},
-			want:  "abcd\n",
+			Name:  "overlapping ranges are written once",
+			Stdin: strings.NewReader("abcdefg\n"),
+			Args:  []string{"-b", "1-3,2-4"},
+			Want:  "abcd\n",
 		},
 		{
-			name:  "repeated positions are written once",
-			stdin: strings.NewReader("abcdefg\n"),
-			args:  []string{"-b", "2,2,2"},
-			want:  "b\n",
+			Name:  "repeated positions are written once",
+			Stdin: strings.NewReader("abcdefg\n"),
+			Args:  []string{"-b", "2,2,2"},
+			Want:  "b\n",
 		},
 		{
-			name:  "positions past the end of the line are not an error",
-			stdin: strings.NewReader("abc\n"),
-			args:  []string{"-b", "5-10"},
-			want:  "\n",
+			Name:  "positions past the end of the line are not an error",
+			Stdin: strings.NewReader("abc\n"),
+			Args:  []string{"-b", "5-10"},
+			Want:  "\n",
 		},
 		{
-			name:  "a range partially past the end of the line is clamped",
-			stdin: strings.NewReader("abc\n"),
-			args:  []string{"-b", "2-10"},
-			want:  "bc\n",
+			Name:  "a range partially past the end of the line is clamped",
+			Stdin: strings.NewReader("abc\n"),
+			Args:  []string{"-b", "2-10"},
+			Want:  "bc\n",
 		},
 		{
-			name:  "an empty line stays empty",
-			stdin: strings.NewReader("\n"),
-			args:  []string{"-b", "1"},
-			want:  "\n",
+			Name:  "an empty line stays empty",
+			Stdin: strings.NewReader("\n"),
+			Args:  []string{"-b", "1"},
+			Want:  "\n",
 		},
 		{
-			name: "a missing final newline is added",
-			fsys: testFS(),
-			args: []string{"-b", "1-2", "nonl.txt"},
-			want: "no\n",
+			Name: "a missing final newline is added",
+			FS:   testFS(),
+			Args: []string{"-b", "1-2", "nonl.txt"},
+			Want: "no\n",
 		},
 		{
-			name: "an empty file produces no output",
-			fsys: testFS(),
-			args: []string{"-b", "1", "empty.txt"},
-			want: "",
+			Name: "an empty file produces no output",
+			FS:   testFS(),
+			Args: []string{"-b", "1", "empty.txt"},
+			Want: "",
 		},
 	}
 
-	for _, test := range tests {
-		t.Run(test.name, func(t *testing.T) {
-			runCase(t, test)
-		})
-	}
+	testutil.Run(t, New, tests)
 }
 
 func TestRunBytesNoSplit(t *testing.T) {
-	tests := []testCase{
+	tests := []testutil.Case{
 		{
-			name: "a byte inside a character selects the whole character",
-			fsys: testFS(),
-			args: []string{"-b", "2", "-n", "utf8.txt"},
-			want: "á\n\n",
+			Name: "a byte inside a character selects the whole character",
+			FS:   testFS(),
+			Args: []string{"-b", "2", "-n", "utf8.txt"},
+			Want: "á\n\n",
 		},
 		{
-			name: "the first byte of a multi-byte character alone selects nothing",
-			fsys: testFS(),
-			args: []string{"-b", "1", "-n", "utf8.txt"},
-			want: "\n\n",
+			Name: "the first byte of a multi-byte character alone selects nothing",
+			FS:   testFS(),
+			Args: []string{"-b", "1", "-n", "utf8.txt"},
+			Want: "\n\n",
 		},
 		{
-			name: "a whole character is selected when its last byte is",
-			fsys: testFS(),
-			args: []string{"-b", "3", "-n", "utf8.txt"},
-			want: "b\n日\n",
+			Name: "a whole character is selected when its last byte is",
+			FS:   testFS(),
+			Args: []string{"-b", "3", "-n", "utf8.txt"},
+			Want: "b\n日\n",
 		},
 		{
-			name: "a range ending mid character stops before it",
-			fsys: testFS(),
-			args: []string{"-b", "2-3", "-n", "utf8.txt"},
-			want: "áb\n日\n",
+			Name: "a range ending mid character stops before it",
+			FS:   testFS(),
+			Args: []string{"-b", "2-3", "-n", "utf8.txt"},
+			Want: "áb\n日\n",
 		},
 		{
-			name:  "ranges are partitioned at character boundaries",
-			stdin: strings.NewReader("aé日\n"),
-			args:  []string{"-b", "1-2", "-n"},
-			want:  "a\n",
+			Name:  "ranges are partitioned at character boundaries",
+			Stdin: strings.NewReader("aé日\n"),
+			Args:  []string{"-b", "1-2", "-n"},
+			Want:  "a\n",
 		},
 		{
-			name:  "the complementary range gets the rest",
-			stdin: strings.NewReader("aé日\n"),
-			args:  []string{"-b", "3-", "-n"},
-			want:  "é日\n",
+			Name:  "the complementary range gets the rest",
+			Stdin: strings.NewReader("aé日\n"),
+			Args:  []string{"-b", "3-", "-n"},
+			Want:  "é日\n",
 		},
 		{
-			name: "a range that ends before the first character is dropped",
-			fsys: testFS(),
-			args: []string{"-b", "1-1", "-n", "utf8.txt"},
-			want: "\n\n",
+			Name: "a range that ends before the first character is dropped",
+			FS:   testFS(),
+			Args: []string{"-b", "1-1", "-n", "utf8.txt"},
+			Want: "\n\n",
 		},
 	}
 
-	for _, test := range tests {
-		t.Run(test.name, func(t *testing.T) {
-			runCase(t, test)
-		})
-	}
+	testutil.Run(t, New, tests)
 }
 
 func TestRunChars(t *testing.T) {
-	tests := []testCase{
+	tests := []testutil.Case{
 		{
-			name: "a multi-byte character",
-			fsys: testFS(),
-			args: []string{"-c", "1", "utf8.txt"},
-			want: "á\n日\n",
+			Name: "a multi-byte character",
+			FS:   testFS(),
+			Args: []string{"-c", "1", "utf8.txt"},
+			Want: "á\n日\n",
 		},
 		{
-			name: "a range of characters",
-			fsys: testFS(),
-			args: []string{"-c", "2-3", "utf8.txt"},
-			want: "bç\n本語\n",
+			Name: "a range of characters",
+			FS:   testFS(),
+			Args: []string{"-c", "2-3", "utf8.txt"},
+			Want: "bç\n本語\n",
 		},
 		{
-			name: "characters follow the order of the input data",
-			fsys: testFS(),
-			args: []string{"-c", "4,2", "utf8.txt"},
-			want: "bd\n本x\n",
+			Name: "characters follow the order of the input data",
+			FS:   testFS(),
+			Args: []string{"-c", "4,2", "utf8.txt"},
+			Want: "bd\n本x\n",
 		},
 		{
-			name: "positions past the end of the line are not an error",
-			fsys: testFS(),
-			args: []string{"-c", "3-10", "utf8.txt"},
-			want: "çde\n語x\n",
+			Name: "positions past the end of the line are not an error",
+			FS:   testFS(),
+			Args: []string{"-c", "3-10", "utf8.txt"},
+			Want: "çde\n語x\n",
 		},
 		{
-			name: "a byte that starts no valid encoding counts as one character",
-			fsys: testFS(),
-			args: []string{"-c", "2", "invalid.txt"},
-			want: "\xff\n",
+			Name: "a byte that starts no valid encoding counts as one character",
+			FS:   testFS(),
+			Args: []string{"-c", "2", "invalid.txt"},
+			Want: "\xff\n",
 		},
 	}
 
-	for _, test := range tests {
-		t.Run(test.name, func(t *testing.T) {
-			runCase(t, test)
-		})
-	}
+	testutil.Run(t, New, tests)
 }
 
 func TestRunFields(t *testing.T) {
-	tests := []testCase{
+	tests := []testutil.Case{
 		{
-			name: "the default delimiter is a tab",
-			fsys: testFS(),
-			args: []string{"-f", "2", "tabs.txt"},
-			want: "f2\nplain\n",
+			Name: "the default delimiter is a tab",
+			FS:   testFS(),
+			Args: []string{"-f", "2", "tabs.txt"},
+			Want: "f2\nplain\n",
 		},
 		{
-			name: "a custom delimiter",
-			fsys: testFS(),
-			args: []string{"-d", ":", "-f", "1", "passwd.txt"},
-			want: "root\ndaemon\n",
+			Name: "a custom delimiter",
+			FS:   testFS(),
+			Args: []string{"-d", ":", "-f", "1", "passwd.txt"},
+			Want: "root\ndaemon\n",
 		},
 		{
-			name: "an attached delimiter",
-			fsys: testFS(),
-			args: []string{"-d:", "-f", "6", "passwd.txt"},
-			want: "/root\n/usr/sbin\n",
+			Name: "an attached delimiter",
+			FS:   testFS(),
+			Args: []string{"-d:", "-f", "6", "passwd.txt"},
+			Want: "/root\n/usr/sbin\n",
 		},
 		{
-			name: "a list of fields",
-			fsys: testFS(),
-			args: []string{"-d:", "-f", "1,6", "passwd.txt"},
-			want: "root:/root\ndaemon:/usr/sbin\n",
+			Name: "a list of fields",
+			FS:   testFS(),
+			Args: []string{"-d:", "-f", "1,6", "passwd.txt"},
+			Want: "root:/root\ndaemon:/usr/sbin\n",
 		},
 		{
-			name: "a range of fields",
-			fsys: testFS(),
-			args: []string{"-d:", "-f", "2-3", "passwd.txt"},
-			want: "x:0\nx:1\n",
+			Name: "a range of fields",
+			FS:   testFS(),
+			Args: []string{"-d:", "-f", "2-3", "passwd.txt"},
+			Want: "x:0\nx:1\n",
 		},
 		{
-			name: "a range to the last field",
-			fsys: testFS(),
-			args: []string{"-d:", "-f", "6-", "passwd.txt"},
-			want: "/root:/bin/sh\n/usr/sbin:/usr/sbin/nologin\n",
+			Name: "a range to the last field",
+			FS:   testFS(),
+			Args: []string{"-d:", "-f", "6-", "passwd.txt"},
+			Want: "/root:/bin/sh\n/usr/sbin:/usr/sbin/nologin\n",
 		},
 		{
-			name: "fields follow the order of the input data",
-			fsys: testFS(),
-			args: []string{"-d:", "-f", "3,1", "passwd.txt"},
-			want: "root:0\ndaemon:1\n",
+			Name: "fields follow the order of the input data",
+			FS:   testFS(),
+			Args: []string{"-d:", "-f", "3,1", "passwd.txt"},
+			Want: "root:0\ndaemon:1\n",
 		},
 		{
-			name:  "missing fields are skipped",
-			stdin: strings.NewReader("a:b:c\n"),
-			args:  []string{"-d:", "-f", "1,4,2"},
-			want:  "a:b\n",
+			Name:  "missing fields are skipped",
+			Stdin: strings.NewReader("a:b:c\n"),
+			Args:  []string{"-d:", "-f", "1,4,2"},
+			Want:  "a:b\n",
 		},
 		{
-			name:  "a line with only missing fields comes out empty",
-			stdin: strings.NewReader("a:b\n"),
-			args:  []string{"-d:", "-f", "3"},
-			want:  "\n",
+			Name:  "a line with only missing fields comes out empty",
+			Stdin: strings.NewReader("a:b\n"),
+			Args:  []string{"-d:", "-f", "3"},
+			Want:  "\n",
 		},
 		{
-			name:  "empty fields are preserved",
-			stdin: strings.NewReader("a::c\n"),
-			args:  []string{"-d:", "-f", "1-3"},
-			want:  "a::c\n",
+			Name:  "empty fields are preserved",
+			Stdin: strings.NewReader("a::c\n"),
+			Args:  []string{"-d:", "-f", "1-3"},
+			Want:  "a::c\n",
 		},
 		{
-			name: "a line without the delimiter is passed through",
-			fsys: testFS(),
-			args: []string{"-f", "2", "tabs.txt"},
-			want: "f2\nplain\n",
+			Name: "a line without the delimiter is passed through",
+			FS:   testFS(),
+			Args: []string{"-f", "2", "tabs.txt"},
+			Want: "f2\nplain\n",
 		},
 		{
-			name: "s suppresses lines without the delimiter",
-			fsys: testFS(),
-			args: []string{"-f", "2", "-s", "tabs.txt"},
-			want: "f2\n",
+			Name: "s suppresses lines without the delimiter",
+			FS:   testFS(),
+			Args: []string{"-f", "2", "-s", "tabs.txt"},
+			Want: "f2\n",
 		},
 		{
-			name:  "an empty line is passed through",
-			stdin: strings.NewReader("\n"),
-			args:  []string{"-f", "1"},
-			want:  "\n",
+			Name:  "an empty line is passed through",
+			Stdin: strings.NewReader("\n"),
+			Args:  []string{"-f", "1"},
+			Want:  "\n",
 		},
 		{
-			name:  "s suppresses an empty line",
-			stdin: strings.NewReader("\n"),
-			args:  []string{"-f", "1", "-s"},
-			want:  "",
+			Name:  "s suppresses an empty line",
+			Stdin: strings.NewReader("\n"),
+			Args:  []string{"-f", "1", "-s"},
+			Want:  "",
 		},
 		{
-			name:  "the delimiter is not special in the middle of quotes",
-			stdin: strings.NewReader(`a:"b:c"` + "\n"),
-			args:  []string{"-d:", "-f", "2"},
-			want:  "\"b\n",
+			Name:  "the delimiter is not special in the middle of quotes",
+			Stdin: strings.NewReader(`a:"b:c"` + "\n"),
+			Args:  []string{"-d:", "-f", "2"},
+			Want:  "\"b\n",
 		},
 	}
 
-	for _, test := range tests {
-		t.Run(test.name, func(t *testing.T) {
-			runCase(t, test)
-		})
-	}
+	testutil.Run(t, New, tests)
 }
 
 func TestRunFiles(t *testing.T) {
-	tests := []testCase{
+	tests := []testutil.Case{
 		{
-			name: "multiple files are concatenated in order",
-			fsys: testFS(),
-			args: []string{"-b", "1", "a.txt", "nonl.txt"},
-			want: "a\nx\nn\n",
+			Name: "multiple files are concatenated in order",
+			FS:   testFS(),
+			Args: []string{"-b", "1", "a.txt", "nonl.txt"},
+			Want: "a\nx\nn\n",
 		},
 		{
-			name:  "dash reads the standard input",
-			stdin: strings.NewReader("stdin\n"),
-			args:  []string{"-b", "1-3", "-"},
-			want:  "std\n",
+			Name:  "dash reads the standard input",
+			Stdin: strings.NewReader("stdin\n"),
+			Args:  []string{"-b", "1-3", "-"},
+			Want:  "std\n",
 		},
 		{
-			name:  "dash between files reads the standard input at that point",
-			stdin: strings.NewReader("stdin\n"),
-			fsys:  testFS(),
-			args:  []string{"-b", "1", "a.txt", "-", "nonl.txt"},
-			want:  "a\nx\ns\nn\n",
+			Name:  "dash between files reads the standard input at that point",
+			Stdin: strings.NewReader("stdin\n"),
+			FS:    testFS(),
+			Args:  []string{"-b", "1", "a.txt", "-", "nonl.txt"},
+			Want:  "a\nx\ns\nn\n",
 		},
 		{
-			name: "pathnames are resolved from the working directory",
-			fsys: testFS(),
-			dir:  "sub",
-			args: []string{"-b", "1-5", "inner.txt"},
-			want: "inner\n",
+			Name: "pathnames are resolved from the working directory",
+			FS:   testFS(),
+			Dir:  "sub",
+			Args: []string{"-b", "1-5", "inner.txt"},
+			Want: "inner\n",
 		},
 		{
-			name: "the last list wins when the same option is repeated",
-			fsys: testFS(),
-			args: []string{"-b", "1", "-b", "2", "a.txt"},
-			want: "b\ny\n",
+			Name: "the last list wins when the same option is repeated",
+			FS:   testFS(),
+			Args: []string{"-b", "1", "-b", "2", "a.txt"},
+			Want: "b\ny\n",
 		},
 		{
-			name:     "options are not parsed after the first operand",
-			fsys:     testFS(),
-			args:     []string{"-b", "1", "a.txt", "-n"},
-			want:     "a\nx\n",
-			wantErr:  "cut: -n: file does not exist\n",
-			wantExit: 1,
+			Name:     "options are not parsed after the first operand",
+			FS:       testFS(),
+			Args:     []string{"-b", "1", "a.txt", "-n"},
+			Want:     "a\nx\n",
+			WantErr:  "cut: -n: file does not exist\n",
+			WantExit: 1,
 		},
 		{
-			name:     "a missing file doesn't stop the other files",
-			fsys:     testFS(),
-			args:     []string{"-b", "1", "missing.txt", "a.txt"},
-			want:     "a\nx\n",
-			wantErr:  "cut: missing.txt: file does not exist\n",
-			wantExit: 1,
+			Name:     "a missing file doesn't stop the other files",
+			FS:       testFS(),
+			Args:     []string{"-b", "1", "missing.txt", "a.txt"},
+			Want:     "a\nx\n",
+			WantErr:  "cut: missing.txt: file does not exist\n",
+			WantExit: 1,
 		},
 	}
 
-	for _, test := range tests {
-		t.Run(test.name, func(t *testing.T) {
-			runCase(t, test)
-		})
-	}
+	testutil.Run(t, New, tests)
 }
 
 func TestRunListErrors(t *testing.T) {
-	tests := []testCase{
+	tests := []testutil.Case{
 		{
-			name:     "zero is not a valid position",
-			args:     []string{"-b", "0"},
-			wantErr:  "cut: invalid position: '0'\nTry 'cut --help' for more information.\n",
-			wantExit: 2,
+			Name:     "zero is not a valid position",
+			Args:     []string{"-b", "0"},
+			WantErr:  "cut: invalid position: '0'\nTry 'cut --help' for more information.\n",
+			WantExit: 2,
 		},
 		{
-			name:     "a zero range end is not valid",
-			args:     []string{"-b", "1-0"},
-			wantErr:  "cut: invalid position: '0'\nTry 'cut --help' for more information.\n",
-			wantExit: 2,
+			Name:     "a zero range end is not valid",
+			Args:     []string{"-b", "1-0"},
+			WantErr:  "cut: invalid position: '0'\nTry 'cut --help' for more information.\n",
+			WantExit: 2,
 		},
 		{
-			name:     "a non-numeric position",
-			args:     []string{"-b", "x"},
-			wantErr:  "cut: invalid position: 'x'\nTry 'cut --help' for more information.\n",
-			wantExit: 2,
+			Name:     "a non-numeric position",
+			Args:     []string{"-b", "x"},
+			WantErr:  "cut: invalid position: 'x'\nTry 'cut --help' for more information.\n",
+			WantExit: 2,
 		},
 		{
-			name:     "an empty list",
-			args:     []string{"-b", ""},
-			wantErr:  "cut: invalid position: ''\nTry 'cut --help' for more information.\n",
-			wantExit: 2,
+			Name:     "an empty list",
+			Args:     []string{"-b", ""},
+			WantErr:  "cut: invalid position: ''\nTry 'cut --help' for more information.\n",
+			WantExit: 2,
 		},
 		{
-			name:     "an empty element",
-			args:     []string{"-b", "1,,2"},
-			wantErr:  "cut: invalid position: ''\nTry 'cut --help' for more information.\n",
-			wantExit: 2,
+			Name:     "an empty element",
+			Args:     []string{"-b", "1,,2"},
+			WantErr:  "cut: invalid position: ''\nTry 'cut --help' for more information.\n",
+			WantExit: 2,
 		},
 		{
-			name:     "a lone dash",
-			args:     []string{"-b", "-"},
-			wantErr:  "cut: invalid list: '-'\nTry 'cut --help' for more information.\n",
-			wantExit: 2,
+			Name:     "a lone dash",
+			Args:     []string{"-b", "-"},
+			WantErr:  "cut: invalid list: '-'\nTry 'cut --help' for more information.\n",
+			WantExit: 2,
 		},
 		{
-			name:     "a decreasing range",
-			args:     []string{"-b", "3-2"},
-			wantErr:  "cut: invalid decreasing range: '3-2'\nTry 'cut --help' for more information.\n",
-			wantExit: 2,
+			Name:     "a decreasing range",
+			Args:     []string{"-b", "3-2"},
+			WantErr:  "cut: invalid decreasing range: '3-2'\nTry 'cut --help' for more information.\n",
+			WantExit: 2,
 		},
 		{
-			name:     "a position with a sign",
-			args:     []string{"-b", "+1"},
-			wantErr:  "cut: invalid position: '+1'\nTry 'cut --help' for more information.\n",
-			wantExit: 2,
+			Name:     "a position with a sign",
+			Args:     []string{"-b", "+1"},
+			WantErr:  "cut: invalid position: '+1'\nTry 'cut --help' for more information.\n",
+			WantExit: 2,
 		},
 	}
 
-	for _, test := range tests {
-		t.Run(test.name, func(t *testing.T) {
-			runCase(t, test)
-		})
-	}
+	testutil.Run(t, New, tests)
 }
 
 func TestRunOptionErrors(t *testing.T) {
-	tests := []testCase{
+	tests := []testutil.Case{
 		{
-			name:     "no list option",
-			args:     []string{},
-			wantErr:  "cut: you must specify a list of bytes, characters, or fields\nTry 'cut --help' for more information.\n",
-			wantExit: 2,
+			Name:     "no list option",
+			Args:     []string{},
+			WantErr:  "cut: you must specify a list of bytes, characters, or fields\nTry 'cut --help' for more information.\n",
+			WantExit: 2,
 		},
 		{
-			name:     "b and c conflict",
-			args:     []string{"-b", "1", "-c", "1"},
-			wantErr:  "cut: only one of -b, -c or -f may be specified\nTry 'cut --help' for more information.\n",
-			wantExit: 2,
+			Name:     "b and c conflict",
+			Args:     []string{"-b", "1", "-c", "1"},
+			WantErr:  "cut: only one of -b, -c or -f may be specified\nTry 'cut --help' for more information.\n",
+			WantExit: 2,
 		},
 		{
-			name:     "b and f conflict",
-			args:     []string{"-f", "1", "-b", "1"},
-			wantErr:  "cut: only one of -b, -c or -f may be specified\nTry 'cut --help' for more information.\n",
-			wantExit: 2,
+			Name:     "b and f conflict",
+			Args:     []string{"-f", "1", "-b", "1"},
+			WantErr:  "cut: only one of -b, -c or -f may be specified\nTry 'cut --help' for more information.\n",
+			WantExit: 2,
 		},
 		{
-			name:     "d is only meaningful with f",
-			args:     []string{"-b", "1", "-d", ":"},
-			wantErr:  "cut: the delimiter is only meaningful with the -f option\nTry 'cut --help' for more information.\n",
-			wantExit: 2,
+			Name:     "d is only meaningful with f",
+			Args:     []string{"-b", "1", "-d", ":"},
+			WantErr:  "cut: the delimiter is only meaningful with the -f option\nTry 'cut --help' for more information.\n",
+			WantExit: 2,
 		},
 		{
-			name:     "s is only meaningful with f",
-			args:     []string{"-c", "1", "-s"},
-			wantErr:  "cut: the -s option is only meaningful with the -f option\nTry 'cut --help' for more information.\n",
-			wantExit: 2,
+			Name:     "s is only meaningful with f",
+			Args:     []string{"-c", "1", "-s"},
+			WantErr:  "cut: the -s option is only meaningful with the -f option\nTry 'cut --help' for more information.\n",
+			WantExit: 2,
 		},
 		{
-			name:     "n is only meaningful with b",
-			args:     []string{"-f", "1", "-n"},
-			wantErr:  "cut: the -n option is only meaningful with the -b option\nTry 'cut --help' for more information.\n",
-			wantExit: 2,
+			Name:     "n is only meaningful with b",
+			Args:     []string{"-f", "1", "-n"},
+			WantErr:  "cut: the -n option is only meaningful with the -b option\nTry 'cut --help' for more information.\n",
+			WantExit: 2,
 		},
 		{
-			name:     "the delimiter must be a single character",
-			args:     []string{"-f", "1", "-d", "::"},
-			wantErr:  "cut: the delimiter must be a single character\nTry 'cut --help' for more information.\n",
-			wantExit: 2,
+			Name:     "the delimiter must be a single character",
+			Args:     []string{"-f", "1", "-d", "::"},
+			WantErr:  "cut: the delimiter must be a single character\nTry 'cut --help' for more information.\n",
+			WantExit: 2,
 		},
 		{
-			name:     "an empty delimiter",
-			args:     []string{"-f", "1", "-d", ""},
-			wantErr:  "cut: the delimiter must be a single character\nTry 'cut --help' for more information.\n",
-			wantExit: 2,
+			Name:     "an empty delimiter",
+			Args:     []string{"-f", "1", "-d", ""},
+			WantErr:  "cut: the delimiter must be a single character\nTry 'cut --help' for more information.\n",
+			WantExit: 2,
 		},
 		{
-			name:     "a multi-byte delimiter",
-			args:     []string{"-f", "1", "-d", "é"},
-			wantErr:  "cut: the delimiter must be a single character\nTry 'cut --help' for more information.\n",
-			wantExit: 2,
+			Name:     "a multi-byte delimiter",
+			Args:     []string{"-f", "1", "-d", "é"},
+			WantErr:  "cut: the delimiter must be a single character\nTry 'cut --help' for more information.\n",
+			WantExit: 2,
 		},
 		{
-			name:     "invalid option",
-			args:     []string{"-x"},
-			wantErr:  "cut: invalid option -- 'x'\nTry 'cut --help' for more information.\n",
-			wantExit: 2,
+			Name:     "invalid option",
+			Args:     []string{"-x"},
+			WantErr:  "cut: invalid option -- 'x'\nTry 'cut --help' for more information.\n",
+			WantExit: 2,
 		},
 		{
-			name:     "missing option argument",
-			args:     []string{"-b"},
-			wantErr:  "cut: option requires an argument -- 'b'\nTry 'cut --help' for more information.\n",
-			wantExit: 2,
+			Name:     "missing option argument",
+			Args:     []string{"-b"},
+			WantErr:  "cut: option requires an argument -- 'b'\nTry 'cut --help' for more information.\n",
+			WantExit: 2,
 		},
 		{
-			name:     "missing output delimiter argument",
-			args:     []string{"-b", "1", "-O"},
-			wantErr:  "cut: option requires an argument -- 'O'\nTry 'cut --help' for more information.\n",
-			wantExit: 2,
+			Name:     "missing output delimiter argument",
+			Args:     []string{"-b", "1", "-O"},
+			WantErr:  "cut: option requires an argument -- 'O'\nTry 'cut --help' for more information.\n",
+			WantExit: 2,
 		},
 		{
-			name:     "missing long output delimiter argument",
-			args:     []string{"-b", "1", "--output-delimiter"},
-			wantErr:  "cut: option '--output-delimiter' requires an argument\nTry 'cut --help' for more information.\n",
-			wantExit: 2,
+			Name:     "missing long output delimiter argument",
+			Args:     []string{"-b", "1", "--output-delimiter"},
+			WantErr:  "cut: option '--output-delimiter' requires an argument\nTry 'cut --help' for more information.\n",
+			WantExit: 2,
 		},
 		{
-			name:     "complement takes no argument",
-			args:     []string{"-b", "1", "--complement=x"},
-			wantErr:  "cut: option '--complement=x' doesn't allow an argument\nTry 'cut --help' for more information.\n",
-			wantExit: 2,
+			Name:     "complement takes no argument",
+			Args:     []string{"-b", "1", "--complement=x"},
+			WantErr:  "cut: option '--complement=x' doesn't allow an argument\nTry 'cut --help' for more information.\n",
+			WantExit: 2,
 		},
 	}
 
-	for _, test := range tests {
-		t.Run(test.name, func(t *testing.T) {
-			runCase(t, test)
-		})
-	}
+	testutil.Run(t, New, tests)
 }
 
 func TestRunLongOptions(t *testing.T) {
-	tests := []testCase{
+	tests := []testutil.Case{
 		{
-			name: "bytes",
-			fsys: testFS(),
-			args: []string{"--bytes", "1", "a.txt"},
-			want: "a\nx\n",
+			Name: "bytes",
+			FS:   testFS(),
+			Args: []string{"--bytes", "1", "a.txt"},
+			Want: "a\nx\n",
 		},
 		{
-			name: "characters",
-			fsys: testFS(),
-			args: []string{"--characters", "1", "utf8.txt"},
-			want: "á\n日\n",
+			Name: "characters",
+			FS:   testFS(),
+			Args: []string{"--characters", "1", "utf8.txt"},
+			Want: "á\n日\n",
 		},
 		{
-			name: "fields and delimiter",
-			fsys: testFS(),
-			args: []string{"--fields", "1", "--delimiter", ":", "passwd.txt"},
-			want: "root\ndaemon\n",
+			Name: "fields and delimiter",
+			FS:   testFS(),
+			Args: []string{"--fields", "1", "--delimiter", ":", "passwd.txt"},
+			Want: "root\ndaemon\n",
 		},
 		{
-			name: "only-delimited",
-			fsys: testFS(),
-			args: []string{"--fields", "2", "--only-delimited", "tabs.txt"},
-			want: "f2\n",
+			Name: "only-delimited",
+			FS:   testFS(),
+			Args: []string{"--fields", "2", "--only-delimited", "tabs.txt"},
+			Want: "f2\n",
 		},
 		{
-			name:  "complement",
-			stdin: strings.NewReader("abcdefg\n"),
-			args:  []string{"--complement", "-b", "2"},
-			want:  "acdefg\n",
+			Name:  "complement",
+			Stdin: strings.NewReader("abcdefg\n"),
+			Args:  []string{"--complement", "-b", "2"},
+			Want:  "acdefg\n",
 		},
 		{
-			name:     "unknown long option",
-			args:     []string{"--partial", "-b", "1"},
-			wantErr:  "cut: unrecognized option '--partial'\nTry 'cut --help' for more information.\n",
-			wantExit: 2,
+			Name:     "unknown long option",
+			Args:     []string{"--partial", "-b", "1"},
+			WantErr:  "cut: unrecognized option '--partial'\nTry 'cut --help' for more information.\n",
+			WantExit: 2,
 		},
 	}
 
-	for _, test := range tests {
-		t.Run(test.name, func(t *testing.T) {
-			runCase(t, test)
-		})
-	}
+	testutil.Run(t, New, tests)
 }
 
 func TestRunComplement(t *testing.T) {
-	tests := []testCase{
+	tests := []testutil.Case{
 		{
-			name:  "a single byte",
-			stdin: strings.NewReader("abcdefg\n"),
-			args:  []string{"-b", "2", "--complement"},
-			want:  "acdefg\n",
+			Name:  "a single byte",
+			Stdin: strings.NewReader("abcdefg\n"),
+			Args:  []string{"-b", "2", "--complement"},
+			Want:  "acdefg\n",
 		},
 		{
-			name:  "a range of bytes",
-			stdin: strings.NewReader("abcdefg\n"),
-			args:  []string{"-b", "2-4", "--complement"},
-			want:  "aefg\n",
+			Name:  "a range of bytes",
+			Stdin: strings.NewReader("abcdefg\n"),
+			Args:  []string{"-b", "2-4", "--complement"},
+			Want:  "aefg\n",
 		},
 		{
-			name:  "a range from the start",
-			stdin: strings.NewReader("abcdefg\n"),
-			args:  []string{"-b", "-2", "--complement"},
-			want:  "cdefg\n",
+			Name:  "a range from the start",
+			Stdin: strings.NewReader("abcdefg\n"),
+			Args:  []string{"-b", "-2", "--complement"},
+			Want:  "cdefg\n",
 		},
 		{
-			name:  "a range to the end",
-			stdin: strings.NewReader("abcdefg\n"),
-			args:  []string{"-b", "5-", "--complement"},
-			want:  "abcd\n",
+			Name:  "a range to the end",
+			Stdin: strings.NewReader("abcdefg\n"),
+			Args:  []string{"-b", "5-", "--complement"},
+			Want:  "abcd\n",
 		},
 		{
-			name:  "a list of bytes",
-			stdin: strings.NewReader("abcdef\n"),
-			args:  []string{"-b", "2,4", "--complement"},
-			want:  "acef\n",
+			Name:  "a list of bytes",
+			Stdin: strings.NewReader("abcdef\n"),
+			Args:  []string{"-b", "2,4", "--complement"},
+			Want:  "acef\n",
 		},
 		{
-			name:  "the whole line leaves nothing",
-			stdin: strings.NewReader("abcdefg\n"),
-			args:  []string{"-b", "1-", "--complement"},
-			want:  "\n",
+			Name:  "the whole line leaves nothing",
+			Stdin: strings.NewReader("abcdefg\n"),
+			Args:  []string{"-b", "1-", "--complement"},
+			Want:  "\n",
 		},
 		{
-			name:  "positions past the end of the line are not an error",
-			stdin: strings.NewReader("abc\n"),
-			args:  []string{"-b", "5-10", "--complement"},
-			want:  "abc\n",
+			Name:  "positions past the end of the line are not an error",
+			Stdin: strings.NewReader("abc\n"),
+			Args:  []string{"-b", "5-10", "--complement"},
+			Want:  "abc\n",
 		},
 		{
-			name:  "an empty line stays empty",
-			stdin: strings.NewReader("\n"),
-			args:  []string{"-b", "1", "--complement"},
-			want:  "\n",
+			Name:  "an empty line stays empty",
+			Stdin: strings.NewReader("\n"),
+			Args:  []string{"-b", "1", "--complement"},
+			Want:  "\n",
 		},
 		{
-			name:  "a multi-byte character",
-			stdin: strings.NewReader("ábçde\n"),
-			args:  []string{"-c", "2", "--complement"},
-			want:  "áçde\n",
+			Name:  "a multi-byte character",
+			Stdin: strings.NewReader("ábçde\n"),
+			Args:  []string{"-c", "2", "--complement"},
+			Want:  "áçde\n",
 		},
 		{
-			name:  "a range of characters",
-			stdin: strings.NewReader("ábçde\n日本語x\n"),
-			args:  []string{"-c", "2-3", "--complement"},
-			want:  "áde\n日x\n",
+			Name:  "a range of characters",
+			Stdin: strings.NewReader("ábçde\n日本語x\n"),
+			Args:  []string{"-c", "2-3", "--complement"},
+			Want:  "áde\n日x\n",
 		},
 		{
-			name: "fields",
-			fsys: testFS(),
-			args: []string{"-d:", "-f", "1", "--complement", "passwd.txt"},
-			want: "x:0:0:root:/root:/bin/sh\nx:1:1:daemon:/usr/sbin:/usr/sbin/nologin\n",
+			Name: "fields",
+			FS:   testFS(),
+			Args: []string{"-d:", "-f", "1", "--complement", "passwd.txt"},
+			Want: "x:0:0:root:/root:/bin/sh\nx:1:1:daemon:/usr/sbin:/usr/sbin/nologin\n",
 		},
 		{
-			name: "a line without the delimiter is passed through",
-			fsys: testFS(),
-			args: []string{"-f", "2", "--complement", "tabs.txt"},
-			want: "f1\tf3\nplain\n",
+			Name: "a line without the delimiter is passed through",
+			FS:   testFS(),
+			Args: []string{"-f", "2", "--complement", "tabs.txt"},
+			Want: "f1\tf3\nplain\n",
 		},
 		{
-			name: "s suppresses lines without the delimiter",
-			fsys: testFS(),
-			args: []string{"-f", "2", "-s", "--complement", "tabs.txt"},
-			want: "f1\tf3\n",
+			Name: "s suppresses lines without the delimiter",
+			FS:   testFS(),
+			Args: []string{"-f", "2", "-s", "--complement", "tabs.txt"},
+			Want: "f1\tf3\n",
 		},
 		{
-			name:  "a line with all the fields selected comes out empty",
-			stdin: strings.NewReader("a:b\n"),
-			args:  []string{"-d:", "-f", "1-", "--complement"},
-			want:  "\n",
+			Name:  "a line with all the fields selected comes out empty",
+			Stdin: strings.NewReader("a:b\n"),
+			Args:  []string{"-d:", "-f", "1-", "--complement"},
+			Want:  "\n",
 		},
 		{
-			name:  "a whole character is selected in the complement when its last byte is",
-			stdin: strings.NewReader("aé日\n"),
-			args:  []string{"-b", "3", "-n", "--complement"},
-			want:  "a日\n",
+			Name:  "a whole character is selected in the complement when its last byte is",
+			Stdin: strings.NewReader("aé日\n"),
+			Args:  []string{"-b", "3", "-n", "--complement"},
+			Want:  "a日\n",
 		},
 	}
 
-	for _, test := range tests {
-		t.Run(test.name, func(t *testing.T) {
-			runCase(t, test)
-		})
-	}
+	testutil.Run(t, New, tests)
 }
 
 func TestRunOutputDelimiter(t *testing.T) {
-	tests := []testCase{
+	tests := []testutil.Case{
 		{
-			name:  "fields are joined by the input delimiter by default",
-			stdin: strings.NewReader("a:b:c\n"),
-			args:  []string{"-d:", "-f", "1,3"},
-			want:  "a:c\n",
+			Name:  "fields are joined by the input delimiter by default",
+			Stdin: strings.NewReader("a:b:c\n"),
+			Args:  []string{"-d:", "-f", "1,3"},
+			Want:  "a:c\n",
 		},
 		{
-			name:  "a custom output delimiter",
-			stdin: strings.NewReader("a:b:c\n"),
-			args:  []string{"-d:", "-f", "1,3", "-O", "/"},
-			want:  "a/c\n",
+			Name:  "a custom output delimiter",
+			Stdin: strings.NewReader("a:b:c\n"),
+			Args:  []string{"-d:", "-f", "1,3", "-O", "/"},
+			Want:  "a/c\n",
 		},
 		{
-			name:  "an attached output delimiter",
-			stdin: strings.NewReader("a:b:c\n"),
-			args:  []string{"-d:", "-f", "1,3", "-O/"},
-			want:  "a/c\n",
+			Name:  "an attached output delimiter",
+			Stdin: strings.NewReader("a:b:c\n"),
+			Args:  []string{"-d:", "-f", "1,3", "-O/"},
+			Want:  "a/c\n",
 		},
 		{
-			name:  "the long option with an attached value",
-			stdin: strings.NewReader("a:b:c\n"),
-			args:  []string{"-d:", "-f", "1,3", "--output-delimiter=/"},
-			want:  "a/c\n",
+			Name:  "the long option with an attached value",
+			Stdin: strings.NewReader("a:b:c\n"),
+			Args:  []string{"-d:", "-f", "1,3", "--output-delimiter=/"},
+			Want:  "a/c\n",
 		},
 		{
-			name:  "the long option with the value in the next argument",
-			stdin: strings.NewReader("a:b:c\n"),
-			args:  []string{"-d:", "-f", "1,3", "--output-delimiter", "/"},
-			want:  "a/c\n",
+			Name:  "the long option with the value in the next argument",
+			Stdin: strings.NewReader("a:b:c\n"),
+			Args:  []string{"-d:", "-f", "1,3", "--output-delimiter", "/"},
+			Want:  "a/c\n",
 		},
 		{
-			name:  "an empty output delimiter means NUL",
-			stdin: strings.NewReader("a:b:c\n"),
-			args:  []string{"-d:", "-f", "1,3", "-O", ""},
-			want:  "a\x00c\n",
+			Name:  "an empty output delimiter means NUL",
+			Stdin: strings.NewReader("a:b:c\n"),
+			Args:  []string{"-d:", "-f", "1,3", "-O", ""},
+			Want:  "a\x00c\n",
 		},
 		{
-			name:  "the default with fields is the input delimiter",
-			stdin: strings.NewReader("a:b:c\n"),
-			args:  []string{"-d:", "-f", "1,3", "-O", ":"},
-			want:  "a:c\n",
+			Name:  "the default with fields is the input delimiter",
+			Stdin: strings.NewReader("a:b:c\n"),
+			Args:  []string{"-d:", "-f", "1,3", "-O", ":"},
+			Want:  "a:c\n",
 		},
 		{
-			name:  "bytes are not delimited by default",
-			stdin: strings.NewReader("abcdefg\n"),
-			args:  []string{"-b", "1-2,4-5"},
-			want:  "abde\n",
+			Name:  "bytes are not delimited by default",
+			Stdin: strings.NewReader("abcdefg\n"),
+			Args:  []string{"-b", "1-2,4-5"},
+			Want:  "abde\n",
 		},
 		{
-			name:  "between ranges of bytes",
-			stdin: strings.NewReader("abcdefg\n"),
-			args:  []string{"-b", "1-2,4-5", "-O", "-"},
-			want:  "ab-de\n",
+			Name:  "between ranges of bytes",
+			Stdin: strings.NewReader("abcdefg\n"),
+			Args:  []string{"-b", "1-2,4-5", "-O", "-"},
+			Want:  "ab-de\n",
 		},
 		{
-			name:  "adjacent ranges of bytes are merged",
-			stdin: strings.NewReader("abcdefg\n"),
-			args:  []string{"-b", "1-2,3-4", "-O", "-"},
-			want:  "abcd\n",
+			Name:  "adjacent ranges of bytes are merged",
+			Stdin: strings.NewReader("abcdefg\n"),
+			Args:  []string{"-b", "1-2,3-4", "-O", "-"},
+			Want:  "abcd\n",
 		},
 		{
-			name:  "a range past the end of the line writes no delimiter",
-			stdin: strings.NewReader("abc\n"),
-			args:  []string{"-b", "1,4", "-O", "-"},
-			want:  "a\n",
+			Name:  "a range past the end of the line writes no delimiter",
+			Stdin: strings.NewReader("abc\n"),
+			Args:  []string{"-b", "1,4", "-O", "-"},
+			Want:  "a\n",
 		},
 		{
-			name:  "between ranges of characters",
-			stdin: strings.NewReader("ábçde\n"),
-			args:  []string{"-c", "1,3", "-O", "-"},
-			want:  "á-ç\n",
+			Name:  "between ranges of characters",
+			Stdin: strings.NewReader("ábçde\n"),
+			Args:  []string{"-c", "1,3", "-O", "-"},
+			Want:  "á-ç\n",
 		},
 		{
-			name:  "a range of characters is not delimited inside",
-			stdin: strings.NewReader("ábçde\n"),
-			args:  []string{"-c", "2-3", "-O", "-"},
-			want:  "bç\n",
+			Name:  "a range of characters is not delimited inside",
+			Stdin: strings.NewReader("ábçde\n"),
+			Args:  []string{"-c", "2-3", "-O", "-"},
+			Want:  "bç\n",
 		},
 		{
-			name:  "with the complement",
-			stdin: strings.NewReader("abcdef\n"),
-			args:  []string{"-b", "2,4", "--complement", "-O", "-"},
-			want:  "a-c-ef\n",
+			Name:  "with the complement",
+			Stdin: strings.NewReader("abcdef\n"),
+			Args:  []string{"-b", "2,4", "--complement", "-O", "-"},
+			Want:  "a-c-ef\n",
 		},
 	}
 
-	for _, test := range tests {
-		t.Run(test.name, func(t *testing.T) {
-			runCase(t, test)
-		})
-	}
+	testutil.Run(t, New, tests)
 }
 
 func TestRunZeroTerminated(t *testing.T) {
-	tests := []testCase{
+	tests := []testutil.Case{
 		{
-			name:  "items are NUL-terminated",
-			stdin: strings.NewReader("a\x00b\x00"),
-			args:  []string{"-z", "-b", "1"},
-			want:  "a\x00b\x00",
+			Name:  "items are NUL-terminated",
+			Stdin: strings.NewReader("a\x00b\x00"),
+			Args:  []string{"-z", "-b", "1"},
+			Want:  "a\x00b\x00",
 		},
 		{
-			name:  "a missing final NUL is added",
-			stdin: strings.NewReader("ab"),
-			args:  []string{"-z", "-b", "1"},
-			want:  "a\x00",
+			Name:  "a missing final NUL is added",
+			Stdin: strings.NewReader("ab"),
+			Args:  []string{"-z", "-b", "1"},
+			Want:  "a\x00",
 		},
 		{
-			name:  "newlines are part of the items",
-			stdin: strings.NewReader("a\nb\x00c"),
-			args:  []string{"-z", "-b", "1"},
-			want:  "a\x00c\x00",
+			Name:  "newlines are part of the items",
+			Stdin: strings.NewReader("a\nb\x00c"),
+			Args:  []string{"-z", "-b", "1"},
+			Want:  "a\x00c\x00",
 		},
 		{
-			name: "an empty file produces no output",
-			fsys: testFS(),
-			args: []string{"-z", "-b", "1", "empty.txt"},
-			want: "",
+			Name: "an empty file produces no output",
+			FS:   testFS(),
+			Args: []string{"-z", "-b", "1", "empty.txt"},
+			Want: "",
 		},
 		{
-			name:  "fields",
-			stdin: strings.NewReader("a:b\x00plain\x00"),
-			args:  []string{"-z", "-d:", "-f", "1"},
-			want:  "a\x00plain\x00",
+			Name:  "fields",
+			Stdin: strings.NewReader("a:b\x00plain\x00"),
+			Args:  []string{"-z", "-d:", "-f", "1"},
+			Want:  "a\x00plain\x00",
 		},
 		{
-			name:  "fields with a missing final NUL",
-			stdin: strings.NewReader("a:b"),
-			args:  []string{"-z", "-d:", "-f", "2"},
-			want:  "b\x00",
+			Name:  "fields with a missing final NUL",
+			Stdin: strings.NewReader("a:b"),
+			Args:  []string{"-z", "-d:", "-f", "2"},
+			Want:  "b\x00",
 		},
 		{
-			name:  "s suppresses items without the delimiter",
-			stdin: strings.NewReader("a:b\x00plain\x00"),
-			args:  []string{"-z", "-d:", "-f", "1", "-s"},
-			want:  "a\x00",
+			Name:  "s suppresses items without the delimiter",
+			Stdin: strings.NewReader("a:b\x00plain\x00"),
+			Args:  []string{"-z", "-d:", "-f", "1", "-s"},
+			Want:  "a\x00",
 		},
 		{
-			name:  "the long option",
-			stdin: strings.NewReader("a\x00b\x00"),
-			args:  []string{"--zero-terminated", "-b", "1"},
-			want:  "a\x00b\x00",
+			Name:  "the long option",
+			Stdin: strings.NewReader("a\x00b\x00"),
+			Args:  []string{"--zero-terminated", "-b", "1"},
+			Want:  "a\x00b\x00",
 		},
 	}
 
-	for _, test := range tests {
-		t.Run(test.name, func(t *testing.T) {
-			runCase(t, test)
-		})
-	}
+	testutil.Run(t, New, tests)
 }
 
 func TestRunErrors(t *testing.T) {
-	tests := []testCase{
+	tests := []testutil.Case{
 		{
-			name:     "missing file",
-			fsys:     testFS(),
-			args:     []string{"-b", "1", "missing.txt"},
-			wantErr:  "cut: missing.txt: file does not exist\n",
-			wantExit: 1,
+			Name:     "missing file",
+			FS:       testFS(),
+			Args:     []string{"-b", "1", "missing.txt"},
+			WantErr:  "cut: missing.txt: file does not exist\n",
+			WantExit: 1,
 		},
 		{
-			name:     "directory operand",
-			fsys:     fsx.MemFS{"dir": {Mode: fs.ModeDir}},
-			args:     []string{"-b", "1", "dir"},
-			wantErr:  "cut: dir: invalid argument\n",
-			wantExit: 1,
+			Name:     "directory operand",
+			FS:       fsx.MemFS{"dir": {Mode: fs.ModeDir}},
+			Args:     []string{"-b", "1", "dir"},
+			WantErr:  "cut: dir: invalid argument\n",
+			WantExit: 1,
 		},
 		{
-			name:     "zero-length file name",
-			fsys:     testFS(),
-			args:     []string{"-b", "1", ""},
-			wantErr:  "cut: invalid zero-length file name\n",
-			wantExit: 1,
+			Name:     "zero-length file name",
+			FS:       testFS(),
+			Args:     []string{"-b", "1", ""},
+			WantErr:  "cut: invalid zero-length file name\n",
+			WantExit: 1,
 		},
 		{
-			name:     "file operand without a file system",
-			args:     []string{"-b", "1", "a.txt"},
-			wantErr:  "cut: a.txt: no file system available\n",
-			wantExit: 1,
+			Name:     "file operand without a file system",
+			Args:     []string{"-b", "1", "a.txt"},
+			WantErr:  "cut: a.txt: no file system available\n",
+			WantExit: 1,
 		},
 		{
-			name:     "no standard input",
-			args:     []string{"-b", "1"},
-			wantErr:  "cut: standard input: no standard input available\n",
-			wantExit: 1,
+			Name:     "no standard input",
+			Args:     []string{"-b", "1"},
+			WantErr:  "cut: standard input: no standard input available\n",
+			WantExit: 1,
 		},
 		{
-			name:     "standard input read error",
-			stdin:    errorReader{err: errors.New("read failed")},
-			args:     []string{"-b", "1"},
-			wantErr:  "cut: standard input: read failed\n",
-			wantExit: 1,
+			Name:     "standard input read error",
+			Stdin:    testutil.ErrorReader{Err: errors.New("read failed")},
+			Args:     []string{"-b", "1"},
+			WantErr:  "cut: standard input: read failed\n",
+			WantExit: 1,
 		},
 	}
 
-	for _, test := range tests {
-		t.Run(test.name, func(t *testing.T) {
-			runCase(t, test)
-		})
-	}
+	testutil.Run(t, New, tests)
 }
 
 func TestRunWriteError(t *testing.T) {
@@ -980,12 +855,12 @@ func TestRunWriteError(t *testing.T) {
 	stderr := new(bytes.Buffer)
 	rt := &coreutils.Runtime{
 		Stdin:  strings.NewReader("hello\n"),
-		Stdout: errorWriter{err: writeErr},
+		Stdout: testutil.ErrorWriter{Err: writeErr},
 		Stderr: stderr,
 	}
 	err := New(rt).Run(t.Context(), "-b", "1")
 
-	if code := exitCode(t, err); code != 1 {
+	if code := testutil.ExitCode(t, err); code != 1 {
 		t.Fatalf("Run() exit code = %d, want 1 (error = %v)", code, err)
 	}
 	if !errors.Is(err, writeErr) {
@@ -998,64 +873,14 @@ func TestRunWriteError(t *testing.T) {
 
 func TestRunContext(t *testing.T) {
 	t.Run("cancelled before running", func(t *testing.T) {
-		ctx, cancel := context.WithCancel(t.Context())
-		cancel()
-		runCancelled(t, ctx, strings.NewReader("hello\n"))
+		testutil.Cancelled(t, New, strings.NewReader("hello\n"), nil, "-b", "1")
 	})
 
 	t.Run("cancelled while reading the standard input", func(t *testing.T) {
-		ctx, cancel := context.WithCancel(t.Context())
-		runCancelled(t, ctx, &cancelReader{cancel: cancel})
+		testutil.Cancelled(t, New, &testutil.CancelReader{}, nil, "-b", "1")
 	})
-}
-
-// runCancelled runs the utility with a context that is either already done or
-// becomes done while reading, and checks that the context error is returned
-// without any output.
-func runCancelled(t *testing.T, ctx context.Context, stdin io.Reader) {
-	t.Helper()
-
-	stdout := new(bytes.Buffer)
-	stderr := new(bytes.Buffer)
-	rt := &coreutils.Runtime{
-		Stdin:  stdin,
-		Stdout: stdout,
-		Stderr: stderr,
-	}
-	err := New(rt).Run(ctx, "-b", "1")
-
-	if !errors.Is(err, context.Canceled) {
-		t.Fatalf("Run() error = %v, want context.Canceled", err)
-	}
-	if got := stdout.String(); got != "" {
-		t.Errorf("Run() stdout = %q, want empty", got)
-	}
-	if got := stderr.String(); got != "" {
-		t.Errorf("Run() stderr = %q, want empty", got)
-	}
 }
 
 func TestHelpVersion(t *testing.T) {
-	t.Run("help", func(t *testing.T) {
-		stdout := new(bytes.Buffer)
-		rt := &coreutils.Runtime{Stdout: stdout, Stderr: new(bytes.Buffer)}
-		if err := New(rt).Run(t.Context(), "--help"); err != nil {
-			t.Fatalf("Run() error = %v, want nil (exit status 0)", err)
-		}
-		if got, want := stdout.String(), usage; got != want {
-			t.Errorf("Run() stdout = %q, want %q", got, want)
-		}
-	})
-
-	t.Run("version", func(t *testing.T) {
-		stdout := new(bytes.Buffer)
-		rt := &coreutils.Runtime{Stdout: stdout, Stderr: new(bytes.Buffer)}
-		if err := New(rt).Run(t.Context(), "--version"); err != nil {
-			t.Fatalf("Run() error = %v, want nil (exit status 0)", err)
-		}
-		want := "cut (charm.land/snail/coreutils) " + coreutils.Version + "\nhttps://charm.land/snail\n"
-		if got := stdout.String(); got != want {
-			t.Errorf("Run() stdout = %q, want %q", got, want)
-		}
-	})
+	testutil.HelpVersion(t, New, "cut", usage)
 }

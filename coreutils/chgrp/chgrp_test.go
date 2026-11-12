@@ -15,6 +15,7 @@ import (
 	"time"
 
 	"charm.land/snail/coreutils"
+	"charm.land/snail/coreutils/internal/testutil"
 	"charm.land/snail/fsx"
 )
 
@@ -33,61 +34,45 @@ func link(target string, gid int) *fsx.MemFile {
 	return &fsx.MemFile{Data: []byte(target), Mode: fs.ModeSymlink | 0o777, Gid: gid}
 }
 
+// testCase is the fields of a testutil.Case plus the file fixtures of the
+// group database free tests, and the groups the files must have after the run.
 type testCase struct {
-	name     string
-	files    fsx.MemFS
-	args     []string
-	want     map[string]int
-	wantOut  string
-	wantErr  string
-	wantExit int
+	Name     string
+	Args     []string
+	Want     string
+	WantErr  string
+	WantExit int
+
+	Files    fsx.MemFS
+	WantGids map[string]int
 }
 
+// runCase runs a single case, checking the groups of its files.
 func runCase(t *testing.T, test testCase) {
 	t.Helper()
 
-	stdout, stderr := new(bytes.Buffer), new(bytes.Buffer)
-	rt := &coreutils.Runtime{
-		Stdout: stdout,
-		Stderr: stderr,
-		FS:     test.files,
+	c := testutil.Case{
+		Name:     test.Name,
+		Args:     test.Args,
+		Want:     test.Want,
+		WantErr:  test.WantErr,
+		WantExit: test.WantExit,
+		FS:       test.Files,
 	}
-
-	err := New(rt).Run(t.Context(), test.args...)
-
-	if code := exitCode(t, err); code != test.wantExit {
-		t.Errorf("Run() exit code = %d, want %d (error = %v)", code, test.wantExit, err)
-	}
-	if got := stdout.String(); got != test.wantOut {
-		t.Errorf("Run() stdout = %q, want %q", got, test.wantOut)
-	}
-	if got := stderr.String(); got != test.wantErr {
-		t.Errorf("Run() stderr = %q, want %q", got, test.wantErr)
-	}
-
-	for name, want := range test.want {
-		fi, err := test.files.Lstat(name)
-		if err != nil {
-			t.Errorf("Lstat(%q) error = %v", name, err)
-			continue
-		}
-		if _, gid, ok := fsx.Owner(fi); !ok || gid != want {
-			t.Errorf("%s group = %d, want %d", name, gid, want)
+	wantGids := test.WantGids
+	c.Check = func(t *testing.T, rt *coreutils.Runtime) {
+		for name, want := range wantGids {
+			fi, err := rt.FS.Lstat(name)
+			if err != nil {
+				t.Errorf("Lstat(%q) error = %v", name, err)
+				continue
+			}
+			if _, gid, ok := fsx.Owner(fi); !ok || gid != want {
+				t.Errorf("%s group = %d, want %d", name, gid, want)
+			}
 		}
 	}
-}
-
-func exitCode(t *testing.T, err error) int {
-	t.Helper()
-
-	if err == nil {
-		return 0
-	}
-	var exitErr *coreutils.ExitError
-	if !errors.As(err, &exitErr) {
-		t.Fatalf("Run() error = %v, want *coreutils.ExitError", err)
-	}
-	return exitErr.Code
+	testutil.Once(t, New, c)
 }
 
 // runTests runs the given cases as subtests.
@@ -95,7 +80,7 @@ func runTests(t *testing.T, tests []testCase) {
 	t.Helper()
 
 	for _, test := range tests {
-		t.Run(test.name, func(t *testing.T) {
+		t.Run(test.Name, func(t *testing.T) {
 			runCase(t, test)
 		})
 	}
@@ -104,88 +89,88 @@ func runTests(t *testing.T, tests []testCase) {
 func TestRunGroup(t *testing.T) {
 	runTests(t, []testCase{
 		{
-			name:  "sets a numeric group",
-			files: fsx.MemFS{"file.txt": file(10)},
-			args:  []string{"20", "file.txt"},
-			want:  map[string]int{"file.txt": 20},
+			Name:     "sets a numeric group",
+			Files:    fsx.MemFS{"file.txt": file(10)},
+			Args:     []string{"20", "file.txt"},
+			WantGids: map[string]int{"file.txt": 20},
 		},
 		{
-			name:  "a leading plus forces the numeric group",
-			files: fsx.MemFS{"file.txt": file(10)},
-			args:  []string{"+20", "file.txt"},
-			want:  map[string]int{"file.txt": 20},
+			Name:     "a leading plus forces the numeric group",
+			Files:    fsx.MemFS{"file.txt": file(10)},
+			Args:     []string{"+20", "file.txt"},
+			WantGids: map[string]int{"file.txt": 20},
 		},
 		{
-			name:  "sets the group of every file",
-			files: fsx.MemFS{"a.txt": file(10), "b.txt": file(11)},
-			args:  []string{"30", "a.txt", "b.txt"},
-			want:  map[string]int{"a.txt": 30, "b.txt": 30},
+			Name:     "sets the group of every file",
+			Files:    fsx.MemFS{"a.txt": file(10), "b.txt": file(11)},
+			Args:     []string{"30", "a.txt", "b.txt"},
+			WantGids: map[string]int{"a.txt": 30, "b.txt": 30},
 		},
 		{
-			name:  "group zero is a group of its own",
-			files: fsx.MemFS{"file.txt": file(10)},
-			args:  []string{"0", "file.txt"},
-			want:  map[string]int{"file.txt": 0},
+			Name:     "group zero is a group of its own",
+			Files:    fsx.MemFS{"file.txt": file(10)},
+			Args:     []string{"0", "file.txt"},
+			WantGids: map[string]int{"file.txt": 0},
 		},
 		{
-			name:  "a large numeric group",
-			files: fsx.MemFS{"file.txt": file(10)},
-			args:  []string{"123456", "file.txt"},
-			want:  map[string]int{"file.txt": 123456},
+			Name:     "a large numeric group",
+			Files:    fsx.MemFS{"file.txt": file(10)},
+			Args:     []string{"123456", "file.txt"},
+			WantGids: map[string]int{"file.txt": 123456},
 		},
 		{
-			name:  "changes a directory without walking below it",
-			files: fsx.MemFS{"dir": dir(10), "dir/a.txt": file(11)},
-			args:  []string{"20", "dir"},
-			want:  map[string]int{"dir": 20, "dir/a.txt": 11},
+			Name:     "changes a directory without walking below it",
+			Files:    fsx.MemFS{"dir": dir(10), "dir/a.txt": file(11)},
+			Args:     []string{"20", "dir"},
+			WantGids: map[string]int{"dir": 20, "dir/a.txt": 11},
 		},
 		{
-			name:     "a negative numeric group is invalid",
-			files:    fsx.MemFS{"file.txt": file(10)},
-			args:     []string{"--", "-1", "file.txt"},
-			want:     map[string]int{"file.txt": 10},
-			wantErr:  "chgrp: invalid group: '-1'\nTry 'chgrp --help' for more information.\n",
-			wantExit: 1,
+			Name:     "a negative numeric group is invalid",
+			Files:    fsx.MemFS{"file.txt": file(10)},
+			Args:     []string{"--", "-1", "file.txt"},
+			WantGids: map[string]int{"file.txt": 10},
+			WantErr:  "chgrp: invalid group: '-1'\nTry 'chgrp --help' for more information.\n",
+			WantExit: 1,
 		},
 		{
-			name:     "another negative numeric group is invalid",
-			files:    fsx.MemFS{"file.txt": file(10)},
-			args:     []string{"--", "-20", "file.txt"},
-			want:     map[string]int{"file.txt": 10},
-			wantErr:  "chgrp: invalid group: '-20'\nTry 'chgrp --help' for more information.\n",
-			wantExit: 1,
+			Name:     "another negative numeric group is invalid",
+			Files:    fsx.MemFS{"file.txt": file(10)},
+			Args:     []string{"--", "-20", "file.txt"},
+			WantGids: map[string]int{"file.txt": 10},
+			WantErr:  "chgrp: invalid group: '-20'\nTry 'chgrp --help' for more information.\n",
+			WantExit: 1,
 		},
 		{
-			name:     "a numeric group too large for an ID is invalid",
-			files:    fsx.MemFS{"file.txt": file(10)},
-			args:     []string{"99999999999999999999", "file.txt"},
-			want:     map[string]int{"file.txt": 10},
-			wantErr:  "chgrp: invalid group: '99999999999999999999'\nTry 'chgrp --help' for more information.\n",
-			wantExit: 1,
+			Name:     "a numeric group too large for an ID is invalid",
+			Files:    fsx.MemFS{"file.txt": file(10)},
+			Args:     []string{"99999999999999999999", "file.txt"},
+			WantGids: map[string]int{"file.txt": 10},
+			WantErr:  "chgrp: invalid group: '99999999999999999999'\nTry 'chgrp --help' for more information.\n",
+			WantExit: 1,
 		},
 		{
-			name:     "an unknown group name is an error",
-			files:    fsx.MemFS{"file.txt": file(10)},
-			args:     []string{"no-such-group-xyz", "file.txt"},
-			want:     map[string]int{"file.txt": 10},
-			wantErr:  "chgrp: invalid group: 'no-such-group-xyz'\nTry 'chgrp --help' for more information.\n",
-			wantExit: 1,
+			Name:     "an unknown group name is an error",
+			Files:    fsx.MemFS{"file.txt": file(10)},
+			Args:     []string{"no-such-group-xyz", "file.txt"},
+			WantGids: map[string]int{"file.txt": 10},
+			WantErr:  "chgrp: invalid group: 'no-such-group-xyz'\nTry 'chgrp --help' for more information.\n",
+			WantExit: 1,
 		},
 		{
-			name:     "a group which is neither a name nor a number",
-			files:    fsx.MemFS{"file.txt": file(10)},
-			args:     []string{"12abc", "file.txt"},
-			want:     map[string]int{"file.txt": 10},
-			wantErr:  "chgrp: invalid group: '12abc'\nTry 'chgrp --help' for more information.\n",
-			wantExit: 1,
+			Name:     "a group which is neither a name nor a number",
+			Files:    fsx.MemFS{"file.txt": file(10)},
+			Args:     []string{"12abc", "file.txt"},
+			WantGids: map[string]int{"file.txt": 10},
+			WantErr:  "chgrp: invalid group: '12abc'\nTry 'chgrp --help' for more information.\n",
+			WantExit: 1,
 		},
 		{
-			name:     "an empty group is an error",
-			files:    fsx.MemFS{"file.txt": file(10)},
-			args:     []string{"", "file.txt"},
-			want:     map[string]int{"file.txt": 10},
-			wantErr:  "chgrp: invalid group: ''\nTry 'chgrp --help' for more information.\n",
-			wantExit: 1,
+			Name:     "an empty group is an error",
+			Files:    fsx.MemFS{"file.txt": file(10)},
+			Args:     []string{"", "file.txt"},
+			WantGids: map[string]int{"file.txt": 10},
+			WantErr:  "chgrp: invalid group: ''\nTry 'chgrp --help' for more information.\n",
+			WantExit: 1,
 		},
 	})
 }
@@ -208,10 +193,10 @@ func TestRunGroupName(t *testing.T) {
 	}
 
 	runCase(t, testCase{
-		name:  "a group name resolves through the group database",
-		files: fsx.MemFS{"file.txt": file(10)},
-		args:  []string{g.Name, "file.txt"},
-		want:  map[string]int{"file.txt": gid},
+		Name:     "a group name resolves through the group database",
+		Files:    fsx.MemFS{"file.txt": file(10)},
+		Args:     []string{g.Name, "file.txt"},
+		WantGids: map[string]int{"file.txt": gid},
 	})
 }
 
@@ -237,66 +222,66 @@ func TestRunKeepsOwner(t *testing.T) {
 func TestRunDereference(t *testing.T) {
 	runTests(t, []testCase{
 		{
-			name:  "a symbolic link stands for what it points at",
-			files: fsx.MemFS{"target": file(10), "link": link("target", 5)},
-			args:  []string{"20", "link"},
-			want:  map[string]int{"target": 20, "link": 5},
+			Name:     "a symbolic link stands for what it points at",
+			Files:    fsx.MemFS{"target": file(10), "link": link("target", 5)},
+			Args:     []string{"20", "link"},
+			WantGids: map[string]int{"target": 20, "link": 5},
 		},
 		{
-			name:  "h leaves the symbolic link and its referent alone",
-			files: fsx.MemFS{"target": file(10), "link": link("target", 5)},
-			args:  []string{"-h", "20", "link"},
-			want:  map[string]int{"target": 10, "link": 5},
+			Name:     "h leaves the symbolic link and its referent alone",
+			Files:    fsx.MemFS{"target": file(10), "link": link("target", 5)},
+			Args:     []string{"-h", "20", "link"},
+			WantGids: map[string]int{"target": 10, "link": 5},
 		},
 		{
-			name:  "no-dereference is the long form of h",
-			files: fsx.MemFS{"target": file(10), "link": link("target", 5)},
-			args:  []string{"--no-dereference", "20", "link"},
-			want:  map[string]int{"target": 10, "link": 5},
+			Name:     "no-dereference is the long form of h",
+			Files:    fsx.MemFS{"target": file(10), "link": link("target", 5)},
+			Args:     []string{"--no-dereference", "20", "link"},
+			WantGids: map[string]int{"target": 10, "link": 5},
 		},
 		{
-			name:  "dereference states the default",
-			files: fsx.MemFS{"target": file(10), "link": link("target", 5)},
-			args:  []string{"--dereference", "20", "link"},
-			want:  map[string]int{"target": 20, "link": 5},
+			Name:     "dereference states the default",
+			Files:    fsx.MemFS{"target": file(10), "link": link("target", 5)},
+			Args:     []string{"--dereference", "20", "link"},
+			WantGids: map[string]int{"target": 20, "link": 5},
 		},
 		{
-			name:  "the last of h and dereference wins",
-			files: fsx.MemFS{"target": file(10), "link": link("target", 5)},
-			args:  []string{"-h", "--dereference", "20", "link"},
-			want:  map[string]int{"target": 20, "link": 5},
+			Name:     "the last of h and dereference wins",
+			Files:    fsx.MemFS{"target": file(10), "link": link("target", 5)},
+			Args:     []string{"-h", "--dereference", "20", "link"},
+			WantGids: map[string]int{"target": 20, "link": 5},
 		},
 		{
-			name:  "the last of dereference and h wins",
-			files: fsx.MemFS{"target": file(10), "link": link("target", 5)},
-			args:  []string{"--dereference", "-h", "20", "link"},
-			want:  map[string]int{"target": 10, "link": 5},
+			Name:     "the last of dereference and h wins",
+			Files:    fsx.MemFS{"target": file(10), "link": link("target", 5)},
+			Args:     []string{"--dereference", "-h", "20", "link"},
+			WantGids: map[string]int{"target": 10, "link": 5},
 		},
 		{
-			name:  "a chain of symbolic links is followed",
-			files: fsx.MemFS{"target": file(10), "l2": link("target", 5), "l1": link("l2", 6)},
-			args:  []string{"20", "l1"},
-			want:  map[string]int{"target": 20, "l2": 5, "l1": 6},
+			Name:     "a chain of symbolic links is followed",
+			Files:    fsx.MemFS{"target": file(10), "l2": link("target", 5), "l1": link("l2", 6)},
+			Args:     []string{"20", "l1"},
+			WantGids: map[string]int{"target": 20, "l2": 5, "l1": 6},
 		},
 		{
-			name:  "h leaves a chain of links alone",
-			files: fsx.MemFS{"target": file(10), "l2": link("target", 5), "l1": link("l2", 6)},
-			args:  []string{"-h", "20", "l1"},
-			want:  map[string]int{"target": 10, "l2": 5, "l1": 6},
+			Name:     "h leaves a chain of links alone",
+			Files:    fsx.MemFS{"target": file(10), "l2": link("target", 5), "l1": link("l2", 6)},
+			Args:     []string{"-h", "20", "l1"},
+			WantGids: map[string]int{"target": 10, "l2": 5, "l1": 6},
 		},
 		{
-			name:     "a dangling link cannot be dereferenced",
-			files:    fsx.MemFS{"dangling": link("missing", 5)},
-			args:     []string{"20", "dangling"},
-			want:     map[string]int{"dangling": 5},
-			wantErr:  "chgrp: dangling: file does not exist\n",
-			wantExit: 1,
+			Name:     "a dangling link cannot be dereferenced",
+			Files:    fsx.MemFS{"dangling": link("missing", 5)},
+			Args:     []string{"20", "dangling"},
+			WantGids: map[string]int{"dangling": 5},
+			WantErr:  "chgrp: dangling: file does not exist\n",
+			WantExit: 1,
 		},
 		{
-			name:  "h leaves a dangling link alone without an error",
-			files: fsx.MemFS{"dangling": link("missing", 5)},
-			args:  []string{"-h", "20", "dangling"},
-			want:  map[string]int{"dangling": 5},
+			Name:     "h leaves a dangling link alone without an error",
+			Files:    fsx.MemFS{"dangling": link("missing", 5)},
+			Args:     []string{"-h", "20", "dangling"},
+			WantGids: map[string]int{"dangling": 5},
 		},
 	})
 }
@@ -313,10 +298,10 @@ func TestRunRecursive(t *testing.T) {
 
 	runTests(t, []testCase{
 		{
-			name:  "R changes every file below the directory",
-			files: tree(),
-			args:  []string{"-R", "20", "dir"},
-			want: map[string]int{
+			Name:  "R changes every file below the directory",
+			Files: tree(),
+			Args:  []string{"-R", "20", "dir"},
+			WantGids: map[string]int{
 				"dir":           20,
 				"dir/a.txt":     20,
 				"dir/sub":       20,
@@ -324,24 +309,24 @@ func TestRunRecursive(t *testing.T) {
 			},
 		},
 		{
-			name:  "R on a plain file works like without R",
-			files: fsx.MemFS{"file.txt": file(10)},
-			args:  []string{"-R", "20", "file.txt"},
-			want:  map[string]int{"file.txt": 20},
+			Name:     "R on a plain file works like without R",
+			Files:    fsx.MemFS{"file.txt": file(10)},
+			Args:     []string{"-R", "20", "file.txt"},
+			WantGids: map[string]int{"file.txt": 20},
 		},
 		{
-			name:  "R works from the working directory",
-			files: fsx.MemFS{"dir": dir(10), "dir/a.txt": file(11)},
-			args:  []string{"-R", "20", "."},
-			want:  map[string]int{"dir": 20, "dir/a.txt": 20},
+			Name:     "R works from the working directory",
+			Files:    fsx.MemFS{"dir": dir(10), "dir/a.txt": file(11)},
+			Args:     []string{"-R", "20", "."},
+			WantGids: map[string]int{"dir": 20, "dir/a.txt": 20},
 		},
 		{
-			name:     "R keeps going after a missing file",
-			files:    fsx.MemFS{"file.txt": file(10)},
-			args:     []string{"-R", "20", "missing", "file.txt"},
-			want:     map[string]int{"file.txt": 20},
-			wantErr:  "chgrp: missing: file does not exist\n",
-			wantExit: 1,
+			Name:     "R keeps going after a missing file",
+			Files:    fsx.MemFS{"file.txt": file(10)},
+			Args:     []string{"-R", "20", "missing", "file.txt"},
+			WantGids: map[string]int{"file.txt": 20},
+			WantErr:  "chgrp: missing: file does not exist\n",
+			WantExit: 1,
 		},
 	})
 }
@@ -349,15 +334,15 @@ func TestRunRecursive(t *testing.T) {
 func TestRunRecursiveSymlinks(t *testing.T) {
 	runTests(t, []testCase{
 		{
-			name: "R leaves a symbolic link of the walk alone",
-			files: fsx.MemFS{
+			Name: "R leaves a symbolic link of the walk alone",
+			Files: fsx.MemFS{
 				"dir":       dir(10),
 				"dir/a.txt": file(11),
 				"dir/link":  link("../target", 5),
 				"target":    file(9),
 			},
-			args: []string{"-R", "20", "dir"},
-			want: map[string]int{
+			Args: []string{"-R", "20", "dir"},
+			WantGids: map[string]int{
 				"dir":       20,
 				"dir/a.txt": 20,
 				"dir/link":  5,
@@ -365,54 +350,54 @@ func TestRunRecursiveSymlinks(t *testing.T) {
 			},
 		},
 		{
-			name: "R leaves a dangling link of the walk alone",
-			files: fsx.MemFS{
+			Name: "R leaves a dangling link of the walk alone",
+			Files: fsx.MemFS{
 				"dir":          dir(10),
 				"dir/a.txt":    file(11),
 				"dir/dangling": link("missing", 5),
 			},
-			args: []string{"-R", "20", "dir"},
-			want: map[string]int{
+			Args: []string{"-R", "20", "dir"},
+			WantGids: map[string]int{
 				"dir":          20,
 				"dir/a.txt":    20,
 				"dir/dangling": 5,
 			},
 		},
 		{
-			name:  "R does not follow a symbolic link operand to a directory",
-			files: fsx.MemFS{"dir": dir(10), "dir/a.txt": file(11), "dlink": link("dir", 5)},
-			args:  []string{"-R", "20", "dlink"},
-			want:  map[string]int{"dir": 10, "dir/a.txt": 11, "dlink": 5},
+			Name:     "R does not follow a symbolic link operand to a directory",
+			Files:    fsx.MemFS{"dir": dir(10), "dir/a.txt": file(11), "dlink": link("dir", 5)},
+			Args:     []string{"-R", "20", "dlink"},
+			WantGids: map[string]int{"dir": 10, "dir/a.txt": 11, "dlink": 5},
 		},
 		{
-			name:  "P is the same as the default",
-			files: fsx.MemFS{"dir": dir(10), "dir/a.txt": file(11), "dlink": link("dir", 5)},
-			args:  []string{"-R", "-P", "20", "dlink"},
-			want:  map[string]int{"dir": 10, "dir/a.txt": 11, "dlink": 5},
+			Name:     "P is the same as the default",
+			Files:    fsx.MemFS{"dir": dir(10), "dir/a.txt": file(11), "dlink": link("dir", 5)},
+			Args:     []string{"-R", "-P", "20", "dlink"},
+			WantGids: map[string]int{"dir": 10, "dir/a.txt": 11, "dlink": 5},
 		},
 		{
-			name:  "H follows a symbolic link operand to a directory",
-			files: fsx.MemFS{"dir": dir(10), "dir/a.txt": file(11), "dlink": link("dir", 5)},
-			args:  []string{"-RH", "20", "dlink"},
-			want:  map[string]int{"dir": 20, "dir/a.txt": 20, "dlink": 5},
+			Name:     "H follows a symbolic link operand to a directory",
+			Files:    fsx.MemFS{"dir": dir(10), "dir/a.txt": file(11), "dlink": link("dir", 5)},
+			Args:     []string{"-RH", "20", "dlink"},
+			WantGids: map[string]int{"dir": 20, "dir/a.txt": 20, "dlink": 5},
 		},
 		{
-			name:  "H follows a symbolic link operand to a file",
-			files: fsx.MemFS{"target": file(9), "flink": link("target", 5)},
-			args:  []string{"-RH", "20", "flink"},
-			want:  map[string]int{"target": 20, "flink": 5},
+			Name:     "H follows a symbolic link operand to a file",
+			Files:    fsx.MemFS{"target": file(9), "flink": link("target", 5)},
+			Args:     []string{"-RH", "20", "flink"},
+			WantGids: map[string]int{"target": 20, "flink": 5},
 		},
 		{
-			name: "L follows every symbolic link to a directory",
-			files: fsx.MemFS{
+			Name: "L follows every symbolic link to a directory",
+			Files: fsx.MemFS{
 				"dir":           dir(10),
 				"dir/a.txt":     file(11),
 				"dir/dlink":     link("sub", 5),
 				"dir/sub":       dir(12),
 				"dir/sub/b.txt": file(13),
 			},
-			args: []string{"-RL", "20", "dir"},
-			want: map[string]int{
+			Args: []string{"-RL", "20", "dir"},
+			WantGids: map[string]int{
 				"dir":           20,
 				"dir/a.txt":     20,
 				"dir/dlink":     5,
@@ -421,95 +406,95 @@ func TestRunRecursiveSymlinks(t *testing.T) {
 			},
 		},
 		{
-			name:  "L follows a symbolic link to a plain file",
-			files: fsx.MemFS{"dir": dir(10), "dir/flink": link("../target", 5), "target": file(9)},
-			args:  []string{"-RL", "20", "dir"},
-			want:  map[string]int{"dir": 20, "dir/flink": 5, "target": 20},
+			Name:     "L follows a symbolic link to a plain file",
+			Files:    fsx.MemFS{"dir": dir(10), "dir/flink": link("../target", 5), "target": file(9)},
+			Args:     []string{"-RL", "20", "dir"},
+			WantGids: map[string]int{"dir": 20, "dir/flink": 5, "target": 20},
 		},
 		{
-			name:     "L reports a dangling link as an error",
-			files:    fsx.MemFS{"dir": dir(10), "dir/dangling": link("missing", 5)},
-			args:     []string{"-RL", "20", "dir"},
-			want:     map[string]int{"dir": 20, "dir/dangling": 5},
-			wantErr:  "chgrp: dir/dangling: file does not exist\n",
-			wantExit: 1,
+			Name:     "L reports a dangling link as an error",
+			Files:    fsx.MemFS{"dir": dir(10), "dir/dangling": link("missing", 5)},
+			Args:     []string{"-RL", "20", "dir"},
+			WantGids: map[string]int{"dir": 20, "dir/dangling": 5},
+			WantErr:  "chgrp: dir/dangling: file does not exist\n",
+			WantExit: 1,
 		},
 		{
-			name:  "the last of L and P wins",
-			files: fsx.MemFS{"dir": dir(10), "dir/a.txt": file(11), "dlink": link("dir", 5)},
-			args:  []string{"-R", "-L", "-P", "20", "dlink"},
-			want:  map[string]int{"dir": 10, "dir/a.txt": 11, "dlink": 5},
+			Name:     "the last of L and P wins",
+			Files:    fsx.MemFS{"dir": dir(10), "dir/a.txt": file(11), "dlink": link("dir", 5)},
+			Args:     []string{"-R", "-L", "-P", "20", "dlink"},
+			WantGids: map[string]int{"dir": 10, "dir/a.txt": 11, "dlink": 5},
 		},
 		{
-			name:  "the last of P and H wins",
-			files: fsx.MemFS{"dir": dir(10), "dir/a.txt": file(11), "dlink": link("dir", 5)},
-			args:  []string{"-R", "-P", "-H", "20", "dlink"},
-			want:  map[string]int{"dir": 20, "dir/a.txt": 20, "dlink": 5},
+			Name:     "the last of P and H wins",
+			Files:    fsx.MemFS{"dir": dir(10), "dir/a.txt": file(11), "dlink": link("dir", 5)},
+			Args:     []string{"-R", "-P", "-H", "20", "dlink"},
+			WantGids: map[string]int{"dir": 20, "dir/a.txt": 20, "dlink": 5},
 		},
 		{
-			name:  "hR leaves the links of the walk alone",
-			files: fsx.MemFS{"dir": dir(10), "dir/a.txt": file(11), "dir/link": link("a.txt", 5)},
-			args:  []string{"-hR", "20", "dir"},
-			want:  map[string]int{"dir": 20, "dir/a.txt": 20, "dir/link": 5},
+			Name:     "hR leaves the links of the walk alone",
+			Files:    fsx.MemFS{"dir": dir(10), "dir/a.txt": file(11), "dir/link": link("a.txt", 5)},
+			Args:     []string{"-hR", "20", "dir"},
+			WantGids: map[string]int{"dir": 20, "dir/a.txt": 20, "dir/link": 5},
 		},
 		{
-			name:  "hR leaves a symbolic link operand alone",
-			files: fsx.MemFS{"dir": dir(10), "dir/a.txt": file(11), "dlink": link("dir", 5)},
-			args:  []string{"-hR", "20", "dlink"},
-			want:  map[string]int{"dir": 10, "dir/a.txt": 11, "dlink": 5},
+			Name:     "hR leaves a symbolic link operand alone",
+			Files:    fsx.MemFS{"dir": dir(10), "dir/a.txt": file(11), "dlink": link("dir", 5)},
+			Args:     []string{"-hR", "20", "dlink"},
+			WantGids: map[string]int{"dir": 10, "dir/a.txt": 11, "dlink": 5},
 		},
 		{
 			// With -h, only the files below the operand link change: the
 			// link itself is left alone, and so is the directory it names.
-			name:  "h with H changes only the files below the operand link",
-			files: fsx.MemFS{"dir": dir(10), "dir/a.txt": file(11), "dlink": link("dir", 5)},
-			args:  []string{"-hRH", "20", "dlink"},
-			want:  map[string]int{"dir": 10, "dir/a.txt": 20, "dlink": 5},
+			Name:     "h with H changes only the files below the operand link",
+			Files:    fsx.MemFS{"dir": dir(10), "dir/a.txt": file(11), "dlink": link("dir", 5)},
+			Args:     []string{"-hRH", "20", "dlink"},
+			WantGids: map[string]int{"dir": 10, "dir/a.txt": 20, "dlink": 5},
 		},
 		{
-			name:  "h with H leaves a dangling operand link alone",
-			files: fsx.MemFS{"dangling": link("missing", 5)},
-			args:  []string{"-hRH", "20", "dangling"},
-			want:  map[string]int{"dangling": 5},
+			Name:     "h with H leaves a dangling operand link alone",
+			Files:    fsx.MemFS{"dangling": link("missing", 5)},
+			Args:     []string{"-hRH", "20", "dangling"},
+			WantGids: map[string]int{"dangling": 5},
 		},
 		{
-			name:  "h with L leaves a dangling link of the walk alone",
-			files: fsx.MemFS{"dir": dir(10), "dir/dangling": link("missing", 5)},
-			args:  []string{"-hRL", "20", "dir"},
-			want:  map[string]int{"dir": 20, "dir/dangling": 5},
+			Name:     "h with L leaves a dangling link of the walk alone",
+			Files:    fsx.MemFS{"dir": dir(10), "dir/dangling": link("missing", 5)},
+			Args:     []string{"-hRL", "20", "dir"},
+			WantGids: map[string]int{"dir": 20, "dir/dangling": 5},
 		},
 		{
-			name:  "dereference with R acts on the referent without walking it",
-			files: fsx.MemFS{"dir": dir(10), "dir/link": link("../target", 5), "target": file(9)},
-			args:  []string{"-R", "--dereference", "20", "dir"},
-			want:  map[string]int{"dir": 20, "dir/link": 5, "target": 20},
+			Name:     "dereference with R acts on the referent without walking it",
+			Files:    fsx.MemFS{"dir": dir(10), "dir/link": link("../target", 5), "target": file(9)},
+			Args:     []string{"-R", "--dereference", "20", "dir"},
+			WantGids: map[string]int{"dir": 20, "dir/link": 5, "target": 20},
 		},
 		{
-			name:     "L detects a file system loop",
-			files:    fsx.MemFS{"dir": dir(10), "dir/a.txt": file(11), "dir/loop": link(".", 5)},
-			args:     []string{"-RL", "20", "dir"},
-			want:     map[string]int{"dir": 20, "dir/a.txt": 20, "dir/loop": 5},
-			wantErr:  "chgrp: dir/loop: file system loop detected; 'dir/loop' is part of the same file system loop as 'dir'\n",
-			wantExit: 1,
+			Name:     "L detects a file system loop",
+			Files:    fsx.MemFS{"dir": dir(10), "dir/a.txt": file(11), "dir/loop": link(".", 5)},
+			Args:     []string{"-RL", "20", "dir"},
+			WantGids: map[string]int{"dir": 20, "dir/a.txt": 20, "dir/loop": 5},
+			WantErr:  "chgrp: dir/loop: file system loop detected; 'dir/loop' is part of the same file system loop as 'dir'\n",
+			WantExit: 1,
 		},
 		{
-			name:     "h with L still detects a file system loop",
-			files:    fsx.MemFS{"dir": dir(10), "dir/a.txt": file(11), "dir/loop": link(".", 5)},
-			args:     []string{"-hRL", "20", "dir"},
-			want:     map[string]int{"dir": 20, "dir/a.txt": 20, "dir/loop": 5},
-			wantErr:  "chgrp: dir/loop: file system loop detected; 'dir/loop' is part of the same file system loop as 'dir'\n",
-			wantExit: 1,
+			Name:     "h with L still detects a file system loop",
+			Files:    fsx.MemFS{"dir": dir(10), "dir/a.txt": file(11), "dir/loop": link(".", 5)},
+			Args:     []string{"-hRL", "20", "dir"},
+			WantGids: map[string]int{"dir": 20, "dir/a.txt": 20, "dir/loop": 5},
+			WantErr:  "chgrp: dir/loop: file system loop detected; 'dir/loop' is part of the same file system loop as 'dir'\n",
+			WantExit: 1,
 		},
 		{
-			name: "R leaves the links of a loop it doesn't follow alone",
-			files: fsx.MemFS{
+			Name: "R leaves the links of a loop it doesn't follow alone",
+			Files: fsx.MemFS{
 				"dir":        dir(10),
 				"dir/link":   link("sub", 5),
 				"dir/sub":    dir(12),
 				"dir/sub/up": link("..", 6),
 			},
-			args: []string{"-R", "20", "dir"},
-			want: map[string]int{
+			Args: []string{"-R", "20", "dir"},
+			WantGids: map[string]int{
 				"dir":        20,
 				"dir/link":   5,
 				"dir/sub":    20,
@@ -522,40 +507,40 @@ func TestRunRecursiveSymlinks(t *testing.T) {
 func TestRunSilent(t *testing.T) {
 	tests := []testCase{
 		{
-			name: "f",
-			args: []string{"-f", "20", "missing", "file.txt"},
-			want: map[string]int{"file.txt": 20, "dir": 10},
+			Name:     "f",
+			Args:     []string{"-f", "20", "missing", "file.txt"},
+			WantGids: map[string]int{"file.txt": 20, "dir": 10},
 		},
 		{
-			name: "silent",
-			args: []string{"--silent", "20", "missing", "file.txt"},
-			want: map[string]int{"file.txt": 20, "dir": 10},
+			Name:     "silent",
+			Args:     []string{"--silent", "20", "missing", "file.txt"},
+			WantGids: map[string]int{"file.txt": 20, "dir": 10},
 		},
 		{
-			name: "quiet",
-			args: []string{"--quiet", "20", "missing", "file.txt"},
-			want: map[string]int{"file.txt": 20, "dir": 10},
+			Name:     "quiet",
+			Args:     []string{"--quiet", "20", "missing", "file.txt"},
+			WantGids: map[string]int{"file.txt": 20, "dir": 10},
 		},
 		{
-			name: "f grouped with R",
-			args: []string{"-fR", "20", "missing", "dir"},
-			want: map[string]int{"file.txt": 10, "dir": 20},
+			Name:     "f grouped with R",
+			Args:     []string{"-fR", "20", "missing", "dir"},
+			WantGids: map[string]int{"file.txt": 10, "dir": 20},
 		},
 	}
 	for i := range tests {
-		tests[i].files = fsx.MemFS{"file.txt": file(10), "dir": dir(10)}
-		tests[i].wantExit = 1
+		tests[i].Files = fsx.MemFS{"file.txt": file(10), "dir": dir(10)}
+		tests[i].WantExit = 1
 	}
 	runTests(t, tests)
 
 	t.Run("f keeps reporting an invalid group", func(t *testing.T) {
 		runCase(t, testCase{
-			name:     "f",
-			files:    fsx.MemFS{"file.txt": file(10)},
-			args:     []string{"-f", "no-such-group-xyz", "file.txt"},
-			want:     map[string]int{"file.txt": 10},
-			wantErr:  "chgrp: invalid group: 'no-such-group-xyz'\nTry 'chgrp --help' for more information.\n",
-			wantExit: 1,
+			Name:     "f",
+			Files:    fsx.MemFS{"file.txt": file(10)},
+			Args:     []string{"-f", "no-such-group-xyz", "file.txt"},
+			WantGids: map[string]int{"file.txt": 10},
+			WantErr:  "chgrp: invalid group: 'no-such-group-xyz'\nTry 'chgrp --help' for more information.\n",
+			WantExit: 1,
 		})
 	})
 }
@@ -563,71 +548,71 @@ func TestRunSilent(t *testing.T) {
 func TestRunVerbose(t *testing.T) {
 	runTests(t, []testCase{
 		{
-			name:    "v reports a change",
-			files:   fsx.MemFS{"file.txt": file(10)},
-			args:    []string{"-v", "20", "file.txt"},
-			want:    map[string]int{"file.txt": 20},
-			wantOut: "changed group of 'file.txt' from 10 to 20\n",
+			Name:     "v reports a change",
+			Files:    fsx.MemFS{"file.txt": file(10)},
+			Args:     []string{"-v", "20", "file.txt"},
+			WantGids: map[string]int{"file.txt": 20},
+			Want:     "changed group of 'file.txt' from 10 to 20\n",
 		},
 		{
-			name:    "v reports a retained group",
-			files:   fsx.MemFS{"file.txt": file(20)},
-			args:    []string{"-v", "20", "file.txt"},
-			want:    map[string]int{"file.txt": 20},
-			wantOut: "group of 'file.txt' retained as 20\n",
+			Name:     "v reports a retained group",
+			Files:    fsx.MemFS{"file.txt": file(20)},
+			Args:     []string{"-v", "20", "file.txt"},
+			WantGids: map[string]int{"file.txt": 20},
+			Want:     "group of 'file.txt' retained as 20\n",
 		},
 		{
-			name:    "c reports only the files whose group changed",
-			files:   fsx.MemFS{"a.txt": file(10), "b.txt": file(20)},
-			args:    []string{"-c", "20", "a.txt", "b.txt"},
-			want:    map[string]int{"a.txt": 20, "b.txt": 20},
-			wantOut: "changed group of 'a.txt' from 10 to 20\n",
+			Name:     "c reports only the files whose group changed",
+			Files:    fsx.MemFS{"a.txt": file(10), "b.txt": file(20)},
+			Args:     []string{"-c", "20", "a.txt", "b.txt"},
+			WantGids: map[string]int{"a.txt": 20, "b.txt": 20},
+			Want:     "changed group of 'a.txt' from 10 to 20\n",
 		},
 		{
-			name:  "c reports nothing when no group changes",
-			files: fsx.MemFS{"file.txt": file(20)},
-			args:  []string{"-c", "20", "file.txt"},
-			want:  map[string]int{"file.txt": 20},
+			Name:     "c reports nothing when no group changes",
+			Files:    fsx.MemFS{"file.txt": file(20)},
+			Args:     []string{"-c", "20", "file.txt"},
+			WantGids: map[string]int{"file.txt": 20},
 		},
 		{
-			name:    "the last of c and v wins",
-			files:   fsx.MemFS{"file.txt": file(20)},
-			args:    []string{"-c", "-v", "20", "file.txt"},
-			want:    map[string]int{"file.txt": 20},
-			wantOut: "group of 'file.txt' retained as 20\n",
+			Name:     "the last of c and v wins",
+			Files:    fsx.MemFS{"file.txt": file(20)},
+			Args:     []string{"-c", "-v", "20", "file.txt"},
+			WantGids: map[string]int{"file.txt": 20},
+			Want:     "group of 'file.txt' retained as 20\n",
 		},
 		{
-			name:  "the last of v and c wins",
-			files: fsx.MemFS{"file.txt": file(20)},
-			args:  []string{"-v", "-c", "20", "file.txt"},
-			want:  map[string]int{"file.txt": 20},
+			Name:     "the last of v and c wins",
+			Files:    fsx.MemFS{"file.txt": file(20)},
+			Args:     []string{"-v", "-c", "20", "file.txt"},
+			WantGids: map[string]int{"file.txt": 20},
 		},
 		{
-			name:    "the long options work",
-			files:   fsx.MemFS{"file.txt": file(10)},
-			args:    []string{"--changes", "20", "file.txt"},
-			want:    map[string]int{"file.txt": 20},
-			wantOut: "changed group of 'file.txt' from 10 to 20\n",
+			Name:     "the long options work",
+			Files:    fsx.MemFS{"file.txt": file(10)},
+			Args:     []string{"--changes", "20", "file.txt"},
+			WantGids: map[string]int{"file.txt": 20},
+			Want:     "changed group of 'file.txt' from 10 to 20\n",
 		},
 		{
-			name:    "v reports the operand as given",
-			files:   fsx.MemFS{"file.txt": file(10)},
-			args:    []string{"-v", "20", "./file.txt"},
-			want:    map[string]int{"file.txt": 20},
-			wantOut: "changed group of './file.txt' from 10 to 20\n",
+			Name:     "v reports the operand as given",
+			Files:    fsx.MemFS{"file.txt": file(10)},
+			Args:     []string{"-v", "20", "./file.txt"},
+			WantGids: map[string]int{"file.txt": 20},
+			Want:     "changed group of './file.txt' from 10 to 20\n",
 		},
 		{
-			name:    "v reports the group the link points at under its own name",
-			files:   fsx.MemFS{"target": file(10), "link": link("target", 5)},
-			args:    []string{"-v", "20", "link"},
-			want:    map[string]int{"target": 20, "link": 5},
-			wantOut: "changed group of 'link' from 10 to 20\n",
+			Name:     "v reports the group the link points at under its own name",
+			Files:    fsx.MemFS{"target": file(10), "link": link("target", 5)},
+			Args:     []string{"-v", "20", "link"},
+			WantGids: map[string]int{"target": 20, "link": 5},
+			Want:     "changed group of 'link' from 10 to 20\n",
 		},
 		{
-			name:  "v says nothing about a link h leaves alone",
-			files: fsx.MemFS{"target": file(10), "link": link("target", 5)},
-			args:  []string{"-vh", "20", "link"},
-			want:  map[string]int{"target": 10, "link": 5},
+			Name:     "v says nothing about a link h leaves alone",
+			Files:    fsx.MemFS{"target": file(10), "link": link("target", 5)},
+			Args:     []string{"-vh", "20", "link"},
+			WantGids: map[string]int{"target": 10, "link": 5},
 		},
 	})
 }
@@ -644,39 +629,39 @@ func TestRunVerboseRecursive(t *testing.T) {
 
 	runTests(t, []testCase{
 		{
-			name:  "v reports every file of the walk",
-			files: tree(),
-			args:  []string{"-Rv", "20", "dir"},
-			want: map[string]int{
+			Name:  "v reports every file of the walk",
+			Files: tree(),
+			Args:  []string{"-Rv", "20", "dir"},
+			WantGids: map[string]int{
 				"dir":           20,
 				"dir/a.txt":     20,
 				"dir/sub":       20,
 				"dir/sub/b.txt": 20,
 			},
-			wantOut: "changed group of 'dir' from 10 to 20\n" +
+			Want: "changed group of 'dir' from 10 to 20\n" +
 				"changed group of 'dir/a.txt' from 11 to 20\n" +
 				"changed group of 'dir/sub' from 12 to 20\n" +
 				"changed group of 'dir/sub/b.txt' from 13 to 20\n",
 		},
 		{
-			name:  "v reports the files below a link followed with H",
-			files: fsx.MemFS{"dir": dir(10), "dir/a.txt": file(11), "dlink": link("dir", 5)},
-			args:  []string{"-RHv", "20", "dlink"},
-			want:  map[string]int{"dir": 20, "dir/a.txt": 20, "dlink": 5},
-			wantOut: "changed group of 'dlink' from 10 to 20\n" +
+			Name:     "v reports the files below a link followed with H",
+			Files:    fsx.MemFS{"dir": dir(10), "dir/a.txt": file(11), "dlink": link("dir", 5)},
+			Args:     []string{"-RHv", "20", "dlink"},
+			WantGids: map[string]int{"dir": 20, "dir/a.txt": 20, "dlink": 5},
+			Want: "changed group of 'dlink' from 10 to 20\n" +
 				"changed group of 'dlink/a.txt' from 11 to 20\n",
 		},
 		{
-			name:  "c reports only the files whose group changed",
-			files: tree(),
-			args:  []string{"-Rc", "20", "dir", "dir"},
-			want: map[string]int{
+			Name:  "c reports only the files whose group changed",
+			Files: tree(),
+			Args:  []string{"-Rc", "20", "dir", "dir"},
+			WantGids: map[string]int{
 				"dir":           20,
 				"dir/a.txt":     20,
 				"dir/sub":       20,
 				"dir/sub/b.txt": 20,
 			},
-			wantOut: "changed group of 'dir' from 10 to 20\n" +
+			Want: "changed group of 'dir' from 10 to 20\n" +
 				"changed group of 'dir/a.txt' from 11 to 20\n" +
 				"changed group of 'dir/sub' from 12 to 20\n" +
 				"changed group of 'dir/sub/b.txt' from 13 to 20\n",
@@ -687,66 +672,66 @@ func TestRunVerboseRecursive(t *testing.T) {
 func TestRunReference(t *testing.T) {
 	runTests(t, []testCase{
 		{
-			name:  "uses the group of the reference file",
-			files: fsx.MemFS{"ref": file(30), "file.txt": file(10)},
-			args:  []string{"--reference=ref", "file.txt"},
-			want:  map[string]int{"ref": 30, "file.txt": 30},
+			Name:     "uses the group of the reference file",
+			Files:    fsx.MemFS{"ref": file(30), "file.txt": file(10)},
+			Args:     []string{"--reference=ref", "file.txt"},
+			WantGids: map[string]int{"ref": 30, "file.txt": 30},
 		},
 		{
-			name:  "the reference can be a separate argument",
-			files: fsx.MemFS{"ref": file(30), "file.txt": file(10)},
-			args:  []string{"--reference", "ref", "file.txt"},
-			want:  map[string]int{"ref": 30, "file.txt": 30},
+			Name:     "the reference can be a separate argument",
+			Files:    fsx.MemFS{"ref": file(30), "file.txt": file(10)},
+			Args:     []string{"--reference", "ref", "file.txt"},
+			WantGids: map[string]int{"ref": 30, "file.txt": 30},
 		},
 		{
-			name:  "the group applies to every file",
-			files: fsx.MemFS{"ref": file(30), "a.txt": file(10), "b.txt": file(20)},
-			args:  []string{"--reference=ref", "a.txt", "b.txt"},
-			want:  map[string]int{"ref": 30, "a.txt": 30, "b.txt": 30},
+			Name:     "the group applies to every file",
+			Files:    fsx.MemFS{"ref": file(30), "a.txt": file(10), "b.txt": file(20)},
+			Args:     []string{"--reference=ref", "a.txt", "b.txt"},
+			WantGids: map[string]int{"ref": 30, "a.txt": 30, "b.txt": 30},
 		},
 		{
-			name:  "a reference to a symbolic link is dereferenced",
-			files: fsx.MemFS{"ref": file(30), "rlink": link("ref", 5), "file.txt": file(10)},
-			args:  []string{"--reference=rlink", "file.txt"},
-			want:  map[string]int{"ref": 30, "file.txt": 30},
+			Name:     "a reference to a symbolic link is dereferenced",
+			Files:    fsx.MemFS{"ref": file(30), "rlink": link("ref", 5), "file.txt": file(10)},
+			Args:     []string{"--reference=rlink", "file.txt"},
+			WantGids: map[string]int{"ref": 30, "file.txt": 30},
 		},
 		{
-			name:  "a reference can be combined with R",
-			files: fsx.MemFS{"ref": file(30), "dir": dir(10), "dir/a.txt": file(11)},
-			args:  []string{"-R", "--reference=ref", "dir"},
-			want:  map[string]int{"ref": 30, "dir": 30, "dir/a.txt": 30},
+			Name:     "a reference can be combined with R",
+			Files:    fsx.MemFS{"ref": file(30), "dir": dir(10), "dir/a.txt": file(11)},
+			Args:     []string{"-R", "--reference=ref", "dir"},
+			WantGids: map[string]int{"ref": 30, "dir": 30, "dir/a.txt": 30},
 		},
 		{
 			// With --reference, every operand is a file: a group-looking
 			// name is just a missing file.
-			name:     "a group-looking operand is a file with --reference",
-			files:    fsx.MemFS{"ref": file(30), "file.txt": file(10)},
-			args:     []string{"--reference=ref", "20", "file.txt"},
-			want:     map[string]int{"ref": 30, "file.txt": 30},
-			wantErr:  "chgrp: 20: file does not exist\n",
-			wantExit: 1,
+			Name:     "a group-looking operand is a file with --reference",
+			Files:    fsx.MemFS{"ref": file(30), "file.txt": file(10)},
+			Args:     []string{"--reference=ref", "20", "file.txt"},
+			WantGids: map[string]int{"ref": 30, "file.txt": 30},
+			WantErr:  "chgrp: 20: file does not exist\n",
+			WantExit: 1,
 		},
 		{
-			name:     "a missing reference file is an error",
-			files:    fsx.MemFS{"file.txt": file(10)},
-			args:     []string{"--reference=missing", "file.txt"},
-			want:     map[string]int{"file.txt": 10},
-			wantErr:  "chgrp: failed to get attributes of missing: file does not exist\n",
-			wantExit: 1,
+			Name:     "a missing reference file is an error",
+			Files:    fsx.MemFS{"file.txt": file(10)},
+			Args:     []string{"--reference=missing", "file.txt"},
+			WantGids: map[string]int{"file.txt": 10},
+			WantErr:  "chgrp: failed to get attributes of missing: file does not exist\n",
+			WantExit: 1,
 		},
 		{
-			name:     "no operands is a usage error",
-			files:    fsx.MemFS{"ref": file(30)},
-			args:     []string{"--reference=ref"},
-			want:     map[string]int{"ref": 30},
-			wantErr:  "chgrp: missing operand\nTry 'chgrp --help' for more information.\n",
-			wantExit: 2,
+			Name:     "no operands is a usage error",
+			Files:    fsx.MemFS{"ref": file(30)},
+			Args:     []string{"--reference=ref"},
+			WantGids: map[string]int{"ref": 30},
+			WantErr:  "chgrp: missing operand\nTry 'chgrp --help' for more information.\n",
+			WantExit: 2,
 		},
 		{
-			name:  "a lone operand is a file, not a group",
-			files: fsx.MemFS{"ref": file(30), "x+y": file(10)},
-			args:  []string{"--reference=ref", "x+y"},
-			want:  map[string]int{"ref": 30, "x+y": 30},
+			Name:     "a lone operand is a file, not a group",
+			Files:    fsx.MemFS{"ref": file(30), "x+y": file(10)},
+			Args:     []string{"--reference=ref", "x+y"},
+			WantGids: map[string]int{"ref": 30, "x+y": 30},
 		},
 	})
 }
@@ -754,50 +739,50 @@ func TestRunReference(t *testing.T) {
 func TestRunGeneral(t *testing.T) {
 	runTests(t, []testCase{
 		{
-			name:     "a missing operand is an error",
-			files:    fsx.MemFS{"file.txt": file(10)},
-			args:     nil,
-			want:     map[string]int{"file.txt": 10},
-			wantErr:  "chgrp: missing operand\nTry 'chgrp --help' for more information.\n",
-			wantExit: 2,
+			Name:     "a missing operand is an error",
+			Files:    fsx.MemFS{"file.txt": file(10)},
+			Args:     nil,
+			WantGids: map[string]int{"file.txt": 10},
+			WantErr:  "chgrp: missing operand\nTry 'chgrp --help' for more information.\n",
+			WantExit: 2,
 		},
 		{
-			name:     "a missing file operand is an error",
-			files:    fsx.MemFS{"file.txt": file(10)},
-			args:     []string{"20"},
-			want:     map[string]int{"file.txt": 10},
-			wantErr:  "chgrp: missing file operand\nTry 'chgrp --help' for more information.\n",
-			wantExit: 2,
+			Name:     "a missing file operand is an error",
+			Files:    fsx.MemFS{"file.txt": file(10)},
+			Args:     []string{"20"},
+			WantGids: map[string]int{"file.txt": 10},
+			WantErr:  "chgrp: missing file operand\nTry 'chgrp --help' for more information.\n",
+			WantExit: 2,
 		},
 		{
-			name:     "an invalid option is an error",
-			files:    fsx.MemFS{"file.txt": file(10)},
-			args:     []string{"-x", "20", "file.txt"},
-			want:     map[string]int{"file.txt": 10},
-			wantErr:  "chgrp: invalid option -- 'x'\nTry 'chgrp --help' for more information.\n",
-			wantExit: 2,
+			Name:     "an invalid option is an error",
+			Files:    fsx.MemFS{"file.txt": file(10)},
+			Args:     []string{"-x", "20", "file.txt"},
+			WantGids: map[string]int{"file.txt": 10},
+			WantErr:  "chgrp: invalid option -- 'x'\nTry 'chgrp --help' for more information.\n",
+			WantExit: 2,
 		},
 		{
-			name:     "an unrecognized long option",
-			files:    fsx.MemFS{"file.txt": file(10)},
-			args:     []string{"--bogus", "20", "file.txt"},
-			want:     map[string]int{"file.txt": 10},
-			wantErr:  "chgrp: unrecognized option '--bogus'\nTry 'chgrp --help' for more information.\n",
-			wantExit: 2,
+			Name:     "an unrecognized long option",
+			Files:    fsx.MemFS{"file.txt": file(10)},
+			Args:     []string{"--bogus", "20", "file.txt"},
+			WantGids: map[string]int{"file.txt": 10},
+			WantErr:  "chgrp: unrecognized option '--bogus'\nTry 'chgrp --help' for more information.\n",
+			WantExit: 2,
 		},
 		{
-			name:  "a file named like an option can follow a double dash",
-			files: fsx.MemFS{"-w": file(10)},
-			args:  []string{"--", "20", "-w"},
-			want:  map[string]int{"-w": 20},
+			Name:     "a file named like an option can follow a double dash",
+			Files:    fsx.MemFS{"-w": file(10)},
+			Args:     []string{"--", "20", "-w"},
+			WantGids: map[string]int{"-w": 20},
 		},
 		{
-			name:     "a missing file is an error, but the others are changed",
-			files:    fsx.MemFS{"file.txt": file(10)},
-			args:     []string{"20", "missing", "file.txt"},
-			want:     map[string]int{"file.txt": 20},
-			wantErr:  "chgrp: missing: file does not exist\n",
-			wantExit: 1,
+			Name:     "a missing file is an error, but the others are changed",
+			Files:    fsx.MemFS{"file.txt": file(10)},
+			Args:     []string{"20", "missing", "file.txt"},
+			WantGids: map[string]int{"file.txt": 20},
+			WantErr:  "chgrp: missing: file does not exist\n",
+			WantExit: 1,
 		},
 	})
 }
@@ -805,7 +790,7 @@ func TestRunGeneral(t *testing.T) {
 func TestRunNoFileSystem(t *testing.T) {
 	rt := &coreutils.Runtime{Stdout: io.Discard, Stderr: new(bytes.Buffer)}
 	err := New(rt).Run(t.Context(), "20", "file.txt")
-	if code := exitCode(t, err); code != 1 {
+	if code := testutil.ExitCode(t, err); code != 1 {
 		t.Fatalf("Run() exit code = %d, want 1", code)
 	}
 	if got := rt.Stderr.(*bytes.Buffer).String(); got != "chgrp: no file system available\n" {
@@ -866,7 +851,7 @@ func TestRunNoChownFS(t *testing.T) {
 	stderr := new(bytes.Buffer)
 	rt := &coreutils.Runtime{Stdout: io.Discard, Stderr: stderr, FS: chgrplessFS{inner: files}}
 	err := New(rt).Run(t.Context(), "20", "file.txt")
-	if code := exitCode(t, err); code != 1 {
+	if code := testutil.ExitCode(t, err); code != 1 {
 		t.Fatalf("Run() exit code = %d, want 1", code)
 	}
 	want := "chgrp: group ownership is not supported by this file system\n"
@@ -943,7 +928,7 @@ func TestRunOsFS(t *testing.T) {
 		stderr := new(bytes.Buffer)
 		rt := &coreutils.Runtime{Stdout: io.Discard, Stderr: stderr, FS: fsx.OsFS(dir)}
 		err := New(rt).Run(t.Context(), strconv.Itoa(gid), "missing")
-		if code := exitCode(t, err); code != 1 {
+		if code := testutil.ExitCode(t, err); code != 1 {
 			t.Errorf("Run() exit code = %d, want 1 (error = %v)", code, err)
 		}
 		if got, want := stderr.String(), "chgrp: missing: no such file or directory\n"; got != want {
@@ -975,26 +960,5 @@ func TestRunWindowsOsFS(t *testing.T) {
 }
 
 func TestHelpVersion(t *testing.T) {
-	t.Run("help", func(t *testing.T) {
-		stdout := new(bytes.Buffer)
-		rt := &coreutils.Runtime{Stdout: stdout, Stderr: new(bytes.Buffer)}
-		if err := New(rt).Run(t.Context(), "--help"); err != nil {
-			t.Fatalf("Run() error = %v, want nil (exit status 0)", err)
-		}
-		if got, want := stdout.String(), usage; got != want {
-			t.Errorf("Run() stdout = %q, want %q", got, want)
-		}
-	})
-
-	t.Run("version", func(t *testing.T) {
-		stdout := new(bytes.Buffer)
-		rt := &coreutils.Runtime{Stdout: stdout, Stderr: new(bytes.Buffer)}
-		if err := New(rt).Run(t.Context(), "--version"); err != nil {
-			t.Fatalf("Run() error = %v, want nil (exit status 0)", err)
-		}
-		want := "chgrp (charm.land/snail/coreutils) " + coreutils.Version + "\nhttps://charm.land/snail\n"
-		if got := stdout.String(); got != want {
-			t.Errorf("Run() stdout = %q, want %q", got, want)
-		}
-	})
+	testutil.HelpVersion(t, New, "chgrp", usage)
 }

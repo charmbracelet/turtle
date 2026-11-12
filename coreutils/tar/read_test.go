@@ -9,6 +9,7 @@ import (
 	"testing"
 	"time"
 
+	"charm.land/snail/coreutils/internal/testutil"
 	"charm.land/snail/fsx"
 )
 
@@ -44,7 +45,7 @@ func runExtract(t *testing.T, test extractCase) {
 		test.files = fsx.MemFS{}
 	}
 	_, stderr, err := run(t, test.files, test.stdin, nil, test.umask, test.args...)
-	if code := exitCode(t, err); code != test.wantExit {
+	if code := testutil.ExitCode(t, err); code != test.wantExit {
 		t.Errorf("Run() exit code = %d, want %d (error = %v)", code, test.wantExit, err)
 	}
 	if got := stderr.String(); got != test.wantErr {
@@ -216,7 +217,7 @@ func TestList(t *testing.T) {
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
 			stdout, stderr, err := run(t, test.files, test.stdin, test.env, 0, test.args...)
-			if code := exitCode(t, err); code != test.wantExit {
+			if code := testutil.ExitCode(t, err); code != test.wantExit {
 				t.Errorf("Run() exit code = %d, want %d (error = %v)", code, test.wantExit, err)
 			}
 			if got := stdout.String(); got != test.wantOut {

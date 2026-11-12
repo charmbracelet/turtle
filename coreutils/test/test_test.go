@@ -2,7 +2,6 @@ package test
 
 import (
 	"bytes"
-	"errors"
 	"io"
 	"io/fs"
 	"os"
@@ -13,6 +12,7 @@ import (
 	"time"
 
 	"charm.land/snail/coreutils"
+	"charm.land/snail/coreutils/internal/testutil"
 	"charm.land/snail/fsx"
 )
 
@@ -93,25 +93,12 @@ func runTest(t *testing.T, test testCase) {
 	case !test.want:
 		wantExit = 1
 	}
-	if code := exitCode(t, err); code != wantExit {
+	if code := testutil.ExitCode(t, err); code != wantExit {
 		t.Errorf("Run() exit code = %d, want %d (error = %v)", code, wantExit, err)
 	}
 	if got := stderr.String(); got != wantStderr {
 		t.Errorf("Run() stderr = %q, want %q", got, wantStderr)
 	}
-}
-
-func exitCode(t *testing.T, err error) int {
-	t.Helper()
-
-	if err == nil {
-		return 0
-	}
-	exitErr, ok := errors.AsType[*coreutils.ExitError](err)
-	if !ok {
-		t.Fatalf("Run() error = %v, want *coreutils.ExitError", err)
-	}
-	return exitErr.Code
 }
 
 // link returns a setup that makes newName a link to oldName.
@@ -501,7 +488,7 @@ func TestRunNoFileSystem(t *testing.T) {
 
 	err := New(rt).Run(t.Context(), "-f", "file")
 
-	if code := exitCode(t, err); code != 2 {
+	if code := testutil.ExitCode(t, err); code != 2 {
 		t.Errorf("Run() exit code = %d, want 2 (error = %v)", code, err)
 	}
 	if got, want := stderr.String(), "test: no file system available\n"; got != want {

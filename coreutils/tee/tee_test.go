@@ -2,7 +2,6 @@ package tee
 
 import (
 	"bytes"
-	"context"
 	"errors"
 	"io"
 	"io/fs"
@@ -13,35 +12,9 @@ import (
 	"testing"
 
 	"charm.land/snail/coreutils"
+	"charm.land/snail/coreutils/internal/testutil"
 	"charm.land/snail/fsx"
 )
-
-type errorReader struct {
-	err error
-}
-
-func (r errorReader) Read([]byte) (int, error) {
-	return 0, r.err
-}
-
-type errorWriter struct {
-	err error
-}
-
-func (w errorWriter) Write([]byte) (int, error) {
-	return 0, w.err
-}
-
-// cancelReader cancels its context on the first read, simulating a context
-// that is done while input is being read.
-type cancelReader struct {
-	cancel context.CancelFunc
-}
-
-func (r *cancelReader) Read([]byte) (int, error) {
-	r.cancel()
-	return 0, context.Canceled
-}
 
 // pipeInput holds a few one byte chunks and then ends, with io.EOF, or with
 // an error when fail is set: only a run which fails to stop copying early, as
@@ -78,152 +51,134 @@ func testFS() fsx.MemFS {
 	}
 }
 
-func exitCode(t *testing.T, err error) int {
-	t.Helper()
-
-	if err == nil {
-		return 0
-	}
-	var exitErr *coreutils.ExitError
-	if !errors.As(err, &exitErr) {
-		t.Fatalf("Run() error = %v, want *coreutils.ExitError", err)
-	}
-	return exitErr.Code
-}
-
+// testCase is the fields of a testutil.Case plus a standard output the case
+// brings itself: testutil.Once always captures the output on a buffer, so the
+// tests of a failing writer, which take an errorWriter, need this one. Want
+// is then unchecked, like in the runner.
 type testCase struct {
-	name  string
-	stdin io.Reader
-	fsys  fsx.MemFS
-	dir   string
-	args  []string
-	// stdout replaces the standard output of the run, for the tests of a
-	// failing writer or of a pipe. want is then unchecked.
-	stdout io.Writer
-	want   string
-	// absent lists the files the run must not have created.
-	absent    []string
-	wantErr   string
-	wantExit  int
-	wantFiles map[string]string
+	Name      string
+	Stdin     io.Reader
+	FS        fsx.MemFS
+	Dir       string
+	Args      []string
+	Want      string
+	WantErr   string
+	WantExit  int
+	WantFiles map[string]string
+	Absent    []string
+
+	Stdout io.Writer
 }
 
 func runCase(t *testing.T, test testCase) {
 	t.Helper()
 
-	stdout := new(bytes.Buffer)
+	if test.Stdout == nil {
+		c := testutil.Case{
+			Name:      test.Name,
+			Stdin:     test.Stdin,
+			Dir:       test.Dir,
+			Args:      test.Args,
+			Want:      test.Want,
+			WantErr:   test.WantErr,
+			WantExit:  test.WantExit,
+			WantFiles: test.WantFiles,
+			Absent:    test.Absent,
+		}
+		if test.FS != nil {
+			c.FS = test.FS
+		}
+		testutil.Once(t, New, c)
+		return
+	}
+
 	stderr := new(bytes.Buffer)
 	rt := &coreutils.Runtime{
-		Stdin:      test.stdin,
-		Stdout:     stdout,
+		Stdin:      test.Stdin,
+		Stdout:     test.Stdout,
 		Stderr:     stderr,
-		WorkingDir: test.dir,
+		FS:         test.FS,
+		WorkingDir: test.Dir,
 	}
-	if test.stdout != nil {
-		rt.Stdout = test.stdout
-	}
-	if test.fsys != nil {
-		rt.FS = test.fsys
-	}
-	err := New(rt).Run(t.Context(), test.args...)
+	err := New(rt).Run(t.Context(), test.Args...)
 
-	if code := exitCode(t, err); code != test.wantExit {
-		t.Errorf("Run() exit code = %d, want %d (error = %v)", code, test.wantExit, err)
+	if code := testutil.ExitCode(t, err); code != test.WantExit {
+		t.Errorf("Run() exit code = %d, want %d (error = %v)", code, test.WantExit, err)
 	}
-	if test.stdout == nil {
-		if got := stdout.String(); got != test.want {
-			t.Errorf("Run() stdout = %q, want %q", got, test.want)
-		}
-	}
-	if got := stderr.String(); got != test.wantErr {
-		t.Errorf("Run() stderr = %q, want %q", got, test.wantErr)
-	}
-	for name, want := range test.wantFiles {
-		f := test.fsys[name]
-		if f == nil {
-			t.Errorf("Run() didn't create file %q", name)
-			continue
-		}
-		if got := string(f.Data); got != want {
-			t.Errorf("Run() file %q = %q, want %q", name, got, want)
-		}
-	}
-	for _, name := range test.absent {
-		if test.fsys[name] != nil {
-			t.Errorf("Run() created file %q", name)
-		}
+	if got := stderr.String(); got != test.WantErr {
+		t.Errorf("Run() stderr = %q, want %q", got, test.WantErr)
 	}
 }
 
 func TestRunDefaults(t *testing.T) {
 	tests := []testCase{
 		{
-			name:  "no operands copies the standard input to the standard output",
-			stdin: strings.NewReader("hello\n"),
-			want:  "hello\n",
+			Name:  "no operands copies the standard input to the standard output",
+			Stdin: strings.NewReader("hello\n"),
+			Want:  "hello\n",
 		},
 		{
-			name:  "empty standard input",
-			stdin: strings.NewReader(""),
-			want:  "",
+			Name:  "empty standard input",
+			Stdin: strings.NewReader(""),
+			Want:  "",
 		},
 		{
-			name:      "one file gets a copy of the standard input",
-			stdin:     strings.NewReader("hello\n"),
-			fsys:      testFS(),
-			args:      []string{"new.txt"},
-			want:      "hello\n",
-			wantFiles: map[string]string{"new.txt": "hello\n"},
+			Name:      "one file gets a copy of the standard input",
+			Stdin:     strings.NewReader("hello\n"),
+			FS:        testFS(),
+			Args:      []string{"new.txt"},
+			Want:      "hello\n",
+			WantFiles: map[string]string{"new.txt": "hello\n"},
 		},
 		{
-			name:  "multiple files each get the full input",
-			stdin: strings.NewReader("hello\n"),
-			fsys:  testFS(),
-			args:  []string{"one.txt", "two.txt", "three.txt"},
-			want:  "hello\n",
-			wantFiles: map[string]string{
+			Name:  "multiple files each get the full input",
+			Stdin: strings.NewReader("hello\n"),
+			FS:    testFS(),
+			Args:  []string{"one.txt", "two.txt", "three.txt"},
+			Want:  "hello\n",
+			WantFiles: map[string]string{
 				"one.txt":   "hello\n",
 				"two.txt":   "hello\n",
 				"three.txt": "hello\n",
 			},
 		},
 		{
-			name:      "empty standard input creates an empty file",
-			stdin:     strings.NewReader(""),
-			fsys:      testFS(),
-			args:      []string{"new.txt"},
-			want:      "",
-			wantFiles: map[string]string{"new.txt": ""},
+			Name:      "empty standard input creates an empty file",
+			Stdin:     strings.NewReader(""),
+			FS:        testFS(),
+			Args:      []string{"new.txt"},
+			Want:      "",
+			WantFiles: map[string]string{"new.txt": ""},
 		},
 		{
-			name:      "arbitrary bytes are copied untouched",
-			stdin:     strings.NewReader(string([]byte{0x00, 0x01, 0xff, '\n'})),
-			fsys:      testFS(),
-			args:      []string{"new.txt"},
-			want:      string([]byte{0x00, 0x01, 0xff, '\n'}),
-			wantFiles: map[string]string{"new.txt": string([]byte{0x00, 0x01, 0xff, '\n'})},
+			Name:      "arbitrary bytes are copied untouched",
+			Stdin:     strings.NewReader(string([]byte{0x00, 0x01, 0xff, '\n'})),
+			FS:        testFS(),
+			Args:      []string{"new.txt"},
+			Want:      string([]byte{0x00, 0x01, 0xff, '\n'}),
+			WantFiles: map[string]string{"new.txt": string([]byte{0x00, 0x01, 0xff, '\n'})},
 		},
 		{
-			name:      "an existing file is truncated before copying",
-			stdin:     strings.NewReader("new\n"),
-			fsys:      testFS(),
-			args:      []string{"out.txt"},
-			want:      "new\n",
-			wantFiles: map[string]string{"out.txt": "new\n"},
+			Name:      "an existing file is truncated before copying",
+			Stdin:     strings.NewReader("new\n"),
+			FS:        testFS(),
+			Args:      []string{"out.txt"},
+			Want:      "new\n",
+			WantFiles: map[string]string{"out.txt": "new\n"},
 		},
 		{
-			name:      "pathnames are resolved from the working directory",
-			stdin:     strings.NewReader("inner copy\n"),
-			fsys:      testFS(),
-			dir:       "sub",
-			args:      []string{"out.txt"},
-			want:      "inner copy\n",
-			wantFiles: map[string]string{"sub/out.txt": "inner copy\n"},
+			Name:      "pathnames are resolved from the working directory",
+			Stdin:     strings.NewReader("inner copy\n"),
+			FS:        testFS(),
+			Dir:       "sub",
+			Args:      []string{"out.txt"},
+			Want:      "inner copy\n",
+			WantFiles: map[string]string{"sub/out.txt": "inner copy\n"},
 		},
 	}
 
 	for _, test := range tests {
-		t.Run(test.name, func(t *testing.T) {
+		t.Run(test.Name, func(t *testing.T) {
 			runCase(t, test)
 		})
 	}
@@ -232,52 +187,52 @@ func TestRunDefaults(t *testing.T) {
 func TestRunAppend(t *testing.T) {
 	tests := []testCase{
 		{
-			name:      "a appends to an existing file",
-			stdin:     strings.NewReader("more\n"),
-			fsys:      testFS(),
-			args:      []string{"-a", "out.txt"},
-			want:      "more\n",
-			wantFiles: map[string]string{"out.txt": "old contents\nmore\n"},
+			Name:      "a appends to an existing file",
+			Stdin:     strings.NewReader("more\n"),
+			FS:        testFS(),
+			Args:      []string{"-a", "out.txt"},
+			Want:      "more\n",
+			WantFiles: map[string]string{"out.txt": "old contents\nmore\n"},
 		},
 		{
-			name:      "a creates a missing file",
-			stdin:     strings.NewReader("hello\n"),
-			fsys:      testFS(),
-			args:      []string{"-a", "new.txt"},
-			want:      "hello\n",
-			wantFiles: map[string]string{"new.txt": "hello\n"},
+			Name:      "a creates a missing file",
+			Stdin:     strings.NewReader("hello\n"),
+			FS:        testFS(),
+			Args:      []string{"-a", "new.txt"},
+			Want:      "hello\n",
+			WantFiles: map[string]string{"new.txt": "hello\n"},
 		},
 		{
-			name:  "a appends to multiple files",
-			stdin: strings.NewReader("more\n"),
-			fsys:  testFS(),
-			args:  []string{"-a", "out.txt", "-a"},
-			want:  "more\n",
-			wantFiles: map[string]string{
+			Name:  "a appends to multiple files",
+			Stdin: strings.NewReader("more\n"),
+			FS:    testFS(),
+			Args:  []string{"-a", "out.txt", "-a"},
+			Want:  "more\n",
+			WantFiles: map[string]string{
 				"out.txt": "old contents\nmore\n",
 				"-a":      "dash-a\nmore\n",
 			},
 		},
 		{
-			name:      "repeated a",
-			stdin:     strings.NewReader("more\n"),
-			fsys:      testFS(),
-			args:      []string{"-a", "-a", "out.txt"},
-			want:      "more\n",
-			wantFiles: map[string]string{"out.txt": "old contents\nmore\n"},
+			Name:      "repeated a",
+			Stdin:     strings.NewReader("more\n"),
+			FS:        testFS(),
+			Args:      []string{"-a", "-a", "out.txt"},
+			Want:      "more\n",
+			WantFiles: map[string]string{"out.txt": "old contents\nmore\n"},
 		},
 		{
-			name:      "grouped a and i",
-			stdin:     strings.NewReader("more\n"),
-			fsys:      testFS(),
-			args:      []string{"-ai", "out.txt"},
-			want:      "more\n",
-			wantFiles: map[string]string{"out.txt": "old contents\nmore\n"},
+			Name:      "grouped a and i",
+			Stdin:     strings.NewReader("more\n"),
+			FS:        testFS(),
+			Args:      []string{"-ai", "out.txt"},
+			Want:      "more\n",
+			WantFiles: map[string]string{"out.txt": "old contents\nmore\n"},
 		},
 	}
 
 	for _, test := range tests {
-		t.Run(test.name, func(t *testing.T) {
+		t.Run(test.Name, func(t *testing.T) {
 			runCase(t, test)
 		})
 	}
@@ -286,56 +241,56 @@ func TestRunAppend(t *testing.T) {
 func TestRunOptions(t *testing.T) {
 	tests := []testCase{
 		{
-			name:  "i is accepted and has no effect",
-			stdin: strings.NewReader("hello\n"),
-			fsys:  testFS(),
-			args:  []string{"-i", "new.txt"},
-			want:  "hello\n",
-			wantFiles: map[string]string{
+			Name:  "i is accepted and has no effect",
+			Stdin: strings.NewReader("hello\n"),
+			FS:    testFS(),
+			Args:  []string{"-i", "new.txt"},
+			Want:  "hello\n",
+			WantFiles: map[string]string{
 				"new.txt": "hello\n",
 			},
 		},
 		{
-			name:      "a file named like an option after a double dash",
-			stdin:     strings.NewReader("hello\n"),
-			fsys:      testFS(),
-			args:      []string{"--", "-i"},
-			want:      "hello\n",
-			wantFiles: map[string]string{"-i": "hello\n"},
+			Name:      "a file named like an option after a double dash",
+			Stdin:     strings.NewReader("hello\n"),
+			FS:        testFS(),
+			Args:      []string{"--", "-i"},
+			Want:      "hello\n",
+			WantFiles: map[string]string{"-i": "hello\n"},
 		},
 		{
-			name:  "options are not parsed after the first operand",
-			stdin: strings.NewReader("hello\n"),
-			fsys:  testFS(),
-			args:  []string{"new.txt", "-a"},
-			want:  "hello\n",
-			wantFiles: map[string]string{
+			Name:  "options are not parsed after the first operand",
+			Stdin: strings.NewReader("hello\n"),
+			FS:    testFS(),
+			Args:  []string{"new.txt", "-a"},
+			Want:  "hello\n",
+			WantFiles: map[string]string{
 				"new.txt": "hello\n",
 				"-a":      "hello\n",
 			},
 		},
 		{
-			name:     "invalid option",
-			args:     []string{"-x"},
-			wantErr:  "tee: invalid option -- 'x'\nTry 'tee --help' for more information.\n",
-			wantExit: 2,
+			Name:     "invalid option",
+			Args:     []string{"-x"},
+			WantErr:  "tee: invalid option -- 'x'\nTry 'tee --help' for more information.\n",
+			WantExit: 2,
 		},
 		{
-			name:     "invalid option in a group",
-			args:     []string{"-ax"},
-			wantErr:  "tee: invalid option -- 'x'\nTry 'tee --help' for more information.\n",
-			wantExit: 2,
+			Name:     "invalid option in a group",
+			Args:     []string{"-ax"},
+			WantErr:  "tee: invalid option -- 'x'\nTry 'tee --help' for more information.\n",
+			WantExit: 2,
 		},
 		{
-			name:     "unknown long option",
-			args:     []string{"--foo"},
-			wantErr:  "tee: unrecognized option '--foo'\nTry 'tee --help' for more information.\n",
-			wantExit: 2,
+			Name:     "unknown long option",
+			Args:     []string{"--foo"},
+			WantErr:  "tee: unrecognized option '--foo'\nTry 'tee --help' for more information.\n",
+			WantExit: 2,
 		},
 	}
 
 	for _, test := range tests {
-		t.Run(test.name, func(t *testing.T) {
+		t.Run(test.Name, func(t *testing.T) {
 			runCase(t, test)
 		})
 	}
@@ -344,27 +299,27 @@ func TestRunOptions(t *testing.T) {
 func TestRunLongOptions(t *testing.T) {
 	tests := []testCase{
 		{
-			name:      "append",
-			stdin:     strings.NewReader("more\n"),
-			fsys:      testFS(),
-			args:      []string{"--append", "out.txt"},
-			want:      "more\n",
-			wantFiles: map[string]string{"out.txt": "old contents\nmore\n"},
+			Name:      "append",
+			Stdin:     strings.NewReader("more\n"),
+			FS:        testFS(),
+			Args:      []string{"--append", "out.txt"},
+			Want:      "more\n",
+			WantFiles: map[string]string{"out.txt": "old contents\nmore\n"},
 		},
 		{
-			name:  "ignore-interrupts",
-			stdin: strings.NewReader("hello\n"),
-			fsys:  testFS(),
-			args:  []string{"--ignore-interrupts", "new.txt"},
-			want:  "hello\n",
-			wantFiles: map[string]string{
+			Name:  "ignore-interrupts",
+			Stdin: strings.NewReader("hello\n"),
+			FS:    testFS(),
+			Args:  []string{"--ignore-interrupts", "new.txt"},
+			Want:  "hello\n",
+			WantFiles: map[string]string{
 				"new.txt": "hello\n",
 			},
 		},
 	}
 
 	for _, test := range tests {
-		t.Run(test.name, func(t *testing.T) {
+		t.Run(test.Name, func(t *testing.T) {
 			runCase(t, test)
 		})
 	}
@@ -373,91 +328,91 @@ func TestRunLongOptions(t *testing.T) {
 func TestRunOutputErrorOption(t *testing.T) {
 	tests := []testCase{
 		{
-			name:      "p is accepted",
-			stdin:     strings.NewReader("hello\n"),
-			fsys:      testFS(),
-			args:      []string{"-p", "new.txt"},
-			want:      "hello\n",
-			wantFiles: map[string]string{"new.txt": "hello\n"},
+			Name:      "p is accepted",
+			Stdin:     strings.NewReader("hello\n"),
+			FS:        testFS(),
+			Args:      []string{"-p", "new.txt"},
+			Want:      "hello\n",
+			WantFiles: map[string]string{"new.txt": "hello\n"},
 		},
 		{
-			name:      "p in a group",
-			stdin:     strings.NewReader("more\n"),
-			fsys:      testFS(),
-			args:      []string{"-ap", "out.txt"},
-			want:      "more\n",
-			wantFiles: map[string]string{"out.txt": "old contents\nmore\n"},
+			Name:      "p in a group",
+			Stdin:     strings.NewReader("more\n"),
+			FS:        testFS(),
+			Args:      []string{"-ap", "out.txt"},
+			Want:      "more\n",
+			WantFiles: map[string]string{"out.txt": "old contents\nmore\n"},
 		},
 		{
-			name:      "p takes no option-argument",
-			stdin:     strings.NewReader("more\n"),
-			fsys:      testFS(),
-			args:      []string{"-p", "-a", "out.txt"},
-			want:      "more\n",
-			wantFiles: map[string]string{"out.txt": "old contents\nmore\n"},
+			Name:      "p takes no option-argument",
+			Stdin:     strings.NewReader("more\n"),
+			FS:        testFS(),
+			Args:      []string{"-p", "-a", "out.txt"},
+			Want:      "more\n",
+			WantFiles: map[string]string{"out.txt": "old contents\nmore\n"},
 		},
 		{
-			name:      "output-error=warn",
-			stdin:     strings.NewReader("hello\n"),
-			fsys:      testFS(),
-			args:      []string{"--output-error=warn", "new.txt"},
-			want:      "hello\n",
-			wantFiles: map[string]string{"new.txt": "hello\n"},
+			Name:      "output-error=warn",
+			Stdin:     strings.NewReader("hello\n"),
+			FS:        testFS(),
+			Args:      []string{"--output-error=warn", "new.txt"},
+			Want:      "hello\n",
+			WantFiles: map[string]string{"new.txt": "hello\n"},
 		},
 		{
-			name:      "output-error=warn-nopipe",
-			stdin:     strings.NewReader("hello\n"),
-			fsys:      testFS(),
-			args:      []string{"--output-error=warn-nopipe", "new.txt"},
-			want:      "hello\n",
-			wantFiles: map[string]string{"new.txt": "hello\n"},
+			Name:      "output-error=warn-nopipe",
+			Stdin:     strings.NewReader("hello\n"),
+			FS:        testFS(),
+			Args:      []string{"--output-error=warn-nopipe", "new.txt"},
+			Want:      "hello\n",
+			WantFiles: map[string]string{"new.txt": "hello\n"},
 		},
 		{
-			name:      "output-error=exit",
-			stdin:     strings.NewReader("hello\n"),
-			fsys:      testFS(),
-			args:      []string{"--output-error=exit", "new.txt"},
-			want:      "hello\n",
-			wantFiles: map[string]string{"new.txt": "hello\n"},
+			Name:      "output-error=exit",
+			Stdin:     strings.NewReader("hello\n"),
+			FS:        testFS(),
+			Args:      []string{"--output-error=exit", "new.txt"},
+			Want:      "hello\n",
+			WantFiles: map[string]string{"new.txt": "hello\n"},
 		},
 		{
-			name:      "output-error=exit-nopipe",
-			stdin:     strings.NewReader("hello\n"),
-			fsys:      testFS(),
-			args:      []string{"--output-error=exit-nopipe", "new.txt"},
-			want:      "hello\n",
-			wantFiles: map[string]string{"new.txt": "hello\n"},
+			Name:      "output-error=exit-nopipe",
+			Stdin:     strings.NewReader("hello\n"),
+			FS:        testFS(),
+			Args:      []string{"--output-error=exit-nopipe", "new.txt"},
+			Want:      "hello\n",
+			WantFiles: map[string]string{"new.txt": "hello\n"},
 		},
 		{
-			name:      "output-error without a mode is warn-nopipe",
-			stdin:     strings.NewReader("hello\n"),
-			fsys:      testFS(),
-			args:      []string{"--output-error", "new.txt"},
-			want:      "hello\n",
-			wantFiles: map[string]string{"new.txt": "hello\n"},
+			Name:      "output-error without a mode is warn-nopipe",
+			Stdin:     strings.NewReader("hello\n"),
+			FS:        testFS(),
+			Args:      []string{"--output-error", "new.txt"},
+			Want:      "hello\n",
+			WantFiles: map[string]string{"new.txt": "hello\n"},
 		},
 		{
-			name:     "an invalid output error mode",
-			args:     []string{"--output-error=bogus"},
-			wantErr:  "tee: invalid argument 'bogus' for '--output-error'\nTry 'tee --help' for more information.\n",
-			wantExit: 2,
+			Name:     "an invalid output error mode",
+			Args:     []string{"--output-error=bogus"},
+			WantErr:  "tee: invalid argument 'bogus' for '--output-error'\nTry 'tee --help' for more information.\n",
+			WantExit: 2,
 		},
 		{
-			name:     "an output error mode with the wrong case",
-			args:     []string{"--output-error=WARN"},
-			wantErr:  "tee: invalid argument 'WARN' for '--output-error'\nTry 'tee --help' for more information.\n",
-			wantExit: 2,
+			Name:     "an output error mode with the wrong case",
+			Args:     []string{"--output-error=WARN"},
+			WantErr:  "tee: invalid argument 'WARN' for '--output-error'\nTry 'tee --help' for more information.\n",
+			WantExit: 2,
 		},
 		{
-			name:     "an output error mode held by the short option",
-			args:     []string{"-p=bogus"},
-			wantErr:  "tee: invalid option -- '='\nTry 'tee --help' for more information.\n",
-			wantExit: 2,
+			Name:     "an output error mode held by the short option",
+			Args:     []string{"-p=bogus"},
+			WantErr:  "tee: invalid option -- '='\nTry 'tee --help' for more information.\n",
+			WantExit: 2,
 		},
 	}
 
 	for _, test := range tests {
-		t.Run(test.name, func(t *testing.T) {
+		t.Run(test.Name, func(t *testing.T) {
 			runCase(t, test)
 		})
 	}
@@ -470,79 +425,79 @@ func TestRunOutputErrorModes(t *testing.T) {
 	// only the exit status of each mode is at stake here.
 	tests := []testCase{
 		{
-			name:      "the default mode diagnoses and keeps writing",
-			stdin:     strings.NewReader("hello\n"),
-			fsys:      testFS(),
-			stdout:    errorWriter{err: writeErr},
-			args:      []string{"new.txt"},
-			wantErr:   "tee: standard output: write failed\n",
-			wantExit:  1,
-			wantFiles: map[string]string{"new.txt": "hello\n"},
+			Name:      "the default mode diagnoses and keeps writing",
+			Stdin:     strings.NewReader("hello\n"),
+			FS:        testFS(),
+			Stdout:    testutil.ErrorWriter{Err: writeErr},
+			Args:      []string{"new.txt"},
+			WantErr:   "tee: standard output: write failed\n",
+			WantExit:  1,
+			WantFiles: map[string]string{"new.txt": "hello\n"},
 		},
 		{
-			name:      "warn diagnoses and keeps writing",
-			stdin:     strings.NewReader("hello\n"),
-			fsys:      testFS(),
-			stdout:    errorWriter{err: writeErr},
-			args:      []string{"--output-error=warn", "new.txt"},
-			wantErr:   "tee: standard output: write failed\n",
-			wantExit:  1,
-			wantFiles: map[string]string{"new.txt": "hello\n"},
+			Name:      "warn diagnoses and keeps writing",
+			Stdin:     strings.NewReader("hello\n"),
+			FS:        testFS(),
+			Stdout:    testutil.ErrorWriter{Err: writeErr},
+			Args:      []string{"--output-error=warn", "new.txt"},
+			WantErr:   "tee: standard output: write failed\n",
+			WantExit:  1,
+			WantFiles: map[string]string{"new.txt": "hello\n"},
 		},
 		{
-			name:      "warn-nopipe diagnoses a non pipe and keeps writing",
-			stdin:     strings.NewReader("hello\n"),
-			fsys:      testFS(),
-			stdout:    errorWriter{err: writeErr},
-			args:      []string{"-p", "new.txt"},
-			wantErr:   "tee: standard output: write failed\n",
-			wantExit:  1,
-			wantFiles: map[string]string{"new.txt": "hello\n"},
+			Name:      "warn-nopipe diagnoses a non pipe and keeps writing",
+			Stdin:     strings.NewReader("hello\n"),
+			FS:        testFS(),
+			Stdout:    testutil.ErrorWriter{Err: writeErr},
+			Args:      []string{"-p", "new.txt"},
+			WantErr:   "tee: standard output: write failed\n",
+			WantExit:  1,
+			WantFiles: map[string]string{"new.txt": "hello\n"},
 		},
 		{
-			name:      "exit stops at the first error",
-			stdin:     strings.NewReader("hello\n"),
-			fsys:      testFS(),
-			stdout:    errorWriter{err: writeErr},
-			args:      []string{"--output-error=exit", "new.txt"},
-			wantErr:   "tee: standard output: write failed\n",
-			wantExit:  1,
-			wantFiles: map[string]string{"new.txt": ""},
+			Name:      "exit stops at the first error",
+			Stdin:     strings.NewReader("hello\n"),
+			FS:        testFS(),
+			Stdout:    testutil.ErrorWriter{Err: writeErr},
+			Args:      []string{"--output-error=exit", "new.txt"},
+			WantErr:   "tee: standard output: write failed\n",
+			WantExit:  1,
+			WantFiles: map[string]string{"new.txt": ""},
 		},
 		{
-			name:      "exit-nopipe stops at the error of a non pipe",
-			stdin:     strings.NewReader("hello\n"),
-			fsys:      testFS(),
-			stdout:    errorWriter{err: writeErr},
-			args:      []string{"--output-error=exit-nopipe", "new.txt"},
-			wantErr:   "tee: standard output: write failed\n",
-			wantExit:  1,
-			wantFiles: map[string]string{"new.txt": ""},
+			Name:      "exit-nopipe stops at the error of a non pipe",
+			Stdin:     strings.NewReader("hello\n"),
+			FS:        testFS(),
+			Stdout:    testutil.ErrorWriter{Err: writeErr},
+			Args:      []string{"--output-error=exit-nopipe", "new.txt"},
+			WantErr:   "tee: standard output: write failed\n",
+			WantExit:  1,
+			WantFiles: map[string]string{"new.txt": ""},
 		},
 		{
-			name:      "the last mode given wins with p last",
-			stdin:     strings.NewReader("hello\n"),
-			fsys:      testFS(),
-			stdout:    errorWriter{err: writeErr},
-			args:      []string{"--output-error=exit", "-p", "new.txt"},
-			wantErr:   "tee: standard output: write failed\n",
-			wantExit:  1,
-			wantFiles: map[string]string{"new.txt": "hello\n"},
+			Name:      "the last mode given wins with p last",
+			Stdin:     strings.NewReader("hello\n"),
+			FS:        testFS(),
+			Stdout:    testutil.ErrorWriter{Err: writeErr},
+			Args:      []string{"--output-error=exit", "-p", "new.txt"},
+			WantErr:   "tee: standard output: write failed\n",
+			WantExit:  1,
+			WantFiles: map[string]string{"new.txt": "hello\n"},
 		},
 		{
-			name:      "the last mode given wins with exit last",
-			stdin:     strings.NewReader("hello\n"),
-			fsys:      testFS(),
-			stdout:    errorWriter{err: writeErr},
-			args:      []string{"-p", "--output-error=exit", "new.txt"},
-			wantErr:   "tee: standard output: write failed\n",
-			wantExit:  1,
-			wantFiles: map[string]string{"new.txt": ""},
+			Name:      "the last mode given wins with exit last",
+			Stdin:     strings.NewReader("hello\n"),
+			FS:        testFS(),
+			Stdout:    testutil.ErrorWriter{Err: writeErr},
+			Args:      []string{"-p", "--output-error=exit", "new.txt"},
+			WantErr:   "tee: standard output: write failed\n",
+			WantExit:  1,
+			WantFiles: map[string]string{"new.txt": ""},
 		},
 	}
 
 	for _, test := range tests {
-		t.Run(test.name, func(t *testing.T) {
+		t.Run(test.Name, func(t *testing.T) {
 			runCase(t, test)
 		})
 	}
@@ -551,45 +506,45 @@ func TestRunOutputErrorModes(t *testing.T) {
 func TestRunOutputErrorOpen(t *testing.T) {
 	tests := []testCase{
 		{
-			name:      "warn keeps the other files after a failed open",
-			stdin:     strings.NewReader("hello\n"),
-			fsys:      testFS(),
-			args:      []string{"--output-error=warn", "no/such/out.txt", "good.txt"},
-			want:      "hello\n",
-			wantErr:   "tee: no/such/out.txt: file does not exist\n",
-			wantExit:  1,
-			wantFiles: map[string]string{"good.txt": "hello\n"},
+			Name:      "warn keeps the other files after a failed open",
+			Stdin:     strings.NewReader("hello\n"),
+			FS:        testFS(),
+			Args:      []string{"--output-error=warn", "no/such/out.txt", "good.txt"},
+			Want:      "hello\n",
+			WantErr:   "tee: no/such/out.txt: file does not exist\n",
+			WantExit:  1,
+			WantFiles: map[string]string{"good.txt": "hello\n"},
 		},
 		{
-			name:     "exit stops at a failed open",
-			stdin:    strings.NewReader("hello\n"),
-			fsys:     testFS(),
-			args:     []string{"--output-error=exit", "no/such/out.txt", "good.txt"},
-			wantErr:  "tee: no/such/out.txt: file does not exist\n",
-			wantExit: 1,
-			absent:   []string{"good.txt"},
+			Name:     "exit stops at a failed open",
+			Stdin:    strings.NewReader("hello\n"),
+			FS:       testFS(),
+			Args:     []string{"--output-error=exit", "no/such/out.txt", "good.txt"},
+			WantErr:  "tee: no/such/out.txt: file does not exist\n",
+			WantExit: 1,
+			Absent:   []string{"good.txt"},
 		},
 		{
-			name:     "exit-nopipe stops at a failed open",
-			stdin:    strings.NewReader("hello\n"),
-			fsys:     testFS(),
-			args:     []string{"--output-error=exit-nopipe", "no/such/out.txt", "good.txt"},
-			wantErr:  "tee: no/such/out.txt: file does not exist\n",
-			wantExit: 1,
-			absent:   []string{"good.txt"},
+			Name:     "exit-nopipe stops at a failed open",
+			Stdin:    strings.NewReader("hello\n"),
+			FS:       testFS(),
+			Args:     []string{"--output-error=exit-nopipe", "no/such/out.txt", "good.txt"},
+			WantErr:  "tee: no/such/out.txt: file does not exist\n",
+			WantExit: 1,
+			Absent:   []string{"good.txt"},
 		},
 		{
-			name:     "exit stops at a zero-length file name",
-			stdin:    strings.NewReader("hello\n"),
-			fsys:     testFS(),
-			args:     []string{"--output-error=exit", ""},
-			wantErr:  "tee: invalid zero-length file name\n",
-			wantExit: 1,
+			Name:     "exit stops at a zero-length file name",
+			Stdin:    strings.NewReader("hello\n"),
+			FS:       testFS(),
+			Args:     []string{"--output-error=exit", ""},
+			WantErr:  "tee: invalid zero-length file name\n",
+			WantExit: 1,
 		},
 	}
 
 	for _, test := range tests {
-		t.Run(test.name, func(t *testing.T) {
+		t.Run(test.Name, func(t *testing.T) {
 			runCase(t, test)
 		})
 	}
@@ -601,73 +556,73 @@ func TestRunOutputErrorPipes(t *testing.T) {
 	}
 
 	tests := []struct {
-		name     string
-		args     []string
-		stdin    io.Reader
+		Name     string
+		Args     []string
+		Stdin    io.Reader
 		file     bool
-		wantErr  string
-		wantExit int
+		WantErr  string
+		WantExit int
 		wantFile string
 	}{
 		{
-			name:     "the default mode stops at a broken pipe",
+			Name:     "the default mode stops at a broken pipe",
 			file:     true,
-			wantExit: 1,
+			WantExit: 1,
 			wantFile: "",
 		},
 		{
-			name:     "warn diagnoses a broken pipe and keeps writing",
-			args:     []string{"--output-error=warn"},
+			Name:     "warn diagnoses a broken pipe and keeps writing",
+			Args:     []string{"--output-error=warn"},
 			file:     true,
-			wantErr:  "tee: standard output: ",
-			wantExit: 1,
+			WantErr:  "tee: standard output: ",
+			WantExit: 1,
 			wantFile: "xxx",
 		},
 		{
-			name:     "p writes around a broken pipe",
-			args:     []string{"-p"},
+			Name:     "p writes around a broken pipe",
+			Args:     []string{"-p"},
 			file:     true,
-			wantExit: 0,
+			WantExit: 0,
 			wantFile: "xxx",
 		},
 		{
-			name:     "warn-nopipe writes around a broken pipe",
-			args:     []string{"--output-error=warn-nopipe"},
+			Name:     "warn-nopipe writes around a broken pipe",
+			Args:     []string{"--output-error=warn-nopipe"},
 			file:     true,
-			wantExit: 0,
+			WantExit: 0,
 			wantFile: "xxx",
 		},
 		{
-			name:     "exit stops at a broken pipe",
-			args:     []string{"--output-error=exit"},
+			Name:     "exit stops at a broken pipe",
+			Args:     []string{"--output-error=exit"},
 			file:     true,
-			wantErr:  "tee: standard output: ",
-			wantExit: 1,
+			WantErr:  "tee: standard output: ",
+			WantExit: 1,
 			wantFile: "",
 		},
 		{
-			name:     "exit-nopipe writes around a broken pipe",
-			args:     []string{"--output-error=exit-nopipe"},
+			Name:     "exit-nopipe writes around a broken pipe",
+			Args:     []string{"--output-error=exit-nopipe"},
 			file:     true,
-			wantExit: 0,
+			WantExit: 0,
 			wantFile: "xxx",
 		},
 		{
-			name:     "p stops once the only output is a broken pipe",
-			args:     []string{"-p"},
-			stdin:    &pipeInput{left: 3, fail: true},
-			wantExit: 0,
+			Name:     "p stops once the only output is a broken pipe",
+			Args:     []string{"-p"},
+			Stdin:    &pipeInput{left: 3, fail: true},
+			WantExit: 0,
 		},
 		{
-			name:     "exit-nopipe stops once the only output is a broken pipe",
-			args:     []string{"--output-error=exit-nopipe"},
-			stdin:    &pipeInput{left: 3, fail: true},
-			wantExit: 0,
+			Name:     "exit-nopipe stops once the only output is a broken pipe",
+			Args:     []string{"--output-error=exit-nopipe"},
+			Stdin:    &pipeInput{left: 3, fail: true},
+			WantExit: 0,
 		},
 	}
 
 	for _, test := range tests {
-		t.Run(test.name, func(t *testing.T) {
+		t.Run(test.Name, func(t *testing.T) {
 			read, write, err := os.Pipe()
 			if err != nil {
 				t.Fatalf("os.Pipe() error = %v", err)
@@ -677,14 +632,14 @@ func TestRunOutputErrorPipes(t *testing.T) {
 				t.Fatalf("Close() the read end error = %v", err)
 			}
 
-			args := test.args
+			args := test.Args
 			fsys := testFS()
 			if test.file {
 				args = slices.Concat(args, []string{"new.txt"})
 			}
 
 			stderr := new(bytes.Buffer)
-			stdin := test.stdin
+			stdin := test.Stdin
 			if stdin == nil {
 				stdin = &pipeInput{left: 3}
 			}
@@ -696,16 +651,16 @@ func TestRunOutputErrorPipes(t *testing.T) {
 			}
 			err = New(rt).Run(t.Context(), args...)
 
-			if code := exitCode(t, err); code != test.wantExit {
-				t.Errorf("Run() exit code = %d, want %d (error = %v)", code, test.wantExit, err)
+			if code := testutil.ExitCode(t, err); code != test.WantExit {
+				t.Errorf("Run() exit code = %d, want %d (error = %v)", code, test.WantExit, err)
 			}
 			// The message of a broken pipe names its own file descriptor,
 			// so only its beginning is checked.
 			switch got := stderr.String(); {
-			case test.wantErr == "" && got != "":
+			case test.WantErr == "" && got != "":
 				t.Errorf("Run() stderr = %q, want empty", got)
-			case test.wantErr != "" && !strings.HasPrefix(got, test.wantErr):
-				t.Errorf("Run() stderr = %q, want it to start with %q", got, test.wantErr)
+			case test.WantErr != "" && !strings.HasPrefix(got, test.WantErr):
+				t.Errorf("Run() stderr = %q, want it to start with %q", got, test.WantErr)
 			}
 			if test.file {
 				f := fsys["new.txt"]
@@ -722,85 +677,85 @@ func TestRunOutputErrorPipes(t *testing.T) {
 func TestRunErrors(t *testing.T) {
 	tests := []testCase{
 		{
-			name:     "missing parent directory",
-			stdin:    strings.NewReader("hello\n"),
-			fsys:     testFS(),
-			args:     []string{"no/such/out.txt"},
-			want:     "hello\n",
-			wantErr:  "tee: no/such/out.txt: file does not exist\n",
-			wantExit: 1,
+			Name:     "missing parent directory",
+			Stdin:    strings.NewReader("hello\n"),
+			FS:       testFS(),
+			Args:     []string{"no/such/out.txt"},
+			Want:     "hello\n",
+			WantErr:  "tee: no/such/out.txt: file does not exist\n",
+			WantExit: 1,
 		},
 		{
-			name:     "a file as parent directory",
-			stdin:    strings.NewReader("hello\n"),
-			fsys:     testFS(),
-			args:     []string{"a.txt/out.txt"},
-			want:     "hello\n",
-			wantErr:  "tee: a.txt/out.txt: not a directory\n",
-			wantExit: 1,
+			Name:     "a file as parent directory",
+			Stdin:    strings.NewReader("hello\n"),
+			FS:       testFS(),
+			Args:     []string{"a.txt/out.txt"},
+			Want:     "hello\n",
+			WantErr:  "tee: a.txt/out.txt: not a directory\n",
+			WantExit: 1,
 		},
 		{
-			name:     "directory operand",
-			stdin:    strings.NewReader("hello\n"),
-			fsys:     fsx.MemFS{"dir": {Mode: fs.ModeDir}},
-			args:     []string{"dir"},
-			want:     "hello\n",
-			wantErr:  "tee: dir: invalid argument\n",
-			wantExit: 1,
+			Name:     "directory operand",
+			Stdin:    strings.NewReader("hello\n"),
+			FS:       fsx.MemFS{"dir": {Mode: fs.ModeDir}},
+			Args:     []string{"dir"},
+			Want:     "hello\n",
+			WantErr:  "tee: dir: invalid argument\n",
+			WantExit: 1,
 		},
 		{
-			name:     "zero-length file name",
-			stdin:    strings.NewReader("hello\n"),
-			fsys:     testFS(),
-			args:     []string{""},
-			want:     "hello\n",
-			wantErr:  "tee: invalid zero-length file name\n",
-			wantExit: 1,
+			Name:     "zero-length file name",
+			Stdin:    strings.NewReader("hello\n"),
+			FS:       testFS(),
+			Args:     []string{""},
+			Want:     "hello\n",
+			WantErr:  "tee: invalid zero-length file name\n",
+			WantExit: 1,
 		},
 		{
-			name:     "every unwritable file reports an error",
-			stdin:    strings.NewReader("hello\n"),
-			fsys:     testFS(),
-			args:     []string{"no/such/one.txt", "no/such/two.txt"},
-			want:     "hello\n",
-			wantErr:  "tee: no/such/one.txt: file does not exist\ntee: no/such/two.txt: file does not exist\n",
-			wantExit: 1,
+			Name:     "every unwritable file reports an error",
+			Stdin:    strings.NewReader("hello\n"),
+			FS:       testFS(),
+			Args:     []string{"no/such/one.txt", "no/such/two.txt"},
+			Want:     "hello\n",
+			WantErr:  "tee: no/such/one.txt: file does not exist\ntee: no/such/two.txt: file does not exist\n",
+			WantExit: 1,
 		},
 		{
-			name:      "an unwritable file doesn't stop the other files",
-			stdin:     strings.NewReader("hello\n"),
-			fsys:      testFS(),
-			args:      []string{"no/such/out.txt", "good.txt"},
-			want:      "hello\n",
-			wantErr:   "tee: no/such/out.txt: file does not exist\n",
-			wantExit:  1,
-			wantFiles: map[string]string{"good.txt": "hello\n"},
+			Name:      "an unwritable file doesn't stop the other files",
+			Stdin:     strings.NewReader("hello\n"),
+			FS:        testFS(),
+			Args:      []string{"no/such/out.txt", "good.txt"},
+			Want:      "hello\n",
+			WantErr:   "tee: no/such/out.txt: file does not exist\n",
+			WantExit:  1,
+			WantFiles: map[string]string{"good.txt": "hello\n"},
 		},
 		{
-			name:     "file operand without a file system",
-			stdin:    strings.NewReader("hello\n"),
-			args:     []string{"out.txt"},
-			want:     "hello\n",
-			wantErr:  "tee: out.txt: no file system available\n",
-			wantExit: 1,
+			Name:     "file operand without a file system",
+			Stdin:    strings.NewReader("hello\n"),
+			Args:     []string{"out.txt"},
+			Want:     "hello\n",
+			WantErr:  "tee: out.txt: no file system available\n",
+			WantExit: 1,
 		},
 		{
-			name:     "no standard input",
-			fsys:     testFS(),
-			wantErr:  "tee: no standard input available\n",
-			wantExit: 1,
+			Name:     "no standard input",
+			FS:       testFS(),
+			WantErr:  "tee: no standard input available\n",
+			WantExit: 1,
 		},
 		{
-			name:     "standard input read error",
-			stdin:    errorReader{err: errors.New("read failed")},
-			fsys:     testFS(),
-			wantErr:  "tee: standard input: read failed\n",
-			wantExit: 1,
+			Name:     "standard input read error",
+			Stdin:    testutil.ErrorReader{Err: errors.New("read failed")},
+			FS:       testFS(),
+			WantErr:  "tee: standard input: read failed\n",
+			WantExit: 1,
 		},
 	}
 
 	for _, test := range tests {
-		t.Run(test.name, func(t *testing.T) {
+		t.Run(test.Name, func(t *testing.T) {
 			runCase(t, test)
 		})
 	}
@@ -813,13 +768,13 @@ func TestRunWriteError(t *testing.T) {
 	stderr := new(bytes.Buffer)
 	rt := &coreutils.Runtime{
 		Stdin:  strings.NewReader("hello\n"),
-		Stdout: errorWriter{err: writeErr},
+		Stdout: testutil.ErrorWriter{Err: writeErr},
 		Stderr: stderr,
 		FS:     fsys,
 	}
 	err := New(rt).Run(t.Context(), "out.txt")
 
-	if code := exitCode(t, err); code != 1 {
+	if code := testutil.ExitCode(t, err); code != 1 {
 		t.Fatalf("Run() exit code = %d, want 1 (error = %v)", code, err)
 	}
 	if got := stderr.String(); got != "tee: standard output: write failed\n" {
@@ -832,64 +787,14 @@ func TestRunWriteError(t *testing.T) {
 
 func TestRunContext(t *testing.T) {
 	t.Run("cancelled before running", func(t *testing.T) {
-		ctx, cancel := context.WithCancel(t.Context())
-		cancel()
-		runCancelled(t, ctx, strings.NewReader("hello\n"))
+		testutil.Cancelled(t, New, strings.NewReader("hello\n"), nil)
 	})
 
 	t.Run("cancelled while reading the standard input", func(t *testing.T) {
-		ctx, cancel := context.WithCancel(t.Context())
-		runCancelled(t, ctx, &cancelReader{cancel: cancel})
+		testutil.Cancelled(t, New, &testutil.CancelReader{}, nil)
 	})
-}
-
-// runCancelled runs the utility with a context that is either already done or
-// becomes done while reading, and checks that the context error is returned
-// without any output.
-func runCancelled(t *testing.T, ctx context.Context, stdin io.Reader) {
-	t.Helper()
-
-	stdout := new(bytes.Buffer)
-	stderr := new(bytes.Buffer)
-	rt := &coreutils.Runtime{
-		Stdin:  stdin,
-		Stdout: stdout,
-		Stderr: stderr,
-	}
-	err := New(rt).Run(ctx)
-
-	if !errors.Is(err, context.Canceled) {
-		t.Fatalf("Run() error = %v, want context.Canceled", err)
-	}
-	if got := stdout.String(); got != "" {
-		t.Errorf("Run() stdout = %q, want empty", got)
-	}
-	if got := stderr.String(); got != "" {
-		t.Errorf("Run() stderr = %q, want empty", got)
-	}
 }
 
 func TestHelpVersion(t *testing.T) {
-	t.Run("help", func(t *testing.T) {
-		stdout := new(bytes.Buffer)
-		rt := &coreutils.Runtime{Stdout: stdout, Stderr: new(bytes.Buffer)}
-		if err := New(rt).Run(t.Context(), "--help"); err != nil {
-			t.Fatalf("Run() error = %v, want nil (exit status 0)", err)
-		}
-		if got, want := stdout.String(), usage; got != want {
-			t.Errorf("Run() stdout = %q, want %q", got, want)
-		}
-	})
-
-	t.Run("version", func(t *testing.T) {
-		stdout := new(bytes.Buffer)
-		rt := &coreutils.Runtime{Stdout: stdout, Stderr: new(bytes.Buffer)}
-		if err := New(rt).Run(t.Context(), "--version"); err != nil {
-			t.Fatalf("Run() error = %v, want nil (exit status 0)", err)
-		}
-		want := "tee (charm.land/snail/coreutils) " + coreutils.Version + "\nhttps://charm.land/snail\n"
-		if got := stdout.String(); got != want {
-			t.Errorf("Run() stdout = %q, want %q", got, want)
-		}
-	})
+	testutil.HelpVersion(t, New, "tee", usage)
 }

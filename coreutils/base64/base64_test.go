@@ -9,6 +9,7 @@ import (
 	"testing"
 
 	"charm.land/snail/coreutils"
+	"charm.land/snail/coreutils/internal/testutil"
 	"charm.land/snail/fsx"
 )
 
@@ -31,132 +32,58 @@ func testFS() fsx.MemFS {
 	}
 }
 
-// errorReader always fails to be read.
-type errorReader struct{}
-
-func (errorReader) Read([]byte) (int, error) { return 0, errors.New("boom") }
-
-// errorWriter always fails to be written to.
-type errorWriter struct{}
-
-func (errorWriter) Write([]byte) (int, error) { return 0, errors.New("boom") }
-
-// cancelReader cancels its context on the first read, simulating a context
-// that is done while reading the input.
-type cancelReader struct {
-	cancel context.CancelFunc
-	reads  int
-}
-
-func (r *cancelReader) Read(p []byte) (int, error) {
-	if r.reads > 0 {
-		return 0, io.EOF
-	}
-	r.reads++
-	r.cancel()
-	return copy(p, "hello"), nil
-}
-
-type testCase struct {
-	name     string
-	stdin    io.Reader
-	fsys     fsx.FS
-	dir      string
-	args     []string
-	want     string
-	wantErr  string
-	wantExit int
-}
-
-func runCase(t *testing.T, test testCase) {
-	t.Helper()
-
-	stdout := new(bytes.Buffer)
-	stderr := new(bytes.Buffer)
-	rt := &coreutils.Runtime{
-		Stdin:      test.stdin,
-		Stdout:     stdout,
-		Stderr:     stderr,
-		FS:         test.fsys,
-		WorkingDir: test.dir,
-	}
-	err := New(rt).Run(t.Context(), test.args...)
-
-	code := 0
-	if err != nil {
-		var exitErr *coreutils.ExitError
-		if !errors.As(err, &exitErr) {
-			t.Fatalf("Run() error = %v, want *coreutils.ExitError", err)
-		}
-		code = exitErr.Code
-	}
-	if code != test.wantExit {
-		t.Errorf("Run() exit code = %d, want %d (error = %v)", code, test.wantExit, err)
-	}
-	if got := stdout.String(); got != test.want {
-		t.Errorf("Run() stdout = %q, want %q", got, test.want)
-	}
-	if got := stderr.String(); got != test.wantErr {
-		t.Errorf("Run() stderr = %q, want %q", got, test.wantErr)
-	}
-}
-
 func TestRunEncode(t *testing.T) {
-	tests := []testCase{
+	tests := []testutil.Case{
 		{
-			name:  "no operands reads the standard input",
-			stdin: strings.NewReader("hello"),
-			want:  "aGVsbG8=\n",
+			Name:  "no operands reads the standard input",
+			Stdin: strings.NewReader("hello"),
+			Want:  "aGVsbG8=\n",
 		},
 		{
-			name:  "empty input writes nothing",
-			stdin: strings.NewReader(""),
-			want:  "",
+			Name:  "empty input writes nothing",
+			Stdin: strings.NewReader(""),
+			Want:  "",
 		},
 		{
-			name:  "dash reads the standard input",
-			stdin: strings.NewReader("hello"),
-			args:  []string{"-"},
-			want:  "aGVsbG8=\n",
+			Name:  "dash reads the standard input",
+			Stdin: strings.NewReader("hello"),
+			Args:  []string{"-"},
+			Want:  "aGVsbG8=\n",
 		},
 		{
-			name:  "double dash with no operands reads the standard input",
-			stdin: strings.NewReader("hello"),
-			args:  []string{"--"},
-			want:  "aGVsbG8=\n",
+			Name:  "double dash with no operands reads the standard input",
+			Stdin: strings.NewReader("hello"),
+			Args:  []string{"--"},
+			Want:  "aGVsbG8=\n",
 		},
 		{
-			name: "a file operand",
-			fsys: testFS(),
-			args: []string{"hello.txt"},
-			want: "aGVsbG8=\n",
+			Name: "a file operand",
+			FS:   testFS(),
+			Args: []string{"hello.txt"},
+			Want: "aGVsbG8=\n",
 		},
 		{
-			name: "an empty file",
-			fsys: testFS(),
-			args: []string{"empty.txt"},
-			want: "",
+			Name: "an empty file",
+			FS:   testFS(),
+			Args: []string{"empty.txt"},
+			Want: "",
 		},
 		{
-			name: "the file is resolved against the working directory",
-			fsys: testFS(),
-			dir:  "sub",
-			args: []string{"inner.txt"},
-			want: "aW5uZXIK\n",
+			Name: "the file is resolved against the working directory",
+			FS:   testFS(),
+			Dir:  "sub",
+			Args: []string{"inner.txt"},
+			Want: "aW5uZXIK\n",
 		},
 		{
-			name: "a file named like an option after a double dash",
-			fsys: testFS(),
-			args: []string{"--", "-d"},
-			want: "eA==\n",
+			Name: "a file named like an option after a double dash",
+			FS:   testFS(),
+			Args: []string{"--", "-d"},
+			Want: "eA==\n",
 		},
 	}
 
-	for _, test := range tests {
-		t.Run(test.name, func(t *testing.T) {
-			runCase(t, test)
-		})
-	}
+	testutil.Run(t, New, tests)
 }
 
 // TestRunEncodeRFC4648 checks the encoding against the examples of RFC 4648.
@@ -175,9 +102,9 @@ func TestRunEncodeRFC4648(t *testing.T) {
 
 	for _, test := range tests {
 		t.Run(test.text, func(t *testing.T) {
-			runCase(t, testCase{
-				stdin: strings.NewReader(test.text),
-				want:  test.want + "\n",
+			testutil.Once(t, New, testutil.Case{
+				Stdin: strings.NewReader(test.text),
+				Want:  test.want + "\n",
 			})
 		})
 	}
@@ -185,149 +112,141 @@ func TestRunEncodeRFC4648(t *testing.T) {
 
 func TestRunEncodeWrap(t *testing.T) {
 	a60 := strings.Repeat("a", 60)
-	tests := []testCase{
+	tests := []testutil.Case{
 		{
-			name:  "the default wraps at the 76th column",
-			stdin: strings.NewReader(a60),
-			want:  strings.Repeat("YWFh", 19) + "\n" + "YWFh" + "\n",
+			Name:  "the default wraps at the 76th column",
+			Stdin: strings.NewReader(a60),
+			Want:  strings.Repeat("YWFh", 19) + "\n" + "YWFh" + "\n",
 		},
 		{
-			name:  "an exact multiple of the wrap column keeps the line break",
-			stdin: strings.NewReader(strings.Repeat("a", 57)),
-			want:  strings.Repeat("YWFh", 19) + "\n",
+			Name:  "an exact multiple of the wrap column keeps the line break",
+			Stdin: strings.NewReader(strings.Repeat("a", 57)),
+			Want:  strings.Repeat("YWFh", 19) + "\n",
 		},
 		{
-			name:  "zero disables line wrapping",
-			stdin: strings.NewReader("hello"),
-			args:  []string{"-w", "0"},
-			want:  "aGVsbG8=",
+			Name:  "zero disables line wrapping",
+			Stdin: strings.NewReader("hello"),
+			Args:  []string{"-w", "0"},
+			Want:  "aGVsbG8=",
 		},
 		{
-			name:  "zero attached to the option",
-			stdin: strings.NewReader("hello"),
-			args:  []string{"-w0"},
-			want:  "aGVsbG8=",
+			Name:  "zero attached to the option",
+			Stdin: strings.NewReader("hello"),
+			Args:  []string{"-w0"},
+			Want:  "aGVsbG8=",
 		},
 		{
-			name:  "the long option with a value",
-			stdin: strings.NewReader("hello"),
-			args:  []string{"--wrap=0"},
-			want:  "aGVsbG8=",
+			Name:  "the long option with a value",
+			Stdin: strings.NewReader("hello"),
+			Args:  []string{"--wrap=0"},
+			Want:  "aGVsbG8=",
 		},
 		{
-			name:  "the long option with a separate value",
-			stdin: strings.NewReader("hello"),
-			args:  []string{"--wrap", "0"},
-			want:  "aGVsbG8=",
+			Name:  "the long option with a separate value",
+			Stdin: strings.NewReader("hello"),
+			Args:  []string{"--wrap", "0"},
+			Want:  "aGVsbG8=",
 		},
 		{
-			name:  "a wrap size bigger than an int disables wrapping like GNU",
-			stdin: strings.NewReader("hello"),
-			args:  []string{"-w", "99999999999999999999999"},
-			want:  "aGVsbG8=",
+			Name:  "a wrap size bigger than an int disables wrapping like GNU",
+			Stdin: strings.NewReader("hello"),
+			Args:  []string{"-w", "99999999999999999999999"},
+			Want:  "aGVsbG8=",
 		},
 		{
-			name:  "a short wrap column",
-			stdin: strings.NewReader("foobar"),
-			args:  []string{"-w4"},
-			want:  "Zm9v\nYmFy\n",
+			Name:  "a short wrap column",
+			Stdin: strings.NewReader("foobar"),
+			Args:  []string{"-w4"},
+			Want:  "Zm9v\nYmFy\n",
 		},
 		{
-			name:  "one character per line",
-			stdin: strings.NewReader("foo"),
-			args:  []string{"-w", "1"},
-			want:  "Z\nm\n9\nv\n",
+			Name:  "one character per line",
+			Stdin: strings.NewReader("foo"),
+			Args:  []string{"-w", "1"},
+			Want:  "Z\nm\n9\nv\n",
 		},
 		{
-			name:  "zero wrapping an empty input",
-			stdin: strings.NewReader(""),
-			args:  []string{"-w", "0"},
-			want:  "",
+			Name:  "zero wrapping an empty input",
+			Stdin: strings.NewReader(""),
+			Args:  []string{"-w", "0"},
+			Want:  "",
 		},
 		{
-			name:  "wrapping is ignored when decoding",
-			stdin: strings.NewReader("aGVsbG8=\n"),
-			args:  []string{"-d", "-w", "4"},
-			want:  "hello",
+			Name:  "wrapping is ignored when decoding",
+			Stdin: strings.NewReader("aGVsbG8=\n"),
+			Args:  []string{"-d", "-w", "4"},
+			Want:  "hello",
 		},
 	}
 
-	for _, test := range tests {
-		t.Run(test.name, func(t *testing.T) {
-			runCase(t, test)
-		})
-	}
+	testutil.Run(t, New, tests)
 }
 
 func TestRunDecode(t *testing.T) {
-	tests := []testCase{
+	tests := []testutil.Case{
 		{
-			name:  "reads the standard input",
-			stdin: strings.NewReader("aGVsbG8=\n"),
-			args:  []string{"-d"},
-			want:  "hello",
+			Name:  "reads the standard input",
+			Stdin: strings.NewReader("aGVsbG8=\n"),
+			Args:  []string{"-d"},
+			Want:  "hello",
 		},
 		{
-			name:  "the long option",
-			stdin: strings.NewReader("aGVsbG8=\n"),
-			args:  []string{"--decode"},
-			want:  "hello",
+			Name:  "the long option",
+			Stdin: strings.NewReader("aGVsbG8=\n"),
+			Args:  []string{"--decode"},
+			Want:  "hello",
 		},
 		{
-			name:  "dash reads the standard input",
-			stdin: strings.NewReader("aGVsbG8="),
-			args:  []string{"-d", "-"},
-			want:  "hello",
+			Name:  "dash reads the standard input",
+			Stdin: strings.NewReader("aGVsbG8="),
+			Args:  []string{"-d", "-"},
+			Want:  "hello",
 		},
 		{
-			name:  "empty input writes nothing",
-			stdin: strings.NewReader(""),
-			args:  []string{"-d"},
-			want:  "",
+			Name:  "empty input writes nothing",
+			Stdin: strings.NewReader(""),
+			Args:  []string{"-d"},
+			Want:  "",
 		},
 		{
-			name:  "newlines are always ignored",
-			stdin: strings.NewReader("aGVs\nbG8=\n"),
-			args:  []string{"-d"},
-			want:  "hello",
+			Name:  "newlines are always ignored",
+			Stdin: strings.NewReader("aGVs\nbG8=\n"),
+			Args:  []string{"-d"},
+			Want:  "hello",
 		},
 		{
-			name: "a file operand",
-			fsys: testFS(),
-			args: []string{"-d", "lines.txt"},
-			want: "hellofoobar",
+			Name: "a file operand",
+			FS:   testFS(),
+			Args: []string{"-d", "lines.txt"},
+			Want: "hellofoobar",
 		},
 		{
-			name:  "the last group is padded automatically",
-			stdin: strings.NewReader("aGVsbG8"),
-			args:  []string{"-d"},
-			want:  "hello",
+			Name:  "the last group is padded automatically",
+			Stdin: strings.NewReader("aGVsbG8"),
+			Args:  []string{"-d"},
+			Want:  "hello",
 		},
 		{
-			name:  "auto padding of two characters",
-			stdin: strings.NewReader("Zg"),
-			args:  []string{"-d"},
-			want:  "f",
+			Name:  "auto padding of two characters",
+			Stdin: strings.NewReader("Zg"),
+			Args:  []string{"-d"},
+			Want:  "f",
 		},
 		{
-			name:  "a padded group in the middle of the input",
-			stdin: strings.NewReader("aGVsbG8=YWJj"),
-			args:  []string{"-d"},
-			want:  "helloabc",
+			Name:  "a padded group in the middle of the input",
+			Stdin: strings.NewReader("aGVsbG8=YWJj"),
+			Args:  []string{"-d"},
+			Want:  "helloabc",
 		},
 		{
-			name:  "only newlines",
-			stdin: strings.NewReader("\n\n\n"),
-			args:  []string{"-d"},
-			want:  "",
+			Name:  "only newlines",
+			Stdin: strings.NewReader("\n\n\n"),
+			Args:  []string{"-d"},
+			Want:  "",
 		},
 	}
 
-	for _, test := range tests {
-		t.Run(test.name, func(t *testing.T) {
-			runCase(t, test)
-		})
-	}
+	testutil.Run(t, New, tests)
 }
 
 // TestRunDecodeRFC4648 checks the decoding against the examples of RFC 4648.
@@ -346,353 +265,337 @@ func TestRunDecodeRFC4648(t *testing.T) {
 
 	for _, test := range tests {
 		t.Run(test.text, func(t *testing.T) {
-			runCase(t, testCase{
-				stdin: strings.NewReader(test.input),
-				args:  []string{"-d"},
-				want:  test.text,
+			testutil.Once(t, New, testutil.Case{
+				Stdin: strings.NewReader(test.input),
+				Args:  []string{"-d"},
+				Want:  test.text,
 			})
 		})
 	}
 }
 
 func TestRunDecodeInvalid(t *testing.T) {
-	tests := []testCase{
+	tests := []testutil.Case{
 		{
-			name:     "a single character can't be padded",
-			stdin:    strings.NewReader("aGVsb"),
-			args:     []string{"-d"},
-			want:     "hel",
-			wantErr:  "base64: invalid input\n",
-			wantExit: 1,
+			Name:     "a single character can't be padded",
+			Stdin:    strings.NewReader("aGVsb"),
+			Args:     []string{"-d"},
+			Want:     "hel",
+			WantErr:  "base64: invalid input\n",
+			WantExit: 1,
 		},
 		{
-			name:     "a group with a single character",
-			stdin:    strings.NewReader("a"),
-			args:     []string{"-d"},
-			wantErr:  "base64: invalid input\n",
-			wantExit: 1,
+			Name:     "a group with a single character",
+			Stdin:    strings.NewReader("a"),
+			Args:     []string{"-d"},
+			WantErr:  "base64: invalid input\n",
+			WantExit: 1,
 		},
 		{
-			name:     "padding shorter than a whole group",
-			stdin:    strings.NewReader("aGVsbG="),
-			args:     []string{"-d"},
-			want:     "hel",
-			wantErr:  "base64: invalid input\n",
-			wantExit: 1,
+			Name:     "padding shorter than a whole group",
+			Stdin:    strings.NewReader("aGVsbG="),
+			Args:     []string{"-d"},
+			Want:     "hel",
+			WantErr:  "base64: invalid input\n",
+			WantExit: 1,
 		},
 		{
-			name:     "a padding character in the middle of a group",
-			stdin:    strings.NewReader("aGVsab=c"),
-			args:     []string{"-d"},
-			want:     "hel",
-			wantErr:  "base64: invalid input\n",
-			wantExit: 1,
+			Name:     "a padding character in the middle of a group",
+			Stdin:    strings.NewReader("aGVsab=c"),
+			Args:     []string{"-d"},
+			Want:     "hel",
+			WantErr:  "base64: invalid input\n",
+			WantExit: 1,
 		},
 		{
-			name:     "only padding characters",
-			stdin:    strings.NewReader("aGVs===="),
-			args:     []string{"-d"},
-			want:     "hel",
-			wantErr:  "base64: invalid input\n",
-			wantExit: 1,
+			Name:     "only padding characters",
+			Stdin:    strings.NewReader("aGVs===="),
+			Args:     []string{"-d"},
+			Want:     "hel",
+			WantErr:  "base64: invalid input\n",
+			WantExit: 1,
 		},
 		{
-			name:     "non-canonical trailing bits",
-			stdin:    strings.NewReader("aGVsbG9="),
-			args:     []string{"-d"},
-			want:     "hel",
-			wantErr:  "base64: invalid input\n",
-			wantExit: 1,
+			Name:     "non-canonical trailing bits",
+			Stdin:    strings.NewReader("aGVsbG9="),
+			Args:     []string{"-d"},
+			Want:     "hel",
+			WantErr:  "base64: invalid input\n",
+			WantExit: 1,
 		},
 		{
-			name:     "ignore garbage doesn't fix the padding",
-			stdin:    strings.NewReader("aGVs bG9="),
-			args:     []string{"-di"},
-			want:     "hel",
-			wantErr:  "base64: invalid input\n",
-			wantExit: 1,
+			Name:     "ignore garbage doesn't fix the padding",
+			Stdin:    strings.NewReader("aGVs bG9="),
+			Args:     []string{"-di"},
+			Want:     "hel",
+			WantErr:  "base64: invalid input\n",
+			WantExit: 1,
 		},
 		{
-			name:     "a character outside the alphabet",
-			stdin:    strings.NewReader("aGVs bG8="),
-			args:     []string{"-d"},
-			want:     "hel",
-			wantErr:  "base64: invalid input\n",
-			wantExit: 1,
+			Name:     "a character outside the alphabet",
+			Stdin:    strings.NewReader("aGVs bG8="),
+			Args:     []string{"-d"},
+			Want:     "hel",
+			WantErr:  "base64: invalid input\n",
+			WantExit: 1,
 		},
 		{
-			name:     "a carriage return is garbage",
-			stdin:    strings.NewReader("aGVsbG8=\r"),
-			args:     []string{"-d"},
-			want:     "hello",
-			wantErr:  "base64: invalid input\n",
-			wantExit: 1,
+			Name:     "a carriage return is garbage",
+			Stdin:    strings.NewReader("aGVsbG8=\r"),
+			Args:     []string{"-d"},
+			Want:     "hello",
+			WantErr:  "base64: invalid input\n",
+			WantExit: 1,
 		},
 		{
-			name:     "a file with garbage",
-			fsys:     testFS(),
-			args:     []string{"-d", "garbage.txt"},
-			want:     "hel",
-			wantErr:  "base64: invalid input\n",
-			wantExit: 1,
+			Name:     "a file with garbage",
+			FS:       testFS(),
+			Args:     []string{"-d", "garbage.txt"},
+			Want:     "hel",
+			WantErr:  "base64: invalid input\n",
+			WantExit: 1,
 		},
 	}
 
-	for _, test := range tests {
-		t.Run(test.name, func(t *testing.T) {
-			runCase(t, test)
-		})
-	}
+	testutil.Run(t, New, tests)
 }
 
 func TestRunDecodeIgnoreGarbage(t *testing.T) {
-	tests := []testCase{
+	tests := []testutil.Case{
 		{
-			name:  "the short option",
-			stdin: strings.NewReader("aGVs bG8="),
-			args:  []string{"-d", "-i"},
-			want:  "hello",
+			Name:  "the short option",
+			Stdin: strings.NewReader("aGVs bG8="),
+			Args:  []string{"-d", "-i"},
+			Want:  "hello",
 		},
 		{
-			name:  "the long option",
-			stdin: strings.NewReader("aGVs*bG8="),
-			args:  []string{"-d", "--ignore-garbage"},
-			want:  "hello",
+			Name:  "the long option",
+			Stdin: strings.NewReader("aGVs*bG8="),
+			Args:  []string{"-d", "--ignore-garbage"},
+			Want:  "hello",
 		},
 		{
-			name:  "grouped with decode",
-			stdin: strings.NewReader("aGVsbG8=!!\n"),
-			args:  []string{"-di"},
-			want:  "hello",
+			Name:  "grouped with decode",
+			Stdin: strings.NewReader("aGVsbG8=!!\n"),
+			Args:  []string{"-di"},
+			Want:  "hello",
 		},
 		{
-			name: "a file with garbage",
-			fsys: testFS(),
-			args: []string{"-di", "garbage.txt"},
-			want: "hello",
+			Name: "a file with garbage",
+			FS:   testFS(),
+			Args: []string{"-di", "garbage.txt"},
+			Want: "hello",
 		},
 		{
-			name:  "a carriage return",
-			stdin: strings.NewReader("aGVsbG8=\r"),
-			args:  []string{"-di"},
-			want:  "hello",
+			Name:  "a carriage return",
+			Stdin: strings.NewReader("aGVsbG8=\r"),
+			Args:  []string{"-di"},
+			Want:  "hello",
 		},
 		{
-			name:  "garbage that breaks the group alignment",
-			stdin: strings.NewReader("aG*Vs*bG8="),
-			args:  []string{"-di"},
-			want:  "hello",
+			Name:  "garbage that breaks the group alignment",
+			Stdin: strings.NewReader("aG*Vs*bG8="),
+			Args:  []string{"-di"},
+			Want:  "hello",
 		},
 	}
 
-	for _, test := range tests {
-		t.Run(test.name, func(t *testing.T) {
-			runCase(t, test)
-		})
-	}
+	testutil.Run(t, New, tests)
 }
 
 func TestRunOptions(t *testing.T) {
-	tests := []testCase{
+	tests := []testutil.Case{
 		{
-			name:     "an unknown short option",
-			args:     []string{"-q"},
-			wantErr:  "base64: invalid option -- 'q'\nTry 'base64 --help' for more information.\n",
-			wantExit: 2,
+			Name:     "an unknown short option",
+			Args:     []string{"-q"},
+			WantErr:  "base64: invalid option -- 'q'\nTry 'base64 --help' for more information.\n",
+			WantExit: 2,
 		},
 		{
-			name:     "an unknown option inside a group",
-			args:     []string{"-dq"},
-			wantErr:  "base64: invalid option -- 'q'\nTry 'base64 --help' for more information.\n",
-			wantExit: 2,
+			Name:     "an unknown option inside a group",
+			Args:     []string{"-dq"},
+			WantErr:  "base64: invalid option -- 'q'\nTry 'base64 --help' for more information.\n",
+			WantExit: 2,
 		},
 		{
-			name:     "an unknown long option",
-			args:     []string{"--foo"},
-			wantErr:  "base64: unrecognized option '--foo'\nTry 'base64 --help' for more information.\n",
-			wantExit: 2,
+			Name:     "an unknown long option",
+			Args:     []string{"--foo"},
+			WantErr:  "base64: unrecognized option '--foo'\nTry 'base64 --help' for more information.\n",
+			WantExit: 2,
 		},
 		{
-			name:     "w requires an argument",
-			args:     []string{"-w"},
-			wantErr:  "base64: option requires an argument -- 'w'\nTry 'base64 --help' for more information.\n",
-			wantExit: 2,
+			Name:     "w requires an argument",
+			Args:     []string{"-w"},
+			WantErr:  "base64: option requires an argument -- 'w'\nTry 'base64 --help' for more information.\n",
+			WantExit: 2,
 		},
 		{
-			name:     "wrap requires an argument",
-			args:     []string{"--wrap"},
-			wantErr:  "base64: option '--wrap' requires an argument\nTry 'base64 --help' for more information.\n",
-			wantExit: 2,
+			Name:     "wrap requires an argument",
+			Args:     []string{"--wrap"},
+			WantErr:  "base64: option '--wrap' requires an argument\nTry 'base64 --help' for more information.\n",
+			WantExit: 2,
 		},
 		{
-			name:     "an invalid wrap size",
-			args:     []string{"-w", "x"},
-			wantErr:  "base64: invalid wrap size: 'x'\nTry 'base64 --help' for more information.\n",
-			wantExit: 2,
+			Name:     "an invalid wrap size",
+			Args:     []string{"-w", "x"},
+			WantErr:  "base64: invalid wrap size: 'x'\nTry 'base64 --help' for more information.\n",
+			WantExit: 2,
 		},
 		{
-			name:     "a negative wrap size",
-			args:     []string{"-w", "-1"},
-			wantErr:  "base64: invalid wrap size: '-1'\nTry 'base64 --help' for more information.\n",
-			wantExit: 2,
+			Name:     "a negative wrap size",
+			Args:     []string{"-w", "-1"},
+			WantErr:  "base64: invalid wrap size: '-1'\nTry 'base64 --help' for more information.\n",
+			WantExit: 2,
 		},
 		{
-			name:     "a negative wrap size overflowing an int",
-			args:     []string{"-w", "-99999999999999999999999"},
-			wantErr:  "base64: invalid wrap size: '-99999999999999999999999'\nTry 'base64 --help' for more information.\n",
-			wantExit: 2,
+			Name:     "a negative wrap size overflowing an int",
+			Args:     []string{"-w", "-99999999999999999999999"},
+			WantErr:  "base64: invalid wrap size: '-99999999999999999999999'\nTry 'base64 --help' for more information.\n",
+			WantExit: 2,
 		},
 		{
-			name:     "an empty wrap size",
-			args:     []string{"-w", ""},
-			wantErr:  "base64: invalid wrap size: ''\nTry 'base64 --help' for more information.\n",
-			wantExit: 2,
+			Name:     "an empty wrap size",
+			Args:     []string{"-w", ""},
+			WantErr:  "base64: invalid wrap size: ''\nTry 'base64 --help' for more information.\n",
+			WantExit: 2,
 		},
 		{
-			name:     "an invalid wrap size attached to the option",
-			args:     []string{"-wx"},
-			wantErr:  "base64: invalid wrap size: 'x'\nTry 'base64 --help' for more information.\n",
-			wantExit: 2,
+			Name:     "an invalid wrap size attached to the option",
+			Args:     []string{"-wx"},
+			WantErr:  "base64: invalid wrap size: 'x'\nTry 'base64 --help' for more information.\n",
+			WantExit: 2,
 		},
 		{
-			name:     "an invalid wrap size for the long option",
-			args:     []string{"--wrap=x"},
-			wantErr:  "base64: invalid wrap size: 'x'\nTry 'base64 --help' for more information.\n",
-			wantExit: 2,
+			Name:     "an invalid wrap size for the long option",
+			Args:     []string{"--wrap=x"},
+			WantErr:  "base64: invalid wrap size: 'x'\nTry 'base64 --help' for more information.\n",
+			WantExit: 2,
 		},
 		{
-			name:     "an extra operand",
-			fsys:     testFS(),
-			args:     []string{"hello.txt", "empty.txt"},
-			wantErr:  "base64: extra operand 'empty.txt'\nTry 'base64 --help' for more information.\n",
-			wantExit: 2,
+			Name:     "an extra operand",
+			FS:       testFS(),
+			Args:     []string{"hello.txt", "empty.txt"},
+			WantErr:  "base64: extra operand 'empty.txt'\nTry 'base64 --help' for more information.\n",
+			WantExit: 2,
 		},
 		{
-			name:     "an operand after the file is an extra operand",
-			fsys:     testFS(),
-			args:     []string{"hello.txt", "-d"},
-			wantErr:  "base64: extra operand '-d'\nTry 'base64 --help' for more information.\n",
-			wantExit: 2,
+			Name:     "an operand after the file is an extra operand",
+			FS:       testFS(),
+			Args:     []string{"hello.txt", "-d"},
+			WantErr:  "base64: extra operand '-d'\nTry 'base64 --help' for more information.\n",
+			WantExit: 2,
 		},
 		{
-			name:     "the last wrap size wins",
-			stdin:    strings.NewReader("hello"),
-			args:     []string{"-w8", "-w0"},
-			want:     "aGVsbG8=",
-			wantExit: 0,
+			Name:     "the last wrap size wins",
+			Stdin:    strings.NewReader("hello"),
+			Args:     []string{"-w8", "-w0"},
+			Want:     "aGVsbG8=",
+			WantExit: 0,
 		},
 		{
-			name:     "repeated options",
-			stdin:    strings.NewReader("aGVsbG8=\n"),
-			args:     []string{"-d", "-d"},
-			want:     "hello",
-			wantExit: 0,
+			Name:     "repeated options",
+			Stdin:    strings.NewReader("aGVsbG8=\n"),
+			Args:     []string{"-d", "-d"},
+			Want:     "hello",
+			WantExit: 0,
 		},
 		{
-			name:     "ignore garbage is a no-op when encoding",
-			stdin:    strings.NewReader("hello"),
-			args:     []string{"-i"},
-			want:     "aGVsbG8=\n",
-			wantExit: 0,
+			Name:     "ignore garbage is a no-op when encoding",
+			Stdin:    strings.NewReader("hello"),
+			Args:     []string{"-i"},
+			Want:     "aGVsbG8=\n",
+			WantExit: 0,
 		},
 	}
 
-	for _, test := range tests {
-		t.Run(test.name, func(t *testing.T) {
-			runCase(t, test)
-		})
-	}
+	testutil.Run(t, New, tests)
 }
 
 func TestRunErrors(t *testing.T) {
-	tests := []testCase{
+	tests := []testutil.Case{
 		{
-			name:     "a missing file",
-			fsys:     testFS(),
-			args:     []string{"missing.txt"},
-			wantErr:  "base64: missing.txt: file does not exist\n",
-			wantExit: 1,
+			Name:     "a missing file",
+			FS:       testFS(),
+			Args:     []string{"missing.txt"},
+			WantErr:  "base64: missing.txt: file does not exist\n",
+			WantExit: 1,
 		},
 		{
-			name:     "a missing file when decoding",
-			fsys:     testFS(),
-			args:     []string{"-d", "missing.txt"},
-			wantErr:  "base64: missing.txt: file does not exist\n",
-			wantExit: 1,
+			Name:     "a missing file when decoding",
+			FS:       testFS(),
+			Args:     []string{"-d", "missing.txt"},
+			WantErr:  "base64: missing.txt: file does not exist\n",
+			WantExit: 1,
 		},
 		{
-			name:     "a zero-length file name",
-			fsys:     testFS(),
-			args:     []string{""},
-			wantErr:  "base64: invalid zero-length file name\n",
-			wantExit: 1,
+			Name:     "a zero-length file name",
+			FS:       testFS(),
+			Args:     []string{""},
+			WantErr:  "base64: invalid zero-length file name\n",
+			WantExit: 1,
 		},
 		{
-			name:     "no standard input",
-			args:     []string{"-w", "0"},
-			wantErr:  "base64: standard input: no standard input available\n",
-			wantExit: 1,
+			Name:     "no standard input",
+			Args:     []string{"-w", "0"},
+			WantErr:  "base64: standard input: no standard input available\n",
+			WantExit: 1,
 		},
 		{
-			name:     "no file system",
-			args:     []string{"hello.txt"},
-			wantErr:  "base64: hello.txt: no file system available\n",
-			wantExit: 1,
+			Name:     "no file system",
+			Args:     []string{"hello.txt"},
+			WantErr:  "base64: hello.txt: no file system available\n",
+			WantExit: 1,
 		},
 		{
-			name:     "a read error on the standard input",
-			stdin:    errorReader{},
-			wantErr:  "base64: standard input: boom\n",
-			wantExit: 1,
+			Name:     "a read error on the standard input",
+			Stdin:    testutil.ErrorReader{},
+			WantErr:  "base64: standard input: boom\n",
+			WantExit: 1,
 		},
 		{
-			name:     "a read error when decoding",
-			stdin:    errorReader{},
-			args:     []string{"-d"},
-			wantErr:  "base64: standard input: boom\n",
-			wantExit: 1,
+			Name:     "a read error when decoding",
+			Stdin:    testutil.ErrorReader{},
+			Args:     []string{"-d"},
+			WantErr:  "base64: standard input: boom\n",
+			WantExit: 1,
 		},
 	}
 
-	for _, test := range tests {
-		t.Run(test.name, func(t *testing.T) {
-			runCase(t, test)
-		})
-	}
+	testutil.Run(t, New, tests)
 }
 
 func TestRunWriteError(t *testing.T) {
-	tests := []testCase{
+	tests := []testutil.Case{
 		{
-			name:    "encoding",
-			stdin:   strings.NewReader("hello"),
-			args:    []string{"-w", "0"},
-			wantErr: "base64: write error: boom\n",
+			Name:    "encoding",
+			Stdin:   strings.NewReader("hello"),
+			Args:    []string{"-w", "0"},
+			WantErr: "base64: write error: boom\n",
 		},
 		{
-			name:    "decoding",
-			stdin:   strings.NewReader("aGVsbG8="),
-			args:    []string{"-d"},
-			wantErr: "base64: write error: boom\n",
+			Name:    "decoding",
+			Stdin:   strings.NewReader("aGVsbG8="),
+			Args:    []string{"-d"},
+			WantErr: "base64: write error: boom\n",
 		},
 	}
 
 	for _, test := range tests {
-		t.Run(test.name, func(t *testing.T) {
+		t.Run(test.Name, func(t *testing.T) {
 			stderr := new(bytes.Buffer)
 			rt := &coreutils.Runtime{
-				Stdin:  test.stdin,
-				Stdout: errorWriter{},
+				Stdin:  test.Stdin,
+				Stdout: testutil.ErrorWriter{},
 				Stderr: stderr,
 			}
-			err := New(rt).Run(t.Context(), test.args...)
+			err := New(rt).Run(t.Context(), test.Args...)
 
 			var exitErr *coreutils.ExitError
 			if !errors.As(err, &exitErr) || exitErr.Code != 1 {
 				t.Fatalf("Run() error = %v, want exit code 1", err)
 			}
-			if got := stderr.String(); got != test.wantErr {
-				t.Errorf("Run() stderr = %q, want %q", got, test.wantErr)
+			if got := stderr.String(); got != test.WantErr {
+				t.Errorf("Run() stderr = %q, want %q", got, test.WantErr)
 			}
 		})
 	}
@@ -700,39 +603,31 @@ func TestRunWriteError(t *testing.T) {
 
 func TestRunContext(t *testing.T) {
 	t.Run("cancelled before running", func(t *testing.T) {
-		ctx, cancel := context.WithCancel(t.Context())
-		cancel()
-		runCancelled(t, ctx, strings.NewReader("hello"), nil)
+		testutil.Cancelled(t, New, strings.NewReader("hello"), nil)
 	})
 
+	// base64 only notices the cancellation after writing the chunk it had
+	// already read, so this one can't use testutil.Cancelled: some output is
+	// expected, unlike in testutil.Cancelled's assertion of no output at all.
 	t.Run("cancelled while reading", func(t *testing.T) {
 		ctx, cancel := context.WithCancel(t.Context())
-		runCancelled(t, ctx, &cancelReader{cancel: cancel}, nil)
+		defer cancel()
+
+		stderr := new(bytes.Buffer)
+		rt := &coreutils.Runtime{
+			Stdin:  &testutil.CancelReader{Cancel: cancel, Data: []byte("hello")},
+			Stdout: new(bytes.Buffer),
+			Stderr: stderr,
+		}
+		err := New(rt).Run(ctx)
+
+		if !errors.Is(err, context.Canceled) {
+			t.Fatalf("Run() error = %v, want context.Canceled", err)
+		}
+		if got := stderr.String(); got != "" {
+			t.Errorf("Run() stderr = %q, want empty", got)
+		}
 	})
-}
-
-// runCancelled runs the utility with a context that is either already done or
-// becomes done while reading, and checks that the context error is returned
-// without any diagnostic.
-func runCancelled(t *testing.T, ctx context.Context, stdin io.Reader, fsys fsx.FS) {
-	t.Helper()
-
-	stdout := new(bytes.Buffer)
-	stderr := new(bytes.Buffer)
-	rt := &coreutils.Runtime{
-		Stdin:  stdin,
-		Stdout: stdout,
-		Stderr: stderr,
-		FS:     fsys,
-	}
-	err := New(rt).Run(ctx)
-
-	if !errors.Is(err, context.Canceled) {
-		t.Fatalf("Run() error = %v, want context.Canceled", err)
-	}
-	if got := stderr.String(); got != "" {
-		t.Errorf("Run() stderr = %q, want empty", got)
-	}
 }
 
 // TestRunRoundTrip encodes an input big enough to span several read chunks and
