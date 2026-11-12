@@ -7,7 +7,9 @@ import (
 	"strconv"
 	"strings"
 
+	"charm.land/snail/coreutils/internal/cnum"
 	"charm.land/snail/coreutils/internal/getopt"
+	"charm.land/snail/coreutils/internal/sizeparse"
 	"charm.land/snail/coreutils/internal/stdopts"
 )
 
@@ -383,17 +385,8 @@ func typeSize(value string, i int, names map[byte]int, defaultSize int) (int, in
 // 1024, "KB" for 1000 and "KiB" for 1024 again, and so on up to "Y". A
 // suffix without a number stands for one unit of it.
 func parseBytes(s string) (uint64, error) {
-	base := 10
-	if strings.HasPrefix(s, "0x") || strings.HasPrefix(s, "0X") {
-		base, s = 16, s[2:]
-	} else if len(s) > 1 && s[0] == '0' {
-		base = 8
-	}
-	i := 0
-	for i < len(s) && digitValue(s[i]) < base {
-		i++
-	}
-	digits, suffix := s[:i], s[i:]
+	digits, base, next, _ := cnum.Scan(s, false)
+	suffix := s[next:]
 	n := uint64(1)
 	if digits == "" {
 		if base == 16 || suffix == "" {
@@ -426,46 +419,28 @@ func byteMultiplier(suffix string) (uint64, error) {
 	if suffix == "b" {
 		return 512, nil
 	}
-	power := 0
-	switch suffix[0] {
-	case 'E':
-		power = 6
-	case 'G':
-		power = 3
-	case 'K', 'k':
-		power = 1
-	case 'M', 'm':
-		power = 2
-	case 'P':
-		power = 5
-	case 'Q':
-		power = 10
-	case 'R':
-		power = 9
-	case 'T':
-		power = 4
-	case 'Y':
-		power = 8
-	case 'Z':
-		power = 7
-	default:
+	letter := suffix[0]
+	if 'a' <= letter && letter <= 'z' && letter != 'k' && letter != 'm' {
 		return 0, fmt.Errorf("invalid suffix '%s'", suffix)
 	}
-	base := uint64(1024)
+	base := int64(1024)
 	switch suffix[1:] {
-	case "":
+	case "", "iB":
 	case "B", "D":
 		base = 1000
-	case "iB":
 	default:
 		return 0, fmt.Errorf("invalid suffix '%s'", suffix)
 	}
+	power, fits := sizeparse.Power(letter, base)
+	if power == 0 {
+		return 0, fmt.Errorf("invalid suffix '%s'", suffix)
+	}
+	if !fits {
+		return 0, errors.New("suffix too large")
+	}
 	mult := uint64(1)
-	for i := 0; i < power; i++ {
-		if mult > math.MaxUint64/base {
-			return 0, errors.New("suffix too large")
-		}
-		mult *= base
+	for range power {
+		mult *= uint64(base)
 	}
 	return mult, nil
 }

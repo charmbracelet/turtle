@@ -15,6 +15,7 @@ import (
 	"charm.land/snail/coreutils"
 	"charm.land/snail/coreutils/internal/getopt"
 	"charm.land/snail/coreutils/internal/patherr"
+	"charm.land/snail/coreutils/internal/sizeparse"
 	"charm.land/snail/coreutils/internal/stdopts"
 	"charm.land/snail/fsx"
 )
@@ -393,7 +394,7 @@ func parseSize(value string) (sizeSpec, error) {
 	if err != nil {
 		return spec, invalidNumber(value)
 	}
-	mult, err := multiplier(digits)
+	mult, err := sizeMultiplier(digits)
 	if err != nil || mult > 1 && n > 0 && n > math.MaxInt64/mult {
 		return spec, invalidNumber(value)
 	}
@@ -409,48 +410,15 @@ func invalidNumber(value string) error {
 	return fmt.Errorf("invalid number: '%s'", value)
 }
 
-// suffixPowers maps the multiplier suffix letters to the power they stand
-// for, so that 'M' is the second power of 1024 and 'MB' the second of 1000.
-var suffixPowers = map[byte]int{
-	'k': 1, 'm': 2, 'g': 3, 't': 4, 'p': 5,
-	'e': 6, 'z': 7, 'y': 8, 'r': 9, 'q': 10,
-}
-
-// multiplier returns the multiplier a size suffix stands for, as "K" for
-// 1024, "KB" for 1000 and "KiB" for 1024 again. The letters may be given
-// in any case.
-func multiplier(suffix string) (int64, error) {
-	if suffix == "" {
-		return 1, nil
-	}
-	s := strings.ToLower(suffix)
-	base, power := int64(1), 0
-	switch {
-	case len(s) == 1:
-		base, power = 1024, suffixPowers[s[0]]
-	case len(s) == 2 && s[1] == 'b':
-		base, power = 1000, suffixPowers[s[0]]
-	case len(s) == 3 && s[1] == 'i' && s[2] == 'b':
-		base, power = 1024, suffixPowers[s[0]]
-	default:
+// sizeMultiplier returns the multiplier a -s size suffix stands for, from
+// the shared GNU set. truncate takes no 'b', 'c' or 'w', unlike the size
+// operands of the other utilities.
+func sizeMultiplier(suffix string) (int64, error) {
+	switch suffix {
+	case "b", "c", "w":
 		return 0, invalidNumber(suffix)
 	}
-	if power == 0 {
-		return 0, invalidNumber(suffix)
-	}
-	return intPow(base, power)
-}
-
-// intPow returns base**exp, or an error when it overflows.
-func intPow(base int64, exp int) (int64, error) {
-	result := int64(1)
-	for range exp {
-		if result > math.MaxInt64/base {
-			return 0, errors.New("overflow")
-		}
-		result *= base
-	}
-	return result, nil
+	return sizeparse.Multiplier(suffix)
 }
 
 var (

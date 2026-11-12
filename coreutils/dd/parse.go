@@ -5,6 +5,8 @@ import (
 	"math"
 	"strconv"
 	"strings"
+
+	"charm.land/snail/coreutils/internal/sizeparse"
 )
 
 // options holds the operands of one dd invocation, as parsed.
@@ -241,58 +243,17 @@ func (op *options) finalize() error {
 // multiple reports whether more than one bit of the set is on.
 func multiple(set convSet) bool { return set&(set-1) != 0 }
 
-// powerLetters maps each block size suffix letter to the power of its
-// multiplier, as 'k' for the first power of 1024.
-var powerLetters = map[byte]int64{
-	'k': 1, 'm': 2, 'g': 3, 't': 4,
-	'p': 5, 'e': 6, 'z': 7, 'y': 8,
-	'r': 9, 'q': 10,
-}
-
 // multiplier returns the multiplier a size suffix stands for, as 'b' for
 // 512, 'k' for 1024, 'KB' for 1000 and 'KiB' for 1024 again. It also reports
 // whether the suffix holds a 'B', which makes skip=, seek= and count= count
 // bytes rather than blocks.
 func multiplier(suffix string) (int64, bool, error) {
-	switch suffix {
-	case "":
-		return 1, false, nil
-	case "c":
-		return 1, false, nil
-	case "b":
-		return 512, false, nil
-	case "w":
-		return 2, false, nil
-	case "B":
+	if suffix == "B" {
 		return 1, true, nil
 	}
-	s := strings.ToLower(suffix)
-	if len(s) < 1 || len(s) > 3 {
-		return 0, false, fmt.Errorf("invalid suffix")
-	}
-	power, ok := powerLetters[s[0]]
-	if !ok {
-		return 0, false, fmt.Errorf("invalid suffix")
-	}
-	base := int64(1024)
-	switch len(s) {
-	case 1:
-	case 2:
-		if s[1] != 'b' {
-			return 0, false, fmt.Errorf("invalid suffix")
-		}
-		base = 1000
-	case 3:
-		if s[1] != 'i' || s[2] != 'b' {
-			return 0, false, fmt.Errorf("invalid suffix")
-		}
-	}
-	mult := int64(1)
-	for ; power > 0; power-- {
-		if mult > math.MaxInt64/base {
-			return 0, false, fmt.Errorf("suffix too large")
-		}
-		mult *= base
+	mult, err := sizeparse.Multiplier(suffix)
+	if err != nil {
+		return 0, false, err
 	}
 	return mult, strings.ContainsRune(suffix, 'B'), nil
 }
