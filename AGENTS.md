@@ -202,9 +202,12 @@ packages already exist:
 * `fileinfo`: file information beyond `io/fs` (birth time, ownership, link
   counts), read from the `Sys` value of a `FileInfo`, used by find, ls, stat
   and du.
+* `filehdr`: the "==> name <==" headers which precede the output of each
+  input file, as head and tail print them, and the modes which decide when
+  they are written.
 * `filemode`: parsing of the mode operands (octal or symbolic) shared by the
   utilities which match or change permission bits, like chmod, ls, stat and
-  find. `install` and `mkdir` should depend on this package for mode
+  find. `install`, `mkdir` and `uudecode` depend on this package for mode
   parsing, not on the `chmod` program package.
 * `fsop`: the file operand plumbing shared by cp, install, ln and mv: the
   source/destination pairs, the `-t`/`-T` operand split, the symbolic link
@@ -242,8 +245,15 @@ packages already exist:
 * `textutil`: the line handling shared by the text processing utilities,
   like skipping the fields or characters of a line.
 * `uux`: the formats shared by uuencode and uudecode.
+* `usernames`: the user and group identifiers resolved to names, remembering
+  each lookup, as ls, stat and find show them, with the fallback each one
+  reports.
+* `verbose`: the `-c`/`-v` reporting levels of the utilities which change
+  file attributes, and the operand names they show the files they walk by.
 * `walk`: traverses the file hierarchies below starting points, following
-  symbolic links as `-H`/`-L`/`-P` ask, used by find, du and grep.
+  symbolic links as `-H`/`-L`/`-P` ask, used by find, du and grep. It also
+  holds the shared link-chain resolution, and the directory identifiers and
+  name joins the recursive utilities and ls use.
 * `zcore`: the behavior shared by the compression utilities, gzip and
   compress, which differ only in options and defaults.
 

@@ -36,11 +36,12 @@ import (
 	"time"
 
 	"charm.land/snail/coreutils"
-	"charm.land/snail/coreutils/internal/fileinfo"
 	"charm.land/snail/coreutils/internal/numparse"
 	"charm.land/snail/coreutils/internal/patherr"
 	"charm.land/snail/coreutils/internal/sizefmt"
 	"charm.land/snail/coreutils/internal/stdopts"
+	"charm.land/snail/coreutils/internal/usernames"
+	"charm.land/snail/coreutils/internal/walk"
 )
 
 // Prog is the ls core utility.
@@ -135,7 +136,7 @@ type lister struct {
 
 	width       int       // the width the column formats write within
 	now         time.Time // the time the long format measures a file against
-	names       names
+	names       usernames.Names
 	printed     bool // whether anything was written yet
 	visits      map[string]bool
 	failed      bool
@@ -360,7 +361,7 @@ func (l *lister) follows(isOperand bool) bool {
 // listDir writes the entries of a directory, and with -R the listings of
 // the directories they contain.
 func (l *lister) listDir(ctx context.Context, e entry, header bool) error {
-	if id := dirID(e.fi); id != "" {
+	if id, ok := walk.DirID(e.fi); ok {
 		if l.visits[id] {
 			stdopts.Errorf(l.prog.Runtime, "ls", "%s: directory causes a cycle", e.name)
 			l.failed = true
@@ -396,7 +397,7 @@ func (l *lister) listDir(ctx context.Context, e entry, header bool) error {
 			return err
 		}
 		nested := child
-		nested.name = joinName(e.name, child.name)
+		nested.name = walk.Join(e.name, child.name)
 		if err := l.listDir(ctx, nested, true); err != nil {
 			return err
 		}
@@ -423,7 +424,7 @@ func (l *lister) readEntries(dir, display string) ([]entry, error) {
 		}
 		e, err := l.entryFor(path.Join(dir, name), name, false)
 		if err != nil {
-			stdopts.Errorf(l.prog.Runtime, "ls", "cannot access '%s': %v", joinName(display, name), patherr.Unwrap(err))
+			stdopts.Errorf(l.prog.Runtime, "ls", "cannot access '%s': %v", walk.Join(display, name), patherr.Unwrap(err))
 			l.failed = true
 			continue
 		}
@@ -737,24 +738,6 @@ func (p *Prog) displayWidth(opts options) int {
 		return defaultWidth
 	}
 	return width
-}
-
-// joinName appends the name of an entry to the name of its directory.
-func joinName(dir, name string) string {
-	if strings.HasSuffix(dir, "/") {
-		return dir + name
-	}
-	return dir + "/" + name
-}
-
-// dirID returns what identifies a directory for loop detection, or an empty
-// string when the file system reports nothing to identify it with.
-func dirID(fi fs.FileInfo) string {
-	st, ok := fileinfo.Stat(fi)
-	if !ok {
-		return ""
-	}
-	return strconv.FormatUint(st.Dev, 10) + ":" + strconv.FormatUint(st.Ino, 10)
 }
 
 var (

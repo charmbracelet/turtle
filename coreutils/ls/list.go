@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"io/fs"
 	"math"
-	"os/user"
 	"strconv"
 	"strings"
 	"time"
@@ -559,7 +558,7 @@ func (l *lister) ownerOf(fi fs.FileInfo) string {
 	if l.opts.numeric {
 		return strconv.FormatUint(st.Uid, 10)
 	}
-	return l.names.user(st.Uid)
+	return l.names.User(st.Uid)
 }
 
 // groupOf returns the group of a file: its name, or the identifier that
@@ -572,7 +571,7 @@ func (l *lister) groupOf(fi fs.FileInfo) string {
 	if l.opts.numeric {
 		return strconv.FormatUint(st.Gid, 10)
 	}
-	return l.names.group(st.Gid)
+	return l.names.Group(st.Gid)
 }
 
 // padLeft right-justifies a string within the given width.
@@ -589,43 +588,4 @@ func padRight(s string, width int) string {
 		s += " "
 	}
 	return s
-}
-
-// names resolves the names of users and groups, remembering what it looked
-// up, and falling back to the identifier when there is no name for it.
-type names struct {
-	users  map[uint64]string
-	groups map[uint64]string
-}
-
-// user returns the name of a user identifier.
-func (n *names) user(id uint64) string {
-	if name, ok := n.users[id]; ok {
-		return name
-	}
-	name := strconv.FormatUint(id, 10)
-	if u, err := user.LookupId(name); err == nil && u.Username != "" {
-		name = u.Username
-	}
-	if n.users == nil {
-		n.users = make(map[uint64]string)
-	}
-	n.users[id] = name
-	return name
-}
-
-// group returns the name of a group identifier.
-func (n *names) group(id uint64) string {
-	if name, ok := n.groups[id]; ok {
-		return name
-	}
-	name := strconv.FormatUint(id, 10)
-	if g, err := user.LookupGroupId(name); err == nil && g.Name != "" {
-		name = g.Name
-	}
-	if n.groups == nil {
-		n.groups = make(map[uint64]string)
-	}
-	n.groups[id] = name
-	return name
 }

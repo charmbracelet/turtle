@@ -5,6 +5,8 @@ import (
 	"os/user"
 	"strconv"
 	"strings"
+
+	"charm.land/snail/coreutils/internal/verbose"
 )
 
 // ownership is what a chown run sets: the numeric user and group IDs, with
@@ -179,7 +181,7 @@ func (p *Prog) describe(shown string, oldUid, oldGid int, target ownership, verb
 		newGid = target.gid
 	}
 	unchanged := newUid == oldUid && newGid == oldGid
-	if verbosity == quiet || (verbosity == changesOnly && unchanged) {
+	if verbosity == verbose.Quiet || (verbosity == verbose.ChangesOnly && unchanged) {
 		return
 	}
 	if unchanged {

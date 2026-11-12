@@ -13,6 +13,7 @@ import (
 	"charm.land/snail/coreutils/internal/getopt"
 	"charm.land/snail/coreutils/internal/patherr"
 	"charm.land/snail/coreutils/internal/stdopts"
+	"charm.land/snail/coreutils/internal/verbose"
 	"charm.land/snail/fsx"
 )
 
@@ -198,7 +199,7 @@ func (p *Prog) visit(ctx context.Context, operand, root, name string, target own
 	if err := ctx.Err(); err != nil {
 		return false, err
 	}
-	shown := display(operand, root, name)
+	shown := verbose.Display(operand, root, name)
 
 	fi, err := p.lstat(name)
 	if err != nil {
@@ -307,13 +308,8 @@ func (p *Prog) follow(opts options, operandFirst bool) bool {
 // entry of the file the last one refers to. It fails when a link of the
 // chain dangles or the chain loops.
 func (p *Prog) resolveChain(name string) (string, fs.FileInfo, error) {
-	lfs, ok := p.FS.(lstatFS)
-	if !ok {
-		fi, err := fs.Stat(p.FS, name)
-		return name, fi, err
-	}
 	for range 40 {
-		fi, err := lfs.Lstat(name)
+		fi, err := p.FS.Lstat(name)
 		if err != nil {
 			return name, nil, err
 		}
@@ -342,39 +338,10 @@ func linkTarget(name, target string) string {
 // errLoop reports a chain of symbolic links that doesn't reach an entry.
 var errLoop = errors.New("too many levels of symbolic links")
 
-// lstatFS is the Lstat subset that the fsx file systems implement, which
-// describes a name without following a final symbolic link.
-type lstatFS interface {
-	Lstat(name string) (fs.FileInfo, error)
-}
-
-// lstat describes the name without following a final symbolic link. A
-// file system without Lstat describes what the name refers to.
+// lstat describes the name without following a final symbolic link.
 func (p *Prog) lstat(name string) (fs.FileInfo, error) {
-	if lfs, ok := p.FS.(lstatFS); ok {
-		return lfs.Lstat(name)
-	}
-	return fs.Stat(p.FS, name)
+	return p.FS.Lstat(name)
 }
-
-// display returns the path to show in diagnostics: the operand as given, with
-// any sub-path walked below it appended.
-func display(operand, resolved, walked string) string {
-	if walked == resolved {
-		return operand
-	}
-	if rel, ok := strings.CutPrefix(walked, resolved+"/"); ok {
-		return path.Join(operand, rel)
-	}
-	return path.Join(operand, walked)
-}
-
-// The verbosity levels of a run, selected by -c and -v.
-const (
-	quiet = iota
-	changesOnly
-	noisy
-)
 
 // How a run treats a symbolic link, selected by -h and --dereference.
 const (
@@ -530,9 +497,9 @@ func parseFlags(args []string) (options, []string, error) {
 		case 'f':
 			opts.quiet = true
 		case 'c':
-			opts.verbosity = changesOnly
+			opts.verbosity = verbose.ChangesOnly
 		case 'v':
-			opts.verbosity = noisy
+			opts.verbosity = verbose.Noisy
 		case optFrom:
 			opts.fromSpec = &value
 		case optReference:
