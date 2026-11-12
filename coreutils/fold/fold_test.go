@@ -2,43 +2,15 @@ package fold
 
 import (
 	"bytes"
-	"context"
 	"errors"
-	"io"
 	"io/fs"
 	"strings"
 	"testing"
 
 	"charm.land/snail/coreutils"
+	"charm.land/snail/coreutils/internal/testutil"
 	"charm.land/snail/fsx"
 )
-
-type errorReader struct {
-	err error
-}
-
-func (r errorReader) Read([]byte) (int, error) {
-	return 0, r.err
-}
-
-type errorWriter struct {
-	err error
-}
-
-func (w errorWriter) Write([]byte) (int, error) {
-	return 0, w.err
-}
-
-// cancelReader cancels its context on the first read, simulating a context
-// that is done while input is being read.
-type cancelReader struct {
-	cancel context.CancelFunc
-}
-
-func (r *cancelReader) Read([]byte) (int, error) {
-	r.cancel()
-	return 0, context.Canceled
-}
 
 // testFS holds the fixtures used by the tests:
 //
@@ -67,473 +39,388 @@ func testFS() fsx.MemFS {
 	}
 }
 
-func exitCode(t *testing.T, err error) int {
-	t.Helper()
-
-	if err == nil {
-		return 0
-	}
-	var exitErr *coreutils.ExitError
-	if !errors.As(err, &exitErr) {
-		t.Fatalf("Run() error = %v, want *coreutils.ExitError", err)
-	}
-	return exitErr.Code
-}
-
-type testCase struct {
-	name     string
-	stdin    io.Reader
-	fsys     fsx.FS
-	dir      string
-	args     []string
-	want     string
-	wantErr  string
-	wantExit int
-}
-
-func runCase(t *testing.T, test testCase) {
-	t.Helper()
-
-	stdout := new(bytes.Buffer)
-	stderr := new(bytes.Buffer)
-	rt := &coreutils.Runtime{
-		Stdin:      test.stdin,
-		Stdout:     stdout,
-		Stderr:     stderr,
-		FS:         test.fsys,
-		WorkingDir: test.dir,
-	}
-	err := New(rt).Run(t.Context(), test.args...)
-
-	if code := exitCode(t, err); code != test.wantExit {
-		t.Errorf("Run() exit code = %d, want %d (error = %v)", code, test.wantExit, err)
-	}
-	if got := stdout.String(); got != test.want {
-		t.Errorf("Run() stdout = %q, want %q", got, test.want)
-	}
-	if got := stderr.String(); got != test.wantErr {
-		t.Errorf("Run() stderr = %q, want %q", got, test.wantErr)
-	}
-}
-
 func TestRunDefaults(t *testing.T) {
-	tests := []testCase{
+	tests := []testutil.Case{
 		{
-			name:  "no operands read the standard input",
-			stdin: strings.NewReader("hello\n"),
-			want:  "hello\n",
+			Name:  "no operands read the standard input",
+			Stdin: strings.NewReader("hello\n"),
+			Want:  "hello\n",
 		},
 		{
-			name:  "an empty standard input",
-			stdin: strings.NewReader(""),
-			want:  "",
+			Name:  "an empty standard input",
+			Stdin: strings.NewReader(""),
+			Want:  "",
 		},
 		{
-			name:  "an empty line stays empty",
-			stdin: strings.NewReader("\n"),
-			want:  "\n",
+			Name:  "an empty line stays empty",
+			Stdin: strings.NewReader("\n"),
+			Want:  "\n",
 		},
 		{
-			name:  "short lines are unchanged",
-			stdin: strings.NewReader("ab\ncd\n"),
-			want:  "ab\ncd\n",
+			Name:  "short lines are unchanged",
+			Stdin: strings.NewReader("ab\ncd\n"),
+			Want:  "ab\ncd\n",
 		},
 		{
-			name:  "the default width is eighty",
-			stdin: strings.NewReader(strings.Repeat("a", 90) + "\n"),
-			want:  strings.Repeat("a", 80) + "\n" + strings.Repeat("a", 10) + "\n",
+			Name:  "the default width is eighty",
+			Stdin: strings.NewReader(strings.Repeat("a", 90) + "\n"),
+			Want:  strings.Repeat("a", 80) + "\n" + strings.Repeat("a", 10) + "\n",
 		},
 		{
-			name:  "a line of the exact width is not broken",
-			stdin: strings.NewReader(strings.Repeat("a", 80) + "\n"),
-			want:  strings.Repeat("a", 80) + "\n",
+			Name:  "a line of the exact width is not broken",
+			Stdin: strings.NewReader(strings.Repeat("a", 80) + "\n"),
+			Want:  strings.Repeat("a", 80) + "\n",
 		},
 	}
 
-	for _, test := range tests {
-		t.Run(test.name, func(t *testing.T) {
-			runCase(t, test)
-		})
-	}
+	testutil.Run(t, New, tests)
 }
 
 func TestRunWidth(t *testing.T) {
-	tests := []testCase{
+	tests := []testutil.Case{
 		{
-			name:  "lines are broken at the width",
-			stdin: strings.NewReader("abcdefgh\n"),
-			args:  []string{"-w", "5"},
-			want:  "abcde\nfgh\n",
+			Name:  "lines are broken at the width",
+			Stdin: strings.NewReader("abcdefgh\n"),
+			Args:  []string{"-w", "5"},
+			Want:  "abcde\nfgh\n",
 		},
 		{
-			name:  "a line of the exact width is not broken",
-			stdin: strings.NewReader("abcde\n"),
-			args:  []string{"-w", "5"},
-			want:  "abcde\n",
+			Name:  "a line of the exact width is not broken",
+			Stdin: strings.NewReader("abcde\n"),
+			Args:  []string{"-w", "5"},
+			Want:  "abcde\n",
 		},
 		{
-			name:  "a width of one breaks after every character",
-			stdin: strings.NewReader("abc\n"),
-			args:  []string{"-w", "1"},
-			want:  "a\nb\nc\n",
+			Name:  "a width of one breaks after every character",
+			Stdin: strings.NewReader("abc\n"),
+			Args:  []string{"-w", "1"},
+			Want:  "a\nb\nc\n",
 		},
 		{
-			name:  "the last width wins",
-			stdin: strings.NewReader("abcdef\n"),
-			args:  []string{"-w", "5", "-w", "3"},
-			want:  "abc\ndef\n",
+			Name:  "the last width wins",
+			Stdin: strings.NewReader("abcdef\n"),
+			Args:  []string{"-w", "5", "-w", "3"},
+			Want:  "abc\ndef\n",
 		},
 		{
-			name:  "an attached width",
-			stdin: strings.NewReader("abcdefgh\n"),
-			args:  []string{"-w5"},
-			want:  "abcde\nfgh\n",
+			Name:  "an attached width",
+			Stdin: strings.NewReader("abcdefgh\n"),
+			Args:  []string{"-w5"},
+			Want:  "abcde\nfgh\n",
 		},
 	}
 
-	for _, test := range tests {
-		t.Run(test.name, func(t *testing.T) {
-			runCase(t, test)
-		})
-	}
+	testutil.Run(t, New, tests)
 }
 
 func TestRunBytes(t *testing.T) {
-	tests := []testCase{
+	tests := []testutil.Case{
 		{
-			name: "bytes count as columns",
-			fsys: testFS(),
-			args: []string{"-b", "-w", "2", "utf8.txt"},
-			want: "á\né\nç\n",
+			Name: "bytes count as columns",
+			FS:   testFS(),
+			Args: []string{"-b", "-w", "2", "utf8.txt"},
+			Want: "á\né\nç\n",
 		},
 		{
-			name:  "a wide character is never split",
-			stdin: strings.NewReader("á\n"),
-			args:  []string{"-b", "-w", "1"},
-			want:  "á\n",
+			Name:  "a wide character is never split",
+			Stdin: strings.NewReader("á\n"),
+			Args:  []string{"-b", "-w", "1"},
+			Want:  "á\n",
 		},
 		{
-			name: "tabs count one byte",
-			fsys: testFS(),
-			args: []string{"-b", "-w", "3", "tabs.txt"},
-			want: "ab\t\ncd\n",
+			Name: "tabs count one byte",
+			FS:   testFS(),
+			Args: []string{"-b", "-w", "3", "tabs.txt"},
+			Want: "ab\t\ncd\n",
 		},
 	}
 
-	for _, test := range tests {
-		t.Run(test.name, func(t *testing.T) {
-			runCase(t, test)
-		})
-	}
+	testutil.Run(t, New, tests)
 }
 
 func TestRunColumns(t *testing.T) {
-	tests := []testCase{
+	tests := []testutil.Case{
 		{
-			name: "tabs advance to the next multiple of eight",
-			fsys: testFS(),
-			args: []string{"-w", "4", "tabs.txt"},
-			want: "ab\n\t\ncd\n",
+			Name: "tabs advance to the next multiple of eight",
+			FS:   testFS(),
+			Args: []string{"-w", "4", "tabs.txt"},
+			Want: "ab\n\t\ncd\n",
 		},
 		{
-			name: "backspaces decrement the column",
-			fsys: testFS(),
-			args: []string{"-w", "5", "bs.txt"},
-			want: "abc\b\b\bdefgh\n",
+			Name: "backspaces decrement the column",
+			FS:   testFS(),
+			Args: []string{"-w", "5", "bs.txt"},
+			Want: "abc\b\b\bdefgh\n",
 		},
 		{
-			name: "a carriage return resets the column",
-			fsys: testFS(),
-			args: []string{"-w", "5", "cr.txt"},
-			want: "abc\rdef\n",
+			Name: "a carriage return resets the column",
+			FS:   testFS(),
+			Args: []string{"-w", "5", "cr.txt"},
+			Want: "abc\rdef\n",
 		},
 		{
-			name:  "the column is not decremented below zero",
-			stdin: strings.NewReader("\b\babc\n"),
-			args:  []string{"-w", "5"},
-			want:  "\b\babc\n",
+			Name:  "the column is not decremented below zero",
+			Stdin: strings.NewReader("\b\babc\n"),
+			Args:  []string{"-w", "5"},
+			Want:  "\b\babc\n",
 		},
 		{
-			name: "a multibyte character counts as one column",
-			fsys: testFS(),
-			args: []string{"-w", "2", "utf8.txt"},
-			want: "áé\nç\n",
+			Name: "a multibyte character counts as one column",
+			FS:   testFS(),
+			Args: []string{"-w", "2", "utf8.txt"},
+			Want: "áé\nç\n",
 		},
 		{
-			name: "an invalid byte counts as one column",
-			fsys: testFS(),
-			args: []string{"-w", "3", "invalid.txt"},
-			want: "a\xffb\nc\n",
+			Name: "an invalid byte counts as one column",
+			FS:   testFS(),
+			Args: []string{"-w", "3", "invalid.txt"},
+			Want: "a\xffb\nc\n",
 		},
 	}
 
-	for _, test := range tests {
-		t.Run(test.name, func(t *testing.T) {
-			runCase(t, test)
-		})
-	}
+	testutil.Run(t, New, tests)
 }
 
 func TestRunSpaces(t *testing.T) {
-	tests := []testCase{
+	tests := []testutil.Case{
 		{
-			name:  "the line breaks after the last blank",
-			stdin: strings.NewReader("aaa bbbb\n"),
-			args:  []string{"-w", "4", "-s"},
-			want:  "aaa \nbbbb\n",
+			Name:  "the line breaks after the last blank",
+			Stdin: strings.NewReader("aaa bbbb\n"),
+			Args:  []string{"-w", "4", "-s"},
+			Want:  "aaa \nbbbb\n",
 		},
 		{
-			name:  "the break happens after the last blank of the segment",
-			stdin: strings.NewReader("aa bb cc\n"),
-			args:  []string{"-w", "4", "-s"},
-			want:  "aa \nbb \ncc\n",
+			Name:  "the break happens after the last blank of the segment",
+			Stdin: strings.NewReader("aa bb cc\n"),
+			Args:  []string{"-w", "4", "-s"},
+			Want:  "aa \nbb \ncc\n",
 		},
 		{
-			name:  "a segment without blanks breaks at the width",
-			stdin: strings.NewReader("aaaaa\n"),
-			args:  []string{"-w", "3", "-s"},
-			want:  "aaa\naa\n",
+			Name:  "a segment without blanks breaks at the width",
+			Stdin: strings.NewReader("aaaaa\n"),
+			Args:  []string{"-w", "3", "-s"},
+			Want:  "aaa\naa\n",
 		},
 		{
-			name:  "tabs are blanks for the break",
-			stdin: strings.NewReader("aa\tbb\n"),
-			args:  []string{"-w", "8", "-s"},
-			want:  "aa\t\nbb\n",
+			Name:  "tabs are blanks for the break",
+			Stdin: strings.NewReader("aa\tbb\n"),
+			Args:  []string{"-w", "8", "-s"},
+			Want:  "aa\t\nbb\n",
 		},
 		{
-			name:  "a blank at the start of the segment",
-			stdin: strings.NewReader(" abc\n"),
-			args:  []string{"-w", "2", "-s"},
-			want:  " \nab\nc\n",
+			Name:  "a blank at the start of the segment",
+			Stdin: strings.NewReader(" abc\n"),
+			Args:  []string{"-w", "2", "-s"},
+			Want:  " \nab\nc\n",
 		},
 		{
-			name:  "blanks are counted in bytes with b",
-			stdin: strings.NewReader("á b\n"),
-			args:  []string{"-b", "-w", "3", "-s"},
-			want:  "á \nb\n",
+			Name:  "blanks are counted in bytes with b",
+			Stdin: strings.NewReader("á b\n"),
+			Args:  []string{"-b", "-w", "3", "-s"},
+			Want:  "á \nb\n",
 		},
 	}
 
-	for _, test := range tests {
-		t.Run(test.name, func(t *testing.T) {
-			runCase(t, test)
-		})
-	}
+	testutil.Run(t, New, tests)
 }
 
 func TestRunFiles(t *testing.T) {
-	tests := []testCase{
+	tests := []testutil.Case{
 		{
-			name: "a file operand",
-			fsys: testFS(),
-			args: []string{"long.txt"},
-			want: strings.Repeat("a", 80) + "\n" + strings.Repeat("a", 10) + "\n",
+			Name: "a file operand",
+			FS:   testFS(),
+			Args: []string{"long.txt"},
+			Want: strings.Repeat("a", 80) + "\n" + strings.Repeat("a", 10) + "\n",
 		},
 		{
-			name: "multiple files are concatenated in order",
-			fsys: testFS(),
-			args: []string{"-w", "3", "tabs.txt", "cr.txt"},
-			want: "ab\n\t\ncd\nabc\rdef\n",
+			Name: "multiple files are concatenated in order",
+			FS:   testFS(),
+			Args: []string{"-w", "3", "tabs.txt", "cr.txt"},
+			Want: "ab\n\t\ncd\nabc\rdef\n",
 		},
 		{
-			name:  "dash reads the standard input",
-			stdin: strings.NewReader("abcdefgh\n"),
-			fsys:  testFS(),
-			args:  []string{"-w", "4", "-"},
-			want:  "abcd\nefgh\n",
+			Name:  "dash reads the standard input",
+			Stdin: strings.NewReader("abcdefgh\n"),
+			FS:    testFS(),
+			Args:  []string{"-w", "4", "-"},
+			Want:  "abcd\nefgh\n",
 		},
 		{
-			name:  "dash between files reads the standard input at that point",
-			stdin: strings.NewReader("abcdefgh\n"),
-			fsys:  testFS(),
-			args:  []string{"-w", "4", "tabs.txt", "-"},
-			want:  "ab\n\t\ncd\nabcd\nefgh\n",
+			Name:  "dash between files reads the standard input at that point",
+			Stdin: strings.NewReader("abcdefgh\n"),
+			FS:    testFS(),
+			Args:  []string{"-w", "4", "tabs.txt", "-"},
+			Want:  "ab\n\t\ncd\nabcd\nefgh\n",
 		},
 		{
-			name: "pathnames are resolved from the working directory",
-			fsys: testFS(),
-			dir:  "sub",
-			args: []string{"-w", "4", "inner.txt"},
-			want: "abcd\nefgh\ni\n",
+			Name: "pathnames are resolved from the working directory",
+			FS:   testFS(),
+			Dir:  "sub",
+			Args: []string{"-w", "4", "inner.txt"},
+			Want: "abcd\nefgh\ni\n",
 		},
 		{
-			name: "a missing final newline is not added",
-			fsys: testFS(),
-			args: []string{"-w", "3", "nonl.txt"},
-			want: "abc\ndef",
+			Name: "a missing final newline is not added",
+			FS:   testFS(),
+			Args: []string{"-w", "3", "nonl.txt"},
+			Want: "abc\ndef",
 		},
 		{
-			name: "an empty file produces no output",
-			fsys: testFS(),
-			args: []string{"empty.txt"},
-			want: "",
+			Name: "an empty file produces no output",
+			FS:   testFS(),
+			Args: []string{"empty.txt"},
+			Want: "",
 		},
 		{
-			name: "a file named like an option after a double dash",
-			fsys: testFS(),
-			args: []string{"--", "-s"},
-			want: "aa bb\n",
+			Name: "a file named like an option after a double dash",
+			FS:   testFS(),
+			Args: []string{"--", "-s"},
+			Want: "aa bb\n",
 		},
 		{
-			name:     "options are not parsed after the first operand",
-			fsys:     testFS(),
-			args:     []string{"tabs.txt", "-x"},
-			want:     "ab\tcd\n",
-			wantErr:  "fold: -x: file does not exist\n",
-			wantExit: 1,
+			Name:     "options are not parsed after the first operand",
+			FS:       testFS(),
+			Args:     []string{"tabs.txt", "-x"},
+			Want:     "ab\tcd\n",
+			WantErr:  "fold: -x: file does not exist\n",
+			WantExit: 1,
 		},
 		{
-			name:     "a missing file doesn't stop the other files",
-			fsys:     testFS(),
-			args:     []string{"missing.txt", "tabs.txt"},
-			want:     "ab\tcd\n",
-			wantErr:  "fold: missing.txt: file does not exist\n",
-			wantExit: 1,
+			Name:     "a missing file doesn't stop the other files",
+			FS:       testFS(),
+			Args:     []string{"missing.txt", "tabs.txt"},
+			Want:     "ab\tcd\n",
+			WantErr:  "fold: missing.txt: file does not exist\n",
+			WantExit: 1,
 		},
 	}
 
-	for _, test := range tests {
-		t.Run(test.name, func(t *testing.T) {
-			runCase(t, test)
-		})
-	}
+	testutil.Run(t, New, tests)
 }
 
 func TestRunOptions(t *testing.T) {
-	tests := []testCase{
+	tests := []testutil.Case{
 		{
-			name:     "invalid option",
-			args:     []string{"-x"},
-			wantErr:  "fold: invalid option -- 'x'\nTry 'fold --help' for more information.\n",
-			wantExit: 2,
+			Name:     "invalid option",
+			Args:     []string{"-x"},
+			WantErr:  "fold: invalid option -- 'x'\nTry 'fold --help' for more information.\n",
+			WantExit: 2,
 		},
 		{
-			name:     "unknown long option",
-			args:     []string{"--foo"},
-			wantErr:  "fold: unrecognized option '--foo'\nTry 'fold --help' for more information.\n",
-			wantExit: 2,
+			Name:     "unknown long option",
+			Args:     []string{"--foo"},
+			WantErr:  "fold: unrecognized option '--foo'\nTry 'fold --help' for more information.\n",
+			WantExit: 2,
 		},
 		{
-			name:     "missing width argument",
-			args:     []string{"-w"},
-			wantErr:  "fold: option requires an argument -- 'w'\nTry 'fold --help' for more information.\n",
-			wantExit: 2,
+			Name:     "missing width argument",
+			Args:     []string{"-w"},
+			WantErr:  "fold: option requires an argument -- 'w'\nTry 'fold --help' for more information.\n",
+			WantExit: 2,
 		},
 		{
-			name:     "a zero width",
-			args:     []string{"-w", "0"},
-			wantErr:  "fold: invalid width: '0'\nTry 'fold --help' for more information.\n",
-			wantExit: 2,
+			Name:     "a zero width",
+			Args:     []string{"-w", "0"},
+			WantErr:  "fold: invalid width: '0'\nTry 'fold --help' for more information.\n",
+			WantExit: 2,
 		},
 		{
-			name:     "a negative width",
-			args:     []string{"-w", "-1"},
-			wantErr:  "fold: invalid width: '-1'\nTry 'fold --help' for more information.\n",
-			wantExit: 2,
+			Name:     "a negative width",
+			Args:     []string{"-w", "-1"},
+			WantErr:  "fold: invalid width: '-1'\nTry 'fold --help' for more information.\n",
+			WantExit: 2,
 		},
 		{
-			name:     "a non numeric width",
-			args:     []string{"-w", "x"},
-			wantErr:  "fold: invalid width: 'x'\nTry 'fold --help' for more information.\n",
-			wantExit: 2,
+			Name:     "a non numeric width",
+			Args:     []string{"-w", "x"},
+			WantErr:  "fold: invalid width: 'x'\nTry 'fold --help' for more information.\n",
+			WantExit: 2,
 		},
 		{
-			name:     "a decimal width",
-			args:     []string{"-w", "4.5"},
-			wantErr:  "fold: invalid width: '4.5'\nTry 'fold --help' for more information.\n",
-			wantExit: 2,
+			Name:     "a decimal width",
+			Args:     []string{"-w", "4.5"},
+			WantErr:  "fold: invalid width: '4.5'\nTry 'fold --help' for more information.\n",
+			WantExit: 2,
 		},
 	}
 
-	for _, test := range tests {
-		t.Run(test.name, func(t *testing.T) {
-			runCase(t, test)
-		})
-	}
+	testutil.Run(t, New, tests)
 }
 
 func TestRunLongOptions(t *testing.T) {
-	tests := []testCase{
+	tests := []testutil.Case{
 		{
-			name:  "width",
-			stdin: strings.NewReader("abcdefgh\n"),
-			args:  []string{"--width", "5"},
-			want:  "abcde\nfgh\n",
+			Name:  "width",
+			Stdin: strings.NewReader("abcdefgh\n"),
+			Args:  []string{"--width", "5"},
+			Want:  "abcde\nfgh\n",
 		},
 		{
-			name:  "width with an attached value",
-			stdin: strings.NewReader("abcdefgh\n"),
-			args:  []string{"--width=5"},
-			want:  "abcde\nfgh\n",
+			Name:  "width with an attached value",
+			Stdin: strings.NewReader("abcdefgh\n"),
+			Args:  []string{"--width=5"},
+			Want:  "abcde\nfgh\n",
 		},
 		{
-			name:  "bytes",
-			stdin: strings.NewReader("áé\n"),
-			args:  []string{"--bytes", "--width", "2"},
-			want:  "á\né\n",
+			Name:  "bytes",
+			Stdin: strings.NewReader("áé\n"),
+			Args:  []string{"--bytes", "--width", "2"},
+			Want:  "á\né\n",
 		},
 		{
-			name:  "spaces",
-			stdin: strings.NewReader("aaa bbbb\n"),
-			args:  []string{"--spaces", "--width", "4"},
-			want:  "aaa \nbbbb\n",
+			Name:  "spaces",
+			Stdin: strings.NewReader("aaa bbbb\n"),
+			Args:  []string{"--spaces", "--width", "4"},
+			Want:  "aaa \nbbbb\n",
 		},
 	}
 
-	for _, test := range tests {
-		t.Run(test.name, func(t *testing.T) {
-			runCase(t, test)
-		})
-	}
+	testutil.Run(t, New, tests)
 }
 
 func TestRunErrors(t *testing.T) {
-	tests := []testCase{
+	tests := []testutil.Case{
 		{
-			name:     "missing file",
-			fsys:     testFS(),
-			args:     []string{"missing.txt"},
-			wantErr:  "fold: missing.txt: file does not exist\n",
-			wantExit: 1,
+			Name:     "missing file",
+			FS:       testFS(),
+			Args:     []string{"missing.txt"},
+			WantErr:  "fold: missing.txt: file does not exist\n",
+			WantExit: 1,
 		},
 		{
-			name:     "directory operand",
-			fsys:     fsx.MemFS{"dir": {Mode: fs.ModeDir}},
-			args:     []string{"dir"},
-			wantErr:  "fold: dir: invalid argument\n",
-			wantExit: 1,
+			Name:     "directory operand",
+			FS:       fsx.MemFS{"dir": {Mode: fs.ModeDir}},
+			Args:     []string{"dir"},
+			WantErr:  "fold: dir: invalid argument\n",
+			WantExit: 1,
 		},
 		{
-			name:     "zero-length file name",
-			fsys:     testFS(),
-			args:     []string{""},
-			wantErr:  "fold: invalid zero-length file name\n",
-			wantExit: 1,
+			Name:     "zero-length file name",
+			FS:       testFS(),
+			Args:     []string{""},
+			WantErr:  "fold: invalid zero-length file name\n",
+			WantExit: 1,
 		},
 		{
-			name:     "file operand without a file system",
-			args:     []string{"tabs.txt"},
-			wantErr:  "fold: tabs.txt: no file system available\n",
-			wantExit: 1,
+			Name:     "file operand without a file system",
+			Args:     []string{"tabs.txt"},
+			WantErr:  "fold: tabs.txt: no file system available\n",
+			WantExit: 1,
 		},
 		{
-			name:     "no standard input",
-			wantErr:  "fold: standard input: no standard input available\n",
-			wantExit: 1,
+			Name:     "no standard input",
+			WantErr:  "fold: standard input: no standard input available\n",
+			WantExit: 1,
 		},
 		{
-			name:     "standard input read error",
-			stdin:    errorReader{err: errors.New("read failed")},
-			wantErr:  "fold: standard input: read failed\n",
-			wantExit: 1,
+			Name:     "standard input read error",
+			Stdin:    testutil.ErrorReader{Err: errors.New("read failed")},
+			WantErr:  "fold: standard input: read failed\n",
+			WantExit: 1,
 		},
 	}
 
-	for _, test := range tests {
-		t.Run(test.name, func(t *testing.T) {
-			runCase(t, test)
-		})
-	}
+	testutil.Run(t, New, tests)
 }
 
 func TestRunWriteError(t *testing.T) {
@@ -542,12 +429,12 @@ func TestRunWriteError(t *testing.T) {
 	stderr := new(bytes.Buffer)
 	rt := &coreutils.Runtime{
 		Stdin:  strings.NewReader("hello\n"),
-		Stdout: errorWriter{err: writeErr},
+		Stdout: testutil.ErrorWriter{Err: writeErr},
 		Stderr: stderr,
 	}
 	err := New(rt).Run(t.Context())
 
-	if code := exitCode(t, err); code != 1 {
+	if code := testutil.ExitCode(t, err); code != 1 {
 		t.Fatalf("Run() exit code = %d, want 1 (error = %v)", code, err)
 	}
 	if !errors.Is(err, writeErr) {
@@ -560,64 +447,14 @@ func TestRunWriteError(t *testing.T) {
 
 func TestRunContext(t *testing.T) {
 	t.Run("cancelled before running", func(t *testing.T) {
-		ctx, cancel := context.WithCancel(t.Context())
-		cancel()
-		runCancelled(t, ctx, strings.NewReader("hello\n"))
+		testutil.Cancelled(t, New, strings.NewReader("hello\n"), nil)
 	})
 
 	t.Run("cancelled while reading the standard input", func(t *testing.T) {
-		ctx, cancel := context.WithCancel(t.Context())
-		runCancelled(t, ctx, &cancelReader{cancel: cancel})
+		testutil.Cancelled(t, New, &testutil.CancelReader{}, nil)
 	})
-}
-
-// runCancelled runs the utility with a context that is either already done or
-// becomes done while reading, and checks that the context error is returned
-// without any output.
-func runCancelled(t *testing.T, ctx context.Context, stdin io.Reader) {
-	t.Helper()
-
-	stdout := new(bytes.Buffer)
-	stderr := new(bytes.Buffer)
-	rt := &coreutils.Runtime{
-		Stdin:  stdin,
-		Stdout: stdout,
-		Stderr: stderr,
-	}
-	err := New(rt).Run(ctx)
-
-	if !errors.Is(err, context.Canceled) {
-		t.Fatalf("Run() error = %v, want context.Canceled", err)
-	}
-	if got := stdout.String(); got != "" {
-		t.Errorf("Run() stdout = %q, want empty", got)
-	}
-	if got := stderr.String(); got != "" {
-		t.Errorf("Run() stderr = %q, want empty", got)
-	}
 }
 
 func TestHelpVersion(t *testing.T) {
-	t.Run("help", func(t *testing.T) {
-		stdout := new(bytes.Buffer)
-		rt := &coreutils.Runtime{Stdout: stdout, Stderr: new(bytes.Buffer)}
-		if err := New(rt).Run(t.Context(), "--help"); err != nil {
-			t.Fatalf("Run() error = %v, want nil (exit status 0)", err)
-		}
-		if got, want := stdout.String(), usage; got != want {
-			t.Errorf("Run() stdout = %q, want %q", got, want)
-		}
-	})
-
-	t.Run("version", func(t *testing.T) {
-		stdout := new(bytes.Buffer)
-		rt := &coreutils.Runtime{Stdout: stdout, Stderr: new(bytes.Buffer)}
-		if err := New(rt).Run(t.Context(), "--version"); err != nil {
-			t.Fatalf("Run() error = %v, want nil (exit status 0)", err)
-		}
-		want := "fold (charm.land/snail/coreutils) " + coreutils.Version + "\nhttps://charm.land/snail\n"
-		if got := stdout.String(); got != want {
-			t.Errorf("Run() stdout = %q, want %q", got, want)
-		}
-	})
+	testutil.HelpVersion(t, New, "fold", usage)
 }
