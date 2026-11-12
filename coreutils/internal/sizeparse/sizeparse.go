@@ -33,11 +33,12 @@ func powersOf(base int64) map[int]int64 {
 	return mults
 }
 
-// multiplier returns the multiplier a size suffix stands for, as 'b' for 512,
-// 'K' for 1024, 'KB' for 1000 and 'KiB' for 1024 again. The letters of the
-// decimal and binary prefixes may be given in any case, except that 'b', 'c'
-// and 'w', which stand for 512, 1 and 2, are only recognized in lower case.
-func multiplier(suffix string) (int64, error) {
+// Multiplier returns the multiplier a size suffix stands for, as 'b' for
+// 512, 'K' for 1024, 'KB' for 1000 and 'KiB' for 1024 again. The letters of
+// the decimal and binary prefixes may be given in any case, except that
+// 'b', 'c' and 'w', which stand for 512, 1 and 2, are only recognized in
+// lower case.
+func Multiplier(suffix string) (int64, error) {
 	switch suffix {
 	case "":
 		return 1, nil
@@ -49,32 +50,59 @@ func multiplier(suffix string) (int64, error) {
 		return 2, nil
 	}
 	s := strings.ToLower(suffix)
-	power, ok := suffixPowers[s[0]]
-	if !ok {
-		return 0, fmt.Errorf("invalid suffix: '%s'", suffix)
-	}
 	var mults map[int]int64
+	var base int64
 	switch len(s) {
 	case 1:
-		mults = binary
+		base, mults = 1024, binary
 	case 2:
 		if s[1] != 'b' {
 			return 0, fmt.Errorf("invalid suffix: '%s'", suffix)
 		}
-		mults = decimal
+		base, mults = 1000, decimal
 	case 3:
 		if s[1] != 'i' || s[2] != 'b' {
 			return 0, fmt.Errorf("invalid suffix: '%s'", suffix)
 		}
-		mults = binary
+		base, mults = 1024, binary
 	default:
 		return 0, fmt.Errorf("invalid suffix: '%s'", suffix)
 	}
-	mult, ok := mults[power]
+	power, ok := Power(s[0], base)
+	if power == 0 {
+		return 0, fmt.Errorf("invalid suffix: '%s'", suffix)
+	}
 	if !ok {
 		return 0, fmt.Errorf("suffix too large: '%s'", suffix)
 	}
-	return mult, nil
+	return mults[power], nil
+}
+
+// Power returns the power of base a size suffix letter stands for, as 1
+// for 'K' or 'k' in base 1024, and reports whether the multiplier
+// base**power holds in an int64. The letter is case-insensitive, as GNU
+// takes it. A power of 0 means the letter is not a size suffix letter.
+func Power(letter byte, base int64) (int, bool) {
+	power, ok := suffixPowers[lower(letter)]
+	if !ok {
+		return 0, false
+	}
+	mult := int64(1)
+	for range power {
+		if mult > math.MaxInt64/base {
+			return power, false
+		}
+		mult *= base
+	}
+	return power, true
+}
+
+// lower returns the lower case of an ASCII letter.
+func lower(c byte) byte {
+	if c >= 'A' && c <= 'Z' {
+		return c + 'a' - 'A'
+	}
+	return c
 }
 
 // Parse parses a non-negative size: a decimal integer optionally followed by
@@ -89,7 +117,7 @@ func Parse(s string) (int64, error) {
 	if err != nil {
 		return 0, fmt.Errorf("invalid size: '%s'", s)
 	}
-	mult, err := multiplier(digits)
+	mult, err := Multiplier(digits)
 	if err != nil {
 		return 0, fmt.Errorf("invalid size: '%s': %w", s, err)
 	}

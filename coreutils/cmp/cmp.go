@@ -19,6 +19,7 @@ import (
 
 	"charm.land/snail/coreutils"
 
+	"charm.land/snail/coreutils/internal/cnum"
 	"charm.land/snail/coreutils/internal/getopt"
 	"charm.land/snail/coreutils/internal/input"
 	"charm.land/snail/coreutils/internal/patherr"
@@ -452,47 +453,20 @@ func parseCount(value string) (int64, error) {
 // when the value doesn't start with one. The number may be decimal,
 // hexadecimal with a "0x" prefix, or octal with a leading zero.
 func splitCount(value string) (n int64, suffix string, err error) {
-	if len(value) >= 2 && value[0] == '0' && (value[1] == 'x' || value[1] == 'X') {
-		end := 2
-		for end < len(value) && isHexDigit(value[end]) {
-			end++
-		}
-		if end > 2 {
-			n, err := strconv.ParseInt(value[2:end], 16, 64)
-			if err != nil {
-				return 0, "", errInvalidCount
-			}
-			return n, value[end:], nil
-		}
-		// Without digits, only the leading zero counts as a number.
+	digits, base, next, _ := cnum.Scan(value, false)
+	if base == 16 && digits == "" {
+		// Without digits after the "0x", only the leading zero
+		// counts as a number, leaving the "x" for the suffix.
+		digits, base, next = "0", 8, 1
 	}
-	end := 0
-	for end < len(value) && value[end] >= '0' && value[end] <= '9' {
-		end++
-	}
-	if end == 0 {
+	if digits == "" {
 		return 0, "", errInvalidCount
 	}
-	base := 10
-	if value[0] == '0' {
-		// A leading zero makes the number octal, as far as its digits
-		// go: "09" counts the "0" only, leaving "9" for the suffix.
-		base = 8
-		octal := 1
-		for octal < end && value[octal] <= '7' {
-			octal++
-		}
-		end = octal
-	}
-	n, err = strconv.ParseInt(value[:end], base, 64)
+	n, err = strconv.ParseInt(digits, base, 64)
 	if err != nil {
 		return 0, "", errInvalidCount
 	}
-	return n, value[end:], nil
-}
-
-func isHexDigit(c byte) bool {
-	return c >= '0' && c <= '9' || c >= 'a' && c <= 'f' || c >= 'A' && c <= 'F'
+	return n, value[next:], nil
 }
 
 // printable returns the byte as GNU cmp writes it, quoting the unprintable

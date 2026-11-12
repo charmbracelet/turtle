@@ -6,10 +6,10 @@ import (
 	"errors"
 	"fmt"
 	"math"
-	"strconv"
 	"time"
 
 	"charm.land/snail/coreutils"
+	"charm.land/snail/coreutils/internal/durationparse"
 	"charm.land/snail/coreutils/internal/getopt"
 	"charm.land/snail/coreutils/internal/stdopts"
 )
@@ -71,33 +71,14 @@ func parseOperands(operands []string) (time.Duration, error) {
 	return total, nil
 }
 
-// unitSeconds maps each unit suffix to its length in seconds.
-var unitSeconds = map[byte]float64{
-	's': 1,
-	'm': 60,
-	'h': 60 * 60,
-	'd': 24 * 60 * 60,
-}
-
-// maxSeconds is the largest number of seconds representable as a duration.
-const maxSeconds = float64(math.MaxInt64 / int64(time.Second))
-
 // parseOperand converts a duration operand, a non-negative fractional number
 // with an optional s, m, h or d unit suffix, into a duration.
 func parseOperand(operand string) (time.Duration, error) {
-	s := operand
-	seconds := 1.0
-	if len(s) > 0 {
-		if mult, ok := unitSeconds[s[len(s)-1]]; ok {
-			seconds = mult
-			s = s[:len(s)-1]
-		}
-	}
-	f, err := strconv.ParseFloat(s, 64)
-	if err != nil || f < 0 || math.IsNaN(f) || math.IsInf(f, 0) || f > maxSeconds/seconds {
+	d, _, err := durationparse.Parse(operand, false)
+	if err != nil {
 		return 0, fmt.Errorf("invalid number: '%s'", operand)
 	}
-	return time.Duration(f * seconds * float64(time.Second)), nil
+	return d, nil
 }
 
 // usage describes the options of sleep.

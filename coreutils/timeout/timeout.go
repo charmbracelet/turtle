@@ -12,12 +12,12 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"math"
 	"strconv"
 	"strings"
 	"time"
 
 	"charm.land/snail/coreutils"
+	"charm.land/snail/coreutils/internal/durationparse"
 	"charm.land/snail/coreutils/internal/getopt"
 	"charm.land/snail/coreutils/internal/stdopts"
 )
@@ -146,92 +146,17 @@ func parseFlags(args []string) (settings, []string, error) {
 	return set, operands, err
 }
 
-// maxDuration is the largest duration a time.Duration can hold.
-const maxDuration = time.Duration(1<<63 - 1)
-
-// maxSeconds is the largest number of seconds a duration can hold.
-const maxSeconds = float64(maxDuration / time.Second)
-
 // parseDuration converts a duration operand, a non-negative floating point
 // number with an optional s, m, h or d unit suffix, as strtod would read it,
 // into a duration. The infinity "inf" also reads, and, like a duration of 0
 // or one too large to hold, never elapses; a fraction too small to hold
 // still elapses, at once.
 func parseDuration(operand string) (time.Duration, bool, error) {
-	mult := 1.0
-	s := operand
-	if n := len(s); n > 0 {
-		if m, ok := unitSeconds[s[n-1]]; ok {
-			mult = m
-			s = s[:n-1]
-		}
-	}
-	f, err := strconv.ParseFloat(s, 64)
-	// A range error stands for an overflow to infinity or an underflow
-	// to zero, both of which strtod accepts; a syntax error does not.
-	if err != nil && !errors.Is(err, strconv.ErrRange) || math.IsNaN(f) || f < 0 {
+	d, infinite, err := durationparse.Parse(operand, true)
+	if err != nil {
 		return 0, false, fmt.Errorf("invalid time interval '%s'", operand)
 	}
-	f *= mult
-	if math.IsInf(f, +1) || f > maxSeconds {
-		return 0, true, nil
-	}
-	if f == 0 && underflowed(s) {
-		// A positive value too small to hold, like 1e-400, still
-		// limits the command, elapsing at once. A negative one is
-		// invalid, as GNU rejects it.
-		if strings.HasPrefix(s, "-") {
-			return 0, false, fmt.Errorf("invalid time interval '%s'", operand)
-		}
-		return 1, false, nil
-	}
-	d := time.Duration(f * float64(time.Second))
-	if f > 0 && d == 0 {
-		// A fraction too small to hold still limits the command, at
-		// once.
-		return 1, false, nil
-	}
-	return d, false, nil
-}
-
-// underflowed reports whether a numeric string which parsed to zero stands
-// for a nonzero value, like the 1 of 1e-400 or the a of 0xap-2000. Only
-// the mantissa counts, so the digits of an exponent do not.
-func underflowed(s string) bool {
-	hex := false
-	t := s
-	if len(t) > 0 && (t[0] == '+' || t[0] == '-') {
-		t = t[1:]
-	}
-	if strings.HasPrefix(t, "0x") || strings.HasPrefix(t, "0X") {
-		hex = true
-	}
-	// The exponent marker is p for hexadecimal and e for decimal. In
-	// particular, the e of a hex mantissa is a digit, not a marker.
-	marker := "eE"
-	if hex {
-		marker = "pP"
-	}
-	if i := strings.IndexAny(t, marker); i >= 0 {
-		t = t[:i]
-	}
-	return strings.ContainsFunc(t, func(r rune) bool {
-		switch {
-		case r >= '1' && r <= '9':
-			return true
-		case hex && (r >= 'a' && r <= 'f' || r >= 'A' && r <= 'F'):
-			return true
-		}
-		return false
-	})
-}
-
-// unitSeconds maps each unit suffix to its length in seconds.
-var unitSeconds = map[byte]float64{
-	's': 1,
-	'm': 60,
-	'h': 60 * 60,
-	'd': 24 * 60 * 60,
+	return d, infinite, nil
 }
 
 // parseKillAfter converts the -k duration. Like a duration of 0, an

@@ -232,3 +232,76 @@ func TestParseNumber(t *testing.T) {
 		})
 	}
 }
+
+func TestMultiplier(t *testing.T) {
+	tests := []parseTest{
+		{name: "no suffix", in: "", want: 1},
+		{name: "a boot", in: "b", want: 512},
+		{name: "a char", in: "c", want: 1},
+		{name: "a word", in: "w", want: 2},
+		{name: "a kibi", in: "K", want: 1 << 10},
+		{name: "a lower case kibi", in: "k", want: 1 << 10},
+		{name: "a kilo", in: "kB", want: 1000},
+		{name: "an upper case kilo", in: "KB", want: 1000},
+		{name: "a mebi", in: "MiB", want: 1 << 20},
+		{name: "a gib in any case", in: "g", want: 1 << 30},
+		{name: "an exbi", in: "E", want: 1 << 60},
+		{name: "an exa", in: "EB", want: 1000 * 1000 * 1000 * 1000 * 1000 * 1000},
+		{name: "an unknown letter", in: "x", wantErr: "invalid suffix: 'x'"},
+		{name: "a wrong second letter", in: "kx", wantErr: "invalid suffix: 'kx'"},
+		{name: "a wrong third letter", in: "kIX", wantErr: "invalid suffix: 'kIX'"},
+		{name: "a too long suffix", in: "KiBX", wantErr: "invalid suffix: 'KiBX'"},
+		{name: "a zetta", in: "Z", wantErr: "suffix too large: 'Z'"},
+		{name: "a quetta", in: "q", wantErr: "suffix too large: 'q'"},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			got, err := Multiplier(test.in)
+			if err != nil {
+				if err.Error() != test.wantErr {
+					t.Fatalf("Multiplier(%q) error = %q, want %q", test.in, err, test.wantErr)
+				}
+				return
+			}
+			if test.wantErr != "" {
+				t.Fatalf("Multiplier(%q) error = nil, want %q", test.in, test.wantErr)
+			}
+			if got != test.want {
+				t.Errorf("Multiplier(%q) = %d, want %d", test.in, got, test.want)
+			}
+		})
+	}
+}
+
+func TestPower(t *testing.T) {
+	tests := []struct {
+		name      string
+		letter    byte
+		base      int64
+		wantPower int
+		wantOK    bool
+	}{
+		{name: "kilo in base 1024", letter: 'K', base: 1024, wantPower: 1, wantOK: true},
+		{name: "kilo in any case", letter: 'k', base: 1024, wantPower: 1, wantOK: true},
+		{name: "mega in base 1000", letter: 'M', base: 1000, wantPower: 2, wantOK: true},
+		{name: "exa in base 1024", letter: 'E', base: 1024, wantPower: 6, wantOK: true},
+		{name: "exa in base 1000", letter: 'e', base: 1000, wantPower: 6, wantOK: true},
+		{name: "zetta in base 1024", letter: 'Z', base: 1024, wantPower: 7, wantOK: false},
+		{name: "zetta in base 1000", letter: 'Z', base: 1000, wantPower: 7, wantOK: false},
+		{name: "quetta in base 1000", letter: 'Q', base: 1000, wantPower: 10, wantOK: false},
+		{name: "ronna in any case", letter: 'r', base: 1024, wantPower: 9, wantOK: false},
+		{name: "an unknown letter", letter: 'x', base: 1024, wantPower: 0, wantOK: false},
+		{name: "a digit", letter: '5', base: 1000, wantPower: 0, wantOK: false},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			power, ok := Power(test.letter, test.base)
+			if power != test.wantPower || ok != test.wantOK {
+				t.Errorf("Power(%q, %d) = %d, %v, want %d, %v",
+					test.letter, test.base, power, ok, test.wantPower, test.wantOK)
+			}
+		})
+	}
+}
