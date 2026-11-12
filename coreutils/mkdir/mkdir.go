@@ -10,7 +10,7 @@ import (
 	"path/filepath"
 
 	"charm.land/snail/coreutils"
-	"charm.land/snail/coreutils/chmod"
+	"charm.land/snail/coreutils/internal/filemode"
 	"charm.land/snail/coreutils/internal/getopt"
 	"charm.land/snail/coreutils/internal/patherr"
 	"charm.land/snail/coreutils/internal/stdopts"
@@ -46,9 +46,9 @@ func (p *Prog) Run(ctx context.Context, args ...string) error {
 		stdopts.Errorf(p.Runtime, "mkdir", "no file system available")
 		return &coreutils.ExitError{Code: 1}
 	}
-	var spec chmod.ModeSpec
+	var spec filemode.Spec
 	if opts.modeSet {
-		if spec, err = chmod.ParseMode(opts.mode); err != nil {
+		if spec, err = filemode.Parse(opts.mode); err != nil {
 			stdopts.Errorf(p.Runtime, "mkdir", "%v", err)
 			stdopts.TryHelp(p.Runtime, "mkdir")
 			return &coreutils.ExitError{Code: 1}
@@ -76,7 +76,7 @@ func (p *Prog) Run(ctx context.Context, args ...string) error {
 // only applies to the directory given itself, while parents get the default
 // mode modified by u+wx. With verbose, every directory actually created is
 // announced on the standard output.
-func (p *Prog) mkdir(dir string, opts options, spec chmod.ModeSpec) error {
+func (p *Prog) mkdir(dir string, opts options, spec filemode.Spec) error {
 	comps := coreutils.SplitPath(p.FsName(dir))
 	if len(comps) == 0 {
 		comps = []string{"."}

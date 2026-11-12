@@ -334,35 +334,6 @@ func newTarReader(r io.Reader) (*tar.Reader, error) {
 	return tar.NewReader(br), nil
 }
 
-// confirm asks on the standard error whether the action should happen,
-// reading the answer from the standard input. Only a response starting with
-// 'y' or 'Y' is taken as affirmative.
-func (a *archiver) confirm(action, name string) bool {
-	fmt.Fprintf(a.rt.Stderr, "tar: %s '%s'? ", action, name)
-	if a.rt.Stdin == nil {
-		return false
-	}
-	var (
-		buf    [1]byte
-		answer byte
-	)
-	for {
-		n, err := a.rt.Stdin.Read(buf[:])
-		if n > 0 {
-			if buf[0] == '\n' {
-				break
-			}
-			if answer == 0 {
-				answer = buf[0]
-			}
-		}
-		if err != nil {
-			break
-		}
-	}
-	return answer == 'y' || answer == 'Y'
-}
-
 // cleanName normalizes an operand for storage or matching: slashes become
 // forward slashes, and trailing slashes are dropped.
 func cleanName(name string) string {

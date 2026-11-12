@@ -19,6 +19,7 @@ import (
 	"path/filepath"
 
 	"charm.land/snail/coreutils"
+	"charm.land/snail/coreutils/internal/fsop"
 	"charm.land/snail/coreutils/internal/getopt"
 	"charm.land/snail/coreutils/internal/patherr"
 	"charm.land/snail/coreutils/internal/stdopts"
@@ -116,7 +117,7 @@ func (p *Prog) removeEntry(ctx context.Context, name, display string, opts optio
 			return fmt.Errorf("%s: %v", display, errIsDir)
 		}
 	}
-	if opts.interactive && !p.confirm("remove", display) {
+	if opts.interactive && !fsop.Confirm(p.Runtime, "rm", "remove", display) {
 		return errSkipped
 	}
 	return p.removeOne(name, display, opts)
@@ -130,7 +131,7 @@ func (p *Prog) removeTree(ctx context.Context, name, display string, opts option
 	if err != nil {
 		return fmt.Errorf("%s: %v", display, patherr.Unwrap(err))
 	}
-	if len(entries) > 0 && opts.interactive && !p.confirm("descend into directory", display) {
+	if len(entries) > 0 && opts.interactive && !fsop.Confirm(p.Runtime, "rm", "descend into directory", display) {
 		return errSkipped
 	}
 
@@ -155,7 +156,7 @@ func (p *Prog) removeTree(ctx context.Context, name, display string, opts option
 	if !ok {
 		return errFailed
 	}
-	if opts.interactive && !p.confirm("remove", display) {
+	if opts.interactive && !fsop.Confirm(p.Runtime, "rm", "remove", display) {
 		return errSkipped
 	}
 	return p.removeOne(name, display, opts)
@@ -173,35 +174,6 @@ func (p *Prog) removeOne(name, display string, opts options) error {
 		fmt.Fprintf(p.Stdout, "removed '%s'\n", display)
 	}
 	return nil
-}
-
-// confirm asks on the standard error whether the action should be taken on
-// display and reads the answer from the standard input. Only a response
-// starting with 'y' or 'Y' is taken as affirmative.
-func (p *Prog) confirm(action, display string) bool {
-	fmt.Fprintf(p.Stderr, "rm: %s '%s'? ", action, display)
-	if p.Stdin == nil {
-		return false
-	}
-	var (
-		buf    [1]byte
-		answer byte
-	)
-	for {
-		n, err := p.Stdin.Read(buf[:])
-		if n > 0 {
-			if buf[0] == '\n' {
-				break
-			}
-			if answer == 0 {
-				answer = buf[0]
-			}
-		}
-		if err != nil {
-			break
-		}
-	}
-	return answer == 'y' || answer == 'Y'
 }
 
 // protectedErr returns the refusal to remove an operand ending in dot or

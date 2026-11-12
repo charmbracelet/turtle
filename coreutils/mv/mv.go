@@ -22,16 +22,15 @@ import (
 	"path/filepath"
 	"slices"
 	"strings"
-	"time"
 
 	"charm.land/snail/coreutils"
 
 	"charm.land/snail/coreutils/internal/ctxio"
 	"charm.land/snail/coreutils/internal/filemode"
+	"charm.land/snail/coreutils/internal/fsop"
 	"charm.land/snail/coreutils/internal/getopt"
 	"charm.land/snail/coreutils/internal/patherr"
 	"charm.land/snail/coreutils/internal/stdopts"
-	"charm.land/snail/fsx"
 )
 
 // Prog is the mv core utility.
@@ -56,7 +55,7 @@ func (p *Prog) Run(ctx context.Context, args ...string) error {
 	if err != nil {
 		return stdopts.UsageError(p.Runtime, "mv", err)
 	}
-	sources, target, err := splitOperands(operands, opts)
+	sources, target, err := fsop.SplitOperands(operands, opts.targetDir, opts.targetDirSet, opts.noTarget)
 	if err != nil {
 		return stdopts.UsageError(p.Runtime, "mv", err)
 	}
@@ -92,11 +91,11 @@ func (p *Prog) Run(ctx context.Context, args ...string) error {
 		if err := ctx.Err(); err != nil {
 			return err
 		}
-		e := pair{src: p.FsPath(source), srcName: source, dst: dst, dstName: target}
+		e := fsop.Pair{Src: p.FsPath(source), SrcName: source, Dst: dst, DstName: target}
 		if moveInto {
 			base := coreutils.FsBase(source)
-			e.dst = path.Join(dst, base)
-			e.dstName = path.Join(target, base)
+			e.Dst = path.Join(dst, base)
+			e.DstName = path.Join(target, base)
 		}
 		if err := p.moveEntry(ctx, e, opts); err != nil {
 			switch {
@@ -118,26 +117,26 @@ func (p *Prog) Run(ctx context.Context, args ...string) error {
 // moveEntry moves a single source to its destination. Errors are returned
 // ready to be reported; errSkipped is returned when a move was declined
 // through -n, -u or -i.
-func (p *Prog) moveEntry(ctx context.Context, e pair, opts options) error {
-	fi, err := fs.Stat(p.FS, e.src)
+func (p *Prog) moveEntry(ctx context.Context, e fsop.Pair, opts options) error {
+	fi, err := fs.Stat(p.FS, e.Src)
 	if err != nil {
-		return fmt.Errorf("cannot stat '%s': %v", e.srcName, patherr.Unwrap(err))
+		return fmt.Errorf("cannot stat '%s': %v", e.SrcName, patherr.Unwrap(err))
 	}
-	if e.src == e.dst {
-		return fmt.Errorf("'%s' and '%s' are the same file", e.srcName, e.dstName)
+	if e.Src == e.Dst {
+		return fmt.Errorf("'%s' and '%s' are the same file", e.SrcName, e.DstName)
 	}
-	if fi.IsDir() && strings.HasPrefix(e.dst, e.src+"/") {
-		return fmt.Errorf("cannot move a directory, '%s', into itself, '%s'", e.srcName, e.dstName)
+	if fi.IsDir() && strings.HasPrefix(e.Dst, e.Src+"/") {
+		return fmt.Errorf("cannot move a directory, '%s', into itself, '%s'", e.SrcName, e.DstName)
 	}
 
-	dfi, err := fs.Stat(p.FS, e.dst)
+	dfi, err := fs.Stat(p.FS, e.Dst)
 	switch {
 	case err == nil && dfi.IsDir() && !fi.IsDir():
-		return fmt.Errorf("cannot overwrite directory '%s' with non-directory '%s'", e.dstName, e.srcName)
+		return fmt.Errorf("cannot overwrite directory '%s' with non-directory '%s'", e.DstName, e.SrcName)
 	case err == nil && !dfi.IsDir() && fi.IsDir():
-		return fmt.Errorf("cannot overwrite non-directory '%s' with directory '%s'", e.dstName, e.srcName)
+		return fmt.Errorf("cannot overwrite non-directory '%s' with directory '%s'", e.DstName, e.SrcName)
 	case err != nil && !errors.Is(err, fs.ErrNotExist):
-		return fmt.Errorf("cannot stat '%s': %v", e.dstName, patherr.Unwrap(err))
+		return fmt.Errorf("cannot stat '%s': %v", e.DstName, patherr.Unwrap(err))
 	}
 	if err == nil {
 		switch {
@@ -145,12 +144,12 @@ func (p *Prog) moveEntry(ctx context.Context, e pair, opts options) error {
 			return errSkipped
 		case opts.update && !fi.IsDir() && !fi.ModTime().After(dfi.ModTime()):
 			return errSkipped
-		case opts.clobber == clobberPrompt && !p.confirm(e.dstName):
+		case opts.clobber == clobberPrompt && !fsop.Confirm(p.Runtime, "mv", "overwrite", e.DstName):
 			return errSkipped
 		}
 	}
 
-	err = p.FS.Rename(e.src, e.dst)
+	err = p.FS.Rename(e.Src, e.Dst)
 	switch {
 	case err == nil:
 	case crossDevice(err):
@@ -158,10 +157,10 @@ func (p *Prog) moveEntry(ctx context.Context, e pair, opts options) error {
 			return err
 		}
 	default:
-		return fmt.Errorf("cannot move '%s' to '%s': %v", e.srcName, e.dstName, unwrapRenameError(err))
+		return fmt.Errorf("cannot move '%s' to '%s': %v", e.SrcName, e.DstName, unwrapRenameError(err))
 	}
 	if opts.verbose && p.Stdout != nil {
-		fmt.Fprintf(p.Stdout, "renamed '%s' -> '%s'\n", e.srcName, e.dstName)
+		fmt.Fprintf(p.Stdout, "renamed '%s' -> '%s'\n", e.SrcName, e.DstName)
 	}
 	return nil
 }
@@ -170,32 +169,32 @@ func (p *Prog) moveEntry(ctx context.Context, e pair, opts options) error {
 // the file, or hierarchy rooted at it, is duplicated with its mode and times
 // over the destination, and the source is removed. An existing destination is
 // replaced, except for a directory holding entries, which stays.
-func (p *Prog) moveAcross(ctx context.Context, e pair, fi fs.FileInfo) error {
-	dfi, err := fs.Stat(p.FS, e.dst)
+func (p *Prog) moveAcross(ctx context.Context, e fsop.Pair, fi fs.FileInfo) error {
+	dfi, err := fs.Stat(p.FS, e.Dst)
 	switch {
 	case err != nil && !errors.Is(err, fs.ErrNotExist):
-		return fmt.Errorf("cannot stat '%s': %v", e.dstName, patherr.Unwrap(err))
+		return fmt.Errorf("cannot stat '%s': %v", e.DstName, patherr.Unwrap(err))
 	case err == nil && dfi.IsDir():
-		entries, err := fs.ReadDir(p.FS, e.dst)
+		entries, err := fs.ReadDir(p.FS, e.Dst)
 		if err != nil {
-			return fmt.Errorf("cannot read directory '%s': %v", e.dstName, patherr.Unwrap(err))
+			return fmt.Errorf("cannot read directory '%s': %v", e.DstName, patherr.Unwrap(err))
 		}
 		if len(entries) > 0 {
-			return fmt.Errorf("cannot remove '%s': directory not empty", e.dstName)
+			return fmt.Errorf("cannot remove '%s': directory not empty", e.DstName)
 		}
 	}
 	if err := p.copyEntry(ctx, e, fi); err != nil {
 		return err
 	}
-	if err := p.removeTree(ctx, e.src); err != nil {
-		return fmt.Errorf("cannot remove '%s': %v", e.srcName, patherr.Unwrap(err))
+	if err := p.removeTree(ctx, e.Src); err != nil {
+		return fmt.Errorf("cannot remove '%s': %v", e.SrcName, patherr.Unwrap(err))
 	}
 	return nil
 }
 
 // copyEntry duplicates a file, or the hierarchy rooted at a directory, at the
 // destination, with the mode and times of the source.
-func (p *Prog) copyEntry(ctx context.Context, e pair, fi fs.FileInfo) error {
+func (p *Prog) copyEntry(ctx context.Context, e fsop.Pair, fi fs.FileInfo) error {
 	if fi.IsDir() {
 		return p.copyDir(ctx, e, fi)
 	}
@@ -206,46 +205,46 @@ func (p *Prog) copyEntry(ctx context.Context, e pair, fi fs.FileInfo) error {
 // traversal permissions, so its contents can be copied even from a
 // restrictive source mode, and takes the source mode and times once it's
 // done. An existing empty destination is kept and replaced.
-func (p *Prog) copyDir(ctx context.Context, e pair, fi fs.FileInfo) error {
-	if err := p.FS.Mkdir(e.dst, fi.Mode().Perm()|0o700); err != nil && !errors.Is(err, fs.ErrExist) {
-		return fmt.Errorf("cannot create directory '%s': %v", e.dstName, patherr.Unwrap(err))
+func (p *Prog) copyDir(ctx context.Context, e fsop.Pair, fi fs.FileInfo) error {
+	if err := p.FS.Mkdir(e.Dst, fi.Mode().Perm()|0o700); err != nil && !errors.Is(err, fs.ErrExist) {
+		return fmt.Errorf("cannot create directory '%s': %v", e.DstName, patherr.Unwrap(err))
 	}
-	entries, err := fs.ReadDir(p.FS, e.src)
+	entries, err := fs.ReadDir(p.FS, e.Src)
 	if err != nil {
-		return fmt.Errorf("cannot read directory '%s': %v", e.srcName, patherr.Unwrap(err))
+		return fmt.Errorf("cannot read directory '%s': %v", e.SrcName, patherr.Unwrap(err))
 	}
 	for _, entry := range entries {
 		if err := ctx.Err(); err != nil {
 			return err
 		}
-		child := e.child(entry.Name())
+		child := e.Child(entry.Name())
 		cfi, err := entry.Info()
 		if err != nil {
-			return fmt.Errorf("cannot stat '%s': %v", child.srcName, patherr.Unwrap(err))
+			return fmt.Errorf("cannot stat '%s': %v", child.SrcName, patherr.Unwrap(err))
 		}
 		if err := p.copyEntry(ctx, child, cfi); err != nil {
 			return err
 		}
 	}
-	if err := p.FS.Chmod(e.dst, fi.Mode()&filemode.AccessBits); err != nil {
-		return fmt.Errorf("cannot set mode of '%s': %v", e.dstName, patherr.Unwrap(err))
+	if err := p.FS.Chmod(e.Dst, fi.Mode()&filemode.AccessBits); err != nil {
+		return fmt.Errorf("cannot set mode of '%s': %v", e.DstName, patherr.Unwrap(err))
 	}
-	if err := p.FS.Chtimes(e.dst, atime(fi), fi.ModTime()); err != nil {
-		return fmt.Errorf("cannot set times of '%s': %v", e.dstName, patherr.Unwrap(err))
+	if err := p.FS.Chtimes(e.Dst, fsop.Atime(fi), fi.ModTime()); err != nil {
+		return fmt.Errorf("cannot set times of '%s': %v", e.DstName, patherr.Unwrap(err))
 	}
 	return nil
 }
 
 // copyFile duplicates a regular file with the mode and times of the source.
-func (p *Prog) copyFile(ctx context.Context, e pair, fi fs.FileInfo) error {
-	out, err := p.FS.OpenFile(e.dst, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, fi.Mode().Perm())
+func (p *Prog) copyFile(ctx context.Context, e fsop.Pair, fi fs.FileInfo) error {
+	out, err := p.FS.OpenFile(e.Dst, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, fi.Mode().Perm())
 	if err != nil {
-		return fmt.Errorf("cannot create '%s': %v", e.dstName, patherr.Unwrap(err))
+		return fmt.Errorf("cannot create '%s': %v", e.DstName, patherr.Unwrap(err))
 	}
-	in, err := p.FS.Open(e.src)
+	in, err := p.FS.Open(e.Src)
 	if err != nil {
 		out.Close()
-		return fmt.Errorf("cannot open '%s': %v", e.srcName, patherr.Unwrap(err))
+		return fmt.Errorf("cannot open '%s': %v", e.SrcName, patherr.Unwrap(err))
 	}
 
 	_, copyErr := io.Copy(out, ctxio.NewReader(ctx, in))
@@ -253,18 +252,18 @@ func (p *Prog) copyFile(ctx context.Context, e pair, fi fs.FileInfo) error {
 	outErr := out.Close()
 	switch {
 	case copyErr != nil:
-		return fmt.Errorf("cannot copy '%s' to '%s': %v", e.srcName, e.dstName, patherr.Unwrap(copyErr))
+		return fmt.Errorf("cannot copy '%s' to '%s': %v", e.SrcName, e.DstName, patherr.Unwrap(copyErr))
 	case outErr != nil:
-		return fmt.Errorf("cannot close '%s': %v", e.dstName, patherr.Unwrap(outErr))
+		return fmt.Errorf("cannot close '%s': %v", e.DstName, patherr.Unwrap(outErr))
 	case inErr != nil:
-		return fmt.Errorf("cannot close '%s': %v", e.srcName, patherr.Unwrap(inErr))
+		return fmt.Errorf("cannot close '%s': %v", e.SrcName, patherr.Unwrap(inErr))
 	}
 
-	if err := p.FS.Chmod(e.dst, fi.Mode()&filemode.AccessBits); err != nil {
-		return fmt.Errorf("cannot set mode of '%s': %v", e.dstName, patherr.Unwrap(err))
+	if err := p.FS.Chmod(e.Dst, fi.Mode()&filemode.AccessBits); err != nil {
+		return fmt.Errorf("cannot set mode of '%s': %v", e.DstName, patherr.Unwrap(err))
 	}
-	if err := p.FS.Chtimes(e.dst, atime(fi), fi.ModTime()); err != nil {
-		return fmt.Errorf("cannot set times of '%s': %v", e.dstName, patherr.Unwrap(err))
+	if err := p.FS.Chtimes(e.Dst, fsop.Atime(fi), fi.ModTime()); err != nil {
+		return fmt.Errorf("cannot set times of '%s': %v", e.DstName, patherr.Unwrap(err))
 	}
 	return nil
 }
@@ -291,60 +290,6 @@ func (p *Prog) removeTree(ctx context.Context, name string) error {
 		return err
 	}
 	return nil
-}
-
-// pair holds a source and its destination, both as the path used with the
-// file system and as the name shown in diagnostics.
-type pair struct {
-	src, dst         string
-	srcName, dstName string
-}
-
-// child returns the pair for an entry of the source directory.
-func (e pair) child(name string) pair {
-	return pair{
-		src:     path.Join(e.src, name),
-		dst:     path.Join(e.dst, name),
-		srcName: e.srcName + "/" + name,
-		dstName: e.dstName + "/" + name,
-	}
-}
-
-// confirm asks on the standard error whether dst should be overwritten and
-// reads the answer from the standard input. Only a response starting with
-// 'y' or 'Y' is taken as affirmative.
-func (p *Prog) confirm(dst string) bool {
-	fmt.Fprintf(p.Stderr, "mv: overwrite '%s'? ", dst)
-	if p.Stdin == nil {
-		return false
-	}
-	var (
-		buf    [1]byte
-		answer byte
-	)
-	for {
-		n, err := p.Stdin.Read(buf[:])
-		if n > 0 {
-			if buf[0] == '\n' {
-				break
-			}
-			if answer == 0 {
-				answer = buf[0]
-			}
-		}
-		if err != nil {
-			break
-		}
-	}
-	return answer == 'y' || answer == 'Y'
-}
-
-// atime returns the access time of fi, falling back to its modification time.
-func atime(fi fs.FileInfo) time.Time {
-	if t, ok := fsx.Atime(fi); ok {
-		return t
-	}
-	return fi.ModTime()
 }
 
 // errSkipped marks a move declined through -n, -u or -i, which isn't a
@@ -424,30 +369,6 @@ Rename SOURCE to DEST, or move SOURCE(s) to DIRECTORY.
   -t, --target-directory=DIRECTORY
          move all SOURCE arguments into DIRECTORY
 ` + stdopts.Tail
-
-// splitOperands splits the operands into the sources and the target,
-// following the -t and -T options.
-func splitOperands(operands []string, opts options) (sources []string, target string, err error) {
-	if opts.targetDirSet {
-		if len(operands) == 0 {
-			return nil, "", errors.New("missing file operand")
-		}
-		return operands, opts.targetDir, nil
-	}
-	switch len(operands) {
-	case 0:
-		return nil, "", errors.New("missing file operand")
-	case 1:
-		return nil, "", fmt.Errorf("missing destination file operand after '%s'", operands[0])
-	}
-	if opts.noTarget {
-		if len(operands) > 2 {
-			return nil, "", fmt.Errorf("extra operand '%s'", operands[2])
-		}
-		return operands[:1], operands[1], nil
-	}
-	return operands[:len(operands)-1], operands[len(operands)-1], nil
-}
 
 // parseFlags parses the options and operands. Option parsing stops at the
 // first operand or at "--", the last of -f, -i and -n wins, and -t can't be

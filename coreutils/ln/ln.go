@@ -23,6 +23,7 @@ import (
 	"strings"
 
 	"charm.land/snail/coreutils"
+	"charm.land/snail/coreutils/internal/fsop"
 	"charm.land/snail/coreutils/internal/getopt"
 	"charm.land/snail/coreutils/internal/patherr"
 	"charm.land/snail/coreutils/internal/stdopts"
@@ -115,11 +116,11 @@ func (p *Prog) Run(ctx context.Context, args ...string) error {
 		if err := ctx.Err(); err != nil {
 			return err
 		}
-		e := pair{src: p.FsPath(source), srcName: source, dst: dst, dstName: target}
+		e := fsop.Pair{Src: p.FsPath(source), SrcName: source, Dst: dst, DstName: target}
 		if targetIsDir {
 			base := coreutils.FsBase(source)
-			e.dst = path.Join(dst, base)
-			e.dstName = path.Join(target, base)
+			e.Dst = path.Join(dst, base)
+			e.DstName = path.Join(target, base)
 		}
 		if err := p.link(e, opts); err != nil {
 			stdopts.Errorf(p.Runtime, "ln", "%v", err)
@@ -134,40 +135,40 @@ func (p *Prog) Run(ctx context.Context, args ...string) error {
 
 // link creates a single link, after the checks and the removal of an existing
 // destination that -f allows. An error is returned ready to be reported.
-func (p *Prog) link(e pair, opts options) error {
-	fi, err := p.FS.Lstat(e.dst)
+func (p *Prog) link(e fsop.Pair, opts options) error {
+	fi, err := p.FS.Lstat(e.Dst)
 	switch {
-	case err == nil && e.src == e.dst:
-		return fmt.Errorf("'%s' and '%s' are the same file", e.srcName, e.dstName)
+	case err == nil && e.Src == e.Dst:
+		return fmt.Errorf("'%s' and '%s' are the same file", e.SrcName, e.DstName)
 	case err == nil && fi.IsDir():
-		return fmt.Errorf("cannot create %s '%s': is a directory", opts.kind(), e.dstName)
+		return fmt.Errorf("cannot create %s '%s': is a directory", opts.kind(), e.DstName)
 	case err == nil && !opts.force:
-		return fmt.Errorf("cannot create %s '%s': file exists", opts.kind(), e.dstName)
+		return fmt.Errorf("cannot create %s '%s': file exists", opts.kind(), e.DstName)
 	case err == nil:
-		if err := p.FS.Remove(e.dst); err != nil {
-			return fmt.Errorf("cannot remove '%s': %v", e.dstName, patherr.Unwrap(err))
+		if err := p.FS.Remove(e.Dst); err != nil {
+			return fmt.Errorf("cannot remove '%s': %v", e.DstName, patherr.Unwrap(err))
 		}
 	case !errors.Is(err, fs.ErrNotExist):
-		return fmt.Errorf("cannot stat '%s': %v", e.dstName, patherr.Unwrap(err))
+		return fmt.Errorf("cannot stat '%s': %v", e.DstName, patherr.Unwrap(err))
 	}
 
 	if opts.symbolic {
-		if err := p.FS.Symlink(filepath.ToSlash(e.srcName), e.dst); err != nil {
-			return fmt.Errorf("cannot create symbolic link '%s' to '%s': %v", e.dstName, e.srcName, unwrapLinkError(err))
+		if err := p.FS.Symlink(filepath.ToSlash(e.SrcName), e.Dst); err != nil {
+			return fmt.Errorf("cannot create symbolic link '%s' to '%s': %v", e.DstName, e.SrcName, unwrapLinkError(err))
 		}
 		p.reportLink(e, opts)
 		return nil
 	}
 
-	src := e.src
+	src := e.Src
 	if opts.logical {
-		src, err = p.evalSymlinks(e.src)
+		src, err = p.evalSymlinks(e.Src)
 		if err != nil {
-			return fmt.Errorf("cannot stat '%s': %v", e.srcName, err)
+			return fmt.Errorf("cannot stat '%s': %v", e.SrcName, err)
 		}
 	}
-	if err := p.FS.Link(src, e.dst); err != nil {
-		return fmt.Errorf("cannot create link '%s' to '%s': %v", e.dstName, e.srcName, unwrapLinkError(err))
+	if err := p.FS.Link(src, e.Dst); err != nil {
+		return fmt.Errorf("cannot create link '%s' to '%s': %v", e.DstName, e.SrcName, unwrapLinkError(err))
 	}
 	p.reportLink(e, opts)
 	return nil
@@ -175,7 +176,7 @@ func (p *Prog) link(e pair, opts options) error {
 
 // reportLink names the created link on standard output, as -v asks, with ->
 // for a symbolic link and => for a hard link.
-func (p *Prog) reportLink(e pair, opts options) {
+func (p *Prog) reportLink(e fsop.Pair, opts options) {
 	if !opts.verbose {
 		return
 	}
@@ -183,7 +184,7 @@ func (p *Prog) reportLink(e pair, opts options) {
 	if opts.symbolic {
 		arrow = "->"
 	}
-	fmt.Fprintf(p.Stdout, "'%s' %s '%s'\n", e.dstName, arrow, e.srcName)
+	fmt.Fprintf(p.Stdout, "'%s' %s '%s'\n", e.DstName, arrow, e.SrcName)
 }
 
 // destination splits the operands into sources and the destination target:
@@ -231,14 +232,6 @@ func (p *Prog) evalSymlinks(name string) (string, error) {
 		}
 	}
 	return "", errLoop
-}
-
-// pair holds a source and its destination, both as the path used with the
-// file system and as the name shown in diagnostics. srcName keeps the source
-// as typed, since -s stores it in the link.
-type pair struct {
-	src, dst         string
-	srcName, dstName string
 }
 
 // options holds the ln flags. logical is the -L option; -P is the default, and
