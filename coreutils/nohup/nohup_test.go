@@ -11,6 +11,7 @@ import (
 	"testing"
 
 	"charm.land/snail/coreutils"
+	"charm.land/snail/coreutils/internal/testutil"
 	"charm.land/snail/fsx"
 )
 
@@ -88,19 +89,6 @@ func stderr(t *testing.T, rt *coreutils.Runtime) string {
 	return rt.Stderr.(*bytes.Buffer).String()
 }
 
-// exitCode reports the exit status an error stands for.
-func exitCode(t *testing.T, err error) int {
-	t.Helper()
-	if err == nil {
-		return 0
-	}
-	var exitErr *coreutils.ExitError
-	if !errors.As(err, &exitErr) {
-		t.Fatalf("Run() error = %v, want *coreutils.ExitError", err)
-	}
-	return exitErr.Code
-}
-
 func TestRunInvoke(t *testing.T) {
 	t.Run("the utility and its arguments are passed", func(t *testing.T) {
 		rec := &execRecord{}
@@ -141,7 +129,7 @@ func TestRunInvoke(t *testing.T) {
 		rt := newRuntime(rec, fsx.MemFS{}, nil, nil)
 
 		err := New(rt).Run(t.Context(), "false")
-		if code := exitCode(t, err); code != 3 {
+		if code := testutil.ExitCode(t, err); code != 3 {
 			t.Errorf("Run() exit status = %d, want 3", code)
 		}
 	})
@@ -442,7 +430,7 @@ func TestFallback(t *testing.T) {
 
 		err := New(rt).Run(t.Context(), "true")
 
-		if code := exitCode(t, err); code != 125 {
+		if code := testutil.ExitCode(t, err); code != 125 {
 			t.Errorf("Run() exit status = %d, want 125", code)
 		}
 		if got, want := stderr(t, rt), "nohup: failed to open 'nohup.out': file does not exist\n"; got != want {
@@ -460,7 +448,7 @@ func TestFallback(t *testing.T) {
 
 		err := New(rt).Run(t.Context(), "true")
 
-		if code := exitCode(t, err); code != 125 {
+		if code := testutil.ExitCode(t, err); code != 125 {
 			t.Errorf("Run() exit status = %d, want 125", code)
 		}
 		want := "nohup: failed to open 'nohup.out': file does not exist\n" +
@@ -479,7 +467,7 @@ func TestFallback(t *testing.T) {
 
 		err := New(rt).Run(t.Context(), "true")
 
-		if code := exitCode(t, err); code != 125 {
+		if code := testutil.ExitCode(t, err); code != 125 {
 			t.Errorf("Run() exit status = %d, want 125", code)
 		}
 		if got, want := stderr(t, rt), "nohup: failed to open 'nohup.out': no file system available\n"; got != want {
@@ -601,19 +589,7 @@ func TestUsageErrors(t *testing.T) {
 }
 
 func TestHelpVersion(t *testing.T) {
-	t.Run("help", func(t *testing.T) {
-		rt := newRuntime(nil, nil, nil, nil)
-
-		if err := New(rt).Run(t.Context(), "--help"); err != nil {
-			t.Fatalf("Run() error = %v, want nil (exit status 0)", err)
-		}
-		if got, want := stdout(t, rt), usage; got != want {
-			t.Errorf("Run() stdout = %q, want %q", got, want)
-		}
-		if got := stderr(t, rt); got != "" {
-			t.Errorf("Run() stderr = %q, want empty", got)
-		}
-	})
+	testutil.HelpVersion(t, New, "nohup", usage)
 
 	t.Run("help after the utility name is an argument", func(t *testing.T) {
 		rec := &execRecord{}
@@ -627,18 +603,6 @@ func TestHelpVersion(t *testing.T) {
 		}
 		if got, want := rec.opts.Args, []string{"--help"}; !slices.Equal(got, want) {
 			t.Errorf("executed with args %v, want %v", got, want)
-		}
-	})
-
-	t.Run("version", func(t *testing.T) {
-		rt := newRuntime(nil, nil, nil, nil)
-
-		if err := New(rt).Run(t.Context(), "--version"); err != nil {
-			t.Fatalf("Run() error = %v, want nil (exit status 0)", err)
-		}
-		want := "nohup (charm.land/snail/coreutils) " + coreutils.Version + "\nhttps://charm.land/snail\n"
-		if got := stdout(t, rt); got != want {
-			t.Errorf("Run() stdout = %q, want %q", got, want)
 		}
 	})
 }
@@ -689,7 +653,7 @@ func TestNoExec(t *testing.T) {
 
 	err := New(rt).Run(t.Context(), "true")
 
-	if code := exitCode(t, err); code != 125 {
+	if code := testutil.ExitCode(t, err); code != 125 {
 		t.Errorf("Run() exit status = %d, want 125", code)
 	}
 	if got, want := stderr(t, rt), "nohup: no command execution available\n"; got != want {

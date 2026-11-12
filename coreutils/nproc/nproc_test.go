@@ -8,15 +8,8 @@ import (
 	"testing"
 
 	"charm.land/snail/coreutils"
+	"charm.land/snail/coreutils/internal/testutil"
 )
-
-type errorWriter struct {
-	err error
-}
-
-func (w errorWriter) Write([]byte) (int, error) {
-	return 0, w.err
-}
 
 type testCase struct {
 	name     string
@@ -42,7 +35,7 @@ func runCase(t *testing.T, test testCase) {
 
 	err := prog.Run(t.Context(), test.args...)
 
-	if code := exitCode(t, err); code != test.wantExit {
+	if code := testutil.ExitCode(t, err); code != test.wantExit {
 		t.Errorf("Run() exit code = %d, want %d (error = %v)", code, test.wantExit, err)
 	}
 	if got := stdout.String(); got != test.want {
@@ -51,19 +44,6 @@ func runCase(t *testing.T, test testCase) {
 	if got := stderr.String(); got != test.wantErr {
 		t.Errorf("Run() stderr = %q, want %q", got, test.wantErr)
 	}
-}
-
-func exitCode(t *testing.T, err error) int {
-	t.Helper()
-
-	if err == nil {
-		return 0
-	}
-	var exitErr *coreutils.ExitError
-	if !errors.As(err, &exitErr) {
-		t.Fatalf("Run() error = %v, want *coreutils.ExitError", err)
-	}
-	return exitErr.Code
 }
 
 func TestRun(t *testing.T) {
@@ -287,14 +267,14 @@ func TestRun(t *testing.T) {
 	t.Run("write error", func(t *testing.T) {
 		writeErr := errors.New("broken pipe")
 		rt := &coreutils.Runtime{
-			Stdout: errorWriter{err: writeErr},
+			Stdout: testutil.ErrorWriter{Err: writeErr},
 			Stderr: new(bytes.Buffer),
 		}
 		prog := &Prog{Runtime: rt, numCPU: func() int { return 8 }}
 
 		err := prog.Run(t.Context())
 
-		if code := exitCode(t, err); code != 1 {
+		if code := testutil.ExitCode(t, err); code != 1 {
 			t.Errorf("Run() exit code = %d, want 1 (error = %v)", code, err)
 		}
 		if !errors.Is(err, writeErr) {
@@ -337,26 +317,5 @@ func TestRun(t *testing.T) {
 }
 
 func TestHelpVersion(t *testing.T) {
-	t.Run("help", func(t *testing.T) {
-		stdout := new(bytes.Buffer)
-		rt := &coreutils.Runtime{Stdout: stdout, Stderr: new(bytes.Buffer)}
-		if err := New(rt).Run(t.Context(), "--help"); err != nil {
-			t.Fatalf("Run() error = %v, want nil (exit status 0)", err)
-		}
-		if got, want := stdout.String(), usage; got != want {
-			t.Errorf("Run() stdout = %q, want %q", got, want)
-		}
-	})
-
-	t.Run("version", func(t *testing.T) {
-		stdout := new(bytes.Buffer)
-		rt := &coreutils.Runtime{Stdout: stdout, Stderr: new(bytes.Buffer)}
-		if err := New(rt).Run(t.Context(), "--version"); err != nil {
-			t.Fatalf("Run() error = %v, want nil (exit status 0)", err)
-		}
-		want := "nproc (charm.land/snail/coreutils) " + coreutils.Version + "\nhttps://charm.land/snail\n"
-		if got := stdout.String(); got != want {
-			t.Errorf("Run() stdout = %q, want %q", got, want)
-		}
-	})
+	testutil.HelpVersion(t, New, "nproc", usage)
 }

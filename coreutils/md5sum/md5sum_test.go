@@ -2,13 +2,12 @@ package md5sum
 
 import (
 	"bytes"
-	"errors"
-	"io"
 	"strings"
 	"testing"
 
 	"charm.land/snail/coreutils"
 	"charm.land/snail/coreutils/internal/digest"
+	"charm.land/snail/coreutils/internal/testutil"
 	"charm.land/snail/fsx"
 )
 
@@ -29,93 +28,48 @@ func testFS() fsx.MemFS {
 	}
 }
 
-type testCase struct {
-	name     string
-	stdin    io.Reader
-	fsys     fsx.FS
-	args     []string
-	want     string
-	wantErr  string
-	wantExit int
-}
-
-func runCase(t *testing.T, test testCase) {
-	t.Helper()
-
-	stdout, stderr := new(bytes.Buffer), new(bytes.Buffer)
-	rt := &coreutils.Runtime{
-		Stdin:  test.stdin,
-		Stdout: stdout,
-		Stderr: stderr,
-		FS:     test.fsys,
-	}
-	err := New(rt).Run(t.Context(), test.args...)
-
-	code := 0
-	if err != nil {
-		var exitErr *coreutils.ExitError
-		if !errors.As(err, &exitErr) {
-			t.Fatalf("Run() error = %v, want *coreutils.ExitError", err)
-		}
-		code = exitErr.Code
-	}
-	if code != test.wantExit {
-		t.Errorf("Run() exit code = %d, want %d (error = %v)", code, test.wantExit, err)
-	}
-	if got := stdout.String(); got != test.want {
-		t.Errorf("Run() stdout = %q, want %q", got, test.want)
-	}
-	if got := stderr.String(); got != test.wantErr {
-		t.Errorf("Run() stderr = %q, want %q", got, test.wantErr)
-	}
-}
-
 func TestRun(t *testing.T) {
-	tests := []testCase{
+	tests := []testutil.Case{
 		{
-			name: "the digest of a file",
-			fsys: testFS(),
-			args: []string{"hello.txt"},
-			want: helloDigest + "  hello.txt\n",
+			Name: "the digest of a file",
+			FS:   testFS(),
+			Args: []string{"hello.txt"},
+			Want: helloDigest + "  hello.txt\n",
 		},
 		{
-			name:  "the digest of the standard input",
-			stdin: strings.NewReader("hello\n"),
-			want:  helloDigest + "  -\n",
+			Name:  "the digest of the standard input",
+			Stdin: strings.NewReader("hello\n"),
+			Want:  helloDigest + "  -\n",
 		},
 		{
-			name: "binary mode",
-			fsys: testFS(),
-			args: []string{"-b", "hello.txt"},
-			want: helloDigest + " *hello.txt\n",
+			Name: "binary mode",
+			FS:   testFS(),
+			Args: []string{"-b", "hello.txt"},
+			Want: helloDigest + " *hello.txt\n",
 		},
 		{
-			name: "a BSD style line",
-			fsys: testFS(),
-			args: []string{"--tag", "hello.txt"},
-			want: "MD5 (hello.txt) = " + helloDigest + "\n",
+			Name: "a BSD style line",
+			FS:   testFS(),
+			Args: []string{"--tag", "hello.txt"},
+			Want: "MD5 (hello.txt) = " + helloDigest + "\n",
 		},
 		{
-			name: "verifying a checksum",
-			fsys: testFS(),
-			args: []string{"-c", "sums.txt"},
-			want: "hello.txt: OK\n",
+			Name: "verifying a checksum",
+			FS:   testFS(),
+			Args: []string{"-c", "sums.txt"},
+			Want: "hello.txt: OK\n",
 		},
 		{
-			name:     "a checksum which doesn't match",
-			fsys:     testFS(),
-			args:     []string{"-c", "bad.txt"},
-			want:     "hello.txt: FAILED\n",
-			wantErr:  "md5sum: WARNING: 1 computed checksum did NOT match\n",
-			wantExit: 1,
+			Name:     "a checksum which doesn't match",
+			FS:       testFS(),
+			Args:     []string{"-c", "bad.txt"},
+			Want:     "hello.txt: FAILED\n",
+			WantErr:  "md5sum: WARNING: 1 computed checksum did NOT match\n",
+			WantExit: 1,
 		},
 	}
 
-	for _, test := range tests {
-		t.Run(test.name, func(t *testing.T) {
-			runCase(t, test)
-		})
-	}
+	testutil.Run(t, New, tests)
 }
 
 func TestHelpVersion(t *testing.T) {

@@ -8,15 +8,8 @@ import (
 	"testing"
 
 	"charm.land/snail/coreutils"
+	"charm.land/snail/coreutils/internal/testutil"
 )
-
-type errorWriter struct {
-	err error
-}
-
-func (w errorWriter) Write([]byte) (int, error) {
-	return 0, w.err
-}
 
 // runPrintenv runs printenv with the given environment and arguments,
 // returning the standard output and the error.
@@ -44,19 +37,6 @@ func runPrintenvWriter(t *testing.T, w io.Writer, environ []string, args ...stri
 		Environ: func() []string { return environ },
 	}
 	return New(rt).Run(t.Context(), args...)
-}
-
-func exitCode(t *testing.T, err error) int {
-	t.Helper()
-
-	if err == nil {
-		return 0
-	}
-	var exitErr *coreutils.ExitError
-	if !errors.As(err, &exitErr) {
-		t.Fatalf("Run() error = %v, want *coreutils.ExitError", err)
-	}
-	return exitErr.Code
 }
 
 func TestRun(t *testing.T) {
@@ -205,7 +185,7 @@ func TestRun(t *testing.T) {
 				if got != test.want {
 					t.Errorf("Run() stdout = %q, want %q", got, test.want)
 				}
-				if code := exitCode(t, err); code != test.wantErr {
+				if code := testutil.ExitCode(t, err); code != test.wantErr {
 					t.Errorf("Run() exit status = %d, want %d", code, test.wantErr)
 				}
 				if stderr != "" {
@@ -278,7 +258,7 @@ func TestRun(t *testing.T) {
 				if got != test.want {
 					t.Errorf("Run() stdout = %q, want %q", got, test.want)
 				}
-				if code := exitCode(t, err); code != test.wantErr {
+				if code := testutil.ExitCode(t, err); code != test.wantErr {
 					t.Errorf("Run() exit status = %d, want %d", code, test.wantErr)
 				}
 				if stderr != "" {
@@ -317,7 +297,7 @@ func TestRun(t *testing.T) {
 				if got != "" {
 					t.Errorf("Run() stdout = %q, want empty", got)
 				}
-				if code := exitCode(t, err); code != test.wantErr {
+				if code := testutil.ExitCode(t, err); code != test.wantErr {
 					t.Errorf("Run() exit status = %d, want %d", code, test.wantErr)
 				}
 				if stderr == "" {
@@ -333,8 +313,8 @@ func TestRunWriteError(t *testing.T) {
 	writeErr := errors.New("write error")
 
 	t.Run("no operands", func(t *testing.T) {
-		err := runPrintenvWriter(t, errorWriter{err: writeErr}, environ)
-		if code := exitCode(t, err); code != 2 {
+		err := runPrintenvWriter(t, testutil.ErrorWriter{Err: writeErr}, environ)
+		if code := testutil.ExitCode(t, err); code != 2 {
 			t.Errorf("Run() exit status = %d, want 2", code)
 		}
 		if !errors.Is(err, writeErr) {
@@ -343,8 +323,8 @@ func TestRunWriteError(t *testing.T) {
 	})
 
 	t.Run("values", func(t *testing.T) {
-		err := runPrintenvWriter(t, errorWriter{err: writeErr}, environ, "HOME")
-		if code := exitCode(t, err); code != 2 {
+		err := runPrintenvWriter(t, testutil.ErrorWriter{Err: writeErr}, environ, "HOME")
+		if code := testutil.ExitCode(t, err); code != 2 {
 			t.Errorf("Run() exit status = %d, want 2", code)
 		}
 		if !errors.Is(err, writeErr) {
@@ -359,7 +339,7 @@ func TestRunWriteError(t *testing.T) {
 			Stdout:  nil,
 		}
 		err := New(rt).Run(t.Context())
-		if code := exitCode(t, err); code != 2 {
+		if code := testutil.ExitCode(t, err); code != 2 {
 			t.Errorf("Run() exit status = %d, want 2", code)
 		}
 	})
@@ -432,7 +412,7 @@ func (w *cancelWriter) String() string {
 
 func TestRunUsageError(t *testing.T) {
 	stdout, stderr, err := runPrintenv(t, nil, "-x")
-	if code := exitCode(t, err); code != 1 {
+	if code := testutil.ExitCode(t, err); code != 1 {
 		t.Fatalf("Run() exit code = %d, want 1 (error = %v)", code, err)
 	}
 	if got := stdout; got != "" {
@@ -445,30 +425,5 @@ func TestRunUsageError(t *testing.T) {
 }
 
 func TestHelpVersion(t *testing.T) {
-	t.Run("help", func(t *testing.T) {
-		stdout, stderr, err := runPrintenv(t, nil, "--help")
-		if err != nil {
-			t.Fatalf("Run() error = %v, want nil (exit status 0)", err)
-		}
-		if got, want := stdout, usage; got != want {
-			t.Errorf("Run() stdout = %q, want %q", got, want)
-		}
-		if got := stderr; got != "" {
-			t.Errorf("Run() stderr = %q, want empty", got)
-		}
-	})
-
-	t.Run("version", func(t *testing.T) {
-		stdout, stderr, err := runPrintenv(t, nil, "--version")
-		if err != nil {
-			t.Fatalf("Run() error = %v, want nil (exit status 0)", err)
-		}
-		want := "printenv (charm.land/snail/coreutils) " + coreutils.Version + "\nhttps://charm.land/snail\n"
-		if got := stdout; got != want {
-			t.Errorf("Run() stdout = %q, want %q", got, want)
-		}
-		if got := stderr; got != "" {
-			t.Errorf("Run() stderr = %q, want empty", got)
-		}
-	})
+	testutil.HelpVersion(t, New, "printenv", usage)
 }

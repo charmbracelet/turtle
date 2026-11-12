@@ -7,13 +7,12 @@ import (
 	"crypto/sha1"
 	"crypto/sha256"
 	"crypto/sha512"
-	"errors"
-	"io"
 	"runtime"
 	"strings"
 	"testing"
 
 	"charm.land/snail/coreutils"
+	"charm.land/snail/coreutils/internal/testutil"
 	"charm.land/snail/fsx"
 )
 
@@ -72,110 +71,26 @@ func testFS() fsx.MemFS {
 	}
 }
 
-type testCase struct {
-	name string
-
-	// algorithm is the digest the run uses, defaulting to SHA256.
-	algorithm Algorithm
-
-	stdin   io.Reader
-	stdout  io.Writer
-	stderr  io.Writer
-	fsys    fsx.FS
-	dir     string
-	args    []string
-	want    string
-	wantErr string
-
-	// wantExit is the exit status wanted, none when the run succeeds.
-	wantExit int
-
-	// skipOn names a platform where the test can't run.
-	skipOn string
-}
-
-// runCase runs the utility of the algorithm of the test and compares what it
-// wrote with what the test expects. A test which gives its own writer is
-// spared the comparison of what that writer holds.
-func runCase(t *testing.T, test testCase) {
-	t.Helper()
-
-	if test.skipOn != "" && runtime.GOOS == test.skipOn {
-		t.Skipf("not supported on %s", test.skipOn)
-	}
-	algorithm := test.algorithm
-	if algorithm.Name == "" {
-		algorithm = testSHA256
-	}
-
-	stdout, stderr := new(bytes.Buffer), new(bytes.Buffer)
-	rt := &coreutils.Runtime{
-		Stdin:      test.stdin,
-		Stdout:     orWriter(test.stdout, stdout),
-		Stderr:     orWriter(test.stderr, stderr),
-		FS:         test.fsys,
-		WorkingDir: test.dir,
-	}
-
-	err := algorithm.Run(t.Context(), rt, test.args)
-
-	var exitErr *coreutils.ExitError
-	code := 0
-	if err != nil {
-		if !errors.As(err, &exitErr) {
-			t.Fatalf("Run() error = %v, want *coreutils.ExitError", err)
-		}
-		code = exitErr.Code
-	}
-	if code != test.wantExit {
-		t.Errorf("Run() exit code = %d, want %d (error = %v)", code, test.wantExit, err)
-	}
-	if test.stdout == nil {
-		if got := stdout.String(); got != test.want {
-			t.Errorf("Run() stdout = %q, want %q", got, test.want)
-		}
-	}
-	if test.stderr == nil {
-		if got := stderr.String(); got != test.wantErr {
-			t.Errorf("Run() stderr = %q, want %q", got, test.wantErr)
-		}
+// newAlgorithm adapts an Algorithm to the NewFunc the shared test runner
+// takes.
+func newAlgorithm(a Algorithm) coreutils.NewFunc {
+	return func(rt *coreutils.Runtime) coreutils.Program {
+		return algorithmProg{a, rt}
 	}
 }
 
-// orWriter returns w, falling back to the buffer of the test when it isn't
-// given.
-func orWriter(w, fallback io.Writer) io.Writer {
-	if w == nil {
-		return fallback
-	}
-	return w
+// algorithmProg runs one digest algorithm as a coreutils.Program.
+type algorithmProg struct {
+	Algorithm
+	rt *coreutils.Runtime
 }
 
-// cancelReader cancels its context on the first read, simulating a context
-// that is done while reading the input.
-type cancelReader struct {
-	cancel context.CancelFunc
-	reads  int
+func (p algorithmProg) Run(ctx context.Context, args ...string) error {
+	return p.Algorithm.Run(ctx, p.rt, args)
 }
 
-func (r *cancelReader) Read(p []byte) (int, error) {
-	if r.reads > 0 {
-		return 0, io.EOF
-	}
-	r.reads++
-	r.cancel()
-	return copy(p, "hello"), nil
-}
-
-// errorReader always fails to be read.
-type errorReader struct{}
-
-func (errorReader) Read([]byte) (int, error) { return 0, errors.New("boom") }
-
-// errorWriter always fails to be written to.
-type errorWriter struct{}
-
-func (errorWriter) Write([]byte) (int, error) { return 0, errors.New("boom") }
+// newSHA256 runs the algorithm the tests default to.
+var newSHA256 = newAlgorithm(testSHA256)
 
 func TestRunDigests(t *testing.T) {
 	for _, test := range []struct {
@@ -190,413 +105,374 @@ func TestRunDigests(t *testing.T) {
 		{testSHA512, helloSHA512},
 	} {
 		t.Run(test.algorithm.Name, func(t *testing.T) {
-			runCase(t, testCase{
-				algorithm: test.algorithm,
-				stdin:     strings.NewReader("hello\n"),
-				want:      test.digest + "  -\n",
+			testutil.Once(t, newAlgorithm(test.algorithm), testutil.Case{
+				Stdin: strings.NewReader("hello\n"),
+				Want:  test.digest + "  -\n",
 			})
 		})
 	}
 }
 
 func TestRunOperands(t *testing.T) {
-	tests := []testCase{
+	tests := []testutil.Case{
 		{
-			name:  "no operands read the standard input",
-			stdin: strings.NewReader("hello\n"),
-			want:  helloSHA256 + "  -\n",
+			Name:  "no operands read the standard input",
+			Stdin: strings.NewReader("hello\n"),
+			Want:  helloSHA256 + "  -\n",
 		},
 		{
-			name:  "dash reads the standard input",
-			stdin: strings.NewReader("hello\n"),
-			args:  []string{"-"},
-			want:  helloSHA256 + "  -\n",
+			Name:  "dash reads the standard input",
+			Stdin: strings.NewReader("hello\n"),
+			Args:  []string{"-"},
+			Want:  helloSHA256 + "  -\n",
 		},
 		{
-			name:  "double dash with no operands reads the standard input",
-			stdin: strings.NewReader("hello\n"),
-			args:  []string{"--"},
-			want:  helloSHA256 + "  -\n",
+			Name:  "double dash with no operands reads the standard input",
+			Stdin: strings.NewReader("hello\n"),
+			Args:  []string{"--"},
+			Want:  helloSHA256 + "  -\n",
 		},
 		{
-			name: "a file operand",
-			fsys: testFS(),
-			args: []string{"hello.txt"},
-			want: helloSHA256 + "  hello.txt\n",
+			Name: "a file operand",
+			FS:   testFS(),
+			Args: []string{"hello.txt"},
+			Want: helloSHA256 + "  hello.txt\n",
 		},
 		{
-			name: "an empty file",
-			fsys: testFS(),
-			args: []string{"empty.txt"},
-			want: emptySHA256 + "  empty.txt\n",
+			Name: "an empty file",
+			FS:   testFS(),
+			Args: []string{"empty.txt"},
+			Want: emptySHA256 + "  empty.txt\n",
 		},
 		{
-			name: "several operands are all written, in order",
-			fsys: testFS(),
-			args: []string{"foo.txt", "hello.txt", "empty.txt"},
-			want: fooSHA256 + "  foo.txt\n" +
+			Name: "several operands are all written, in order",
+			FS:   testFS(),
+			Args: []string{"foo.txt", "hello.txt", "empty.txt"},
+			Want: fooSHA256 + "  foo.txt\n" +
 				helloSHA256 + "  hello.txt\n" +
 				emptySHA256 + "  empty.txt\n",
 		},
 		{
-			name: "a file is resolved against the working directory",
-			fsys: testFS(),
-			dir:  "sub",
-			args: []string{"inner.txt"},
-			want: innerSHA256 + "  inner.txt\n",
+			Name: "a file is resolved against the working directory",
+			FS:   testFS(),
+			Dir:  "sub",
+			Args: []string{"inner.txt"},
+			Want: innerSHA256 + "  inner.txt\n",
 		},
 		{
-			name: "a file named like an option after a double dash",
-			fsys: testFS(),
-			args: []string{"--", "-c"},
-			want: helloSHA256 + "  -c\n",
+			Name: "a file named like an option after a double dash",
+			FS:   testFS(),
+			Args: []string{"--", "-c"},
+			Want: helloSHA256 + "  -c\n",
 		},
 		{
-			name:  "the standard input is written as dash",
-			stdin: strings.NewReader("hello\n"),
-			fsys:  testFS(),
-			args:  []string{"-", "hello.txt"},
-			want:  helloSHA256 + "  -\n" + helloSHA256 + "  hello.txt\n",
+			Name:  "the standard input is written as dash",
+			Stdin: strings.NewReader("hello\n"),
+			FS:    testFS(),
+			Args:  []string{"-", "hello.txt"},
+			Want:  helloSHA256 + "  -\n" + helloSHA256 + "  hello.txt\n",
 		},
 	}
 
-	for _, test := range tests {
-		t.Run(test.name, func(t *testing.T) {
-			runCase(t, test)
-		})
-	}
+	testutil.Run(t, newSHA256, tests)
 }
 
 func TestRunModes(t *testing.T) {
-	tests := []testCase{
+	tests := []testutil.Case{
 		{
-			name: "text mode is the default",
-			fsys: testFS(),
-			args: []string{"hello.txt"},
-			want: helloSHA256 + "  hello.txt\n",
+			Name: "text mode is the default",
+			FS:   testFS(),
+			Args: []string{"hello.txt"},
+			Want: helloSHA256 + "  hello.txt\n",
 		},
 		{
-			name: "text mode writes one space and the mode character",
-			fsys: testFS(),
-			args: []string{"-t", "hello.txt"},
-			want: helloSHA256 + "  hello.txt\n",
+			Name: "text mode writes one space and the mode character",
+			FS:   testFS(),
+			Args: []string{"-t", "hello.txt"},
+			Want: helloSHA256 + "  hello.txt\n",
 		},
 		{
-			name: "the long text option",
-			fsys: testFS(),
-			args: []string{"--text", "hello.txt"},
-			want: helloSHA256 + "  hello.txt\n",
+			Name: "the long text option",
+			FS:   testFS(),
+			Args: []string{"--text", "hello.txt"},
+			Want: helloSHA256 + "  hello.txt\n",
 		},
 		{
-			name: "binary mode writes a star",
-			fsys: testFS(),
-			args: []string{"-b", "hello.txt"},
-			want: helloSHA256 + " *hello.txt\n",
+			Name: "binary mode writes a star",
+			FS:   testFS(),
+			Args: []string{"-b", "hello.txt"},
+			Want: helloSHA256 + " *hello.txt\n",
 		},
 		{
-			name: "the long binary option",
-			fsys: testFS(),
-			args: []string{"--binary", "hello.txt"},
-			want: helloSHA256 + " *hello.txt\n",
+			Name: "the long binary option",
+			FS:   testFS(),
+			Args: []string{"--binary", "hello.txt"},
+			Want: helloSHA256 + " *hello.txt\n",
 		},
 		{
-			name: "the last mode option wins",
-			fsys: testFS(),
-			args: []string{"-bt", "hello.txt"},
-			want: helloSHA256 + "  hello.txt\n",
+			Name: "the last mode option wins",
+			FS:   testFS(),
+			Args: []string{"-bt", "hello.txt"},
+			Want: helloSHA256 + "  hello.txt\n",
 		},
 		{
-			name: "the other order of the mode options",
-			fsys: testFS(),
-			args: []string{"-tb", "hello.txt"},
-			want: helloSHA256 + " *hello.txt\n",
+			Name: "the other order of the mode options",
+			FS:   testFS(),
+			Args: []string{"-tb", "hello.txt"},
+			Want: helloSHA256 + " *hello.txt\n",
 		},
 		{
-			name: "the tag option writes BSD style",
-			fsys: testFS(),
-			args: []string{"--tag", "hello.txt"},
-			want: "SHA256 (hello.txt) = " + helloSHA256 + "\n",
+			Name: "the tag option writes BSD style",
+			FS:   testFS(),
+			Args: []string{"--tag", "hello.txt"},
+			Want: "SHA256 (hello.txt) = " + helloSHA256 + "\n",
 		},
 		{
-			name:      "the tag option of another algorithm",
-			algorithm: testMD5,
-			fsys:      testFS(),
-			args:      []string{"--tag", "hello.txt"},
-			want:      "MD5 (hello.txt) = " + helloMD5 + "\n",
+			Name:  "the tag option writes the operand of the standard input",
+			Stdin: strings.NewReader("hello\n"),
+			Args:  []string{"--tag"},
+			Want:  "SHA256 (-) = " + helloSHA256 + "\n",
 		},
 		{
-			name:  "the tag option writes the operand of the standard input",
-			stdin: strings.NewReader("hello\n"),
-			args:  []string{"--tag"},
-			want:  "SHA256 (-) = " + helloSHA256 + "\n",
+			Name: "the tag option hides the input mode",
+			FS:   testFS(),
+			Args: []string{"--tag", "-b", "hello.txt"},
+			Want: "SHA256 (hello.txt) = " + helloSHA256 + "\n",
 		},
 		{
-			name: "the tag option hides the input mode",
-			fsys: testFS(),
-			args: []string{"--tag", "-b", "hello.txt"},
-			want: "SHA256 (hello.txt) = " + helloSHA256 + "\n",
+			Name: "zero ends the line with a NUL",
+			FS:   testFS(),
+			Args: []string{"-z", "hello.txt"},
+			Want: helloSHA256 + "  hello.txt\x00",
 		},
 		{
-			name: "zero ends the line with a NUL",
-			fsys: testFS(),
-			args: []string{"-z", "hello.txt"},
-			want: helloSHA256 + "  hello.txt\x00",
-		},
-		{
-			name: "the long zero option",
-			fsys: testFS(),
-			args: []string{"--zero", "hello.txt", "foo.txt"},
-			want: helloSHA256 + "  hello.txt\x00" + fooSHA256 + "  foo.txt\x00",
+			Name: "the long zero option",
+			FS:   testFS(),
+			Args: []string{"--zero", "hello.txt", "foo.txt"},
+			Want: helloSHA256 + "  hello.txt\x00" + fooSHA256 + "  foo.txt\x00",
 		},
 	}
 
-	for _, test := range tests {
-		t.Run(test.name, func(t *testing.T) {
-			runCase(t, test)
+	testutil.Run(t, newSHA256, tests)
+
+	t.Run("the tag option of another algorithm", func(t *testing.T) {
+		testutil.Once(t, newAlgorithm(testMD5), testutil.Case{
+			FS:   testFS(),
+			Args: []string{"--tag", "hello.txt"},
+			Want: "MD5 (hello.txt) = " + helloMD5 + "\n",
 		})
-	}
+	})
 }
 
 func TestRunEscapedNames(t *testing.T) {
-	tests := []testCase{
+	tests := []testutil.Case{
 		{
-			name: "a file name holding a newline is escaped",
-			fsys: testFS(),
-			args: []string{"we\nird.txt"},
-			want: `\` + helloSHA256 + `  we\nird.txt` + "\n",
+			Name: "a file name holding a newline is escaped",
+			FS:   testFS(),
+			Args: []string{"we\nird.txt"},
+			Want: `\` + helloSHA256 + `  we\nird.txt` + "\n",
 		},
 		{
-			name: "the tag line is escaped as a whole",
-			fsys: testFS(),
-			args: []string{"--tag", "we\nird.txt"},
-			want: `\SHA256 (we\nird.txt) = ` + helloSHA256 + "\n",
+			Name: "the tag line is escaped as a whole",
+			FS:   testFS(),
+			Args: []string{"--tag", "we\nird.txt"},
+			Want: `\SHA256 (we\nird.txt) = ` + helloSHA256 + "\n",
 		},
 		{
-			name: "zero disables the escaping",
-			fsys: testFS(),
-			args: []string{"-z", "we\nird.txt"},
-			want: helloSHA256 + "  we\nird.txt\x00",
+			Name: "zero disables the escaping",
+			FS:   testFS(),
+			Args: []string{"-z", "we\nird.txt"},
+			Want: helloSHA256 + "  we\nird.txt\x00",
 		},
 		{
-			name: "a file name holding a carriage return is escaped",
-			fsys: testFS(),
-			args: []string{"cr\rname.txt"},
-			want: `\` + helloSHA256 + `  cr\rname.txt` + "\n",
-		},
-		{
-			name:   "a file name holding a backslash is escaped",
-			fsys:   testFS(),
-			args:   []string{`back\slash.txt`},
-			want:   `\` + helloSHA256 + `  back\\slash.txt` + "\n",
-			skipOn: "windows",
+			Name: "a file name holding a carriage return is escaped",
+			FS:   testFS(),
+			Args: []string{"cr\rname.txt"},
+			Want: `\` + helloSHA256 + `  cr\rname.txt` + "\n",
 		},
 	}
 
-	for _, test := range tests {
-		t.Run(test.name, func(t *testing.T) {
-			runCase(t, test)
+	testutil.Run(t, newSHA256, tests)
+
+	t.Run("a file name holding a backslash is escaped", func(t *testing.T) {
+		if runtime.GOOS == "windows" {
+			t.Skipf("not supported on %s", "windows")
+		}
+		testutil.Once(t, newSHA256, testutil.Case{
+			FS:   testFS(),
+			Args: []string{`back\slash.txt`},
+			Want: `\` + helloSHA256 + `  back\\slash.txt` + "\n",
 		})
-	}
+	})
 }
 
 func TestRunErrors(t *testing.T) {
-	tests := []testCase{
+	tests := []testutil.Case{
 		{
-			name:     "a file which isn't there",
-			fsys:     testFS(),
-			args:     []string{"missing.txt"},
-			wantErr:  "sha256sum: missing.txt: file does not exist\n",
-			wantExit: 1,
+			Name:     "a file which isn't there",
+			FS:       testFS(),
+			Args:     []string{"missing.txt"},
+			WantErr:  "sha256sum: missing.txt: file does not exist\n",
+			WantExit: 1,
 		},
 		{
-			name:     "the other operands are still written",
-			fsys:     testFS(),
-			args:     []string{"missing.txt", "hello.txt"},
-			want:     helloSHA256 + "  hello.txt\n",
-			wantErr:  "sha256sum: missing.txt: file does not exist\n",
-			wantExit: 1,
+			Name:     "the other operands are still written",
+			FS:       testFS(),
+			Args:     []string{"missing.txt", "hello.txt"},
+			Want:     helloSHA256 + "  hello.txt\n",
+			WantErr:  "sha256sum: missing.txt: file does not exist\n",
+			WantExit: 1,
 		},
 		{
-			name:     "no standard input to read",
-			wantErr:  "sha256sum: -: no standard input available\n",
-			wantExit: 1,
+			Name:     "no standard input to read",
+			WantErr:  "sha256sum: -: no standard input available\n",
+			WantExit: 1,
 		},
 		{
-			name:     "no file system to read from",
-			args:     []string{"hello.txt"},
-			wantErr:  "sha256sum: hello.txt: no file system available\n",
-			wantExit: 1,
+			Name:     "no file system to read from",
+			Args:     []string{"hello.txt"},
+			WantErr:  "sha256sum: hello.txt: no file system available\n",
+			WantExit: 1,
 		},
 		{
-			name:     "the standard input which can't be read",
-			stdin:    errorReader{},
-			wantErr:  "sha256sum: -: boom\n",
-			wantExit: 1,
+			Name:     "the standard input which can't be read",
+			Stdin:    testutil.ErrorReader{},
+			WantErr:  "sha256sum: -: boom\n",
+			WantExit: 1,
 		},
 		{
-			name:     "an option which isn't taken",
-			fsys:     testFS(),
-			args:     []string{"-q", "hello.txt"},
-			wantErr:  "sha256sum: invalid option -- 'q'\nTry 'sha256sum --help' for more information.\n",
-			wantExit: 2,
+			Name:     "an option which isn't taken",
+			FS:       testFS(),
+			Args:     []string{"-q", "hello.txt"},
+			WantErr:  "sha256sum: invalid option -- 'q'\nTry 'sha256sum --help' for more information.\n",
+			WantExit: 2,
 		},
 		{
-			name:     "a long option which has no short equivalent",
-			fsys:     testFS(),
-			args:     []string{"-T", "hello.txt"},
-			wantErr:  "sha256sum: invalid option -- 'T'\nTry 'sha256sum --help' for more information.\n",
-			wantExit: 2,
+			Name:     "a long option which has no short equivalent",
+			FS:       testFS(),
+			Args:     []string{"-T", "hello.txt"},
+			WantErr:  "sha256sum: invalid option -- 'T'\nTry 'sha256sum --help' for more information.\n",
+			WantExit: 2,
 		},
 		{
-			name:     "a long option of another utility",
-			fsys:     testFS(),
-			args:     []string{"--raw", "hello.txt"},
-			wantErr:  "sha256sum: unrecognized option '--raw'\nTry 'sha256sum --help' for more information.\n",
-			wantExit: 2,
+			Name:     "a long option of another utility",
+			FS:       testFS(),
+			Args:     []string{"--raw", "hello.txt"},
+			WantErr:  "sha256sum: unrecognized option '--raw'\nTry 'sha256sum --help' for more information.\n",
+			WantExit: 2,
 		},
 		{
-			name:     "a long option given a value",
-			fsys:     testFS(),
-			args:     []string{"--tag=1", "hello.txt"},
-			wantErr:  "sha256sum: option '--tag=1' doesn't allow an argument\nTry 'sha256sum --help' for more information.\n",
-			wantExit: 2,
-		},
-		{
-			name:     "a failing standard output",
-			fsys:     testFS(),
-			stdout:   errorWriter{},
-			args:     []string{"hello.txt"},
-			wantErr:  "sha256sum: write error: boom\n",
-			wantExit: 1,
+			Name:     "a long option given a value",
+			FS:       testFS(),
+			Args:     []string{"--tag=1", "hello.txt"},
+			WantErr:  "sha256sum: option '--tag=1' doesn't allow an argument\nTry 'sha256sum --help' for more information.\n",
+			WantExit: 2,
 		},
 	}
 
-	for _, test := range tests {
-		t.Run(test.name, func(t *testing.T) {
-			runCase(t, test)
-		})
-	}
+	testutil.Run(t, newSHA256, tests)
+
+	t.Run("a failing standard output", func(t *testing.T) {
+		rt := &coreutils.Runtime{
+			Stdout: testutil.ErrorWriter{},
+			Stderr: new(bytes.Buffer),
+			FS:     testFS(),
+		}
+		err := newSHA256(rt).Run(t.Context(), "hello.txt")
+		if code := testutil.ExitCode(t, err); code != 1 {
+			t.Errorf("Run() exit code = %d, want 1 (error = %v)", code, err)
+		}
+		if got, want := rt.Stderr.(*bytes.Buffer).String(), "sha256sum: write error: boom\n"; got != want {
+			t.Errorf("Run() stderr = %q, want %q", got, want)
+		}
+	})
 }
 
 func TestRunOptionConflicts(t *testing.T) {
-	tests := []testCase{
+	tests := []testutil.Case{
 		{
-			name:     "zero while verifying",
-			args:     []string{"-z", "-c", "sums.txt"},
-			wantErr:  "sha256sum: the --zero option is not supported when verifying checksums\nTry 'sha256sum --help' for more information.\n",
-			wantExit: 2,
+			Name:     "zero while verifying",
+			Args:     []string{"-z", "-c", "sums.txt"},
+			WantErr:  "sha256sum: the --zero option is not supported when verifying checksums\nTry 'sha256sum --help' for more information.\n",
+			WantExit: 2,
 		},
 		{
-			name:     "tag while verifying",
-			args:     []string{"--tag", "-c", "sums.txt"},
-			wantErr:  "sha256sum: the --tag option is meaningless when verifying checksums\nTry 'sha256sum --help' for more information.\n",
-			wantExit: 2,
+			Name:     "tag while verifying",
+			Args:     []string{"--tag", "-c", "sums.txt"},
+			WantErr:  "sha256sum: the --tag option is meaningless when verifying checksums\nTry 'sha256sum --help' for more information.\n",
+			WantExit: 2,
 		},
 		{
-			name:     "binary while verifying",
-			args:     []string{"-b", "-c", "sums.txt"},
-			wantErr:  "sha256sum: the --binary and --text options are meaningless when verifying checksums\nTry 'sha256sum --help' for more information.\n",
-			wantExit: 2,
+			Name:     "binary while verifying",
+			Args:     []string{"-b", "-c", "sums.txt"},
+			WantErr:  "sha256sum: the --binary and --text options are meaningless when verifying checksums\nTry 'sha256sum --help' for more information.\n",
+			WantExit: 2,
 		},
 		{
-			name:     "text while verifying",
-			args:     []string{"-c", "-t", "sums.txt"},
-			wantErr:  "sha256sum: the --binary and --text options are meaningless when verifying checksums\nTry 'sha256sum --help' for more information.\n",
-			wantExit: 2,
+			Name:     "text while verifying",
+			Args:     []string{"-c", "-t", "sums.txt"},
+			WantErr:  "sha256sum: the --binary and --text options are meaningless when verifying checksums\nTry 'sha256sum --help' for more information.\n",
+			WantExit: 2,
 		},
 		{
-			name:     "ignore-missing without verifying",
-			args:     []string{"--ignore-missing", "hello.txt"},
-			wantErr:  "sha256sum: the --ignore-missing option is meaningful only when verifying checksums\nTry 'sha256sum --help' for more information.\n",
-			wantExit: 2,
+			Name:     "ignore-missing without verifying",
+			Args:     []string{"--ignore-missing", "hello.txt"},
+			WantErr:  "sha256sum: the --ignore-missing option is meaningful only when verifying checksums\nTry 'sha256sum --help' for more information.\n",
+			WantExit: 2,
 		},
 		{
-			name:     "status without verifying",
-			args:     []string{"--status", "hello.txt"},
-			wantErr:  "sha256sum: the --status option is meaningful only when verifying checksums\nTry 'sha256sum --help' for more information.\n",
-			wantExit: 2,
+			Name:     "status without verifying",
+			Args:     []string{"--status", "hello.txt"},
+			WantErr:  "sha256sum: the --status option is meaningful only when verifying checksums\nTry 'sha256sum --help' for more information.\n",
+			WantExit: 2,
 		},
 		{
-			name:     "warn without verifying",
-			args:     []string{"-w", "hello.txt"},
-			wantErr:  "sha256sum: the --warn option is meaningful only when verifying checksums\nTry 'sha256sum --help' for more information.\n",
-			wantExit: 2,
+			Name:     "warn without verifying",
+			Args:     []string{"-w", "hello.txt"},
+			WantErr:  "sha256sum: the --warn option is meaningful only when verifying checksums\nTry 'sha256sum --help' for more information.\n",
+			WantExit: 2,
 		},
 		{
-			name:     "quiet without verifying",
-			args:     []string{"--quiet", "hello.txt"},
-			wantErr:  "sha256sum: the --quiet option is meaningful only when verifying checksums\nTry 'sha256sum --help' for more information.\n",
-			wantExit: 2,
+			Name:     "quiet without verifying",
+			Args:     []string{"--quiet", "hello.txt"},
+			WantErr:  "sha256sum: the --quiet option is meaningful only when verifying checksums\nTry 'sha256sum --help' for more information.\n",
+			WantExit: 2,
 		},
 		{
-			name:     "strict without verifying",
-			args:     []string{"--strict", "hello.txt"},
-			wantErr:  "sha256sum: the --strict option is meaningful only when verifying checksums\nTry 'sha256sum --help' for more information.\n",
-			wantExit: 2,
+			Name:     "strict without verifying",
+			Args:     []string{"--strict", "hello.txt"},
+			WantErr:  "sha256sum: the --strict option is meaningful only when verifying checksums\nTry 'sha256sum --help' for more information.\n",
+			WantExit: 2,
 		},
 		{
-			name:     "tagging in text mode",
-			args:     []string{"--tag", "-t", "hello.txt"},
-			wantErr:  "sha256sum: --tag does not support --text mode\nTry 'sha256sum --help' for more information.\n",
-			wantExit: 2,
+			Name:     "tagging in text mode",
+			Args:     []string{"--tag", "-t", "hello.txt"},
+			WantErr:  "sha256sum: --tag does not support --text mode\nTry 'sha256sum --help' for more information.\n",
+			WantExit: 2,
 		},
 		{
-			name:     "text mode before the tag option",
-			args:     []string{"-t", "--tag", "hello.txt"},
-			wantErr:  "sha256sum: --tag does not support --text mode\nTry 'sha256sum --help' for more information.\n",
-			wantExit: 2,
+			Name:     "text mode before the tag option",
+			Args:     []string{"-t", "--tag", "hello.txt"},
+			WantErr:  "sha256sum: --tag does not support --text mode\nTry 'sha256sum --help' for more information.\n",
+			WantExit: 2,
 		},
 	}
 
-	for _, test := range tests {
-		t.Run(test.name, func(t *testing.T) {
-			runCase(t, test)
-		})
-	}
+	testutil.Run(t, newSHA256, tests)
 }
 
 func TestRunContext(t *testing.T) {
 	t.Run("a context which is already done", func(t *testing.T) {
-		ctx, cancel := context.WithCancel(t.Context())
-		cancel()
-		runCancelled(t, ctx, strings.NewReader("hello\n"), nil)
+		testutil.Cancelled(t, newSHA256, strings.NewReader("hello\n"), testFS())
 	})
 
 	t.Run("a context which is done while reading", func(t *testing.T) {
-		ctx, cancel := context.WithCancel(t.Context())
-		runCancelled(t, ctx, &cancelReader{cancel: cancel}, nil)
+		testutil.Cancelled(t, newSHA256, &testutil.CancelReader{Data: []byte("hello")}, testFS())
 	})
 
 	t.Run("a context which is done while verifying", func(t *testing.T) {
-		ctx, cancel := context.WithCancel(t.Context())
-		runCancelled(t, ctx, &cancelReader{cancel: cancel}, []string{"-c"})
+		testutil.Cancelled(t, newSHA256, &testutil.CancelReader{Data: []byte("hello")}, testFS(), "-c")
 	})
-}
-
-// runCancelled runs the utility with a context that is either already done or
-// becomes done while reading, and checks that the context error is returned
-// without any diagnostic.
-func runCancelled(t *testing.T, ctx context.Context, stdin io.Reader, args []string) {
-	t.Helper()
-
-	stdout, stderr := new(bytes.Buffer), new(bytes.Buffer)
-	rt := &coreutils.Runtime{
-		Stdin:  stdin,
-		Stdout: stdout,
-		Stderr: stderr,
-		FS:     testFS(),
-	}
-	err := testSHA256.Run(ctx, rt, args)
-
-	if !errors.Is(err, context.Canceled) {
-		t.Fatalf("Run() error = %v, want context.Canceled", err)
-	}
-	if stdout.Len() > 0 {
-		t.Errorf("Run() stdout = %q, want nothing", stdout.String())
-	}
-	if stderr.Len() > 0 {
-		t.Errorf("Run() stderr = %q, want nothing", stderr.String())
-	}
 }
 
 // testFamily is the family utility the shasum tests would build.

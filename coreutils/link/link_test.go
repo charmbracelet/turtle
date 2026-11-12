@@ -2,7 +2,6 @@ package link
 
 import (
 	"bytes"
-	"errors"
 	"io"
 	"io/fs"
 	"os"
@@ -10,6 +9,7 @@ import (
 	"testing"
 
 	"charm.land/snail/coreutils"
+	"charm.land/snail/coreutils/internal/testutil"
 	"charm.land/snail/fsx"
 )
 
@@ -29,65 +29,23 @@ type testCase struct {
 func runCase(t *testing.T, test testCase) {
 	t.Helper()
 
-	stdout, stderr := new(bytes.Buffer), new(bytes.Buffer)
-	rt := &coreutils.Runtime{
-		Stdin:      strings.NewReader(""),
-		Stdout:     stdout,
-		Stderr:     stderr,
-		FS:         test.files,
-		WorkingDir: test.wd,
-	}
+	testutil.Once(t, New, testutil.Case{
+		Name:      test.name,
+		FS:        test.files,
+		Dir:       test.wd,
+		Args:      test.args,
+		WantFiles: test.want,
+		Present:   test.present,
+		Absent:    test.absent,
+		WantErr:   test.wantErr,
+		WantExit:  test.wantExit,
+	})
 
-	err := New(rt).Run(t.Context(), test.args...)
-
-	if code := exitCode(t, err); code != test.wantExit {
-		t.Errorf("Run() exit code = %d, want %d (error = %v)", code, test.wantExit, err)
-	}
-	if got := stderr.String(); got != test.wantErr {
-		t.Errorf("Run() stderr = %q, want %q", got, test.wantErr)
-	}
-	if got := stdout.String(); got != "" {
-		t.Errorf("Run() stdout = %q, want none", got)
-	}
-
-	for name, want := range test.want {
-		got, err := fs.ReadFile(test.files, name)
-		if err != nil {
-			t.Errorf("ReadFile(%q) error = %v", name, err)
-			continue
-		}
-		if string(got) != want {
-			t.Errorf("ReadFile(%q) = %q, want %q", name, got, want)
-		}
-	}
 	for name, other := range test.wantSame {
 		if test.files[name] != test.files[other] {
 			t.Errorf("%s and %s are different entries, want the same", name, other)
 		}
 	}
-	for _, name := range test.present {
-		if _, err := test.files.Lstat(name); err != nil {
-			t.Errorf("Lstat(%q) error = %v, want it to still exist", name, err)
-		}
-	}
-	for _, name := range test.absent {
-		if _, err := test.files.Lstat(name); !errors.Is(err, fs.ErrNotExist) {
-			t.Errorf("Lstat(%q) error = %v, want fs.ErrNotExist", name, err)
-		}
-	}
-}
-
-func exitCode(t *testing.T, err error) int {
-	t.Helper()
-
-	if err == nil {
-		return 0
-	}
-	var exitErr *coreutils.ExitError
-	if !errors.As(err, &exitErr) {
-		t.Fatalf("Run() error = %v, want *coreutils.ExitError", err)
-	}
-	return exitErr.Code
 }
 
 func TestRun(t *testing.T) {
@@ -285,34 +243,5 @@ func TestLinkSharesData(t *testing.T) {
 }
 
 func TestHelpVersion(t *testing.T) {
-	t.Run("help", func(t *testing.T) {
-		stdout := new(bytes.Buffer)
-		rt := &coreutils.Runtime{
-			Stdin:  strings.NewReader(""),
-			Stdout: stdout,
-			Stderr: new(bytes.Buffer),
-		}
-		if err := New(rt).Run(t.Context(), "--help"); err != nil {
-			t.Fatalf("Run() error = %v, want nil (exit status 0)", err)
-		}
-		if got, want := stdout.String(), usage; got != want {
-			t.Errorf("Run() stdout = %q, want %q", got, want)
-		}
-	})
-
-	t.Run("version", func(t *testing.T) {
-		stdout := new(bytes.Buffer)
-		rt := &coreutils.Runtime{
-			Stdin:  strings.NewReader(""),
-			Stdout: stdout,
-			Stderr: new(bytes.Buffer),
-		}
-		if err := New(rt).Run(t.Context(), "--version"); err != nil {
-			t.Fatalf("Run() error = %v, want nil (exit status 0)", err)
-		}
-		want := "link (charm.land/snail/coreutils) " + coreutils.Version + "\nhttps://charm.land/snail\n"
-		if got := stdout.String(); got != want {
-			t.Errorf("Run() stdout = %q, want %q", got, want)
-		}
-	})
+	testutil.HelpVersion(t, New, "link", usage)
 }

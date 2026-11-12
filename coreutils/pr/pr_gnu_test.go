@@ -10,6 +10,7 @@ import (
 	"testing"
 
 	"charm.land/snail/coreutils"
+	"charm.land/snail/coreutils/internal/testutil"
 	"charm.land/snail/fsx"
 )
 
@@ -313,25 +314,15 @@ func TestGNUInline(t *testing.T) {
 			for i, name := range test.in {
 				fsys[name] = &fsx.MemFile{Data: []byte(test.inputs[i]), ModTime: modTime}
 			}
-			stdout := new(bytes.Buffer)
-			stderr := new(bytes.Buffer)
-			rt := &coreutils.Runtime{
-				Stdout: stdout,
-				Stderr: stderr,
-				FS:     fsys,
-			}
 			args := append([]string{"--date-format=-- Date/Time --", "-h", "x"}, test.args...)
 			args = append(args, test.in...)
-			err := New(rt).Run(t.Context(), args...)
-			if code := exitCode(t, err); code != test.wantExit {
-				t.Errorf("Run() exit code = %d, want %d (error = %v)", code, test.wantExit, err)
-			}
-			if got := stdout.String(); got != test.want {
-				t.Errorf("Run() stdout = %q, want %q", got, test.want)
-			}
-			if got := stderr.String(); got != test.wantErr {
-				t.Errorf("Run() stderr = %q, want %q", got, test.wantErr)
-			}
+			testutil.Once(t, New, testutil.Case{
+				FS:       fsys,
+				Args:     args,
+				Want:     test.want,
+				WantErr:  test.wantErr,
+				WantExit: test.wantExit,
+			})
 		})
 	}
 }
