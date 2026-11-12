@@ -52,19 +52,6 @@ func stderr(t *testing.T, rt *coreutils.Runtime) string {
 	return rt.Stderr.(*bytes.Buffer).String()
 }
 
-// exitCode reports the exit status an error stands for.
-func exitCode(t *testing.T, err error) int {
-	t.Helper()
-	if err == nil {
-		return 0
-	}
-	var exitErr *coreutils.ExitError
-	if !errors.As(err, &exitErr) {
-		t.Fatalf("Run() error = %v, want *coreutils.ExitError", err)
-	}
-	return exitErr.Code
-}
-
 func TestRunInvoke(t *testing.T) {
 	tests := []struct {
 		name     string
@@ -455,5 +442,4 @@ func TestHelpVersion(t *testing.T) {
 			t.Errorf("Run() stdout = %q, want %q", got, want)
 		}
 	})
-
 }

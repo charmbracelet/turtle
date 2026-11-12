@@ -7,6 +7,7 @@ import (
 	"testing"
 
 	"charm.land/snail/coreutils"
+	"charm.land/snail/coreutils/internal/testutil"
 )
 
 type spyReader struct {
@@ -16,14 +17,6 @@ type spyReader struct {
 func (r *spyReader) Read([]byte) (int, error) {
 	r.read = true
 	return 0, io.EOF
-}
-
-type errorWriter struct {
-	err error
-}
-
-func (w errorWriter) Write([]byte) (int, error) {
-	return 0, w.err
 }
 
 func runEcho(t *testing.T, args ...string) (string, error) {
@@ -368,7 +361,7 @@ func TestRun(t *testing.T) {
 		stderr := new(bytes.Buffer)
 		rt := &coreutils.Runtime{
 			Stdin:  &spyReader{},
-			Stdout: errorWriter{err: writeErr},
+			Stdout: testutil.ErrorWriter{Err: writeErr},
 			Stderr: stderr,
 		}
 
