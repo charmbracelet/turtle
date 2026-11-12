@@ -188,7 +188,8 @@ packages already exist:
   regular expression translators.
 * `bre`: compiles POSIX basic regular expressions into Go ones.
 * `charset`: the character set syntax shared by the utilities that translate
-  characters, like tr and the y command of sed.
+  characters, like tr. sed's y command looks similar but follows its own
+  escape, range and delimiter rules, so it does not use this package.
 * `cnum`: the C integer constant scanning (hex and octal prefixes) shared by
   the byte-offset operands of od and cmp.
 * `cmdutil`: the `Main` helper the `cmd/{prog}` main packages delegate to.
