@@ -20,6 +20,7 @@ import (
 
 	"charm.land/snail/coreutils/internal/getopt"
 	"charm.land/snail/coreutils/internal/input"
+	"charm.land/snail/coreutils/internal/numparse"
 	"charm.land/snail/coreutils/internal/output"
 	"charm.land/snail/coreutils/internal/patherr"
 	"charm.land/snail/coreutils/internal/stdopts"
@@ -413,10 +414,8 @@ func parseDelimit(s string) (delimitMethod, error) {
 // parseSkip parses a non-negative decimal count of fields or characters to
 // skip.
 func parseSkip(s string, what string) (int, error) {
-	for i := 0; i < len(s); i++ {
-		if s[i] < '0' || s[i] > '9' {
-			return 0, fmt.Errorf("invalid number of %s: '%s'", what, s)
-		}
+	if !numparse.AllDigits(s) {
+		return 0, fmt.Errorf("invalid number of %s: '%s'", what, s)
 	}
 	n, err := strconv.Atoi(s)
 	if err != nil {

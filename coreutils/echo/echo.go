@@ -13,6 +13,7 @@ import (
 	"strings"
 
 	"charm.land/snail/coreutils"
+	"charm.land/snail/coreutils/internal/numparse"
 )
 
 // Prog is the echo core utility.
@@ -122,7 +123,7 @@ func writeEscaped(out *strings.Builder, operand string) bool {
 			// \0num: an octal number of up to three digits.
 			value := 0
 			j := i + 1
-			for ; j < len(operand) && j <= i+3 && isOctalDigit(operand[j]); j++ {
+			for ; j < len(operand) && j <= i+3 && numparse.IsOctalDigit(operand[j]); j++ {
 				value = value*8 + int(operand[j]-'0')
 			}
 			out.WriteByte(byte(value))
@@ -132,7 +133,7 @@ func writeEscaped(out *strings.Builder, operand string) bool {
 			// \num: an octal number of up to three digits, without the leading 0.
 			value := int(c - '0')
 			j := i + 1
-			for ; j < len(operand) && j <= i+2 && isOctalDigit(operand[j]); j++ {
+			for ; j < len(operand) && j <= i+2 && numparse.IsOctalDigit(operand[j]); j++ {
 				value = value*8 + int(operand[j]-'0')
 			}
 			out.WriteByte(byte(value))
@@ -143,7 +144,7 @@ func writeEscaped(out *strings.Builder, operand string) bool {
 			// digit the sequence is kept literally.
 			value, digits := 0, 0
 			j := i + 1
-			for ; digits < 2 && j < len(operand) && isHexDigit(operand[j]); j++ {
+			for ; digits < 2 && j < len(operand) && numparse.IsHexDigit(operand[j]); j++ {
 				value = value*16 + hexDigit(operand[j])
 				digits++
 			}
@@ -161,14 +162,6 @@ func writeEscaped(out *strings.Builder, operand string) bool {
 		out.WriteByte(c)
 	}
 	return true
-}
-
-func isOctalDigit(c byte) bool {
-	return c >= '0' && c <= '7'
-}
-
-func isHexDigit(c byte) bool {
-	return c >= '0' && c <= '9' || c >= 'a' && c <= 'f' || c >= 'A' && c <= 'F'
 }
 
 func hexDigit(c byte) int {

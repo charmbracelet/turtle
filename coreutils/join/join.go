@@ -22,6 +22,7 @@ import (
 
 	"charm.land/snail/coreutils/internal/getopt"
 	"charm.land/snail/coreutils/internal/input"
+	"charm.land/snail/coreutils/internal/numparse"
 	"charm.land/snail/coreutils/internal/patherr"
 	"charm.land/snail/coreutils/internal/stdopts"
 	"charm.land/snail/coreutils/internal/textutil"
@@ -470,7 +471,7 @@ func checkOperands(operands []string) error {
 // parseField parses a join field number: digits only, from 1 on, so that
 // signs and anything else a decimal number could carry is rejected.
 func parseField(value string) (int, error) {
-	if !digits(value) {
+	if !numparse.AllDigits(value) {
 		return 0, fmt.Errorf("invalid field number %q", value)
 	}
 	n, err := strconv.Atoi(value)
@@ -478,19 +479,6 @@ func parseField(value string) (int, error) {
 		return 0, fmt.Errorf("invalid field number %q", value)
 	}
 	return n, nil
-}
-
-// digits reports whether s is one or more decimal digits.
-func digits(s string) bool {
-	if s == "" {
-		return false
-	}
-	for i := 0; i < len(s); i++ {
-		if s[i] < '0' || s[i] > '9' {
-			return false
-		}
-	}
-	return true
 }
 
 // parseSelectors parses an -o list, whose elements are separated by commas
@@ -535,7 +523,7 @@ func parseSelector(elem string) (selector, error) {
 		return selector{}, fmt.Errorf("invalid field specifier %q", elem)
 	}
 	f, err := strconv.Atoi(file)
-	if err != nil || !digits(file) || (f != 1 && f != 2) {
+	if err != nil || !numparse.AllDigits(file) || (f != 1 && f != 2) {
 		return selector{}, fmt.Errorf("invalid file number in %q", elem)
 	}
 	n, err := parseField(field)

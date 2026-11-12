@@ -20,6 +20,7 @@ import (
 
 	"charm.land/snail/coreutils/internal/getopt"
 	"charm.land/snail/coreutils/internal/input"
+	"charm.land/snail/coreutils/internal/numparse"
 	"charm.land/snail/coreutils/internal/output"
 	"charm.land/snail/coreutils/internal/patherr"
 	"charm.land/snail/coreutils/internal/sizeparse"
@@ -638,7 +639,7 @@ func parseFlags(args []string) (options, []string, error) {
 		switch opt {
 		case 'a':
 			n, err := strconv.ParseInt(value, 10, 0)
-			if err != nil || n < 0 || !isDecimal(value) {
+			if err != nil || n < 0 || !numparse.AllDigits(value) {
 				return fmt.Errorf("invalid suffix length: '%s'", value)
 			}
 			// A length of zero selects the default length, as if -a was
@@ -662,8 +663,8 @@ func parseFlags(args []string) (options, []string, error) {
 				return errors.New("cannot split in more than one way")
 			}
 			mode = 'l'
-			n, err := strconv.ParseInt(value, 10, 64)
-			if err != nil || n < 1 || !isDecimal(value) {
+			n, err := numparse.Unsigned(value)
+			if err != nil || n < 1 {
 				return fmt.Errorf("invalid number of lines: '%s'", value)
 			}
 			opts.lines = n
@@ -692,8 +693,8 @@ func parseFlags(args []string) (options, []string, error) {
 				return errors.New("cannot combine -d and -x")
 			}
 			if value != "" {
-				n, err := strconv.ParseInt(value, 10, 64)
-				if err != nil || n < 0 || !isDecimal(value) {
+				n, err := numparse.Unsigned(value)
+				if err != nil || n < 0 {
 					return fmt.Errorf("invalid suffix number: '%s'", value)
 				}
 				opts.from = n
@@ -799,32 +800,19 @@ func parseChunks(value string) (chunkSpec, error) {
 	default:
 		return chunkSpec{}, fmt.Errorf("invalid number of chunks: '%s'", value)
 	}
-	n, err := strconv.ParseInt(nStr, 10, 64)
-	if err != nil || n < 1 || n > 1<<31 || !isDecimal(nStr) {
+	n, err := numparse.Unsigned(nStr)
+	if err != nil || n < 1 || n > 1<<31 {
 		return chunkSpec{}, fmt.Errorf("invalid number of chunks: '%s'", value)
 	}
 	spec.n = n
 	if kStr != "" {
-		k, err := strconv.ParseInt(kStr, 10, 64)
-		if err != nil || k < 1 || k > n || !isDecimal(kStr) {
+		k, err := numparse.Unsigned(kStr)
+		if err != nil || k < 1 || k > n {
 			return chunkSpec{}, fmt.Errorf("invalid chunk number: '%s'", value)
 		}
 		spec.k = k
 	}
 	return spec, nil
-}
-
-// isDecimal reports whether s holds only decimal digits.
-func isDecimal(s string) bool {
-	if s == "" {
-		return false
-	}
-	for i := 0; i < len(s); i++ {
-		if s[i] < '0' || s[i] > '9' {
-			return false
-		}
-	}
-	return true
 }
 
 // intPow returns base**exp.

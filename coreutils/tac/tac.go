@@ -25,6 +25,7 @@ import (
 
 	"charm.land/snail/coreutils/internal/getopt"
 	"charm.land/snail/coreutils/internal/input"
+	"charm.land/snail/coreutils/internal/numparse"
 	"charm.land/snail/coreutils/internal/patherr"
 	"charm.land/snail/coreutils/internal/stdopts"
 )
@@ -208,7 +209,7 @@ func unescape(s string) string {
 			b.WriteByte('\\')
 		case '0', '1', '2', '3', '4', '5', '6', '7':
 			n := int(c - '0')
-			for digits := 1; digits < 3 && i+1 < len(s) && isOctalDigit(s[i+1]); digits++ {
+			for digits := 1; digits < 3 && i+1 < len(s) && numparse.IsOctalDigit(s[i+1]); digits++ {
 				i++
 				n = n*8 + int(s[i]-'0')
 			}
@@ -219,10 +220,6 @@ func unescape(s string) string {
 		}
 	}
 	return b.String()
-}
-
-func isOctalDigit(c byte) bool {
-	return '0' <= c && c <= '7'
 }
 
 // splitRecords splits data into records at the separator occurrences. Each

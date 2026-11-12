@@ -25,6 +25,7 @@ import (
 	"charm.land/snail/coreutils/internal/getopt"
 	"charm.land/snail/coreutils/internal/gnudate"
 	"charm.land/snail/coreutils/internal/input"
+	"charm.land/snail/coreutils/internal/numparse"
 	"charm.land/snail/coreutils/internal/patherr"
 	"charm.land/snail/coreutils/internal/stdopts"
 	"charm.land/snail/coreutils/internal/strftime"
@@ -249,7 +250,7 @@ func parseTZ(tz string) *time.Location {
 	}
 	secs := 0
 	for j, part := range parts {
-		if part == "" || len(part) > 2 || !allDigits(part) {
+		if part == "" || len(part) > 2 || !numparse.AllDigits(part) {
 			return nil
 		}
 		n := atoi(part)
@@ -269,15 +270,6 @@ func parseTZ(tz string) *time.Location {
 
 func isLetter(c byte) bool {
 	return c >= 'a' && c <= 'z' || c >= 'A' && c <= 'Z'
-}
-
-func allDigits(s string) bool {
-	for i := 0; i < len(s); i++ {
-		if s[i] < '0' || s[i] > '9' {
-			return false
-		}
-	}
-	return true
 }
 
 // write appends the newline the specification requires and writes the result

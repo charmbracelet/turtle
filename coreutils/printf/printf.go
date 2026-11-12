@@ -11,6 +11,7 @@ import (
 	"strings"
 
 	"charm.land/snail/coreutils"
+	"charm.land/snail/coreutils/internal/numparse"
 	"charm.land/snail/coreutils/internal/printfmt"
 )
 
@@ -510,9 +511,9 @@ func scanNumber(s string) (num string, base int, complete bool) {
 	rest, n, base := s[i:], 0, 10
 	switch {
 	case strings.HasPrefix(rest, "0x"), strings.HasPrefix(rest, "0X"):
-		if len(rest) > 2 && isHexDigit(rest[2]) {
+		if len(rest) > 2 && numparse.IsHexDigit(rest[2]) {
 			n, base = 2, 16
-			for n < len(rest) && isHexDigit(rest[n]) {
+			for n < len(rest) && numparse.IsHexDigit(rest[n]) {
 				n++
 			}
 			return sign + rest[2:n], base, i+n == len(s)
@@ -521,11 +522,11 @@ func scanNumber(s string) (num string, base int, complete bool) {
 		n = 1
 	case len(rest) > 0 && rest[0] == '0':
 		n, base = 1, 8
-		for n < len(rest) && isOctalDigit(rest[n]) {
+		for n < len(rest) && numparse.IsOctalDigit(rest[n]) {
 			n++
 		}
 	default:
-		for n < len(rest) && isDigit(rest[n]) {
+		for n < len(rest) && numparse.IsDigit(rest[n]) {
 			n++
 		}
 	}
@@ -533,18 +534,6 @@ func scanNumber(s string) (num string, base int, complete bool) {
 		return "", 0, false
 	}
 	return sign + rest[:n], base, i+n == len(s)
-}
-
-func isDigit(c byte) bool {
-	return c >= '0' && c <= '9'
-}
-
-func isOctalDigit(c byte) bool {
-	return c >= '0' && c <= '7'
-}
-
-func isHexDigit(c byte) bool {
-	return c >= '0' && c <= '9' || c >= 'a' && c <= 'f' || c >= 'A' && c <= 'F'
 }
 
 var (

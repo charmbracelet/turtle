@@ -20,6 +20,7 @@ import (
 
 	"charm.land/snail/coreutils/internal/getopt"
 	"charm.land/snail/coreutils/internal/input"
+	"charm.land/snail/coreutils/internal/numparse"
 	"charm.land/snail/coreutils/internal/patherr"
 	"charm.land/snail/coreutils/internal/stdopts"
 	"charm.land/snail/coreutils/internal/textutil"
@@ -332,10 +333,8 @@ func parseSpan(elem string) (span, error) {
 
 // parsePosition parses a positive decimal position.
 func parsePosition(s string) (int, error) {
-	for i := 0; i < len(s); i++ {
-		if s[i] < '0' || s[i] > '9' {
-			return 0, fmt.Errorf("invalid position: '%s'", s)
-		}
+	if !numparse.AllDigits(s) {
+		return 0, fmt.Errorf("invalid position: '%s'", s)
 	}
 	n, err := strconv.Atoi(s)
 	if err != nil || n < 1 {

@@ -17,6 +17,7 @@ import (
 
 	"charm.land/snail/coreutils/internal/getopt"
 	"charm.land/snail/coreutils/internal/input"
+	"charm.land/snail/coreutils/internal/numparse"
 	"charm.land/snail/coreutils/internal/patherr"
 	"charm.land/snail/coreutils/internal/sizeparse"
 	"charm.land/snail/coreutils/internal/stdopts"
@@ -347,7 +348,7 @@ func parseFlags(args []string) (options, []string, error) {
 			opts.elide = elide
 			opts.countSet = true
 		default:
-			if isDigit(byte(opt)) {
+			if numparse.IsDigit(byte(opt)) {
 				return fmt.Errorf("invalid trailing option -- %c", opt)
 			}
 			return getopt.InvalidOption(opt)
@@ -378,12 +379,12 @@ func parseObsolete(args []string, opts *options) ([]string, error) {
 		return args, nil
 	}
 	arg := args[0]
-	if len(arg) < 2 || arg[0] != '-' || !isDigit(arg[1]) {
+	if len(arg) < 2 || arg[0] != '-' || !numparse.IsDigit(arg[1]) {
 		return args, nil
 	}
 	digits := arg[1:]
 	letters := digits
-	for letters != "" && isDigit(letters[0]) {
+	for letters != "" && numparse.IsDigit(letters[0]) {
 		letters = letters[1:]
 	}
 	digits = digits[:len(digits)-len(letters)]
@@ -453,8 +454,4 @@ func unit(lines bool) string {
 		return "lines"
 	}
 	return "bytes"
-}
-
-func isDigit(c byte) bool {
-	return '0' <= c && c <= '9'
 }

@@ -27,6 +27,7 @@ import (
 
 	"charm.land/snail/coreutils/internal/getopt"
 	"charm.land/snail/coreutils/internal/input"
+	"charm.land/snail/coreutils/internal/numparse"
 	"charm.land/snail/coreutils/internal/patherr"
 	"charm.land/snail/coreutils/internal/stdopts"
 )
@@ -463,13 +464,8 @@ func parseSize(value string) (int, error) {
 // parseDigits parses a positive decimal integer, returning the largest
 // integer when the digits don't fit in one.
 func parseDigits(value string) (int, error) {
-	if value == "" {
+	if !numparse.AllDigits(value) {
 		return 0, errors.New("not a number")
-	}
-	for _, c := range value {
-		if c < '0' || c > '9' {
-			return 0, errors.New("not a number")
-		}
 	}
 	n, err := strconv.Atoi(value)
 	if err != nil {

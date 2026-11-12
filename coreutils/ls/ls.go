@@ -37,6 +37,7 @@ import (
 
 	"charm.land/snail/coreutils"
 	"charm.land/snail/coreutils/internal/fileinfo"
+	"charm.land/snail/coreutils/internal/numparse"
 	"charm.land/snail/coreutils/internal/patherr"
 	"charm.land/snail/coreutils/internal/sizefmt"
 	"charm.land/snail/coreutils/internal/stdopts"
@@ -641,7 +642,7 @@ func verrevcmp(a, b string) int {
 	ia, ib := 0, 0
 	for ia < len(a) || ib < len(b) {
 		firstDiff := 0
-		for (ia < len(a) && !isDigit(a[ia])) || (ib < len(b) && !isDigit(b[ib])) {
+		for (ia < len(a) && !numparse.IsDigit(a[ia])) || (ib < len(b) && !numparse.IsDigit(b[ib])) {
 			rankA, rankB := versionRank(a, ia), versionRank(b, ib)
 			if rankA != rankB {
 				return rankA - rankB
@@ -655,17 +656,17 @@ func verrevcmp(a, b string) int {
 		for ib < len(b) && b[ib] == '0' {
 			ib++
 		}
-		for ia < len(a) && ib < len(b) && isDigit(a[ia]) && isDigit(b[ib]) {
+		for ia < len(a) && ib < len(b) && numparse.IsDigit(a[ia]) && numparse.IsDigit(b[ib]) {
 			if firstDiff == 0 {
 				firstDiff = int(a[ia]) - int(b[ib])
 			}
 			ia++
 			ib++
 		}
-		if ia < len(a) && isDigit(a[ia]) {
+		if ia < len(a) && numparse.IsDigit(a[ia]) {
 			return 1
 		}
-		if ib < len(b) && isDigit(b[ib]) {
+		if ib < len(b) && numparse.IsDigit(b[ib]) {
 			return -1
 		}
 		if firstDiff != 0 {
@@ -684,7 +685,7 @@ func versionRank(s string, pos int) int {
 	}
 	c := s[pos]
 	switch {
-	case isDigit(c):
+	case numparse.IsDigit(c):
 		return 0
 	case isAlpha(c):
 		return int(c)
@@ -695,11 +696,9 @@ func versionRank(s string, pos int) int {
 	}
 }
 
-func isDigit(c byte) bool { return '0' <= c && c <= '9' }
-
 func isAlpha(c byte) bool { return 'a' <= c && c <= 'z' || 'A' <= c && c <= 'Z' }
 
-func isAlnum(c byte) bool { return isAlpha(c) || isDigit(c) }
+func isAlnum(c byte) bool { return isAlpha(c) || numparse.IsDigit(c) }
 
 // widthOrder sorts by the width a name is written with, the narrowest first.
 func widthOrder(a, b entry) int {

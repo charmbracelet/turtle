@@ -12,10 +12,9 @@ import (
 	"fmt"
 	"io/fs"
 	"os"
-	"strconv"
-	"strings"
 
 	"charm.land/snail/coreutils"
+	"charm.land/snail/coreutils/internal/numparse"
 	"charm.land/snail/coreutils/internal/stdopts"
 	"charm.land/snail/fsx"
 )
@@ -327,20 +326,7 @@ func numeric(a, op, b string) (bool, error) {
 // parseInteger parses an operand of an integer comparison, which the POSIX
 // spec defines as only an optional unary minus followed by digits.
 func parseInteger(s string) (int64, error) {
-	digits := strings.TrimPrefix(s, "-")
-	if !isDigits(digits) {
-		return 0, errors.New("not an integer")
-	}
-	return strconv.ParseInt(s, 10, 64)
-}
-
-func isDigits(s string) bool {
-	for i := 0; i < len(s); i++ {
-		if c := s[i]; c < '0' || c > '9' {
-			return false
-		}
-	}
-	return len(s) > 0
+	return numparse.Signed(s)
 }
 
 // fileBinary evaluates the file comparison primaries, which follow symbolic
