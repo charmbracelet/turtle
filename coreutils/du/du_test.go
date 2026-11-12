@@ -1,14 +1,10 @@
 package du
 
 import (
-	"bytes"
-	"context"
-	"errors"
 	"io/fs"
-	"strings"
 	"testing"
 
-	"charm.land/snail/coreutils"
+	"charm.land/snail/coreutils/internal/testutil"
 	"charm.land/snail/fsx"
 )
 
@@ -76,612 +72,516 @@ func (f failFS) ReadDir(name string) ([]fs.DirEntry, error) {
 	return f.MemFS.ReadDir(name)
 }
 
-type testCase struct {
-	name     string
-	files    fsx.MemFS
-	sys      fsx.FS
-	wd       string
-	args     []string
-	wantOut  string
-	wantErr  string
-	wantExit int
-}
-
-func runCase(t *testing.T, test testCase) {
-	t.Helper()
-
-	stdout, stderr := new(bytes.Buffer), new(bytes.Buffer)
-	rt := &coreutils.Runtime{
-		Stdin:      strings.NewReader(""),
-		Stdout:     stdout,
-		Stderr:     stderr,
-		WorkingDir: test.wd,
-	}
-	switch {
-	case test.sys != nil:
-		rt.FS = test.sys
-	case test.files != nil:
-		rt.FS = test.files
-	}
-	err := New(rt).Run(t.Context(), test.args...)
-	if code := exitCode(t, err); code != test.wantExit {
-		t.Errorf("Run() exit code = %d, want %d (error = %v)", code, test.wantExit, err)
-	}
-	if got := stdout.String(); got != test.wantOut {
-		t.Errorf("Run() stdout = %q, want %q", got, test.wantOut)
-	}
-	if got := stderr.String(); got != test.wantErr {
-		t.Errorf("Run() stderr = %q, want %q", got, test.wantErr)
-	}
-}
-
-func runCases(t *testing.T, tests []testCase) {
-	t.Helper()
-
-	for _, test := range tests {
-		t.Run(test.name, func(t *testing.T) {
-			runCase(t, test)
-		})
-	}
-}
-
-func exitCode(t *testing.T, err error) int {
-	t.Helper()
-
-	if err == nil {
-		return 0
-	}
-	var exitErr *coreutils.ExitError
-	if !errors.As(err, &exitErr) {
-		t.Fatalf("Run() error = %v, want *coreutils.ExitError", err)
-	}
-	return exitErr.Code
-}
-
 func TestRunOperands(t *testing.T) {
-	runCases(t, []testCase{
+	testutil.Run(t, New, []testutil.Case{
 		{
-			name: "no operand defaults to the working directory",
-			files: fsx.MemFS{
+			Name: "no operand defaults to the working directory",
+			FS: fsx.MemFS{
 				"a": {Data: make([]byte, 600)},
 				"b": {Data: make([]byte, 100)},
 			},
-			wantOut: "3 .\n",
+			Want: "3 .\n",
 		},
 		{
-			name:    "a directory operand writes its subdirectories and itself",
-			files:   tree,
-			args:    []string{"tree"},
-			wantOut: "4 tree/sub\n7 tree\n",
+			Name: "a directory operand writes its subdirectories and itself",
+			FS:   tree,
+			Args: []string{"tree"},
+			Want: "4 tree/sub\n7 tree\n",
 		},
 		{
-			name: "operands are written in the order given",
-			files: fsx.MemFS{
+			Name: "operands are written in the order given",
+			FS: fsx.MemFS{
 				"t2/x": {Data: make([]byte, 100)},
 				"t1/a": {Data: make([]byte, 600)},
 			},
-			args:    []string{"t1", "t2"},
-			wantOut: "2 t1\n1 t2\n",
+			Args: []string{"t1", "t2"},
+			Want: "2 t1\n1 t2\n",
 		},
 		{
-			name:    "a file operand is written alone",
-			files:   tree,
-			args:    []string{"tree/a"},
-			wantOut: "2 tree/a\n",
+			Name: "a file operand is written alone",
+			FS:   tree,
+			Args: []string{"tree/a"},
+			Want: "2 tree/a\n",
 		},
 		{
-			name:    "the trailing slash of an operand is kept",
-			files:   tree,
-			args:    []string{"tree/"},
-			wantOut: "4 tree/sub\n7 tree/\n",
+			Name: "the trailing slash of an operand is kept",
+			FS:   tree,
+			Args: []string{"tree/"},
+			Want: "4 tree/sub\n7 tree/\n",
 		},
 		{
-			name:    "operands resolve against the working directory",
-			files:   tree,
-			wd:      "tree/sub",
-			args:    []string{"c"},
-			wantOut: "4 c\n",
+			Name: "operands resolve against the working directory",
+			FS:   tree,
+			Dir:  "tree/sub",
+			Args: []string{"c"},
+			Want: "4 c\n",
 		},
 		{
-			name:     "a missing operand is an error",
-			files:    tree,
-			args:     []string{"missing"},
-			wantErr:  "du: cannot access 'missing': file does not exist\n",
-			wantExit: 1,
+			Name:     "a missing operand is an error",
+			FS:       tree,
+			Args:     []string{"missing"},
+			WantErr:  "du: cannot access 'missing': file does not exist\n",
+			WantExit: 1,
 		},
 		{
-			name:     "an empty operand is an error",
-			files:    tree,
-			args:     []string{"", "tree"},
-			wantOut:  "4 tree/sub\n7 tree\n",
-			wantErr:  "du: cannot access '': file does not exist\n",
-			wantExit: 1,
+			Name:     "an empty operand is an error",
+			FS:       tree,
+			Args:     []string{"", "tree"},
+			Want:     "4 tree/sub\n7 tree\n",
+			WantErr:  "du: cannot access '': file does not exist\n",
+			WantExit: 1,
 		},
 		{
-			name:     "the run fails when no file system is available",
-			args:     []string{"tree"},
-			wantErr:  "du: no file system available\n",
-			wantExit: 1,
+			Name:     "the run fails when no file system is available",
+			Args:     []string{"tree"},
+			WantErr:  "du: no file system available\n",
+			WantExit: 1,
 		},
 	})
 }
 
 func TestRunAll(t *testing.T) {
-	runCases(t, []testCase{
+	testutil.Run(t, New, []testutil.Case{
 		{
-			name:    "-a writes every file in the hierarchy",
-			files:   tree,
-			args:    []string{"-a", "tree"},
-			wantOut: "2 tree/a\n1 tree/b\n4 tree/sub/c\n4 tree/sub\n7 tree\n",
+			Name: "-a writes every file in the hierarchy",
+			FS:   tree,
+			Args: []string{"-a", "tree"},
+			Want: "2 tree/a\n1 tree/b\n4 tree/sub/c\n4 tree/sub\n7 tree\n",
 		},
 		{
-			name:    "-a writes a file operand like any other",
-			files:   tree,
-			args:    []string{"-a", "tree/a"},
-			wantOut: "2 tree/a\n",
+			Name: "-a writes a file operand like any other",
+			FS:   tree,
+			Args: []string{"-a", "tree/a"},
+			Want: "2 tree/a\n",
 		},
 		{
-			name:    "-a groups with other short options",
-			files:   tree,
-			args:    []string{"-ak", "tree"},
-			wantOut: "1 tree/a\n1 tree/b\n2 tree/sub/c\n2 tree/sub\n4 tree\n",
+			Name: "-a groups with other short options",
+			FS:   tree,
+			Args: []string{"-ak", "tree"},
+			Want: "1 tree/a\n1 tree/b\n2 tree/sub/c\n2 tree/sub\n4 tree\n",
 		},
 	})
 }
 
 func TestRunSummarize(t *testing.T) {
-	runCases(t, []testCase{
+	testutil.Run(t, New, []testutil.Case{
 		{
-			name:    "-s writes the operands alone",
-			files:   tree,
-			args:    []string{"-s", "tree"},
-			wantOut: "7 tree\n",
+			Name: "-s writes the operands alone",
+			FS:   tree,
+			Args: []string{"-s", "tree"},
+			Want: "7 tree\n",
 		},
 		{
-			name:    "-s writes each of the operands",
-			files:   joined,
-			args:    []string{"-s", "tree", "other"},
-			wantOut: "7 tree\n1 other\n",
+			Name: "-s writes each of the operands",
+			FS:   joined,
+			Args: []string{"-s", "tree", "other"},
+			Want: "7 tree\n1 other\n",
 		},
 		{
-			name:    "-s keeps a non-directory operand",
-			files:   tree,
-			args:    []string{"-s", "tree/a"},
-			wantOut: "2 tree/a\n",
+			Name: "-s keeps a non-directory operand",
+			FS:   tree,
+			Args: []string{"-s", "tree/a"},
+			Want: "2 tree/a\n",
 		},
 		{
-			name:     "-a and -s conflict",
-			files:    tree,
-			args:     []string{"-a", "-s", "tree"},
-			wantErr:  "du: options --summarize and --all are mutually exclusive\nTry 'du --help' for more information.\n",
-			wantExit: 1,
+			Name:     "-a and -s conflict",
+			FS:       tree,
+			Args:     []string{"-a", "-s", "tree"},
+			WantErr:  "du: options --summarize and --all are mutually exclusive\nTry 'du --help' for more information.\n",
+			WantExit: 1,
 		},
 		{
-			name:     "the conflict holds in either order",
-			files:    tree,
-			args:     []string{"-s", "-a", "tree"},
-			wantErr:  "du: options --summarize and --all are mutually exclusive\nTry 'du --help' for more information.\n",
-			wantExit: 1,
+			Name:     "the conflict holds in either order",
+			FS:       tree,
+			Args:     []string{"-s", "-a", "tree"},
+			WantErr:  "du: options --summarize and --all are mutually exclusive\nTry 'du --help' for more information.\n",
+			WantExit: 1,
 		},
 	})
 }
 
 func TestRunKilo(t *testing.T) {
-	runCases(t, []testCase{
+	testutil.Run(t, New, []testutil.Case{
 		{
-			name:    "-k counts in kibibyte blocks",
-			files:   tree,
-			args:    []string{"-k", "tree"},
-			wantOut: "2 tree/sub\n4 tree\n",
+			Name: "-k counts in kibibyte blocks",
+			FS:   tree,
+			Args: []string{"-k", "tree"},
+			Want: "2 tree/sub\n4 tree\n",
 		},
 		{
-			name:    "-k rounds the blocks of every file up with -a",
-			files:   tree,
-			args:    []string{"-k", "-a", "tree"},
-			wantOut: "1 tree/a\n1 tree/b\n2 tree/sub/c\n2 tree/sub\n4 tree\n",
+			Name: "-k rounds the blocks of every file up with -a",
+			FS:   tree,
+			Args: []string{"-k", "-a", "tree"},
+			Want: "1 tree/a\n1 tree/b\n2 tree/sub/c\n2 tree/sub\n4 tree\n",
 		},
 	})
 }
 
 func TestRunFollow(t *testing.T) {
-	runCases(t, []testCase{
+	testutil.Run(t, New, []testutil.Case{
 		{
-			name:    "a symbolic link counts as the link itself by default",
-			files:   linked,
-			args:    []string{"dir"},
-			wantOut: "4 dir\n",
+			Name: "a symbolic link counts as the link itself by default",
+			FS:   linked,
+			Args: []string{"dir"},
+			Want: "4 dir\n",
 		},
 		{
-			name:    "-L counts the file a link points at",
-			files:   linked,
-			args:    []string{"-L", "dir"},
-			wantOut: "2 dir/p\n14 dir\n",
+			Name: "-L counts the file a link points at",
+			FS:   linked,
+			Args: []string{"-L", "dir"},
+			Want: "2 dir/p\n14 dir\n",
 		},
 		{
-			name:    "-L writes the file a link points at with -a",
-			files:   linked,
-			args:    []string{"-L", "-a", "dir"},
-			wantOut: "2 dir/a\n10 dir/l\n2 dir/p/a\n2 dir/p\n14 dir\n",
+			Name: "-L writes the file a link points at with -a",
+			FS:   linked,
+			Args: []string{"-L", "-a", "dir"},
+			Want: "2 dir/a\n10 dir/l\n2 dir/p/a\n2 dir/p\n14 dir\n",
 		},
 		{
-			name:    "-H keeps the links found below an operand alone",
-			files:   linked,
-			args:    []string{"-H", "dir"},
-			wantOut: "4 dir\n",
+			Name: "-H keeps the links found below an operand alone",
+			FS:   linked,
+			Args: []string{"-H", "dir"},
+			Want: "4 dir\n",
 		},
 		{
-			name:    "an unmentioned link operand counts as the link itself",
-			files:   linked,
-			args:    []string{"lnk"},
-			wantOut: "1 lnk\n",
+			Name: "an unmentioned link operand counts as the link itself",
+			FS:   linked,
+			Args: []string{"lnk"},
+			Want: "1 lnk\n",
 		},
 		{
-			name:    "-H counts the hierarchy an operand link points at",
-			files:   linked,
-			args:    []string{"-H", "lnk"},
-			wantOut: "2 lnk\n",
+			Name: "-H counts the hierarchy an operand link points at",
+			FS:   linked,
+			Args: []string{"-H", "lnk"},
+			Want: "2 lnk\n",
 		},
 		{
-			name:    "-L counts an operand link the same way",
-			files:   linked,
-			args:    []string{"-L", "lnk"},
-			wantOut: "2 lnk\n",
+			Name: "-L counts an operand link the same way",
+			FS:   linked,
+			Args: []string{"-L", "lnk"},
+			Want: "2 lnk\n",
 		},
 		{
-			name:    "a broken link operand counts as itself with -H",
-			files:   fsx.MemFS{"lnk": link("missing")},
-			args:    []string{"-H", "lnk"},
-			wantOut: "1 lnk\n",
+			Name: "a broken link operand counts as itself with -H",
+			FS:   fsx.MemFS{"lnk": link("missing")},
+			Args: []string{"-H", "lnk"},
+			Want: "1 lnk\n",
 		},
 		{
-			name:    "a broken link operand counts as itself with -L",
-			files:   fsx.MemFS{"lnk": link("missing")},
-			args:    []string{"-L", "lnk"},
-			wantOut: "1 lnk\n",
+			Name: "a broken link operand counts as itself with -L",
+			FS:   fsx.MemFS{"lnk": link("missing")},
+			Args: []string{"-L", "lnk"},
+			Want: "1 lnk\n",
 		},
 		{
-			name:    "the last of -H and -L wins",
-			files:   linked,
-			args:    []string{"-H", "-L", "dir"},
-			wantOut: "2 dir/p\n14 dir\n",
+			Name: "the last of -H and -L wins",
+			FS:   linked,
+			Args: []string{"-H", "-L", "dir"},
+			Want: "2 dir/p\n14 dir\n",
 		},
 		{
-			name:    "the last of -L and -H wins",
-			files:   linked,
-			args:    []string{"-L", "-H", "dir"},
-			wantOut: "4 dir\n",
+			Name: "the last of -L and -H wins",
+			FS:   linked,
+			Args: []string{"-L", "-H", "dir"},
+			Want: "4 dir\n",
 		},
 	})
 }
 
 func TestRunOneFileSystem(t *testing.T) {
 	// The memory file system reports no devices, so -x can't skip anything.
-	runCase(t, testCase{
-		name:    "-x changes nothing without device information",
-		files:   tree,
-		args:    []string{"-x", "tree"},
-		wantOut: "4 tree/sub\n7 tree\n",
+	testutil.Once(t, New, testutil.Case{
+		Name: "-x changes nothing without device information",
+		FS:   tree,
+		Args: []string{"-x", "tree"},
+		Want: "4 tree/sub\n7 tree\n",
 	})
 }
 
 func TestRunGnu(t *testing.T) {
-	runCases(t, []testCase{
+	testutil.Run(t, New, []testutil.Case{
 		{
-			name:    "-h writes human readable sizes",
-			files:   tree,
-			args:    []string{"-h", "tree"},
-			wantOut: "2.0K tree/sub\n3.5K tree\n",
+			Name: "-h writes human readable sizes",
+			FS:   tree,
+			Args: []string{"-h", "tree"},
+			Want: "2.0K tree/sub\n3.5K tree\n",
 		},
 		{
-			name:    "-h sizes files with -a",
-			files:   tree,
-			args:    []string{"-h", "-a", "tree"},
-			wantOut: "1.0K tree/a\n512 tree/b\n2.0K tree/sub/c\n2.0K tree/sub\n3.5K tree\n",
+			Name: "-h sizes files with -a",
+			FS:   tree,
+			Args: []string{"-h", "-a", "tree"},
+			Want: "1.0K tree/a\n512 tree/b\n2.0K tree/sub/c\n2.0K tree/sub\n3.5K tree\n",
 		},
 		{
-			name:    "-S excludes the subdirectories of each directory",
-			files:   tree,
-			args:    []string{"-S", "tree"},
-			wantOut: "4 tree/sub\n3 tree\n",
+			Name: "-S excludes the subdirectories of each directory",
+			FS:   tree,
+			Args: []string{"-S", "tree"},
+			Want: "4 tree/sub\n3 tree\n",
 		},
 		{
-			name:    "-S keeps the files held directly",
-			files:   fsx.MemFS{"d/x": {Data: make([]byte, 600)}, "d/s/y": {Data: make([]byte, 100)}},
-			args:    []string{"-S", "d"},
-			wantOut: "1 d/s\n2 d\n",
+			Name: "-S keeps the files held directly",
+			FS:   fsx.MemFS{"d/x": {Data: make([]byte, 600)}, "d/s/y": {Data: make([]byte, 100)}},
+			Args: []string{"-S", "d"},
+			Want: "1 d/s\n2 d\n",
 		},
 		{
-			name:    "the same hierarchy without -S",
-			files:   fsx.MemFS{"d/x": {Data: make([]byte, 600)}, "d/s/y": {Data: make([]byte, 100)}},
-			args:    []string{"d"},
-			wantOut: "1 d/s\n3 d\n",
+			Name: "the same hierarchy without -S",
+			FS:   fsx.MemFS{"d/x": {Data: make([]byte, 600)}, "d/s/y": {Data: make([]byte, 100)}},
+			Args: []string{"d"},
+			Want: "1 d/s\n3 d\n",
 		},
 		{
-			name:    "-b counts apparent sizes in bytes",
-			files:   tree,
-			args:    []string{"-b", "tree"},
-			wantOut: "2000 tree/sub\n2700 tree\n",
+			Name: "-b counts apparent sizes in bytes",
+			FS:   tree,
+			Args: []string{"-b", "tree"},
+			Want: "2000 tree/sub\n2700 tree\n",
 		},
 		{
-			name:    "-b counts the apparent size of a link",
-			files:   fsx.MemFS{"l": link("point")},
-			args:    []string{"-b", "l"},
-			wantOut: "5 l\n",
+			Name: "-b counts the apparent size of a link",
+			FS:   fsx.MemFS{"l": link("point")},
+			Args: []string{"-b", "l"},
+			Want: "5 l\n",
 		},
 		{
-			name:    "-b and -k: the last one wins",
-			files:   tree,
-			args:    []string{"-b", "-k", "tree"},
-			wantOut: "2 tree/sub\n4 tree\n",
+			Name: "-b and -k: the last one wins",
+			FS:   tree,
+			Args: []string{"-b", "-k", "tree"},
+			Want: "2 tree/sub\n4 tree\n",
 		},
 		{
-			name:    "-k and -b: the last one wins",
-			files:   tree,
-			args:    []string{"-k", "-b", "tree"},
-			wantOut: "2000 tree/sub\n2700 tree\n",
+			Name: "-k and -b: the last one wins",
+			FS:   tree,
+			Args: []string{"-k", "-b", "tree"},
+			Want: "2000 tree/sub\n2700 tree\n",
 		},
 		{
-			name:    "-c writes a grand total",
-			files:   tree,
-			args:    []string{"-c", "tree"},
-			wantOut: "4 tree/sub\n7 tree\n7 total\n",
+			Name: "-c writes a grand total",
+			FS:   tree,
+			Args: []string{"-c", "tree"},
+			Want: "4 tree/sub\n7 tree\n7 total\n",
 		},
 		{
-			name:    "-c totals the operands together",
-			files:   joined,
-			args:    []string{"-c", "tree", "other"},
-			wantOut: "4 tree/sub\n7 tree\n1 other\n8 total\n",
+			Name: "-c totals the operands together",
+			FS:   joined,
+			Args: []string{"-c", "tree", "other"},
+			Want: "4 tree/sub\n7 tree\n1 other\n8 total\n",
 		},
 		{
-			name:    "-c totals a non-directory operand",
-			files:   tree,
-			args:    []string{"-c", "tree/a"},
-			wantOut: "2 tree/a\n2 total\n",
+			Name: "-c totals a non-directory operand",
+			FS:   tree,
+			Args: []string{"-c", "tree/a"},
+			Want: "2 tree/a\n2 total\n",
 		},
 		{
-			name:     "-c writes a total even after an error",
-			files:    tree,
-			args:     []string{"-c", "missing", "tree"},
-			wantOut:  "4 tree/sub\n7 tree\n7 total\n",
-			wantErr:  "du: cannot access 'missing': file does not exist\n",
-			wantExit: 1,
+			Name:     "-c writes a total even after an error",
+			FS:       tree,
+			Args:     []string{"-c", "missing", "tree"},
+			Want:     "4 tree/sub\n7 tree\n7 total\n",
+			WantErr:  "du: cannot access 'missing': file does not exist\n",
+			WantExit: 1,
 		},
 		{
-			name:    "-c works with -b",
-			files:   joined,
-			args:    []string{"-c", "-b", "tree", "other"},
-			wantOut: "2000 tree/sub\n2700 tree\n100 other\n2800 total\n",
+			Name: "-c works with -b",
+			FS:   joined,
+			Args: []string{"-c", "-b", "tree", "other"},
+			Want: "2000 tree/sub\n2700 tree\n100 other\n2800 total\n",
 		},
 	})
 }
 
 func TestRunMaxDepth(t *testing.T) {
-	runCases(t, []testCase{
+	testutil.Run(t, New, []testutil.Case{
 		{
-			name:    "a hierarchy with three levels of directories",
-			files:   deep,
-			args:    []string{"tree"},
-			wantOut: "1 tree/sub/s2\n5 tree/sub\n8 tree\n",
+			Name: "a hierarchy with three levels of directories",
+			FS:   deep,
+			Args: []string{"tree"},
+			Want: "1 tree/sub/s2\n5 tree/sub\n8 tree\n",
 		},
 		{
-			name:    "-d 0 is the same as -s",
-			files:   deep,
-			args:    []string{"-d", "0", "tree"},
-			wantOut: "8 tree\n",
+			Name: "-d 0 is the same as -s",
+			FS:   deep,
+			Args: []string{"-d", "0", "tree"},
+			Want: "8 tree\n",
 		},
 		{
-			name:    "--max-depth=0 works the same",
-			files:   deep,
-			args:    []string{"--max-depth=0", "tree"},
-			wantOut: "8 tree\n",
+			Name: "--max-depth=0 works the same",
+			FS:   deep,
+			Args: []string{"--max-depth=0", "tree"},
+			Want: "8 tree\n",
 		},
 		{
-			name:    "-d 1 writes one level of directories",
-			files:   deep,
-			args:    []string{"-d", "1", "tree"},
-			wantOut: "5 tree/sub\n8 tree\n",
+			Name: "-d 1 writes one level of directories",
+			FS:   deep,
+			Args: []string{"-d", "1", "tree"},
+			Want: "5 tree/sub\n8 tree\n",
 		},
 		{
-			name:    "-d 2 writes two levels",
-			files:   deep,
-			args:    []string{"-d", "2", "tree"},
-			wantOut: "1 tree/sub/s2\n5 tree/sub\n8 tree\n",
+			Name: "-d 2 writes two levels",
+			FS:   deep,
+			Args: []string{"-d", "2", "tree"},
+			Want: "1 tree/sub/s2\n5 tree/sub\n8 tree\n",
 		},
 		{
-			name:    "-d hides the files too",
-			files:   deep,
-			args:    []string{"-d", "0", "-a", "tree"},
-			wantOut: "8 tree\n",
+			Name: "-d hides the files too",
+			FS:   deep,
+			Args: []string{"-d", "0", "-a", "tree"},
+			Want: "8 tree\n",
 		},
 		{
-			name:    "-d 1 with -a writes the files of the first level",
-			files:   deep,
-			args:    []string{"-d", "1", "-a", "tree"},
-			wantOut: "2 tree/a\n1 tree/b\n5 tree/sub\n8 tree\n",
+			Name: "-d 1 with -a writes the files of the first level",
+			FS:   deep,
+			Args: []string{"-d", "1", "-a", "tree"},
+			Want: "2 tree/a\n1 tree/b\n5 tree/sub\n8 tree\n",
 		},
 		{
-			name:    "-d 2 with -a writes the files of two levels",
-			files:   deep,
-			args:    []string{"-d", "2", "-a", "tree"},
-			wantOut: "2 tree/a\n1 tree/b\n4 tree/sub/c\n1 tree/sub/s2\n5 tree/sub\n8 tree\n",
+			Name: "-d 2 with -a writes the files of two levels",
+			FS:   deep,
+			Args: []string{"-d", "2", "-a", "tree"},
+			Want: "2 tree/a\n1 tree/b\n4 tree/sub/c\n1 tree/sub/s2\n5 tree/sub\n8 tree\n",
 		},
 		{
-			name:    "-d takes an attached argument",
-			files:   deep,
-			args:    []string{"-d0", "tree"},
-			wantOut: "8 tree\n",
+			Name: "-d takes an attached argument",
+			FS:   deep,
+			Args: []string{"-d0", "tree"},
+			Want: "8 tree\n",
 		},
 		{
-			name:    "-d takes a separated argument",
-			files:   deep,
-			args:    []string{"-d", "1", "tree"},
-			wantOut: "5 tree/sub\n8 tree\n",
+			Name: "-d takes a separated argument",
+			FS:   deep,
+			Args: []string{"-d", "1", "tree"},
+			Want: "5 tree/sub\n8 tree\n",
 		},
 		{
-			name:    "--max-depth takes an attached argument",
-			files:   deep,
-			args:    []string{"--max-depth=1", "tree"},
-			wantOut: "5 tree/sub\n8 tree\n",
+			Name: "--max-depth takes an attached argument",
+			FS:   deep,
+			Args: []string{"--max-depth=1", "tree"},
+			Want: "5 tree/sub\n8 tree\n",
 		},
 		{
-			name:    "--max-depth takes a separated argument",
-			files:   deep,
-			args:    []string{"--max-depth", "1", "tree"},
-			wantOut: "5 tree/sub\n8 tree\n",
+			Name: "--max-depth takes a separated argument",
+			FS:   deep,
+			Args: []string{"--max-depth", "1", "tree"},
+			Want: "5 tree/sub\n8 tree\n",
 		},
 		{
-			name:     "-s and a depth conflict",
-			files:    deep,
-			args:     []string{"-s", "-d", "1", "tree"},
-			wantErr:  "du: warning: summarizing conflicts with --max-depth=1\nTry 'du --help' for more information.\n",
-			wantExit: 1,
+			Name:     "-s and a depth conflict",
+			FS:       deep,
+			Args:     []string{"-s", "-d", "1", "tree"},
+			WantErr:  "du: warning: summarizing conflicts with --max-depth=1\nTry 'du --help' for more information.\n",
+			WantExit: 1,
 		},
 		{
-			name:     "the conflict holds in either order",
-			files:    deep,
-			args:     []string{"-d", "1", "-s", "tree"},
-			wantErr:  "du: warning: summarizing conflicts with --max-depth=1\nTry 'du --help' for more information.\n",
-			wantExit: 1,
+			Name:     "the conflict holds in either order",
+			FS:       deep,
+			Args:     []string{"-d", "1", "-s", "tree"},
+			WantErr:  "du: warning: summarizing conflicts with --max-depth=1\nTry 'du --help' for more information.\n",
+			WantExit: 1,
 		},
 		{
-			name:    "-d 0 and -s warn but run",
-			files:   deep,
-			args:    []string{"-s", "-d", "0", "tree"},
-			wantOut: "8 tree\n",
-			wantErr: "du: warning: summarizing is the same as using --max-depth=0\n",
+			Name:    "-d 0 and -s warn but run",
+			FS:      deep,
+			Args:    []string{"-s", "-d", "0", "tree"},
+			Want:    "8 tree\n",
+			WantErr: "du: warning: summarizing is the same as using --max-depth=0\n",
 		},
 		{
-			name:     "an invalid maximum depth is a usage error",
-			files:    deep,
-			args:     []string{"-d", "x", "tree"},
-			wantErr:  "du: invalid maximum depth 'x'\nTry 'du --help' for more information.\n",
-			wantExit: 1,
+			Name:     "an invalid maximum depth is a usage error",
+			FS:       deep,
+			Args:     []string{"-d", "x", "tree"},
+			WantErr:  "du: invalid maximum depth 'x'\nTry 'du --help' for more information.\n",
+			WantExit: 1,
 		},
 		{
-			name:     "a negative maximum depth is invalid",
-			files:    deep,
-			args:     []string{"-d", "-1", "tree"},
-			wantErr:  "du: invalid maximum depth '-1'\nTry 'du --help' for more information.\n",
-			wantExit: 1,
+			Name:     "a negative maximum depth is invalid",
+			FS:       deep,
+			Args:     []string{"-d", "-1", "tree"},
+			WantErr:  "du: invalid maximum depth '-1'\nTry 'du --help' for more information.\n",
+			WantExit: 1,
 		},
 		{
-			name:     "an invalid maximum depth long option is a usage error",
-			files:    deep,
-			args:     []string{"--max-depth=2x", "tree"},
-			wantErr:  "du: invalid maximum depth '2x'\nTry 'du --help' for more information.\n",
-			wantExit: 1,
+			Name:     "an invalid maximum depth long option is a usage error",
+			FS:       deep,
+			Args:     []string{"--max-depth=2x", "tree"},
+			WantErr:  "du: invalid maximum depth '2x'\nTry 'du --help' for more information.\n",
+			WantExit: 1,
 		},
 	})
 }
 
 func TestRunUsage(t *testing.T) {
-	runCases(t, []testCase{
+	testutil.Run(t, New, []testutil.Case{
 		{
-			name:     "-z is not an option of du",
-			args:     []string{"-z"},
-			wantErr:  "du: invalid option -- 'z'\nTry 'du --help' for more information.\n",
-			wantExit: 1,
+			Name:     "-z is not an option of du",
+			Args:     []string{"-z"},
+			WantErr:  "du: invalid option -- 'z'\nTry 'du --help' for more information.\n",
+			WantExit: 1,
 		},
 		{
-			name:     "--bogus is not an option of du",
-			args:     []string{"--bogus"},
-			wantErr:  "du: unrecognized option '--bogus'\nTry 'du --help' for more information.\n",
-			wantExit: 1,
+			Name:     "--bogus is not an option of du",
+			Args:     []string{"--bogus"},
+			WantErr:  "du: unrecognized option '--bogus'\nTry 'du --help' for more information.\n",
+			WantExit: 1,
 		},
 		{
-			name:     "--all doesn't take an argument",
-			args:     []string{"--all=yes"},
-			wantErr:  "du: option '--all=yes' doesn't allow an argument\nTry 'du --help' for more information.\n",
-			wantExit: 1,
+			Name:     "--all doesn't take an argument",
+			Args:     []string{"--all=yes"},
+			WantErr:  "du: option '--all=yes' doesn't allow an argument\nTry 'du --help' for more information.\n",
+			WantExit: 1,
 		},
 		{
-			name:     "-d requires an argument",
-			args:     []string{"-d"},
-			wantErr:  "du: option requires an argument -- 'd'\nTry 'du --help' for more information.\n",
-			wantExit: 1,
+			Name:     "-d requires an argument",
+			Args:     []string{"-d"},
+			WantErr:  "du: option requires an argument -- 'd'\nTry 'du --help' for more information.\n",
+			WantExit: 1,
 		},
 		{
-			name:     "--max-depth requires an argument",
-			args:     []string{"--max-depth"},
-			wantErr:  "du: option '--max-depth' requires an argument\nTry 'du --help' for more information.\n",
-			wantExit: 1,
+			Name:     "--max-depth requires an argument",
+			Args:     []string{"--max-depth"},
+			WantErr:  "du: option '--max-depth' requires an argument\nTry 'du --help' for more information.\n",
+			WantExit: 1,
 		},
 		{
-			name:    "-- ends the options",
-			files:   tree,
-			args:    []string{"--", "tree"},
-			wantOut: "4 tree/sub\n7 tree\n",
+			Name: "-- ends the options",
+			FS:   tree,
+			Args: []string{"--", "tree"},
+			Want: "4 tree/sub\n7 tree\n",
 		},
 		{
-			name:     "options stop at the first operand",
-			files:    tree,
-			args:     []string{"-k", "tree", "-a"},
-			wantOut:  "2 tree/sub\n4 tree\n",
-			wantErr:  "du: cannot access '-a': file does not exist\n",
-			wantExit: 1,
+			Name:     "options stop at the first operand",
+			FS:       tree,
+			Args:     []string{"-k", "tree", "-a"},
+			Want:     "2 tree/sub\n4 tree\n",
+			WantErr:  "du: cannot access '-a': file does not exist\n",
+			WantExit: 1,
 		},
 	})
 }
 
 func TestRunUnreadable(t *testing.T) {
-	runCases(t, []testCase{
+	testutil.Run(t, New, []testutil.Case{
 		{
-			name:     "an unreadable operand is an error",
-			sys:      failFS{MemFS: tree, fail: "tree"},
-			args:     []string{"tree"},
-			wantOut:  "0 tree\n",
-			wantErr:  "du: cannot read directory 'tree': permission denied\n",
-			wantExit: 1,
+			Name:     "an unreadable operand is an error",
+			FS:       failFS{MemFS: tree, fail: "tree"},
+			Args:     []string{"tree"},
+			Want:     "0 tree\n",
+			WantErr:  "du: cannot read directory 'tree': permission denied\n",
+			WantExit: 1,
 		},
 		{
-			name:     "an unreadable subdirectory keeps the rest counted",
-			sys:      failFS{MemFS: tree, fail: "tree/sub"},
-			args:     []string{"tree"},
-			wantOut:  "0 tree/sub\n3 tree\n",
-			wantErr:  "du: cannot read directory 'tree/sub': permission denied\n",
-			wantExit: 1,
+			Name:     "an unreadable subdirectory keeps the rest counted",
+			FS:       failFS{MemFS: tree, fail: "tree/sub"},
+			Args:     []string{"tree"},
+			Want:     "0 tree/sub\n3 tree\n",
+			WantErr:  "du: cannot read directory 'tree/sub': permission denied\n",
+			WantExit: 1,
 		},
 	})
 }
 
 func TestRunContext(t *testing.T) {
-	stdout := new(bytes.Buffer)
-	stderr := new(bytes.Buffer)
-	rt := &coreutils.Runtime{Stdout: stdout, Stderr: stderr, FS: tree}
-	ctx, cancel := context.WithCancel(t.Context())
-	cancel()
-	err := New(rt).Run(ctx, "tree")
-	if !errors.Is(err, context.Canceled) {
-		t.Fatalf("Run() error = %v, want context.Canceled", err)
-	}
-	if got := stdout.String(); got != "" {
-		t.Errorf("Run() stdout = %q, want empty", got)
-	}
+	testutil.Cancelled(t, New, nil, tree, "tree")
 }
 
 func TestHelpVersion(t *testing.T) {
-	t.Run("help", func(t *testing.T) {
-		stdout := new(bytes.Buffer)
-		stderr := new(bytes.Buffer)
-		rt := &coreutils.Runtime{Stdout: stdout, Stderr: stderr}
-		if err := New(rt).Run(t.Context(), "--help"); err != nil {
-			t.Fatalf("Run() error = %v, want nil (exit status 0)", err)
-		}
-		if got, want := stdout.String(), usage; got != want {
-			t.Errorf("Run() stdout = %q, want %q", got, want)
-		}
-	})
-
-	t.Run("version", func(t *testing.T) {
-		stdout := new(bytes.Buffer)
-		stderr := new(bytes.Buffer)
-		rt := &coreutils.Runtime{Stdout: stdout, Stderr: stderr}
-		if err := New(rt).Run(t.Context(), "--version"); err != nil {
-			t.Fatalf("Run() error = %v, want nil (exit status 0)", err)
-		}
-		want := "du (charm.land/snail/coreutils) " + coreutils.Version + "\nhttps://charm.land/snail\n"
-		if got := stdout.String(); got != want {
-			t.Errorf("Run() stdout = %q, want %q", got, want)
-		}
-	})
+	testutil.HelpVersion(t, New, "du", usage)
 }

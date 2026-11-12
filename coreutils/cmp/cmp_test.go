@@ -2,43 +2,15 @@ package cmp
 
 import (
 	"bytes"
-	"context"
 	"errors"
-	"io"
 	"io/fs"
 	"strings"
 	"testing"
 
 	"charm.land/snail/coreutils"
+	"charm.land/snail/coreutils/internal/testutil"
 	"charm.land/snail/fsx"
 )
-
-type errorReader struct {
-	err error
-}
-
-func (r errorReader) Read([]byte) (int, error) {
-	return 0, r.err
-}
-
-type errorWriter struct {
-	err error
-}
-
-func (w errorWriter) Write([]byte) (int, error) {
-	return 0, w.err
-}
-
-// cancelReader cancels its context on the first read, simulating a context
-// that is done while input is being read.
-type cancelReader struct {
-	cancel context.CancelFunc
-}
-
-func (r *cancelReader) Read([]byte) (int, error) {
-	r.cancel()
-	return 0, context.Canceled
-}
 
 // testFS holds the fixtures used by the tests:
 //
@@ -89,57 +61,6 @@ func testFS() fsx.MemFS {
 	}
 }
 
-func exitCode(t *testing.T, err error) int {
-	t.Helper()
-
-	if err == nil {
-		return 0
-	}
-	var exitErr *coreutils.ExitError
-	if !errors.As(err, &exitErr) {
-		t.Fatalf("Run() error = %v, want *coreutils.ExitError", err)
-	}
-	return exitErr.Code
-}
-
-type testCase struct {
-	name     string
-	stdin    io.Reader
-	fsys     fsx.MemFS
-	dir      string
-	args     []string
-	want     string
-	wantErr  string
-	wantExit int
-}
-
-func runCase(t *testing.T, test testCase) {
-	t.Helper()
-
-	stdout := new(bytes.Buffer)
-	stderr := new(bytes.Buffer)
-	rt := &coreutils.Runtime{
-		Stdin:      test.stdin,
-		Stdout:     stdout,
-		Stderr:     stderr,
-		WorkingDir: test.dir,
-	}
-	if test.fsys != nil {
-		rt.FS = test.fsys
-	}
-	err := New(rt).Run(t.Context(), test.args...)
-
-	if code := exitCode(t, err); code != test.wantExit {
-		t.Errorf("Run() exit code = %d, want %d (error = %v)", code, test.wantExit, err)
-	}
-	if got := stdout.String(); got != test.want {
-		t.Errorf("Run() stdout = %q, want %q", got, test.want)
-	}
-	if got := stderr.String(); got != test.wantErr {
-		t.Errorf("Run() stderr = %q, want %q", got, test.wantErr)
-	}
-}
-
 func TestRunDefaults(t *testing.T) {
 	big := fsx.MemFS{
 		"big1.txt": {Data: []byte(strings.Repeat("a", 40000) + "b")},
@@ -147,589 +68,569 @@ func TestRunDefaults(t *testing.T) {
 		"big0.txt": {Data: []byte(strings.Repeat("a", 40000))},
 	}
 
-	tests := []testCase{
+	tests := []testutil.Case{
 		{
-			name: "identical files produce no output",
-			fsys: testFS(),
-			args: []string{"same1.txt", "same2.txt"},
+			Name: "identical files produce no output",
+			FS:   testFS(),
+			Args: []string{"same1.txt", "same2.txt"},
 		},
 		{
-			name: "a file compares identical to itself",
-			fsys: testFS(),
-			args: []string{"a.txt", "a.txt"},
+			Name: "a file compares identical to itself",
+			FS:   testFS(),
+			Args: []string{"a.txt", "a.txt"},
 		},
 		{
-			name:     "a file with itself and different skips still compares",
-			fsys:     testFS(),
-			args:     []string{"a.txt", "a.txt", "1"},
-			want:     "a.txt a.txt differ: byte 1, line 1\n",
-			wantExit: 1,
+			Name:     "a file with itself and different skips still compares",
+			FS:       testFS(),
+			Args:     []string{"a.txt", "a.txt", "1"},
+			Want:     "a.txt a.txt differ: byte 1, line 1\n",
+			WantExit: 1,
 		},
 		{
-			name:     "the first difference is reported",
-			fsys:     testFS(),
-			args:     []string{"a.txt", "b.txt"},
-			want:     "a.txt b.txt differ: byte 5, line 2\n",
-			wantExit: 1,
+			Name:     "the first difference is reported",
+			FS:       testFS(),
+			Args:     []string{"a.txt", "b.txt"},
+			Want:     "a.txt b.txt differ: byte 5, line 2\n",
+			WantExit: 1,
 		},
 		{
-			name:     "a difference in the first byte is on line 1",
-			fsys:     testFS(),
-			args:     []string{"a.txt", "d.txt"},
-			want:     "a.txt d.txt differ: byte 1, line 1\n",
-			wantExit: 1,
+			Name:     "a difference in the first byte is on line 1",
+			FS:       testFS(),
+			Args:     []string{"a.txt", "d.txt"},
+			Want:     "a.txt d.txt differ: byte 1, line 1\n",
+			WantExit: 1,
 		},
 		{
-			name:     "binary files are compared byte by byte",
-			fsys:     testFS(),
-			args:     []string{"bin1.txt", "bin2.txt"},
-			want:     "bin1.txt bin2.txt differ: byte 3, line 1\n",
-			wantExit: 1,
+			Name:     "binary files are compared byte by byte",
+			FS:       testFS(),
+			Args:     []string{"bin1.txt", "bin2.txt"},
+			Want:     "bin1.txt bin2.txt differ: byte 3, line 1\n",
+			WantExit: 1,
 		},
 		{
-			name:     "a shorter file ending after a newline reports the line",
-			fsys:     testFS(),
-			args:     []string{"a.txt", "c.txt"},
-			wantErr:  "cmp: EOF on 'c.txt' after byte 3, line 1\n",
-			wantExit: 1,
+			Name:     "a shorter file ending after a newline reports the line",
+			FS:       testFS(),
+			Args:     []string{"a.txt", "c.txt"},
+			WantErr:  "cmp: EOF on 'c.txt' after byte 3, line 1\n",
+			WantExit: 1,
 		},
 		{
-			name:     "a shorter file ending inside a line reports being in the line",
-			fsys:     testFS(),
-			args:     []string{"a.txt", "nonl.txt"},
-			wantErr:  "cmp: EOF on 'nonl.txt' after byte 5, in line 2\n",
-			wantExit: 1,
+			Name:     "a shorter file ending inside a line reports being in the line",
+			FS:       testFS(),
+			Args:     []string{"a.txt", "nonl.txt"},
+			WantErr:  "cmp: EOF on 'nonl.txt' after byte 5, in line 2\n",
+			WantExit: 1,
 		},
 		{
-			name:     "an empty first file",
-			fsys:     testFS(),
-			args:     []string{"empty.txt", "a.txt"},
-			wantErr:  "cmp: EOF on 'empty.txt' which is empty\n",
-			wantExit: 1,
+			Name:     "an empty first file",
+			FS:       testFS(),
+			Args:     []string{"empty.txt", "a.txt"},
+			WantErr:  "cmp: EOF on 'empty.txt' which is empty\n",
+			WantExit: 1,
 		},
 		{
-			name:     "an empty second file",
-			fsys:     testFS(),
-			args:     []string{"a.txt", "empty.txt"},
-			wantErr:  "cmp: EOF on 'empty.txt' which is empty\n",
-			wantExit: 1,
+			Name:     "an empty second file",
+			FS:       testFS(),
+			Args:     []string{"a.txt", "empty.txt"},
+			WantErr:  "cmp: EOF on 'empty.txt' which is empty\n",
+			WantExit: 1,
 		},
 		{
-			name: "two empty files are identical",
-			fsys: testFS(),
-			args: []string{"empty.txt", "empty.txt"},
+			Name: "two empty files are identical",
+			FS:   testFS(),
+			Args: []string{"empty.txt", "empty.txt"},
 		},
 		{
-			name:     "the first file can be the standard input",
-			fsys:     testFS(),
-			stdin:    strings.NewReader("ab\ncx\n"),
-			args:     []string{"-", "a.txt"},
-			want:     "- a.txt differ: byte 5, line 2\n",
-			wantExit: 1,
+			Name:     "the first file can be the standard input",
+			FS:       testFS(),
+			Stdin:    strings.NewReader("ab\ncx\n"),
+			Args:     []string{"-", "a.txt"},
+			Want:     "- a.txt differ: byte 5, line 2\n",
+			WantExit: 1,
 		},
 		{
-			name:     "the second file can be the standard input",
-			fsys:     testFS(),
-			stdin:    strings.NewReader("xb\ncd\n"),
-			args:     []string{"a.txt", "-"},
-			want:     "a.txt - differ: byte 1, line 1\n",
-			wantExit: 1,
+			Name:     "the second file can be the standard input",
+			FS:       testFS(),
+			Stdin:    strings.NewReader("xb\ncd\n"),
+			Args:     []string{"a.txt", "-"},
+			Want:     "a.txt - differ: byte 1, line 1\n",
+			WantExit: 1,
 		},
 		{
-			name:  "a missing FILE2 is the standard input",
-			fsys:  testFS(),
-			stdin: strings.NewReader("ab\ncd\n"),
-			args:  []string{"a.txt"},
+			Name:  "a missing FILE2 is the standard input",
+			FS:    testFS(),
+			Stdin: strings.NewReader("ab\ncd\n"),
+			Args:  []string{"a.txt"},
 		},
 		{
-			name:     "the missing FILE2 is reported as '-'",
-			fsys:     testFS(),
-			stdin:    strings.NewReader("ab\ncx\n"),
-			args:     []string{"a.txt"},
-			want:     "a.txt - differ: byte 5, line 2\n",
-			wantExit: 1,
+			Name:     "the missing FILE2 is reported as '-'",
+			FS:       testFS(),
+			Stdin:    strings.NewReader("ab\ncx\n"),
+			Args:     []string{"a.txt"},
+			Want:     "a.txt - differ: byte 5, line 2\n",
+			WantExit: 1,
 		},
 		{
-			name:     "the standard input as FILE2 can be the shorter file",
-			fsys:     testFS(),
-			stdin:    strings.NewReader("ab\n"),
-			args:     []string{"a.txt"},
-			wantErr:  "cmp: EOF on '-' after byte 3, line 1\n",
-			wantExit: 1,
+			Name:     "the standard input as FILE2 can be the shorter file",
+			FS:       testFS(),
+			Stdin:    strings.NewReader("ab\n"),
+			Args:     []string{"a.txt"},
+			WantErr:  "cmp: EOF on '-' after byte 3, line 1\n",
+			WantExit: 1,
 		},
 		{
-			name:     "the standard input is the shorter file",
-			fsys:     testFS(),
-			stdin:    strings.NewReader("ab\n"),
-			args:     []string{"-", "a.txt"},
-			wantErr:  "cmp: EOF on '-' after byte 3, line 1\n",
-			wantExit: 1,
+			Name:     "the standard input is the shorter file",
+			FS:       testFS(),
+			Stdin:    strings.NewReader("ab\n"),
+			Args:     []string{"-", "a.txt"},
+			WantErr:  "cmp: EOF on '-' after byte 3, line 1\n",
+			WantExit: 1,
 		},
 		{
-			name:     "the standard input is the longer file",
-			fsys:     testFS(),
-			stdin:    strings.NewReader("ab\ncd\nextra\n"),
-			args:     []string{"-", "a.txt"},
-			wantErr:  "cmp: EOF on 'a.txt' after byte 6, line 2\n",
-			wantExit: 1,
+			Name:     "the standard input is the longer file",
+			FS:       testFS(),
+			Stdin:    strings.NewReader("ab\ncd\nextra\n"),
+			Args:     []string{"-", "a.txt"},
+			WantErr:  "cmp: EOF on 'a.txt' after byte 6, line 2\n",
+			WantExit: 1,
 		},
 		{
-			name:     "a double dash ends the options",
-			fsys:     testFS(),
-			args:     []string{"--", "a.txt", "b.txt"},
-			want:     "a.txt b.txt differ: byte 5, line 2\n",
-			wantExit: 1,
+			Name:     "a double dash ends the options",
+			FS:       testFS(),
+			Args:     []string{"--", "a.txt", "b.txt"},
+			Want:     "a.txt b.txt differ: byte 5, line 2\n",
+			WantExit: 1,
 		},
 		{
-			name:     "operands resolve against the working directory",
-			fsys:     testFS(),
-			dir:      "sub",
-			args:     []string{"a.txt", "b.txt"},
-			want:     "a.txt b.txt differ: byte 1, line 1\n",
-			wantExit: 1,
+			Name:     "operands resolve against the working directory",
+			FS:       testFS(),
+			Dir:      "sub",
+			Args:     []string{"a.txt", "b.txt"},
+			Want:     "a.txt b.txt differ: byte 1, line 1\n",
+			WantExit: 1,
 		},
 		{
-			name:     "a difference beyond the first block is reported",
-			fsys:     big,
-			args:     []string{"big1.txt", "big2.txt"},
-			want:     "big1.txt big2.txt differ: byte 40001, line 1\n",
-			wantExit: 1,
+			Name:     "a difference beyond the first block is reported",
+			FS:       big,
+			Args:     []string{"big1.txt", "big2.txt"},
+			Want:     "big1.txt big2.txt differ: byte 40001, line 1\n",
+			WantExit: 1,
 		},
 		{
-			name: "identical files bigger than a block",
-			fsys: big,
-			args: []string{"big1.txt", "big1.txt"},
+			Name: "identical files bigger than a block",
+			FS:   big,
+			Args: []string{"big1.txt", "big1.txt"},
 		},
 		{
-			name:     "a shorter file bigger than a block",
-			fsys:     big,
-			args:     []string{"big1.txt", "big0.txt"},
-			wantErr:  "cmp: EOF on 'big0.txt' after byte 40000, in line 1\n",
-			wantExit: 1,
+			Name:     "a shorter file bigger than a block",
+			FS:       big,
+			Args:     []string{"big1.txt", "big0.txt"},
+			WantErr:  "cmp: EOF on 'big0.txt' after byte 40000, in line 1\n",
+			WantExit: 1,
 		},
 	}
 
-	for _, test := range tests {
-		t.Run(test.name, func(t *testing.T) {
-			runCase(t, test)
-		})
-	}
+	testutil.Run(t, New, tests)
 }
 
 func TestRunOptions(t *testing.T) {
-	tests := []testCase{
+	tests := []testutil.Case{
 		{
-			name: "-l lists every differing byte in octal",
-			fsys: testFS(),
-			args: []string{"-l", "bin1.txt", "bin2.txt"},
+			Name: "-l lists every differing byte in octal",
+			FS:   testFS(),
+			Args: []string{"-l", "bin1.txt", "bin2.txt"},
 			// The byte number and values are unpadded, as POSIX specifies.
-			want:     "3 7 12\n",
-			wantExit: 1,
+			Want:     "3 7 12\n",
+			WantExit: 1,
 		},
 		{
-			name:     "-l lists multiple differences",
-			fsys:     testFS(),
-			args:     []string{"-l", "multi1.txt", "multi2.txt"},
-			want:     "1 141 170\n4 141 171\n6 143 172\n",
-			wantExit: 1,
+			Name:     "-l lists multiple differences",
+			FS:       testFS(),
+			Args:     []string{"-l", "multi1.txt", "multi2.txt"},
+			Want:     "1 141 170\n4 141 171\n6 143 172\n",
+			WantExit: 1,
 		},
 		{
-			name: "-l reports identical files with no output",
-			fsys: testFS(),
-			args: []string{"-l", "same1.txt", "same2.txt"},
+			Name: "-l reports identical files with no output",
+			FS:   testFS(),
+			Args: []string{"-l", "same1.txt", "same2.txt"},
 		},
 		{
-			name:     "-l reports the end of a shorter file without a line number",
-			fsys:     testFS(),
-			args:     []string{"-l", "a.txt", "c.txt"},
-			wantErr:  "cmp: EOF on 'c.txt' after byte 3\n",
-			wantExit: 1,
+			Name:     "-l reports the end of a shorter file without a line number",
+			FS:       testFS(),
+			Args:     []string{"-l", "a.txt", "c.txt"},
+			WantErr:  "cmp: EOF on 'c.txt' after byte 3\n",
+			WantExit: 1,
 		},
 		{
-			name:     "-l reports an empty file",
-			fsys:     testFS(),
-			args:     []string{"-l", "a.txt", "empty.txt"},
-			wantErr:  "cmp: EOF on 'empty.txt' which is empty\n",
-			wantExit: 1,
+			Name:     "-l reports an empty file",
+			FS:       testFS(),
+			Args:     []string{"-l", "a.txt", "empty.txt"},
+			WantErr:  "cmp: EOF on 'empty.txt' which is empty\n",
+			WantExit: 1,
 		},
 		{
-			name:     "-l reads the standard input",
-			fsys:     testFS(),
-			stdin:    strings.NewReader("ab\ncx\n"),
-			args:     []string{"-l", "-", "a.txt"},
-			want:     "5 170 144\n",
-			wantExit: 1,
+			Name:     "-l reads the standard input",
+			FS:       testFS(),
+			Stdin:    strings.NewReader("ab\ncx\n"),
+			Args:     []string{"-l", "-", "a.txt"},
+			Want:     "5 170 144\n",
+			WantExit: 1,
 		},
 		{
-			name:     "--verbose stands for -l",
-			fsys:     testFS(),
-			args:     []string{"--verbose", "bin1.txt", "bin2.txt"},
-			want:     "3 7 12\n",
-			wantExit: 1,
+			Name:     "--verbose stands for -l",
+			FS:       testFS(),
+			Args:     []string{"--verbose", "bin1.txt", "bin2.txt"},
+			Want:     "3 7 12\n",
+			WantExit: 1,
 		},
 		{
-			name:     "-s suppresses the difference message",
-			fsys:     testFS(),
-			args:     []string{"-s", "a.txt", "b.txt"},
-			wantExit: 1,
+			Name:     "-s suppresses the difference message",
+			FS:       testFS(),
+			Args:     []string{"-s", "a.txt", "b.txt"},
+			WantExit: 1,
 		},
 		{
-			name: "-s keeps the identical status",
-			fsys: testFS(),
-			args: []string{"-s", "same1.txt", "same2.txt"},
+			Name: "-s keeps the identical status",
+			FS:   testFS(),
+			Args: []string{"-s", "same1.txt", "same2.txt"},
 		},
 		{
-			name:     "-s suppresses the end of a shorter file",
-			fsys:     testFS(),
-			args:     []string{"-s", "a.txt", "c.txt"},
-			wantExit: 1,
+			Name:     "-s suppresses the end of a shorter file",
+			FS:       testFS(),
+			Args:     []string{"-s", "a.txt", "c.txt"},
+			WantExit: 1,
 		},
 		{
-			name:     "--silent stands for -s",
-			fsys:     testFS(),
-			args:     []string{"--silent", "a.txt", "b.txt"},
-			wantExit: 1,
+			Name:     "--silent stands for -s",
+			FS:       testFS(),
+			Args:     []string{"--silent", "a.txt", "b.txt"},
+			WantExit: 1,
 		},
 		{
-			name:     "--quiet stands for -s",
-			fsys:     testFS(),
-			args:     []string{"--quiet", "a.txt", "b.txt"},
-			wantExit: 1,
+			Name:     "--quiet stands for -s",
+			FS:       testFS(),
+			Args:     []string{"--quiet", "a.txt", "b.txt"},
+			WantExit: 1,
 		},
 		{
-			name:     "an option can be repeated",
-			fsys:     testFS(),
-			args:     []string{"-s", "-s", "a.txt", "b.txt"},
-			wantExit: 1,
+			Name:     "an option can be repeated",
+			FS:       testFS(),
+			Args:     []string{"-s", "-s", "a.txt", "b.txt"},
+			WantExit: 1,
 		},
 		{
-			name:     "-l can be repeated",
-			fsys:     testFS(),
-			args:     []string{"-l", "-l", "bin1.txt", "bin2.txt"},
-			want:     "3 7 12\n",
-			wantExit: 1,
+			Name:     "-l can be repeated",
+			FS:       testFS(),
+			Args:     []string{"-l", "-l", "bin1.txt", "bin2.txt"},
+			Want:     "3 7 12\n",
+			WantExit: 1,
 		},
 		{
-			name:     "-l and -s are incompatible",
-			fsys:     testFS(),
-			args:     []string{"-l", "-s", "a.txt", "b.txt"},
-			wantErr:  "cmp: options -l and -s are incompatible\nTry 'cmp --help' for more information.\n",
-			wantExit: 2,
+			Name:     "-l and -s are incompatible",
+			FS:       testFS(),
+			Args:     []string{"-l", "-s", "a.txt", "b.txt"},
+			WantErr:  "cmp: options -l and -s are incompatible\nTry 'cmp --help' for more information.\n",
+			WantExit: 2,
 		},
 		{
-			name:     "-s and -l are incompatible",
-			fsys:     testFS(),
-			args:     []string{"-s", "-l", "a.txt", "b.txt"},
-			wantErr:  "cmp: options -l and -s are incompatible\nTry 'cmp --help' for more information.\n",
-			wantExit: 2,
+			Name:     "-s and -l are incompatible",
+			FS:       testFS(),
+			Args:     []string{"-s", "-l", "a.txt", "b.txt"},
+			WantErr:  "cmp: options -l and -s are incompatible\nTry 'cmp --help' for more information.\n",
+			WantExit: 2,
 		},
 		{
-			name:     "-l and -s grouped are incompatible",
-			fsys:     testFS(),
-			args:     []string{"-ls", "a.txt", "b.txt"},
-			wantErr:  "cmp: options -l and -s are incompatible\nTry 'cmp --help' for more information.\n",
-			wantExit: 2,
+			Name:     "-l and -s grouped are incompatible",
+			FS:       testFS(),
+			Args:     []string{"-ls", "a.txt", "b.txt"},
+			WantErr:  "cmp: options -l and -s are incompatible\nTry 'cmp --help' for more information.\n",
+			WantExit: 2,
 		},
 	}
 
-	for _, test := range tests {
-		t.Run(test.name, func(t *testing.T) {
-			runCase(t, test)
-		})
-	}
+	testutil.Run(t, New, tests)
 }
 
 func TestRunPrintBytes(t *testing.T) {
-	tests := []testCase{
+	tests := []testutil.Case{
 		{
-			name:     "-b appends the differing bytes to the message",
-			fsys:     testFS(),
-			args:     []string{"-b", "a.txt", "b.txt"},
-			want:     "a.txt b.txt differ: byte 5, line 2 is 144 d 170 x\n",
-			wantExit: 1,
+			Name:     "-b appends the differing bytes to the message",
+			FS:       testFS(),
+			Args:     []string{"-b", "a.txt", "b.txt"},
+			Want:     "a.txt b.txt differ: byte 5, line 2 is 144 d 170 x\n",
+			WantExit: 1,
 		},
 		{
-			name:     "-b quotes control bytes",
-			fsys:     testFS(),
-			args:     []string{"-b", "bin1.txt", "bin2.txt"},
-			want:     "bin1.txt bin2.txt differ: byte 3, line 1 is   7 ^G  12 ^J\n",
-			wantExit: 1,
+			Name:     "-b quotes control bytes",
+			FS:       testFS(),
+			Args:     []string{"-b", "bin1.txt", "bin2.txt"},
+			Want:     "bin1.txt bin2.txt differ: byte 3, line 1 is   7 ^G  12 ^J\n",
+			WantExit: 1,
 		},
 		{
-			name:     "-b quotes the delete byte",
-			fsys:     testFS(),
-			args:     []string{"-b", "del1.txt", "a.txt"},
-			want:     "del1.txt a.txt differ: byte 1, line 1 is 177 ^? 141 a\n",
-			wantExit: 1,
+			Name:     "-b quotes the delete byte",
+			FS:       testFS(),
+			Args:     []string{"-b", "del1.txt", "a.txt"},
+			Want:     "del1.txt a.txt differ: byte 1, line 1 is 177 ^? 141 a\n",
+			WantExit: 1,
 		},
 		{
-			name:     "-b quotes meta bytes",
-			fsys:     testFS(),
-			args:     []string{"-b", "hi1.txt", "hi2.txt"},
-			want:     "hi1.txt hi2.txt differ: byte 1, line 1 is 377 M-^? 200 M-^@\n",
-			wantExit: 1,
+			Name:     "-b quotes meta bytes",
+			FS:       testFS(),
+			Args:     []string{"-b", "hi1.txt", "hi2.txt"},
+			Want:     "hi1.txt hi2.txt differ: byte 1, line 1 is 377 M-^? 200 M-^@\n",
+			WantExit: 1,
 		},
 		{
-			name:     "--print-bytes stands for -b",
-			fsys:     testFS(),
-			args:     []string{"--print-bytes", "a.txt", "b.txt"},
-			want:     "a.txt b.txt differ: byte 5, line 2 is 144 d 170 x\n",
-			wantExit: 1,
+			Name:     "--print-bytes stands for -b",
+			FS:       testFS(),
+			Args:     []string{"--print-bytes", "a.txt", "b.txt"},
+			Want:     "a.txt b.txt differ: byte 5, line 2 is 144 d 170 x\n",
+			WantExit: 1,
 		},
 		{
-			name:     "-b can be repeated",
-			fsys:     testFS(),
-			args:     []string{"-bb", "a.txt", "b.txt"},
-			want:     "a.txt b.txt differ: byte 5, line 2 is 144 d 170 x\n",
-			wantExit: 1,
+			Name:     "-b can be repeated",
+			FS:       testFS(),
+			Args:     []string{"-bb", "a.txt", "b.txt"},
+			Want:     "a.txt b.txt differ: byte 5, line 2 is 144 d 170 x\n",
+			WantExit: 1,
 		},
 		{
-			name:     "-lb lists the bytes of every difference",
-			fsys:     testFS(),
-			args:     []string{"-lb", "multi1.txt", "multi2.txt"},
-			want:     "1 141 a    170 x\n4 141 a    171 y\n6 143 c    172 z\n",
-			wantExit: 1,
+			Name:     "-lb lists the bytes of every difference",
+			FS:       testFS(),
+			Args:     []string{"-lb", "multi1.txt", "multi2.txt"},
+			Want:     "1 141 a    170 x\n4 141 a    171 y\n6 143 c    172 z\n",
+			WantExit: 1,
 		},
 		{
-			name:     "-lb quotes the bytes of a difference",
-			fsys:     testFS(),
-			args:     []string{"-lb", "bin1.txt", "bin2.txt"},
-			want:     "3   7 ^G    12 ^J\n",
-			wantExit: 1,
+			Name:     "-lb quotes the bytes of a difference",
+			FS:       testFS(),
+			Args:     []string{"-lb", "bin1.txt", "bin2.txt"},
+			Want:     "3   7 ^G    12 ^J\n",
+			WantExit: 1,
 		},
 		{
-			name:     "-lb quotes meta bytes without padding them",
-			fsys:     testFS(),
-			args:     []string{"-lb", "hi1.txt", "hi2.txt"},
-			want:     "1 377 M-^? 200 M-^@\n",
-			wantExit: 1,
+			Name:     "-lb quotes meta bytes without padding them",
+			FS:       testFS(),
+			Args:     []string{"-lb", "hi1.txt", "hi2.txt"},
+			Want:     "1 377 M-^? 200 M-^@\n",
+			WantExit: 1,
 		},
 		{
-			name:     "-b keeps the EOF diagnostic of a shorter file",
-			fsys:     testFS(),
-			args:     []string{"-b", "a.txt", "c.txt"},
-			wantErr:  "cmp: EOF on 'c.txt' after byte 3, line 1\n",
-			wantExit: 1,
+			Name:     "-b keeps the EOF diagnostic of a shorter file",
+			FS:       testFS(),
+			Args:     []string{"-b", "a.txt", "c.txt"},
+			WantErr:  "cmp: EOF on 'c.txt' after byte 3, line 1\n",
+			WantExit: 1,
 		},
 		{
-			name:     "-b is silent with -s",
-			fsys:     testFS(),
-			args:     []string{"-sb", "a.txt", "b.txt"},
-			wantExit: 1,
+			Name:     "-b is silent with -s",
+			FS:       testFS(),
+			Args:     []string{"-sb", "a.txt", "b.txt"},
+			WantExit: 1,
 		},
 		{
-			name:     "-b reads the standard input",
-			fsys:     testFS(),
-			stdin:    strings.NewReader("ab\ncx\n"),
-			args:     []string{"-b", "a.txt"},
-			want:     "a.txt - differ: byte 5, line 2 is 144 d 170 x\n",
-			wantExit: 1,
+			Name:     "-b reads the standard input",
+			FS:       testFS(),
+			Stdin:    strings.NewReader("ab\ncx\n"),
+			Args:     []string{"-b", "a.txt"},
+			Want:     "a.txt - differ: byte 5, line 2 is 144 d 170 x\n",
+			WantExit: 1,
 		},
 	}
 
-	for _, test := range tests {
-		t.Run(test.name, func(t *testing.T) {
-			runCase(t, test)
-		})
-	}
+	testutil.Run(t, New, tests)
 }
 
 func TestRunIgnoreInitial(t *testing.T) {
-	tests := []testCase{
+	tests := []testutil.Case{
 		{
-			name:     "-i skips the first bytes of both files",
-			fsys:     testFS(),
-			args:     []string{"-i", "4", "a.txt", "b.txt"},
-			want:     "a.txt b.txt differ: byte 1, line 1\n",
-			wantExit: 1,
+			Name:     "-i skips the first bytes of both files",
+			FS:       testFS(),
+			Args:     []string{"-i", "4", "a.txt", "b.txt"},
+			Want:     "a.txt b.txt differ: byte 1, line 1\n",
+			WantExit: 1,
 		},
 		{
-			name:     "-i resets the byte and line numbering",
-			fsys:     testFS(),
-			args:     []string{"-i", "1", "a.txt", "b.txt"},
-			want:     "a.txt b.txt differ: byte 4, line 2\n",
-			wantExit: 1,
+			Name:     "-i resets the byte and line numbering",
+			FS:       testFS(),
+			Args:     []string{"-i", "1", "a.txt", "b.txt"},
+			Want:     "a.txt b.txt differ: byte 4, line 2\n",
+			WantExit: 1,
 		},
 		{
-			name:     "-i with a count for each file",
-			fsys:     testFS(),
-			args:     []string{"-i", "1:3", "a.txt", "b.txt"},
-			want:     "a.txt b.txt differ: byte 1, line 1\n",
-			wantExit: 1,
+			Name:     "-i with a count for each file",
+			FS:       testFS(),
+			Args:     []string{"-i", "1:3", "a.txt", "b.txt"},
+			Want:     "a.txt b.txt differ: byte 1, line 1\n",
+			WantExit: 1,
 		},
 		{
-			name:     "--ignore-initial stands for -i",
-			fsys:     testFS(),
-			args:     []string{"--ignore-initial=4", "a.txt", "b.txt"},
-			want:     "a.txt b.txt differ: byte 1, line 1\n",
-			wantExit: 1,
+			Name:     "--ignore-initial stands for -i",
+			FS:       testFS(),
+			Args:     []string{"--ignore-initial=4", "a.txt", "b.txt"},
+			Want:     "a.txt b.txt differ: byte 1, line 1\n",
+			WantExit: 1,
 		},
 		{
-			name:     "--ignore-initial takes its argument separately",
-			fsys:     testFS(),
-			args:     []string{"--ignore-initial", "4", "a.txt", "b.txt"},
-			want:     "a.txt b.txt differ: byte 1, line 1\n",
-			wantExit: 1,
+			Name:     "--ignore-initial takes its argument separately",
+			FS:       testFS(),
+			Args:     []string{"--ignore-initial", "4", "a.txt", "b.txt"},
+			Want:     "a.txt b.txt differ: byte 1, line 1\n",
+			WantExit: 1,
 		},
 		{
-			name:     "the skip can be grouped with other options",
-			fsys:     testFS(),
-			args:     []string{"-li3", "multi1.txt", "multi2.txt"},
-			want:     "1 141 171\n3 143 172\n",
-			wantExit: 1,
+			Name:     "the skip can be grouped with other options",
+			FS:       testFS(),
+			Args:     []string{"-li3", "multi1.txt", "multi2.txt"},
+			Want:     "1 141 171\n3 143 172\n",
+			WantExit: 1,
 		},
 		{
-			name:     "the skip counts restart the -l numbering",
-			fsys:     testFS(),
-			args:     []string{"-l", "-i", "3", "multi1.txt", "multi2.txt"},
-			want:     "1 141 171\n3 143 172\n",
-			wantExit: 1,
+			Name:     "the skip counts restart the -l numbering",
+			FS:       testFS(),
+			Args:     []string{"-l", "-i", "3", "multi1.txt", "multi2.txt"},
+			Want:     "1 141 171\n3 143 172\n",
+			WantExit: 1,
 		},
 		{
-			name:     "the skip can be hexadecimal",
-			fsys:     testFS(),
-			args:     []string{"-i", "0x4", "a.txt", "b.txt"},
-			want:     "a.txt b.txt differ: byte 1, line 1\n",
-			wantExit: 1,
+			Name:     "the skip can be hexadecimal",
+			FS:       testFS(),
+			Args:     []string{"-i", "0x4", "a.txt", "b.txt"},
+			Want:     "a.txt b.txt differ: byte 1, line 1\n",
+			WantExit: 1,
 		},
 		{
-			name: "the skip can be octal",
-			fsys: testFS(),
-			args: []string{"-i", "010", "a.txt", "b.txt"},
+			Name: "the skip can be octal",
+			FS:   testFS(),
+			Args: []string{"-i", "010", "a.txt", "b.txt"},
 		},
 		{
-			name: "the skip can have a suffix",
-			fsys: testFS(),
-			args: []string{"-i", "1K", "a.txt", "b.txt"},
+			Name: "the skip can have a suffix",
+			FS:   testFS(),
+			Args: []string{"-i", "1K", "a.txt", "b.txt"},
 		},
 		{
-			name: "a skip beyond both files compares nothing",
-			fsys: testFS(),
-			args: []string{"-i", "100", "a.txt", "b.txt"},
+			Name: "a skip beyond both files compares nothing",
+			FS:   testFS(),
+			Args: []string{"-i", "100", "a.txt", "b.txt"},
 		},
 		{
-			name:     "a skip beyond one file only reports it as empty",
-			fsys:     testFS(),
-			args:     []string{"-i", "100:0", "a.txt", "b.txt"},
-			wantErr:  "cmp: EOF on 'a.txt' which is empty\n",
-			wantExit: 1,
+			Name:     "a skip beyond one file only reports it as empty",
+			FS:       testFS(),
+			Args:     []string{"-i", "100:0", "a.txt", "b.txt"},
+			WantErr:  "cmp: EOF on 'a.txt' which is empty\n",
+			WantExit: 1,
 		},
 		{
-			name:     "repeated -i keeps the largest count",
-			fsys:     testFS(),
-			args:     []string{"-i", "4", "-i", "2", "a.txt", "b.txt"},
-			want:     "a.txt b.txt differ: byte 1, line 1\n",
-			wantExit: 1,
+			Name:     "repeated -i keeps the largest count",
+			FS:       testFS(),
+			Args:     []string{"-i", "4", "-i", "2", "a.txt", "b.txt"},
+			Want:     "a.txt b.txt differ: byte 1, line 1\n",
+			WantExit: 1,
 		},
 		{
-			name:     "a single count of repeated -i applies to both files",
-			fsys:     testFS(),
-			args:     []string{"-i", "1:3", "-i", "2", "a.txt", "b.txt"},
-			want:     "a.txt b.txt differ: byte 1, line 1\n",
-			wantExit: 1,
+			Name:     "a single count of repeated -i applies to both files",
+			FS:       testFS(),
+			Args:     []string{"-i", "1:3", "-i", "2", "a.txt", "b.txt"},
+			Want:     "a.txt b.txt differ: byte 1, line 1\n",
+			WantExit: 1,
 		},
 		{
-			name:     "-s keeps the status of a skipped difference",
-			fsys:     testFS(),
-			args:     []string{"-si", "4", "a.txt", "b.txt"},
-			wantExit: 1,
+			Name:     "-s keeps the status of a skipped difference",
+			FS:       testFS(),
+			Args:     []string{"-si", "4", "a.txt", "b.txt"},
+			WantExit: 1,
 		},
 		{
-			name: "-s keeps the identical status beyond a difference",
-			fsys: testFS(),
-			args: []string{"-si", "5", "a.txt", "b.txt"},
+			Name: "-s keeps the identical status beyond a difference",
+			FS:   testFS(),
+			Args: []string{"-si", "5", "a.txt", "b.txt"},
 		},
 		{
-			name:     "-i reads the standard input",
-			fsys:     testFS(),
-			stdin:    strings.NewReader("xxabcd"),
-			args:     []string{"-i", "2", "skip1.txt"},
-			want:     "skip1.txt - differ: byte 1, line 1\n",
-			wantExit: 1,
+			Name:     "-i reads the standard input",
+			FS:       testFS(),
+			Stdin:    strings.NewReader("xxabcd"),
+			Args:     []string{"-i", "2", "skip1.txt"},
+			Want:     "skip1.txt - differ: byte 1, line 1\n",
+			WantExit: 1,
 		},
 		{
-			name:     "-i with a skip on the standard input only",
-			fsys:     testFS(),
-			stdin:    strings.NewReader("xxabcd"),
-			args:     []string{"-i", "2:0", "-", "skip1.txt"},
-			want:     "- skip1.txt differ: byte 1, line 1\n",
-			wantExit: 1,
+			Name:     "-i with a skip on the standard input only",
+			FS:       testFS(),
+			Stdin:    strings.NewReader("xxabcd"),
+			Args:     []string{"-i", "2:0", "-", "skip1.txt"},
+			Want:     "- skip1.txt differ: byte 1, line 1\n",
+			WantExit: 1,
 		},
 	}
 
-	for _, test := range tests {
-		t.Run(test.name, func(t *testing.T) {
-			runCase(t, test)
-		})
-	}
+	testutil.Run(t, New, tests)
 }
 
 func TestRunSkipOperands(t *testing.T) {
-	tests := []testCase{
+	tests := []testutil.Case{
 		{
-			name:     "a SKIP1 operand skips FILE1 only",
-			fsys:     testFS(),
-			args:     []string{"skip1.txt", "skip2.txt", "4"},
-			wantExit: 0,
+			Name:     "a SKIP1 operand skips FILE1 only",
+			FS:       testFS(),
+			Args:     []string{"skip1.txt", "skip2.txt", "4"},
+			WantExit: 0,
 		},
 		{
-			name:     "SKIP1 and SKIP2 skip each file",
-			fsys:     testFS(),
-			args:     []string{"skip1.txt", "skip2.txt", "4", "4"},
-			wantErr:  "cmp: EOF on 'skip2.txt' which is empty\n",
-			wantExit: 1,
+			Name:     "SKIP1 and SKIP2 skip each file",
+			FS:       testFS(),
+			Args:     []string{"skip1.txt", "skip2.txt", "4", "4"},
+			WantErr:  "cmp: EOF on 'skip2.txt' which is empty\n",
+			WantExit: 1,
 		},
 		{
-			name:     "a skip beyond one file reports it as empty",
-			fsys:     testFS(),
-			args:     []string{"a.txt", "b.txt", "100"},
-			wantErr:  "cmp: EOF on 'a.txt' which is empty\n",
-			wantExit: 1,
+			Name:     "a skip beyond one file reports it as empty",
+			FS:       testFS(),
+			Args:     []string{"a.txt", "b.txt", "100"},
+			WantErr:  "cmp: EOF on 'a.txt' which is empty\n",
+			WantExit: 1,
 		},
 		{
-			name:     "the skip operands combine with -i, keeping the largest",
-			fsys:     testFS(),
-			args:     []string{"-i", "2", "a.txt", "b.txt", "5"},
-			wantErr:  "cmp: EOF on 'a.txt' after byte 1, line 1\n",
-			wantExit: 1,
+			Name:     "the skip operands combine with -i, keeping the largest",
+			FS:       testFS(),
+			Args:     []string{"-i", "2", "a.txt", "b.txt", "5"},
+			WantErr:  "cmp: EOF on 'a.txt' after byte 1, line 1\n",
+			WantExit: 1,
 		},
 		{
-			name:     "the skip operand can be hexadecimal",
-			fsys:     testFS(),
-			args:     []string{"a.txt", "b.txt", "0x4"},
-			want:     "a.txt b.txt differ: byte 1, line 1\n",
-			wantExit: 1,
+			Name:     "the skip operand can be hexadecimal",
+			FS:       testFS(),
+			Args:     []string{"a.txt", "b.txt", "0x4"},
+			Want:     "a.txt b.txt differ: byte 1, line 1\n",
+			WantExit: 1,
 		},
 		{
-			name:     "the skip operands work with -l",
-			fsys:     testFS(),
-			args:     []string{"-l", "multi1.txt", "multi2.txt", "3"},
-			want:     "1 141 170\n",
-			wantErr:  "cmp: EOF on 'multi1.txt' after byte 3\n",
-			wantExit: 1,
+			Name:     "the skip operands work with -l",
+			FS:       testFS(),
+			Args:     []string{"-l", "multi1.txt", "multi2.txt", "3"},
+			Want:     "1 141 170\n",
+			WantErr:  "cmp: EOF on 'multi1.txt' after byte 3\n",
+			WantExit: 1,
 		},
 		{
-			name:     "the skip operands are accepted without a warning",
-			fsys:     testFS(),
-			args:     []string{"a.txt", "b.txt", "4", "4"},
-			want:     "a.txt b.txt differ: byte 1, line 1\n",
-			wantExit: 1,
+			Name:     "the skip operands are accepted without a warning",
+			FS:       testFS(),
+			Args:     []string{"a.txt", "b.txt", "4", "4"},
+			Want:     "a.txt b.txt differ: byte 1, line 1\n",
+			WantExit: 1,
 		},
 		{
-			name:     "the skip operands read the standard input",
-			fsys:     testFS(),
-			stdin:    strings.NewReader("xx1234abcd"),
-			args:     []string{"-", "skip2.txt", "2", "0"},
-			want:     "- skip2.txt differ: byte 1, line 1\n",
-			wantExit: 1,
+			Name:     "the skip operands read the standard input",
+			FS:       testFS(),
+			Stdin:    strings.NewReader("xx1234abcd"),
+			Args:     []string{"-", "skip2.txt", "2", "0"},
+			Want:     "- skip2.txt differ: byte 1, line 1\n",
+			WantExit: 1,
 		},
 	}
 
-	for _, test := range tests {
-		t.Run(test.name, func(t *testing.T) {
-			runCase(t, test)
-		})
-	}
+	testutil.Run(t, New, tests)
 }
 
 func TestRunBytesLimit(t *testing.T) {
@@ -739,488 +640,476 @@ func TestRunBytesLimit(t *testing.T) {
 		"big0.txt": {Data: []byte(strings.Repeat("a", 40000))},
 	}
 
-	tests := []testCase{
+	tests := []testutil.Case{
 		{
-			name:     "a difference within the limit is reported",
-			fsys:     testFS(),
-			args:     []string{"-n", "5", "a.txt", "b.txt"},
-			want:     "a.txt b.txt differ: byte 5, line 2\n",
-			wantExit: 1,
+			Name:     "a difference within the limit is reported",
+			FS:       testFS(),
+			Args:     []string{"-n", "5", "a.txt", "b.txt"},
+			Want:     "a.txt b.txt differ: byte 5, line 2\n",
+			WantExit: 1,
 		},
 		{
-			name:     "a limit beyond the files still reports the difference",
-			fsys:     testFS(),
-			args:     []string{"-n", "100", "a.txt", "b.txt"},
-			want:     "a.txt b.txt differ: byte 5, line 2\n",
-			wantExit: 1,
+			Name:     "a limit beyond the files still reports the difference",
+			FS:       testFS(),
+			Args:     []string{"-n", "100", "a.txt", "b.txt"},
+			Want:     "a.txt b.txt differ: byte 5, line 2\n",
+			WantExit: 1,
 		},
 		{
-			name: "a difference beyond the limit is not reported",
-			fsys: testFS(),
-			args: []string{"-n", "4", "a.txt", "b.txt"},
+			Name: "a difference beyond the limit is not reported",
+			FS:   testFS(),
+			Args: []string{"-n", "4", "a.txt", "b.txt"},
 		},
 		{
-			name: "identical files compare equal within the limit",
-			fsys: testFS(),
-			args: []string{"-n", "3", "same1.txt", "same2.txt"},
+			Name: "identical files compare equal within the limit",
+			FS:   testFS(),
+			Args: []string{"-n", "3", "same1.txt", "same2.txt"},
 		},
 		{
-			name: "a zero limit compares nothing",
-			fsys: testFS(),
-			args: []string{"-n", "0", "a.txt", "b.txt"},
+			Name: "a zero limit compares nothing",
+			FS:   testFS(),
+			Args: []string{"-n", "0", "a.txt", "b.txt"},
 		},
 		{
-			name:     "an empty file is reported within the limit",
-			fsys:     testFS(),
-			args:     []string{"-n", "3", "empty.txt", "a.txt"},
-			wantErr:  "cmp: EOF on 'empty.txt' which is empty\n",
-			wantExit: 1,
+			Name:     "an empty file is reported within the limit",
+			FS:       testFS(),
+			Args:     []string{"-n", "3", "empty.txt", "a.txt"},
+			WantErr:  "cmp: EOF on 'empty.txt' which is empty\n",
+			WantExit: 1,
 		},
 		{
-			name:     "a prefix ending within the limit is reported",
-			fsys:     testFS(),
-			args:     []string{"-n", "5", "a.txt", "c.txt"},
-			wantErr:  "cmp: EOF on 'c.txt' after byte 3, line 1\n",
-			wantExit: 1,
+			Name:     "a prefix ending within the limit is reported",
+			FS:       testFS(),
+			Args:     []string{"-n", "5", "a.txt", "c.txt"},
+			WantErr:  "cmp: EOF on 'c.txt' after byte 3, line 1\n",
+			WantExit: 1,
 		},
 		{
-			name: "a prefix ending beyond the limit is not reported",
-			fsys: testFS(),
-			args: []string{"-n", "2", "a.txt", "c.txt"},
+			Name: "a prefix ending beyond the limit is not reported",
+			FS:   testFS(),
+			Args: []string{"-n", "2", "a.txt", "c.txt"},
 		},
 		{
-			name: "a file ending exactly at the limit is not reported",
-			fsys: testFS(),
-			args: []string{"-n", "3", "a.txt", "c.txt"},
+			Name: "a file ending exactly at the limit is not reported",
+			FS:   testFS(),
+			Args: []string{"-n", "3", "a.txt", "c.txt"},
 		},
 		{
-			name:     "a difference after a block within the limit is reported",
-			fsys:     big,
-			args:     []string{"-n", "40001", "big1.txt", "big2.txt"},
-			want:     "big1.txt big2.txt differ: byte 40001, line 1\n",
-			wantExit: 1,
+			Name:     "a difference after a block within the limit is reported",
+			FS:       big,
+			Args:     []string{"-n", "40001", "big1.txt", "big2.txt"},
+			Want:     "big1.txt big2.txt differ: byte 40001, line 1\n",
+			WantExit: 1,
 		},
 		{
-			name: "a difference after a block beyond the limit is not reported",
-			fsys: big,
-			args: []string{"-n", "40000", "big1.txt", "big2.txt"},
+			Name: "a difference after a block beyond the limit is not reported",
+			FS:   big,
+			Args: []string{"-n", "40000", "big1.txt", "big2.txt"},
 		},
 		{
-			name:     "a prefix after a block within the limit is reported",
-			fsys:     big,
-			args:     []string{"-n", "40001", "big1.txt", "big0.txt"},
-			wantErr:  "cmp: EOF on 'big0.txt' after byte 40000, in line 1\n",
-			wantExit: 1,
+			Name:     "a prefix after a block within the limit is reported",
+			FS:       big,
+			Args:     []string{"-n", "40001", "big1.txt", "big0.txt"},
+			WantErr:  "cmp: EOF on 'big0.txt' after byte 40000, in line 1\n",
+			WantExit: 1,
 		},
 		{
-			name:     "-l stops listing differences after the limit",
-			fsys:     testFS(),
-			args:     []string{"-l", "-n", "3", "multi1.txt", "multi2.txt"},
-			want:     "1 141 170\n",
-			wantExit: 1,
+			Name:     "-l stops listing differences after the limit",
+			FS:       testFS(),
+			Args:     []string{"-l", "-n", "3", "multi1.txt", "multi2.txt"},
+			Want:     "1 141 170\n",
+			WantExit: 1,
 		},
 		{
-			name:     "-l lists every difference within the limit",
-			fsys:     testFS(),
-			args:     []string{"-l", "-n", "5", "multi1.txt", "multi2.txt"},
-			want:     "1 141 170\n4 141 171\n",
-			wantExit: 1,
+			Name:     "-l lists every difference within the limit",
+			FS:       testFS(),
+			Args:     []string{"-l", "-n", "5", "multi1.txt", "multi2.txt"},
+			Want:     "1 141 170\n4 141 171\n",
+			WantExit: 1,
 		},
 		{
-			name:     "-l with a limit beyond the files",
-			fsys:     testFS(),
-			args:     []string{"-l", "-n", "10", "multi1.txt", "multi2.txt"},
-			want:     "1 141 170\n4 141 171\n6 143 172\n",
-			wantExit: 1,
+			Name:     "-l with a limit beyond the files",
+			FS:       testFS(),
+			Args:     []string{"-l", "-n", "10", "multi1.txt", "multi2.txt"},
+			Want:     "1 141 170\n4 141 171\n6 143 172\n",
+			WantExit: 1,
 		},
 		{
-			name:     "-l reports the end of a prefix within the limit",
-			fsys:     testFS(),
-			args:     []string{"-l", "-n", "5", "a.txt", "c.txt"},
-			wantErr:  "cmp: EOF on 'c.txt' after byte 3\n",
-			wantExit: 1,
+			Name:     "-l reports the end of a prefix within the limit",
+			FS:       testFS(),
+			Args:     []string{"-l", "-n", "5", "a.txt", "c.txt"},
+			WantErr:  "cmp: EOF on 'c.txt' after byte 3\n",
+			WantExit: 1,
 		},
 		{
-			name:     "-s keeps the status of a difference within the limit",
-			fsys:     testFS(),
-			args:     []string{"-s", "-n", "6", "a.txt", "b.txt"},
-			wantExit: 1,
+			Name:     "-s keeps the status of a difference within the limit",
+			FS:       testFS(),
+			Args:     []string{"-s", "-n", "6", "a.txt", "b.txt"},
+			WantExit: 1,
 		},
 		{
-			name: "-s keeps the identical status beyond a difference",
-			fsys: testFS(),
-			args: []string{"-s", "-n", "4", "a.txt", "b.txt"},
+			Name: "-s keeps the identical status beyond a difference",
+			FS:   testFS(),
+			Args: []string{"-s", "-n", "4", "a.txt", "b.txt"},
 		},
 		{
-			name:     "the limit can be attached",
-			fsys:     testFS(),
-			args:     []string{"-n5", "a.txt", "b.txt"},
-			want:     "a.txt b.txt differ: byte 5, line 2\n",
-			wantExit: 1,
+			Name:     "the limit can be attached",
+			FS:       testFS(),
+			Args:     []string{"-n5", "a.txt", "b.txt"},
+			Want:     "a.txt b.txt differ: byte 5, line 2\n",
+			WantExit: 1,
 		},
 		{
-			name:     "the limit can be grouped with other options",
-			fsys:     testFS(),
-			args:     []string{"-ln3", "multi1.txt", "multi2.txt"},
-			want:     "1 141 170\n",
-			wantExit: 1,
+			Name:     "the limit can be grouped with other options",
+			FS:       testFS(),
+			Args:     []string{"-ln3", "multi1.txt", "multi2.txt"},
+			Want:     "1 141 170\n",
+			WantExit: 1,
 		},
 		{
-			name:     "--bytes stands for -n",
-			fsys:     testFS(),
-			args:     []string{"--bytes=5", "a.txt", "b.txt"},
-			want:     "a.txt b.txt differ: byte 5, line 2\n",
-			wantExit: 1,
+			Name:     "--bytes stands for -n",
+			FS:       testFS(),
+			Args:     []string{"--bytes=5", "a.txt", "b.txt"},
+			Want:     "a.txt b.txt differ: byte 5, line 2\n",
+			WantExit: 1,
 		},
 		{
-			name:     "--bytes takes its argument separately",
-			fsys:     testFS(),
-			args:     []string{"--bytes", "5", "a.txt", "b.txt"},
-			want:     "a.txt b.txt differ: byte 5, line 2\n",
-			wantExit: 1,
+			Name:     "--bytes takes its argument separately",
+			FS:       testFS(),
+			Args:     []string{"--bytes", "5", "a.txt", "b.txt"},
+			Want:     "a.txt b.txt differ: byte 5, line 2\n",
+			WantExit: 1,
 		},
 		{
-			name:     "the limit can be hexadecimal",
-			fsys:     testFS(),
-			args:     []string{"-n", "0x5", "a.txt", "b.txt"},
-			want:     "a.txt b.txt differ: byte 5, line 2\n",
-			wantExit: 1,
+			Name:     "the limit can be hexadecimal",
+			FS:       testFS(),
+			Args:     []string{"-n", "0x5", "a.txt", "b.txt"},
+			Want:     "a.txt b.txt differ: byte 5, line 2\n",
+			WantExit: 1,
 		},
 		{
-			name:     "the limit can be octal",
-			fsys:     testFS(),
-			args:     []string{"-n", "011", "oct1.txt", "oct2.txt"},
-			want:     "oct1.txt oct2.txt differ: byte 9, line 1\n",
-			wantExit: 1,
+			Name:     "the limit can be octal",
+			FS:       testFS(),
+			Args:     []string{"-n", "011", "oct1.txt", "oct2.txt"},
+			Want:     "oct1.txt oct2.txt differ: byte 9, line 1\n",
+			WantExit: 1,
 		},
 		{
-			name: "an octal limit counts the leading zero",
-			fsys: testFS(),
-			args: []string{"-n", "010", "oct1.txt", "oct2.txt"},
+			Name: "an octal limit counts the leading zero",
+			FS:   testFS(),
+			Args: []string{"-n", "010", "oct1.txt", "oct2.txt"},
 		},
 		{
-			name:     "the limit can have a binary suffix",
-			fsys:     testFS(),
-			args:     []string{"-n", "1K", "oct1.txt", "oct2.txt"},
-			want:     "oct1.txt oct2.txt differ: byte 9, line 1\n",
-			wantExit: 1,
+			Name:     "the limit can have a binary suffix",
+			FS:       testFS(),
+			Args:     []string{"-n", "1K", "oct1.txt", "oct2.txt"},
+			Want:     "oct1.txt oct2.txt differ: byte 9, line 1\n",
+			WantExit: 1,
 		},
 		{
-			name:     "the limit can have a decimal suffix",
-			fsys:     testFS(),
-			args:     []string{"-n", "1kB", "oct1.txt", "oct2.txt"},
-			want:     "oct1.txt oct2.txt differ: byte 9, line 1\n",
-			wantExit: 1,
+			Name:     "the limit can have a decimal suffix",
+			FS:       testFS(),
+			Args:     []string{"-n", "1kB", "oct1.txt", "oct2.txt"},
+			Want:     "oct1.txt oct2.txt differ: byte 9, line 1\n",
+			WantExit: 1,
 		},
 		{
-			name:     "the limit can have an explicit binary suffix",
-			fsys:     testFS(),
-			args:     []string{"-n", "1KiB", "oct1.txt", "oct2.txt"},
-			want:     "oct1.txt oct2.txt differ: byte 9, line 1\n",
-			wantExit: 1,
+			Name:     "the limit can have an explicit binary suffix",
+			FS:       testFS(),
+			Args:     []string{"-n", "1KiB", "oct1.txt", "oct2.txt"},
+			Want:     "oct1.txt oct2.txt differ: byte 9, line 1\n",
+			WantExit: 1,
 		},
 		{
-			name:     "the limit can be signed with a plus",
-			fsys:     testFS(),
-			args:     []string{"-n", "+9", "oct1.txt", "oct2.txt"},
-			want:     "oct1.txt oct2.txt differ: byte 9, line 1\n",
-			wantExit: 1,
+			Name:     "the limit can be signed with a plus",
+			FS:       testFS(),
+			Args:     []string{"-n", "+9", "oct1.txt", "oct2.txt"},
+			Want:     "oct1.txt oct2.txt differ: byte 9, line 1\n",
+			WantExit: 1,
 		},
 		{
-			name: "the least of repeated limits is used",
-			fsys: testFS(),
-			args: []string{"-n", "5", "-n", "4", "a.txt", "b.txt"},
+			Name: "the least of repeated limits is used",
+			FS:   testFS(),
+			Args: []string{"-n", "5", "-n", "4", "a.txt", "b.txt"},
 		},
 	}
 
-	for _, test := range tests {
-		t.Run(test.name, func(t *testing.T) {
-			runCase(t, test)
-		})
-	}
+	testutil.Run(t, New, tests)
 }
 
 func TestRunInvalidUsage(t *testing.T) {
-	tests := []testCase{
+	tests := []testutil.Case{
 		{
-			name:     "no operands",
-			fsys:     testFS(),
-			wantErr:  "cmp: missing operand\nTry 'cmp --help' for more information.\n",
-			wantExit: 2,
+			Name:     "no operands",
+			FS:       testFS(),
+			WantErr:  "cmp: missing operand\nTry 'cmp --help' for more information.\n",
+			WantExit: 2,
 		},
 		{
-			name:     "the standard input may only be specified once",
-			fsys:     testFS(),
-			stdin:    strings.NewReader("ab\ncd\n"),
-			args:     []string{"-", "-"},
-			wantErr:  "cmp: the standard input may only be specified once\nTry 'cmp --help' for more information.\n",
-			wantExit: 2,
+			Name:     "the standard input may only be specified once",
+			FS:       testFS(),
+			Stdin:    strings.NewReader("ab\ncd\n"),
+			Args:     []string{"-", "-"},
+			WantErr:  "cmp: the standard input may only be specified once\nTry 'cmp --help' for more information.\n",
+			WantExit: 2,
 		},
 		{
-			name:     "a missing FILE2 makes the standard input twice",
-			fsys:     testFS(),
-			stdin:    strings.NewReader("ab\ncd\n"),
-			args:     []string{"-"},
-			wantErr:  "cmp: the standard input may only be specified once\nTry 'cmp --help' for more information.\n",
-			wantExit: 2,
+			Name:     "a missing FILE2 makes the standard input twice",
+			FS:       testFS(),
+			Stdin:    strings.NewReader("ab\ncd\n"),
+			Args:     []string{"-"},
+			WantErr:  "cmp: the standard input may only be specified once\nTry 'cmp --help' for more information.\n",
+			WantExit: 2,
 		},
 		{
-			name:     "the standard input is rejected twice with skips",
-			fsys:     testFS(),
-			stdin:    strings.NewReader("ab\ncd\n"),
-			args:     []string{"-", "-", "1", "2"},
-			wantErr:  "cmp: the standard input may only be specified once\nTry 'cmp --help' for more information.\n",
-			wantExit: 2,
+			Name:     "the standard input is rejected twice with skips",
+			FS:       testFS(),
+			Stdin:    strings.NewReader("ab\ncd\n"),
+			Args:     []string{"-", "-", "1", "2"},
+			WantErr:  "cmp: the standard input may only be specified once\nTry 'cmp --help' for more information.\n",
+			WantExit: 2,
 		},
 		{
-			name:     "an extra operand",
-			fsys:     testFS(),
-			args:     []string{"a.txt", "b.txt", "1", "2", "third.txt"},
-			wantErr:  "cmp: extra operand 'third.txt'\nTry 'cmp --help' for more information.\n",
-			wantExit: 2,
+			Name:     "an extra operand",
+			FS:       testFS(),
+			Args:     []string{"a.txt", "b.txt", "1", "2", "third.txt"},
+			WantErr:  "cmp: extra operand 'third.txt'\nTry 'cmp --help' for more information.\n",
+			WantExit: 2,
 		},
 		{
-			name:     "an invalid option",
-			fsys:     testFS(),
-			args:     []string{"-x", "a.txt", "b.txt"},
-			wantErr:  "cmp: invalid option -- 'x'\nTry 'cmp --help' for more information.\n",
-			wantExit: 2,
+			Name:     "an invalid option",
+			FS:       testFS(),
+			Args:     []string{"-x", "a.txt", "b.txt"},
+			WantErr:  "cmp: invalid option -- 'x'\nTry 'cmp --help' for more information.\n",
+			WantExit: 2,
 		},
 		{
-			name:     "an unsupported long option",
-			fsys:     testFS(),
-			args:     []string{"--initial", "a.txt", "b.txt"},
-			wantErr:  "cmp: unrecognized option '--initial'\nTry 'cmp --help' for more information.\n",
-			wantExit: 2,
+			Name:     "an unsupported long option",
+			FS:       testFS(),
+			Args:     []string{"--initial", "a.txt", "b.txt"},
+			WantErr:  "cmp: unrecognized option '--initial'\nTry 'cmp --help' for more information.\n",
+			WantExit: 2,
 		},
 		{
-			name:     "an invalid limit",
-			fsys:     testFS(),
-			args:     []string{"-n", "x", "a.txt", "b.txt"},
-			wantErr:  "cmp: invalid --bytes value 'x'\nTry 'cmp --help' for more information.\n",
-			wantExit: 2,
+			Name:     "an invalid limit",
+			FS:       testFS(),
+			Args:     []string{"-n", "x", "a.txt", "b.txt"},
+			WantErr:  "cmp: invalid --bytes value 'x'\nTry 'cmp --help' for more information.\n",
+			WantExit: 2,
 		},
 		{
-			name:     "a negative limit",
-			fsys:     testFS(),
-			args:     []string{"-n", "-1", "a.txt", "b.txt"},
-			wantErr:  "cmp: invalid --bytes value '-1'\nTry 'cmp --help' for more information.\n",
-			wantExit: 2,
+			Name:     "a negative limit",
+			FS:       testFS(),
+			Args:     []string{"-n", "-1", "a.txt", "b.txt"},
+			WantErr:  "cmp: invalid --bytes value '-1'\nTry 'cmp --help' for more information.\n",
+			WantExit: 2,
 		},
 		{
-			name:     "an empty limit",
-			fsys:     testFS(),
-			args:     []string{"--bytes=", "a.txt", "b.txt"},
-			wantErr:  "cmp: invalid --bytes value ''\nTry 'cmp --help' for more information.\n",
-			wantExit: 2,
+			Name:     "an empty limit",
+			FS:       testFS(),
+			Args:     []string{"--bytes=", "a.txt", "b.txt"},
+			WantErr:  "cmp: invalid --bytes value ''\nTry 'cmp --help' for more information.\n",
+			WantExit: 2,
 		},
 		{
-			name:     "a limit with an unsupported suffix",
-			fsys:     testFS(),
-			args:     []string{"-n", "1b", "a.txt", "b.txt"},
-			wantErr:  "cmp: invalid --bytes value '1b'\nTry 'cmp --help' for more information.\n",
-			wantExit: 2,
+			Name:     "a limit with an unsupported suffix",
+			FS:       testFS(),
+			Args:     []string{"-n", "1b", "a.txt", "b.txt"},
+			WantErr:  "cmp: invalid --bytes value '1b'\nTry 'cmp --help' for more information.\n",
+			WantExit: 2,
 		},
 		{
-			name:     "a limit with trailing junk",
-			fsys:     testFS(),
-			args:     []string{"-n", "5x", "a.txt", "b.txt"},
-			wantErr:  "cmp: invalid --bytes value '5x'\nTry 'cmp --help' for more information.\n",
-			wantExit: 2,
+			Name:     "a limit with trailing junk",
+			FS:       testFS(),
+			Args:     []string{"-n", "5x", "a.txt", "b.txt"},
+			WantErr:  "cmp: invalid --bytes value '5x'\nTry 'cmp --help' for more information.\n",
+			WantExit: 2,
 		},
 		{
-			name:     "a hexadecimal limit without digits",
-			fsys:     testFS(),
-			args:     []string{"-n", "0x", "a.txt", "b.txt"},
-			wantErr:  "cmp: invalid --bytes value '0x'\nTry 'cmp --help' for more information.\n",
-			wantExit: 2,
+			Name:     "a hexadecimal limit without digits",
+			FS:       testFS(),
+			Args:     []string{"-n", "0x", "a.txt", "b.txt"},
+			WantErr:  "cmp: invalid --bytes value '0x'\nTry 'cmp --help' for more information.\n",
+			WantExit: 2,
 		},
 		{
-			name:     "a number with a non-octal digit after a zero",
-			fsys:     testFS(),
-			args:     []string{"-n", "09", "a.txt", "b.txt"},
-			wantErr:  "cmp: invalid --bytes value '09'\nTry 'cmp --help' for more information.\n",
-			wantExit: 2,
+			Name:     "a number with a non-octal digit after a zero",
+			FS:       testFS(),
+			Args:     []string{"-n", "09", "a.txt", "b.txt"},
+			WantErr:  "cmp: invalid --bytes value '09'\nTry 'cmp --help' for more information.\n",
+			WantExit: 2,
 		},
 		{
-			name:     "an invalid skip value",
-			fsys:     testFS(),
-			args:     []string{"-i", "x", "a.txt", "b.txt"},
-			wantErr:  "cmp: invalid --ignore-initial value 'x'\nTry 'cmp --help' for more information.\n",
-			wantExit: 2,
+			Name:     "an invalid skip value",
+			FS:       testFS(),
+			Args:     []string{"-i", "x", "a.txt", "b.txt"},
+			WantErr:  "cmp: invalid --ignore-initial value 'x'\nTry 'cmp --help' for more information.\n",
+			WantExit: 2,
 		},
 		{
-			name:     "a negative skip value",
-			fsys:     testFS(),
-			args:     []string{"-i", "-1", "a.txt", "b.txt"},
-			wantErr:  "cmp: invalid --ignore-initial value '-1'\nTry 'cmp --help' for more information.\n",
-			wantExit: 2,
+			Name:     "a negative skip value",
+			FS:       testFS(),
+			Args:     []string{"-i", "-1", "a.txt", "b.txt"},
+			WantErr:  "cmp: invalid --ignore-initial value '-1'\nTry 'cmp --help' for more information.\n",
+			WantExit: 2,
 		},
 		{
-			name:     "an empty skip value",
-			fsys:     testFS(),
-			args:     []string{"--ignore-initial=", "a.txt", "b.txt"},
-			wantErr:  "cmp: invalid --ignore-initial value ''\nTry 'cmp --help' for more information.\n",
-			wantExit: 2,
+			Name:     "an empty skip value",
+			FS:       testFS(),
+			Args:     []string{"--ignore-initial=", "a.txt", "b.txt"},
+			WantErr:  "cmp: invalid --ignore-initial value ''\nTry 'cmp --help' for more information.\n",
+			WantExit: 2,
 		},
 		{
-			name:     "a skip value ending with a colon",
-			fsys:     testFS(),
-			args:     []string{"-i", "4:", "a.txt", "b.txt"},
-			wantErr:  "cmp: invalid --ignore-initial value ''\nTry 'cmp --help' for more information.\n",
-			wantExit: 2,
+			Name:     "a skip value ending with a colon",
+			FS:       testFS(),
+			Args:     []string{"-i", "4:", "a.txt", "b.txt"},
+			WantErr:  "cmp: invalid --ignore-initial value ''\nTry 'cmp --help' for more information.\n",
+			WantExit: 2,
 		},
 		{
-			name:     "a skip value starting with a colon",
-			fsys:     testFS(),
-			args:     []string{"-i", ":4", "a.txt", "b.txt"},
-			wantErr:  "cmp: invalid --ignore-initial value ':4'\nTry 'cmp --help' for more information.\n",
-			wantExit: 2,
+			Name:     "a skip value starting with a colon",
+			FS:       testFS(),
+			Args:     []string{"-i", ":4", "a.txt", "b.txt"},
+			WantErr:  "cmp: invalid --ignore-initial value ':4'\nTry 'cmp --help' for more information.\n",
+			WantExit: 2,
 		},
 		{
-			name:     "a skip value with an invalid second count",
-			fsys:     testFS(),
-			args:     []string{"-i", "4:x", "a.txt", "b.txt"},
-			wantErr:  "cmp: invalid --ignore-initial value 'x'\nTry 'cmp --help' for more information.\n",
-			wantExit: 2,
+			Name:     "a skip value with an invalid second count",
+			FS:       testFS(),
+			Args:     []string{"-i", "4:x", "a.txt", "b.txt"},
+			WantErr:  "cmp: invalid --ignore-initial value 'x'\nTry 'cmp --help' for more information.\n",
+			WantExit: 2,
 		},
 		{
-			name:     "a skip value with two colons",
-			fsys:     testFS(),
-			args:     []string{"-i", "1:1:1", "a.txt", "b.txt"},
-			wantErr:  "cmp: invalid --ignore-initial value '1:1'\nTry 'cmp --help' for more information.\n",
-			wantExit: 2,
+			Name:     "a skip value with two colons",
+			FS:       testFS(),
+			Args:     []string{"-i", "1:1:1", "a.txt", "b.txt"},
+			WantErr:  "cmp: invalid --ignore-initial value '1:1'\nTry 'cmp --help' for more information.\n",
+			WantExit: 2,
 		},
 		{
-			name:     "an invalid SKIP1 operand",
-			fsys:     testFS(),
-			args:     []string{"a.txt", "b.txt", "x"},
-			wantErr:  "cmp: invalid --ignore-initial value 'x'\nTry 'cmp --help' for more information.\n",
-			wantExit: 2,
+			Name:     "an invalid SKIP1 operand",
+			FS:       testFS(),
+			Args:     []string{"a.txt", "b.txt", "x"},
+			WantErr:  "cmp: invalid --ignore-initial value 'x'\nTry 'cmp --help' for more information.\n",
+			WantExit: 2,
 		},
 		{
-			name:     "an invalid SKIP2 operand",
-			fsys:     testFS(),
-			args:     []string{"a.txt", "b.txt", "1", "x"},
-			wantErr:  "cmp: invalid --ignore-initial value 'x'\nTry 'cmp --help' for more information.\n",
-			wantExit: 2,
+			Name:     "an invalid SKIP2 operand",
+			FS:       testFS(),
+			Args:     []string{"a.txt", "b.txt", "1", "x"},
+			WantErr:  "cmp: invalid --ignore-initial value 'x'\nTry 'cmp --help' for more information.\n",
+			WantExit: 2,
 		},
 		{
-			name:     "-i without an argument",
-			fsys:     testFS(),
-			args:     []string{"-i"},
-			wantErr:  "cmp: option requires an argument -- 'i'\nTry 'cmp --help' for more information.\n",
-			wantExit: 2,
+			Name:     "-i without an argument",
+			FS:       testFS(),
+			Args:     []string{"-i"},
+			WantErr:  "cmp: option requires an argument -- 'i'\nTry 'cmp --help' for more information.\n",
+			WantExit: 2,
 		},
 		{
-			name:     "--ignore-initial without an argument",
-			fsys:     testFS(),
-			args:     []string{"--ignore-initial"},
-			wantErr:  "cmp: option '--ignore-initial' requires an argument\nTry 'cmp --help' for more information.\n",
-			wantExit: 2,
+			Name:     "--ignore-initial without an argument",
+			FS:       testFS(),
+			Args:     []string{"--ignore-initial"},
+			WantErr:  "cmp: option '--ignore-initial' requires an argument\nTry 'cmp --help' for more information.\n",
+			WantExit: 2,
 		},
 		{
-			name:     "--print-bytes doesn't take an argument",
-			fsys:     testFS(),
-			args:     []string{"--print-bytes=1", "a.txt", "b.txt"},
-			wantErr:  "cmp: option '--print-bytes=1' doesn't allow an argument\nTry 'cmp --help' for more information.\n",
-			wantExit: 2,
+			Name:     "--print-bytes doesn't take an argument",
+			FS:       testFS(),
+			Args:     []string{"--print-bytes=1", "a.txt", "b.txt"},
+			WantErr:  "cmp: option '--print-bytes=1' doesn't allow an argument\nTry 'cmp --help' for more information.\n",
+			WantExit: 2,
 		},
 		{
-			name:     "-n without an argument",
-			fsys:     testFS(),
-			args:     []string{"-n"},
-			wantErr:  "cmp: option requires an argument -- 'n'\nTry 'cmp --help' for more information.\n",
-			wantExit: 2,
+			Name:     "-n without an argument",
+			FS:       testFS(),
+			Args:     []string{"-n"},
+			WantErr:  "cmp: option requires an argument -- 'n'\nTry 'cmp --help' for more information.\n",
+			WantExit: 2,
 		},
 		{
-			name:     "--bytes without an argument",
-			fsys:     testFS(),
-			args:     []string{"--bytes"},
-			wantErr:  "cmp: option '--bytes' requires an argument\nTry 'cmp --help' for more information.\n",
-			wantExit: 2,
+			Name:     "--bytes without an argument",
+			FS:       testFS(),
+			Args:     []string{"--bytes"},
+			WantErr:  "cmp: option '--bytes' requires an argument\nTry 'cmp --help' for more information.\n",
+			WantExit: 2,
 		},
 	}
 
-	for _, test := range tests {
-		t.Run(test.name, func(t *testing.T) {
-			runCase(t, test)
-		})
-	}
+	testutil.Run(t, New, tests)
 }
 
 func TestRunErrors(t *testing.T) {
-	tests := []testCase{
+	tests := []testutil.Case{
 		{
-			name:     "missing first file",
-			fsys:     testFS(),
-			args:     []string{"missing.txt", "a.txt"},
-			wantErr:  "cmp: missing.txt: file does not exist\n",
-			wantExit: 2,
+			Name:     "missing first file",
+			FS:       testFS(),
+			Args:     []string{"missing.txt", "a.txt"},
+			WantErr:  "cmp: missing.txt: file does not exist\n",
+			WantExit: 2,
 		},
 		{
-			name:     "missing second file",
-			fsys:     testFS(),
-			args:     []string{"a.txt", "missing.txt"},
-			wantErr:  "cmp: missing.txt: file does not exist\n",
-			wantExit: 2,
+			Name:     "missing second file",
+			FS:       testFS(),
+			Args:     []string{"a.txt", "missing.txt"},
+			WantErr:  "cmp: missing.txt: file does not exist\n",
+			WantExit: 2,
 		},
 		{
-			name:     "the first missing file is reported when both are missing",
-			fsys:     testFS(),
-			args:     []string{"missing1.txt", "missing2.txt"},
-			wantErr:  "cmp: missing1.txt: file does not exist\n",
-			wantExit: 2,
+			Name:     "the first missing file is reported when both are missing",
+			FS:       testFS(),
+			Args:     []string{"missing1.txt", "missing2.txt"},
+			WantErr:  "cmp: missing1.txt: file does not exist\n",
+			WantExit: 2,
 		},
 		{
-			name:     "directory input",
-			fsys:     fsx.MemFS{"dir": {Mode: fs.ModeDir}, "a.txt": {Data: []byte("a\n")}},
-			args:     []string{"dir", "a.txt"},
-			wantErr:  "cmp: dir: invalid argument\n",
-			wantExit: 2,
+			Name:     "directory input",
+			FS:       fsx.MemFS{"dir": {Mode: fs.ModeDir}, "a.txt": {Data: []byte("a\n")}},
+			Args:     []string{"dir", "a.txt"},
+			WantErr:  "cmp: dir: invalid argument\n",
+			WantExit: 2,
 		},
 		{
-			name:     "input file without a file system",
-			args:     []string{"a.txt", "b.txt"},
-			wantErr:  "cmp: a.txt: no file system available\n",
-			wantExit: 2,
+			Name:     "input file without a file system",
+			Args:     []string{"a.txt", "b.txt"},
+			WantErr:  "cmp: a.txt: no file system available\n",
+			WantExit: 2,
 		},
 		{
-			name:     "no standard input",
-			fsys:     testFS(),
-			args:     []string{"-", "a.txt"},
-			wantErr:  "cmp: -: no standard input available\n",
-			wantExit: 2,
+			Name:     "no standard input",
+			FS:       testFS(),
+			Args:     []string{"-", "a.txt"},
+			WantErr:  "cmp: -: no standard input available\n",
+			WantExit: 2,
 		},
 		{
-			name:     "standard input read error",
-			fsys:     testFS(),
-			stdin:    errorReader{err: errors.New("read failed")},
-			args:     []string{"-", "a.txt"},
-			wantErr:  "cmp: -: read failed\n",
-			wantExit: 2,
+			Name:     "standard input read error",
+			FS:       testFS(),
+			Stdin:    testutil.ErrorReader{Err: errors.New("read failed")},
+			Args:     []string{"-", "a.txt"},
+			WantErr:  "cmp: -: read failed\n",
+			WantExit: 2,
 		},
 		{
-			name:     "-s suppresses the message of an opening error",
-			fsys:     testFS(),
-			args:     []string{"-s", "missing.txt", "a.txt"},
-			wantExit: 2,
+			Name:     "-s suppresses the message of an opening error",
+			FS:       testFS(),
+			Args:     []string{"-s", "missing.txt", "a.txt"},
+			WantExit: 2,
 		},
 		{
-			name:     "-s doesn't suppress read errors",
-			fsys:     testFS(),
-			stdin:    errorReader{err: errors.New("read failed")},
-			args:     []string{"-s", "-", "a.txt"},
-			wantErr:  "cmp: -: read failed\n",
-			wantExit: 2,
+			Name:     "-s doesn't suppress read errors",
+			FS:       testFS(),
+			Stdin:    testutil.ErrorReader{Err: errors.New("read failed")},
+			Args:     []string{"-s", "-", "a.txt"},
+			WantErr:  "cmp: -: read failed\n",
+			WantExit: 2,
 		},
 	}
 
-	for _, test := range tests {
-		t.Run(test.name, func(t *testing.T) {
-			runCase(t, test)
-		})
-	}
+	testutil.Run(t, New, tests)
 }
 
 func TestRunWriteError(t *testing.T) {
@@ -1228,13 +1117,13 @@ func TestRunWriteError(t *testing.T) {
 
 	stderr := new(bytes.Buffer)
 	rt := &coreutils.Runtime{
-		Stdout: errorWriter{err: writeErr},
+		Stdout: testutil.ErrorWriter{Err: writeErr},
 		Stderr: stderr,
 		FS:     testFS(),
 	}
 	err := New(rt).Run(t.Context(), "a.txt", "b.txt")
 
-	if code := exitCode(t, err); code != 2 {
+	if code := testutil.ExitCode(t, err); code != 2 {
 		t.Fatalf("Run() exit code = %d, want 2 (error = %v)", code, err)
 	}
 	if !errors.Is(err, writeErr) {
@@ -1246,68 +1135,19 @@ func TestRunWriteError(t *testing.T) {
 }
 
 func TestRunContext(t *testing.T) {
+	files := fsx.MemFS{"a.txt": {Data: []byte("hello\n")}}
+
 	t.Run("cancelled before running", func(t *testing.T) {
-		ctx, cancel := context.WithCancel(t.Context())
-		cancel()
-		runCancelled(t, ctx, strings.NewReader("hello\n"))
+		testutil.Cancelled(t, New, strings.NewReader("hello\n"), files, "-", "a.txt")
 	})
 
 	t.Run("cancelled while reading the standard input", func(t *testing.T) {
-		ctx, cancel := context.WithCancel(t.Context())
-		runCancelled(t, ctx, &cancelReader{cancel: cancel})
+		testutil.Cancelled(t, New, &testutil.CancelReader{}, files, "-", "a.txt")
 	})
-}
-
-// runCancelled runs the utility with a context that is either already done or
-// becomes done while reading, and checks that the context error is returned
-// without any output.
-func runCancelled(t *testing.T, ctx context.Context, stdin io.Reader) {
-	t.Helper()
-
-	stdout := new(bytes.Buffer)
-	stderr := new(bytes.Buffer)
-	rt := &coreutils.Runtime{
-		Stdin:  stdin,
-		Stdout: stdout,
-		Stderr: stderr,
-		FS:     fsx.MemFS{"a.txt": {Data: []byte("hello\n")}},
-	}
-	err := New(rt).Run(ctx, "-", "a.txt")
-
-	if !errors.Is(err, context.Canceled) {
-		t.Fatalf("Run() error = %v, want context.Canceled", err)
-	}
-	if got := stdout.String(); got != "" {
-		t.Errorf("Run() stdout = %q, want empty", got)
-	}
-	if got := stderr.String(); got != "" {
-		t.Errorf("Run() stderr = %q, want empty", got)
-	}
 }
 
 func TestHelpVersion(t *testing.T) {
-	t.Run("help", func(t *testing.T) {
-		stdout := new(bytes.Buffer)
-		rt := &coreutils.Runtime{Stdout: stdout, Stderr: new(bytes.Buffer)}
-		if err := New(rt).Run(t.Context(), "--help"); err != nil {
-			t.Fatalf("Run() error = %v, want nil (exit status 0)", err)
-		}
-		if got, want := stdout.String(), usage; got != want {
-			t.Errorf("Run() stdout = %q, want %q", got, want)
-		}
-	})
-
-	t.Run("version", func(t *testing.T) {
-		stdout := new(bytes.Buffer)
-		rt := &coreutils.Runtime{Stdout: stdout, Stderr: new(bytes.Buffer)}
-		if err := New(rt).Run(t.Context(), "--version"); err != nil {
-			t.Fatalf("Run() error = %v, want nil (exit status 0)", err)
-		}
-		want := "cmp (charm.land/snail/coreutils) " + coreutils.Version + "\nhttps://charm.land/snail\n"
-		if got := stdout.String(); got != want {
-			t.Errorf("Run() stdout = %q, want %q", got, want)
-		}
-	})
+	testutil.HelpVersion(t, New, "cmp", usage)
 
 	t.Run("short version", func(t *testing.T) {
 		stdout := new(bytes.Buffer)

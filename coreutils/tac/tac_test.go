@@ -5,109 +5,13 @@ import (
 	"context"
 	"errors"
 	"io"
-	"io/fs"
 	"strings"
 	"testing"
-	"time"
 
 	"charm.land/snail/coreutils"
+	"charm.land/snail/coreutils/internal/testutil"
 	"charm.land/snail/fsx"
 )
-
-type errorReader struct {
-	err error
-}
-
-func (r errorReader) Read([]byte) (int, error) {
-	return 0, r.err
-}
-
-type errorWriter struct {
-	err error
-}
-
-func (w errorWriter) Write([]byte) (int, error) {
-	return 0, w.err
-}
-
-// cancelReader cancels its context on the first read, simulating a context
-// that is done while the input is being read.
-type cancelReader struct {
-	cancel context.CancelFunc
-}
-
-func (r *cancelReader) Read([]byte) (int, error) {
-	r.cancel()
-	return 0, context.Canceled
-}
-
-// cancelWriter cancels its context on the first write, simulating a context
-// that is done between records.
-type cancelWriter struct {
-	cancel context.CancelFunc
-}
-
-func (w *cancelWriter) Write(b []byte) (int, error) {
-	w.cancel()
-	return len(b), nil
-}
-
-// readerFS is an fs.FS whose only file reads from a reader, making the input
-// fail to read.
-type readerFS struct {
-	r io.Reader
-}
-
-func (f readerFS) Open(string) (fs.File, error) {
-	return readerFile{f.r}, nil
-}
-
-func (readerFS) OpenFile(string, int, fs.FileMode) (fsx.File, error) {
-	return nil, fs.ErrInvalid
-}
-
-func (readerFS) Chtimes(string, time.Time, time.Time) error {
-	return fs.ErrInvalid
-}
-
-func (readerFS) Chmod(string, fs.FileMode) error {
-	return fs.ErrInvalid
-}
-
-func (readerFS) Mkdir(string, fs.FileMode) error {
-	return fs.ErrInvalid
-}
-
-func (readerFS) Remove(string) error {
-	return fs.ErrInvalid
-}
-
-func (readerFS) Rename(string, string) error {
-	return fs.ErrInvalid
-}
-
-func (readerFS) Link(string, string) error {
-	return fs.ErrInvalid
-}
-
-func (readerFS) Symlink(string, string) error {
-	return fs.ErrInvalid
-}
-
-func (readerFS) ReadLink(string) (string, error) {
-	return "", fs.ErrInvalid
-}
-
-func (readerFS) Lstat(string) (fs.FileInfo, error) {
-	return nil, fs.ErrInvalid
-}
-
-type readerFile struct {
-	io.Reader
-}
-
-func (readerFile) Close() error               { return nil }
-func (readerFile) Stat() (fs.FileInfo, error) { return nil, fs.ErrInvalid }
 
 // testFS holds the fixtures used by the tests:
 //
@@ -142,153 +46,151 @@ func testFS() fsx.MemFS {
 	}
 }
 
-func exitCode(t *testing.T, err error) int {
-	t.Helper()
-
-	if err == nil {
-		return 0
-	}
-	var exitErr *coreutils.ExitError
-	if !errors.As(err, &exitErr) {
-		t.Fatalf("Run() error = %v, want *coreutils.ExitError", err)
-	}
-	return exitErr.Code
-}
-
+// testCase is the fields of a testutil.Case plus a standard output the case
+// brings itself: testutil.Once always captures the output on a buffer, so
+// the write error case, which fails the writes, needs this one.
 type testCase struct {
-	name     string
-	stdin    io.Reader
-	stdout   io.Writer
-	fsys     fsx.FS
-	dir      string
-	args     []string
-	want     string
-	wantErr  string
-	wantExit int
+	Name     string
+	Stdin    io.Reader
+	Stdout   io.Writer
+	FS       fsx.FS
+	Dir      string
+	Args     []string
+	Want     string
+	WantErr  string
+	WantExit int
 }
 
 func runCase(t *testing.T, test testCase) {
 	t.Helper()
 
-	if test.stdout == nil {
-		test.stdout = new(bytes.Buffer)
+	if test.Stdout == nil {
+		testutil.Once(t, New, testutil.Case{
+			Name:     test.Name,
+			Stdin:    test.Stdin,
+			FS:       test.FS,
+			Dir:      test.Dir,
+			Args:     test.Args,
+			Want:     test.Want,
+			WantErr:  test.WantErr,
+			WantExit: test.WantExit,
+		})
+		return
 	}
+
 	stderr := new(bytes.Buffer)
 	rt := &coreutils.Runtime{
-		Stdin:      test.stdin,
-		Stdout:     test.stdout,
+		Stdin:      test.Stdin,
+		Stdout:     test.Stdout,
 		Stderr:     stderr,
-		FS:         test.fsys,
-		WorkingDir: test.dir,
+		FS:         test.FS,
+		WorkingDir: test.Dir,
 	}
-	err := New(rt).Run(t.Context(), test.args...)
+	err := New(rt).Run(t.Context(), test.Args...)
 
-	if code := exitCode(t, err); code != test.wantExit {
-		t.Errorf("Run() exit code = %d, want %d (error = %v)", code, test.wantExit, err)
+	if code := testutil.ExitCode(t, err); code != test.WantExit {
+		t.Errorf("Run() exit code = %d, want %d (error = %v)", code, test.WantExit, err)
 	}
-	if buf, ok := test.stdout.(*bytes.Buffer); ok && buf.String() != test.want {
-		t.Errorf("Run() stdout = %q, want %q", buf.String(), test.want)
-	}
-	if got := stderr.String(); got != test.wantErr {
-		t.Errorf("Run() stderr = %q, want %q", got, test.wantErr)
+	if got := stderr.String(); got != test.WantErr {
+		t.Errorf("Run() stderr = %q, want %q", got, test.WantErr)
 	}
 }
 
 func TestRunDefaults(t *testing.T) {
 	tests := []testCase{
 		{
-			name:  "no operand reads the standard input",
-			stdin: strings.NewReader("a\nb\nc\n"),
-			want:  "c\nb\na\n",
+			Name:  "no operand reads the standard input",
+			Stdin: strings.NewReader("a\nb\nc\n"),
+			Want:  "c\nb\na\n",
 		},
 		{
-			name:  "empty standard input",
-			stdin: strings.NewReader(""),
-			want:  "",
+			Name:  "empty standard input",
+			Stdin: strings.NewReader(""),
+			Want:  "",
 		},
 		{
-			name:  "a single record without a separator",
-			stdin: strings.NewReader("a"),
-			want:  "a",
+			Name:  "a single record without a separator",
+			Stdin: strings.NewReader("a"),
+			Want:  "a",
 		},
 		{
-			name:  "a single separator",
-			stdin: strings.NewReader("\n"),
-			want:  "\n",
+			Name:  "a single separator",
+			Stdin: strings.NewReader("\n"),
+			Want:  "\n",
 		},
 		{
-			name:  "a single record",
-			stdin: strings.NewReader("a\n"),
-			want:  "a\n",
+			Name:  "a single record",
+			Stdin: strings.NewReader("a\n"),
+			Want:  "a\n",
 		},
 		{
-			name:  "no trailing separator",
-			stdin: strings.NewReader("a\nb"),
-			want:  "ba\n",
+			Name:  "no trailing separator",
+			Stdin: strings.NewReader("a\nb"),
+			Want:  "ba\n",
 		},
 		{
-			name:  "empty records are kept",
-			stdin: strings.NewReader("a\n\nb\n"),
-			want:  "b\n\na\n",
+			Name:  "empty records are kept",
+			Stdin: strings.NewReader("a\n\nb\n"),
+			Want:  "b\n\na\n",
 		},
 		{
-			name:  "a long record",
-			stdin: strings.NewReader("1234567\n8\n"),
-			want:  "8\n1234567\n",
+			Name:  "a long record",
+			Stdin: strings.NewReader("1234567\n8\n"),
+			Want:  "8\n1234567\n",
 		},
 		{
-			name: "the records of a file in reverse",
-			fsys: testFS(),
-			args: []string{"a.txt"},
-			want: "e\nd\nc\nb\na\n",
+			Name: "the records of a file in reverse",
+			FS:   testFS(),
+			Args: []string{"a.txt"},
+			Want: "e\nd\nc\nb\na\n",
 		},
 		{
-			name: "a file without a trailing separator",
-			fsys: testFS(),
-			args: []string{"nonl.txt"},
-			want: "cb\na\n",
+			Name: "a file without a trailing separator",
+			FS:   testFS(),
+			Args: []string{"nonl.txt"},
+			Want: "cb\na\n",
 		},
 		{
-			name: "empty file",
-			fsys: testFS(),
-			args: []string{"empty.txt"},
-			want: "",
+			Name: "empty file",
+			FS:   testFS(),
+			Args: []string{"empty.txt"},
+			Want: "",
 		},
 		{
-			name:  "the '-' operand reads the standard input",
-			stdin: strings.NewReader("a\nb\n"),
-			args:  []string{"-"},
-			want:  "b\na\n",
+			Name:  "the '-' operand reads the standard input",
+			Stdin: strings.NewReader("a\nb\n"),
+			Args:  []string{"-"},
+			Want:  "b\na\n",
 		},
 		{
-			name:  "the standard input is read once per '-' operand",
-			stdin: strings.NewReader("a\nb\n"),
-			args:  []string{"-", "-"},
-			want:  "b\na\n",
+			Name:  "the standard input is read once per '-' operand",
+			Stdin: strings.NewReader("a\nb\n"),
+			Args:  []string{"-", "-"},
+			Want:  "b\na\n",
 		},
 		{
-			name: "pathnames are resolved from the working directory",
-			fsys: testFS(),
-			dir:  "sub",
-			args: []string{"inner.txt"},
-			want: "inner\n",
+			Name: "pathnames are resolved from the working directory",
+			FS:   testFS(),
+			Dir:  "sub",
+			Args: []string{"inner.txt"},
+			Want: "inner\n",
 		},
 		{
-			name: "double dash allows a file named like an option",
-			fsys: testFS(),
-			args: []string{"--", "-b"},
-			want: "dash-b\n",
+			Name: "double dash allows a file named like an option",
+			FS:   testFS(),
+			Args: []string{"--", "-b"},
+			Want: "dash-b\n",
 		},
 		{
-			name:  "double dash without operands reads the standard input",
-			stdin: strings.NewReader("a\n"),
-			args:  []string{"--"},
-			want:  "a\n",
+			Name:  "double dash without operands reads the standard input",
+			Stdin: strings.NewReader("a\n"),
+			Args:  []string{"--"},
+			Want:  "a\n",
 		},
 	}
 
 	for _, test := range tests {
-		t.Run(test.name, func(t *testing.T) {
+		t.Run(test.Name, func(t *testing.T) {
 			runCase(t, test)
 		})
 	}
@@ -297,75 +199,75 @@ func TestRunDefaults(t *testing.T) {
 func TestRunSeparator(t *testing.T) {
 	tests := []testCase{
 		{
-			name: "the separator option",
-			fsys: testFS(),
-			args: []string{"-s", ":", "colon.txt"},
-			want: "three:two:one:",
+			Name: "the separator option",
+			FS:   testFS(),
+			Args: []string{"-s", ":", "colon.txt"},
+			Want: "three:two:one:",
 		},
 		{
-			name: "separator attached to the option",
-			fsys: testFS(),
-			args: []string{"-s:", "colon.txt"},
-			want: "three:two:one:",
+			Name: "separator attached to the option",
+			FS:   testFS(),
+			Args: []string{"-s:", "colon.txt"},
+			Want: "three:two:one:",
 		},
 		{
-			name: "long separator option",
-			fsys: testFS(),
-			args: []string{"--separator=:", "colon.txt"},
-			want: "three:two:one:",
+			Name: "long separator option",
+			FS:   testFS(),
+			Args: []string{"--separator=:", "colon.txt"},
+			Want: "three:two:one:",
 		},
 		{
-			name: "long separator option with the argument on the next argument",
-			fsys: testFS(),
-			args: []string{"--separator", ":", "colon.txt"},
-			want: "three:two:one:",
+			Name: "long separator option with the argument on the next argument",
+			FS:   testFS(),
+			Args: []string{"--separator", ":", "colon.txt"},
+			Want: "three:two:one:",
 		},
 		{
-			name:  "multi-character separator",
-			stdin: strings.NewReader("a::b::c"),
-			args:  []string{"-s", "::"},
-			want:  "cb::a::",
+			Name:  "multi-character separator",
+			Stdin: strings.NewReader("a::b::c"),
+			Args:  []string{"-s", "::"},
+			Want:  "cb::a::",
 		},
 		{
-			name: "a separator missing from the input copies it unchanged",
-			fsys: testFS(),
-			args: []string{"-s", "XY", "a.txt"},
-			want: "a\nb\nc\nd\ne\n",
+			Name: "a separator missing from the input copies it unchanged",
+			FS:   testFS(),
+			Args: []string{"-s", "XY", "a.txt"},
+			Want: "a\nb\nc\nd\ne\n",
 		},
 		{
-			name:  "an empty separator means the NUL byte",
-			stdin: strings.NewReader("a\x00b"),
-			args:  []string{"-s", ""},
-			want:  "ba\x00",
+			Name:  "an empty separator means the NUL byte",
+			Stdin: strings.NewReader("a\x00b"),
+			Args:  []string{"-s", ""},
+			Want:  "ba\x00",
 		},
 		{
-			name: "the NUL byte separator with a trailing separator",
-			fsys: testFS(),
-			args: []string{"-s", "", "nul.txt"},
-			want: "b\x00a\x00",
+			Name: "the NUL byte separator with a trailing separator",
+			FS:   testFS(),
+			Args: []string{"-s", "", "nul.txt"},
+			Want: "b\x00a\x00",
 		},
 		{
-			name:  "a trailing separator ends the last record",
-			stdin: strings.NewReader("a:b:"),
-			args:  []string{"-s", ":"},
-			want:  "b:a:",
+			Name:  "a trailing separator ends the last record",
+			Stdin: strings.NewReader("a:b:"),
+			Args:  []string{"-s", ":"},
+			Want:  "b:a:",
 		},
 		{
-			name:  "a leading separator starts an empty record",
-			stdin: strings.NewReader(":a:b"),
-			args:  []string{"-s", ":"},
-			want:  "ba::",
+			Name:  "a leading separator starts an empty record",
+			Stdin: strings.NewReader(":a:b"),
+			Args:  []string{"-s", ":"},
+			Want:  "ba::",
 		},
 		{
-			name:  "matches are right-aligned without overlapping",
-			stdin: strings.NewReader("aabab"),
-			args:  []string{"-s", "ab"},
-			want:  "abaab",
+			Name:  "matches are right-aligned without overlapping",
+			Stdin: strings.NewReader("aabab"),
+			Args:  []string{"-s", "ab"},
+			Want:  "abaab",
 		},
 	}
 
 	for _, test := range tests {
-		t.Run(test.name, func(t *testing.T) {
+		t.Run(test.Name, func(t *testing.T) {
 			runCase(t, test)
 		})
 	}
@@ -374,87 +276,87 @@ func TestRunSeparator(t *testing.T) {
 func TestRunEscapes(t *testing.T) {
 	tests := []testCase{
 		{
-			name:  "tab escape",
-			stdin: strings.NewReader("a\tb\tc"),
-			args:  []string{"-s", `\t`},
-			want:  "cb\ta\t",
+			Name:  "tab escape",
+			Stdin: strings.NewReader("a\tb\tc"),
+			Args:  []string{"-s", `\t`},
+			Want:  "cb\ta\t",
 		},
 		{
-			name:  "newline escape behaves like the default",
-			stdin: strings.NewReader("a\nb"),
-			args:  []string{"-s", `\n`},
-			want:  "ba\n",
+			Name:  "newline escape behaves like the default",
+			Stdin: strings.NewReader("a\nb"),
+			Args:  []string{"-s", `\n`},
+			Want:  "ba\n",
 		},
 		{
-			name:  "carriage return escape",
-			stdin: strings.NewReader("a\rb\rc"),
-			args:  []string{"-s", `\r`},
-			want:  "cb\ra\r",
+			Name:  "carriage return escape",
+			Stdin: strings.NewReader("a\rb\rc"),
+			Args:  []string{"-s", `\r`},
+			Want:  "cb\ra\r",
 		},
 		{
-			name:  "backslash escape",
-			stdin: strings.NewReader(`a\b\c`),
-			args:  []string{"-s", `\\`},
-			want:  `cb\a\`,
+			Name:  "backslash escape",
+			Stdin: strings.NewReader(`a\b\c`),
+			Args:  []string{"-s", `\\`},
+			Want:  `cb\a\`,
 		},
 		{
-			name:  "alert escape",
-			stdin: strings.NewReader("a\x07b"),
-			args:  []string{"-s", `\a`},
-			want:  "ba\x07",
+			Name:  "alert escape",
+			Stdin: strings.NewReader("a\x07b"),
+			Args:  []string{"-s", `\a`},
+			Want:  "ba\x07",
 		},
 		{
-			name:  "backspace escape",
-			stdin: strings.NewReader("a\x08b"),
-			args:  []string{"-s", `\b`},
-			want:  "ba\x08",
+			Name:  "backspace escape",
+			Stdin: strings.NewReader("a\x08b"),
+			Args:  []string{"-s", `\b`},
+			Want:  "ba\x08",
 		},
 		{
-			name:  "form feed escape",
-			stdin: strings.NewReader("a\x0cb"),
-			args:  []string{"-s", `\f`},
-			want:  "ba\x0c",
+			Name:  "form feed escape",
+			Stdin: strings.NewReader("a\x0cb"),
+			Args:  []string{"-s", `\f`},
+			Want:  "ba\x0c",
 		},
 		{
-			name:  "vertical tab escape",
-			stdin: strings.NewReader("a\x0bb"),
-			args:  []string{"-s", `\v`},
-			want:  "ba\x0b",
+			Name:  "vertical tab escape",
+			Stdin: strings.NewReader("a\x0bb"),
+			Args:  []string{"-s", `\v`},
+			Want:  "ba\x0b",
 		},
 		{
-			name:  "three-digit octal escape",
-			stdin: strings.NewReader("a0b0"),
-			args:  []string{"-s", `\060`},
-			want:  "b0a0",
+			Name:  "three-digit octal escape",
+			Stdin: strings.NewReader("a0b0"),
+			Args:  []string{"-s", `\060`},
+			Want:  "b0a0",
 		},
 		{
-			name:  "octal escape",
-			stdin: strings.NewReader("aAbAc"),
-			args:  []string{"-s", `\101`},
-			want:  "cbAaA",
+			Name:  "octal escape",
+			Stdin: strings.NewReader("aAbAc"),
+			Args:  []string{"-s", `\101`},
+			Want:  "cbAaA",
 		},
 		{
-			name:  "zero escape is the NUL byte",
-			stdin: strings.NewReader("a\x00b"),
-			args:  []string{"-s", `\0`},
-			want:  "ba\x00",
+			Name:  "zero escape is the NUL byte",
+			Stdin: strings.NewReader("a\x00b"),
+			Args:  []string{"-s", `\0`},
+			Want:  "ba\x00",
 		},
 		{
-			name:  "an unknown escape is kept as is",
-			stdin: strings.NewReader(`a\qb`),
-			args:  []string{"-s", `\q`},
-			want:  `ba\q`,
+			Name:  "an unknown escape is kept as is",
+			Stdin: strings.NewReader(`a\qb`),
+			Args:  []string{"-s", `\q`},
+			Want:  `ba\q`,
 		},
 		{
-			name:  "a separator made only of escapes",
-			stdin: strings.NewReader("a\tb\tc\t"),
-			args:  []string{"-s", `\t`},
-			want:  "c\tb\ta\t",
+			Name:  "a separator made only of escapes",
+			Stdin: strings.NewReader("a\tb\tc\t"),
+			Args:  []string{"-s", `\t`},
+			Want:  "c\tb\ta\t",
 		},
 	}
 
 	for _, test := range tests {
-		t.Run(test.name, func(t *testing.T) {
+		t.Run(test.Name, func(t *testing.T) {
 			runCase(t, test)
 		})
 	}
@@ -463,69 +365,69 @@ func TestRunEscapes(t *testing.T) {
 func TestRunBefore(t *testing.T) {
 	tests := []testCase{
 		{
-			name:  "the separator is attached before the record",
-			stdin: strings.NewReader("\na\nb\nc"),
-			args:  []string{"-b"},
-			want:  "\nc\nb\na",
+			Name:  "the separator is attached before the record",
+			Stdin: strings.NewReader("\na\nb\nc"),
+			Args:  []string{"-b"},
+			Want:  "\nc\nb\na",
 		},
 		{
-			name:  "a final record without a separator",
-			stdin: strings.NewReader("a\nb\nc"),
-			args:  []string{"-b"},
-			want:  "\nc\nba",
+			Name:  "a final record without a separator",
+			Stdin: strings.NewReader("a\nb\nc"),
+			Args:  []string{"-b"},
+			Want:  "\nc\nba",
 		},
 		{
-			name:  "a trailing separator is its own last record",
-			stdin: strings.NewReader("a\nb\nc\n"),
-			args:  []string{"-b"},
-			want:  "\n\nc\nba",
+			Name:  "a trailing separator is its own last record",
+			Stdin: strings.NewReader("a\nb\nc\n"),
+			Args:  []string{"-b"},
+			Want:  "\n\nc\nba",
 		},
 		{
-			name:  "a single record",
-			stdin: strings.NewReader("a\n"),
-			args:  []string{"-b"},
-			want:  "\na",
+			Name:  "a single record",
+			Stdin: strings.NewReader("a\n"),
+			Args:  []string{"-b"},
+			Want:  "\na",
 		},
 		{
-			name:  "empty input",
-			stdin: strings.NewReader(""),
-			args:  []string{"-b"},
-			want:  "",
+			Name:  "empty input",
+			Stdin: strings.NewReader(""),
+			Args:  []string{"-b"},
+			Want:  "",
 		},
 		{
-			name:  "input without a separator",
-			stdin: strings.NewReader("abc"),
-			args:  []string{"-b"},
-			want:  "abc",
+			Name:  "input without a separator",
+			Stdin: strings.NewReader("abc"),
+			Args:  []string{"-b"},
+			Want:  "abc",
 		},
 		{
-			name:  "a custom separator",
-			stdin: strings.NewReader(":a:b:c"),
-			args:  []string{"-s", ":", "-b"},
-			want:  ":c:b:a",
+			Name:  "a custom separator",
+			Stdin: strings.NewReader(":a:b:c"),
+			Args:  []string{"-s", ":", "-b"},
+			Want:  ":c:b:a",
 		},
 		{
-			name:  "long before option",
-			stdin: strings.NewReader("\na\nb\nc"),
-			args:  []string{"--before"},
-			want:  "\nc\nb\na",
+			Name:  "long before option",
+			Stdin: strings.NewReader("\na\nb\nc"),
+			Args:  []string{"--before"},
+			Want:  "\nc\nb\na",
 		},
 		{
-			name:  "grouped with the separator",
-			stdin: strings.NewReader(":a:b:c"),
-			args:  []string{"-bs:"},
-			want:  ":c:b:a",
+			Name:  "grouped with the separator",
+			Stdin: strings.NewReader(":a:b:c"),
+			Args:  []string{"-bs:"},
+			Want:  ":c:b:a",
 		},
 		{
-			name: "a file with a leading separator",
-			fsys: testFS(),
-			args: []string{"-b", "lead.txt"},
-			want: "\nc\nb\na",
+			Name: "a file with a leading separator",
+			FS:   testFS(),
+			Args: []string{"-b", "lead.txt"},
+			Want: "\nc\nb\na",
 		},
 	}
 
 	for _, test := range tests {
-		t.Run(test.name, func(t *testing.T) {
+		t.Run(test.Name, func(t *testing.T) {
 			runCase(t, test)
 		})
 	}
@@ -534,87 +436,87 @@ func TestRunBefore(t *testing.T) {
 func TestRunRegex(t *testing.T) {
 	tests := []testCase{
 		{
-			name:  "the default separator as a regular expression",
-			stdin: strings.NewReader("a\nb\n"),
-			args:  []string{"-r"},
-			want:  "b\na\n",
+			Name:  "the default separator as a regular expression",
+			Stdin: strings.NewReader("a\nb\n"),
+			Args:  []string{"-r"},
+			Want:  "b\na\n",
 		},
 		{
-			name: "each file is reversed separately",
-			fsys: testFS(),
-			args: []string{"-r", "a.txt", "lines.txt"},
-			want: "e\nd\nc\nb\na\nl3\nl2\nl1\n",
+			Name: "each file is reversed separately",
+			FS:   testFS(),
+			Args: []string{"-r", "a.txt", "lines.txt"},
+			Want: "e\nd\nc\nb\na\nl3\nl2\nl1\n",
 		},
 		{
-			name: "a regular expression separator",
-			fsys: testFS(),
-			args: []string{"-r", "-s", `\._+`, "dots.txt"},
-			want: "4._3.___2.__1._",
+			Name: "a regular expression separator",
+			FS:   testFS(),
+			Args: []string{"-r", "-s", `\._+`, "dots.txt"},
+			Want: "4._3.___2.__1._",
 		},
 		{
-			name: "long regex options",
-			fsys: testFS(),
-			args: []string{"--regex", `--separator=\._+`, "dots.txt"},
-			want: "4._3.___2.__1._",
+			Name: "long regex options",
+			FS:   testFS(),
+			Args: []string{"--regex", `--separator=\._+`, "dots.txt"},
+			Want: "4._3.___2.__1._",
 		},
 		{
-			name: "records between matches",
-			fsys: testFS(),
-			args: []string{"-r", "-s", `\._+`, "dots2.txt"},
-			want: "4._3.___2.__1._b.__a.___",
+			Name: "records between matches",
+			FS:   testFS(),
+			Args: []string{"-r", "-s", `\._+`, "dots2.txt"},
+			Want: "4._3.___2.__1._b.__a.___",
 		},
 		{
-			name: "before with a regular expression",
-			fsys: testFS(),
-			args: []string{"-b", "-r", "-s", `\._+`, "before.txt"},
-			want: ".___4.__3._2._1",
+			Name: "before with a regular expression",
+			FS:   testFS(),
+			Args: []string{"-b", "-r", "-s", `\._+`, "before.txt"},
+			Want: ".___4.__3._2._1",
 		},
 		{
-			name: "before with a longer input",
-			fsys: testFS(),
-			args: []string{"-b", "-r", "-s", `\._+`, "before2.txt"},
-			want: ".___4.__3._2._1.____z.___y.__x",
+			Name: "before with a longer input",
+			FS:   testFS(),
+			Args: []string{"-b", "-r", "-s", `\._+`, "before2.txt"},
+			Want: ".___4.__3._2._1.____z.___y.__x",
 		},
 		{
-			name:  "the start anchor matches at newlines",
-			stdin: strings.NewReader("a\nb\nc\n"),
-			args:  []string{"-r", "-s", "^"},
-			want:  "c\nb\na\n",
+			Name:  "the start anchor matches at newlines",
+			Stdin: strings.NewReader("a\nb\nc\n"),
+			Args:  []string{"-r", "-s", "^"},
+			Want:  "c\nb\na\n",
 		},
 		{
-			name:  "the end anchor matches at newlines",
-			stdin: strings.NewReader("a\nb\nc\n"),
-			args:  []string{"-r", "-s", "$"},
-			want:  "\n\nc\nba",
+			Name:  "the end anchor matches at newlines",
+			Stdin: strings.NewReader("a\nb\nc\n"),
+			Args:  []string{"-r", "-s", "$"},
+			Want:  "\n\nc\nba",
 		},
 		{
-			name:  "empty records with both anchors",
-			stdin: strings.NewReader("a\nb\nc\n"),
-			args:  []string{"-r", "-s", "^$"},
-			want:  "a\nb\nc\n",
+			Name:  "empty records with both anchors",
+			Stdin: strings.NewReader("a\nb\nc\n"),
+			Args:  []string{"-r", "-s", "^$"},
+			Want:  "a\nb\nc\n",
 		},
 		{
-			name:  "alternation",
-			stdin: strings.NewReader("aXbYc"),
-			args:  []string{"-r", "-s", "X|Y"},
-			want:  "cbYaX",
+			Name:  "alternation",
+			Stdin: strings.NewReader("aXbYc"),
+			Args:  []string{"-r", "-s", "X|Y"},
+			Want:  "cbYaX",
 		},
 		{
-			name:     "an invalid pattern",
-			args:     []string{"-r", "-s", "["},
-			wantErr:  "tac: invalid separator: error parsing regexp: missing closing ]: `[`\nTry 'tac --help' for more information.\n",
-			wantExit: 2,
+			Name:     "an invalid pattern",
+			Args:     []string{"-r", "-s", "["},
+			WantErr:  "tac: invalid separator: error parsing regexp: missing closing ]: `[`\nTry 'tac --help' for more information.\n",
+			WantExit: 2,
 		},
 		{
-			name:     "an empty separator is invalid with -r",
-			args:     []string{"-r", "-s", ""},
-			wantErr:  "tac: separator cannot be empty with -r\nTry 'tac --help' for more information.\n",
-			wantExit: 2,
+			Name:     "an empty separator is invalid with -r",
+			Args:     []string{"-r", "-s", ""},
+			WantErr:  "tac: separator cannot be empty with -r\nTry 'tac --help' for more information.\n",
+			WantExit: 2,
 		},
 	}
 
 	for _, test := range tests {
-		t.Run(test.name, func(t *testing.T) {
+		t.Run(test.Name, func(t *testing.T) {
 			runCase(t, test)
 		})
 	}
@@ -623,36 +525,36 @@ func TestRunRegex(t *testing.T) {
 func TestRunFiles(t *testing.T) {
 	tests := []testCase{
 		{
-			name: "multiple files are reversed each",
-			fsys: testFS(),
-			args: []string{"a.txt", "lines.txt"},
-			want: "e\nd\nc\nb\na\nl3\nl2\nl1\n",
+			Name: "multiple files are reversed each",
+			FS:   testFS(),
+			Args: []string{"a.txt", "lines.txt"},
+			Want: "e\nd\nc\nb\na\nl3\nl2\nl1\n",
 		},
 		{
-			name:  "the standard input among the files",
-			stdin: strings.NewReader("x\n"),
-			fsys:  testFS(),
-			args:  []string{"-", "lines.txt"},
-			want:  "x\nl3\nl2\nl1\n",
+			Name:  "the standard input among the files",
+			Stdin: strings.NewReader("x\n"),
+			FS:    testFS(),
+			Args:  []string{"-", "lines.txt"},
+			Want:  "x\nl3\nl2\nl1\n",
 		},
 		{
-			name:     "a missing file doesn't stop the next ones",
-			fsys:     testFS(),
-			args:     []string{"missing.txt", "lines.txt"},
-			want:     "l3\nl2\nl1\n",
-			wantErr:  "tac: missing.txt: file does not exist\n",
-			wantExit: 1,
+			Name:     "a missing file doesn't stop the next ones",
+			FS:       testFS(),
+			Args:     []string{"missing.txt", "lines.txt"},
+			Want:     "l3\nl2\nl1\n",
+			WantErr:  "tac: missing.txt: file does not exist\n",
+			WantExit: 1,
 		},
 		{
-			name: "an empty file among the files",
-			fsys: testFS(),
-			args: []string{"empty.txt", "lines.txt"},
-			want: "l3\nl2\nl1\n",
+			Name: "an empty file among the files",
+			FS:   testFS(),
+			Args: []string{"empty.txt", "lines.txt"},
+			Want: "l3\nl2\nl1\n",
 		},
 	}
 
 	for _, test := range tests {
-		t.Run(test.name, func(t *testing.T) {
+		t.Run(test.Name, func(t *testing.T) {
 			runCase(t, test)
 		})
 	}
@@ -663,77 +565,77 @@ func TestRunErrors(t *testing.T) {
 
 	tests := []testCase{
 		{
-			name:     "invalid option",
-			args:     []string{"-z"},
-			wantErr:  "tac: invalid option -- 'z'\nTry 'tac --help' for more information.\n",
-			wantExit: 2,
+			Name:     "invalid option",
+			Args:     []string{"-z"},
+			WantErr:  "tac: invalid option -- 'z'\nTry 'tac --help' for more information.\n",
+			WantExit: 2,
 		},
 		{
-			name:     "unrecognized long option",
-			args:     []string{"--bogus"},
-			wantErr:  "tac: unrecognized option '--bogus'\nTry 'tac --help' for more information.\n",
-			wantExit: 2,
+			Name:     "unrecognized long option",
+			Args:     []string{"--bogus"},
+			WantErr:  "tac: unrecognized option '--bogus'\nTry 'tac --help' for more information.\n",
+			WantExit: 2,
 		},
 		{
-			name:     "long option that doesn't allow an argument",
-			args:     []string{"--before=x"},
-			wantErr:  "tac: option '--before=x' doesn't allow an argument\nTry 'tac --help' for more information.\n",
-			wantExit: 2,
+			Name:     "long option that doesn't allow an argument",
+			Args:     []string{"--before=x"},
+			WantErr:  "tac: option '--before=x' doesn't allow an argument\nTry 'tac --help' for more information.\n",
+			WantExit: 2,
 		},
 		{
-			name:     "missing separator argument",
-			args:     []string{"-s"},
-			wantErr:  "tac: option requires an argument -- 's'\nTry 'tac --help' for more information.\n",
-			wantExit: 2,
+			Name:     "missing separator argument",
+			Args:     []string{"-s"},
+			WantErr:  "tac: option requires an argument -- 's'\nTry 'tac --help' for more information.\n",
+			WantExit: 2,
 		},
 		{
-			name:     "missing long separator argument",
-			args:     []string{"--separator"},
-			wantErr:  "tac: option '--separator' requires an argument\nTry 'tac --help' for more information.\n",
-			wantExit: 2,
+			Name:     "missing long separator argument",
+			Args:     []string{"--separator"},
+			WantErr:  "tac: option '--separator' requires an argument\nTry 'tac --help' for more information.\n",
+			WantExit: 2,
 		},
 		{
-			name:     "missing file",
-			fsys:     testFS(),
-			args:     []string{"missing.txt"},
-			wantErr:  "tac: missing.txt: file does not exist\n",
-			wantExit: 1,
+			Name:     "missing file",
+			FS:       testFS(),
+			Args:     []string{"missing.txt"},
+			WantErr:  "tac: missing.txt: file does not exist\n",
+			WantExit: 1,
 		},
 		{
-			name:     "invalid zero-length file name",
-			args:     []string{""},
-			wantErr:  "tac: invalid zero-length file name\n",
-			wantExit: 1,
+			Name:     "invalid zero-length file name",
+			Args:     []string{""},
+			WantErr:  "tac: invalid zero-length file name\n",
+			WantExit: 1,
 		},
 		{
-			name:     "no file system available",
-			args:     []string{"a.txt"},
-			wantErr:  "tac: a.txt: no file system available\n",
-			wantExit: 1,
+			Name:     "no file system available",
+			Args:     []string{"a.txt"},
+			WantErr:  "tac: a.txt: no file system available\n",
+			WantExit: 1,
 		},
 		{
-			name:     "no standard input available",
-			wantErr:  "tac: standard input: no standard input available\n",
-			wantExit: 1,
+			Name:     "no standard input available",
+			WantErr:  "tac: standard input: no standard input available\n",
+			WantExit: 1,
 		},
 		{
-			name:     "write error",
-			stdin:    strings.NewReader("a\nb\n"),
-			stdout:   errorWriter{err: boom},
-			wantErr:  "tac: write error: boom\n",
-			wantExit: 1,
+			Name:     "write error",
+			Stdin:    strings.NewReader("a\nb\n"),
+			Stdout:   testutil.ErrorWriter{Err: boom},
+			WantErr:  "tac: write error: boom\n",
+			WantExit: 1,
 		},
 		{
-			name:     "read error",
-			fsys:     readerFS{r: errorReader{err: boom}},
-			args:     []string{"f"},
-			wantErr:  "tac: f: boom\n",
-			wantExit: 1,
+			Name:     "read error",
+			FS:       testutil.ReaderFS(testutil.ErrorReader{Err: boom}),
+			Args:     []string{"f"},
+			WantErr:  "tac: f: boom\n",
+			WantExit: 1,
 		},
 	}
 
 	for _, test := range tests {
-		t.Run(test.name, func(t *testing.T) {
+		t.Run(test.Name, func(t *testing.T) {
 			runCase(t, test)
 		})
 	}
@@ -742,7 +644,7 @@ func TestRunErrors(t *testing.T) {
 func TestRunContextCanceled(t *testing.T) {
 	ctx, cancel := context.WithCancel(t.Context())
 	rt := &coreutils.Runtime{
-		Stdin:  &cancelReader{cancel: cancel},
+		Stdin:  &testutil.CancelReader{Cancel: cancel},
 		Stdout: io.Discard,
 		Stderr: io.Discard,
 		FS:     testFS(),
@@ -754,7 +656,7 @@ func TestRunContextCanceled(t *testing.T) {
 
 func TestRunContextCanceledBetweenRecords(t *testing.T) {
 	ctx, cancel := context.WithCancel(t.Context())
-	stdout := &cancelWriter{cancel: cancel}
+	stdout := &testutil.CancelWriter{Cancel: cancel}
 	rt := &coreutils.Runtime{
 		Stdin:  strings.NewReader("a\nb\n"),
 		Stdout: stdout,
@@ -766,45 +668,9 @@ func TestRunContextCanceledBetweenRecords(t *testing.T) {
 }
 
 func TestRunContextCanceledBeforeFile(t *testing.T) {
-	ctx, cancel := context.WithCancel(t.Context())
-	cancel()
-	stdout := new(bytes.Buffer)
-	rt := &coreutils.Runtime{
-		Stdin:  strings.NewReader("a\nb\n"),
-		Stdout: stdout,
-		Stderr: io.Discard,
-		FS:     testFS(),
-	}
-	err := New(rt).Run(ctx, "a.txt", "lines.txt")
-	if !errors.Is(err, context.Canceled) {
-		t.Errorf("Run() error = %v, want context.Canceled", err)
-	}
-	if got := stdout.String(); got != "" {
-		t.Errorf("Run() stdout = %q, want %q", got, "")
-	}
+	testutil.Cancelled(t, New, strings.NewReader("a\nb\n"), testFS(), "a.txt", "lines.txt")
 }
 
 func TestHelpVersion(t *testing.T) {
-	t.Run("help", func(t *testing.T) {
-		stdout := new(bytes.Buffer)
-		rt := &coreutils.Runtime{Stdout: stdout, Stderr: new(bytes.Buffer)}
-		if err := New(rt).Run(t.Context(), "--help"); err != nil {
-			t.Fatalf("Run() error = %v, want nil (exit status 0)", err)
-		}
-		if got, want := stdout.String(), usage; got != want {
-			t.Errorf("Run() stdout = %q, want %q", got, want)
-		}
-	})
-
-	t.Run("version", func(t *testing.T) {
-		stdout := new(bytes.Buffer)
-		rt := &coreutils.Runtime{Stdout: stdout, Stderr: new(bytes.Buffer)}
-		if err := New(rt).Run(t.Context(), "--version"); err != nil {
-			t.Fatalf("Run() error = %v, want nil (exit status 0)", err)
-		}
-		want := "tac (charm.land/snail/coreutils) " + coreutils.Version + "\nhttps://charm.land/snail\n"
-		if got := stdout.String(); got != want {
-			t.Errorf("Run() stdout = %q, want %q", got, want)
-		}
-	})
+	testutil.HelpVersion(t, New, "tac", usage)
 }

@@ -3,30 +3,13 @@ package basename
 import (
 	"bytes"
 	"errors"
-	"io"
 	"runtime"
 	"strings"
 	"testing"
 
 	"charm.land/snail/coreutils"
+	"charm.land/snail/coreutils/internal/testutil"
 )
-
-type spyReader struct {
-	read bool
-}
-
-func (r *spyReader) Read([]byte) (int, error) {
-	r.read = true
-	return 0, io.EOF
-}
-
-type errorWriter struct {
-	err error
-}
-
-func (w errorWriter) Write([]byte) (int, error) {
-	return 0, w.err
-}
 
 func runBasename(t *testing.T, args ...string) (string, error) {
 	t.Helper()
@@ -43,7 +26,7 @@ func runBasename(t *testing.T, args ...string) (string, error) {
 func runBasenameStderr(t *testing.T, args ...string) (string, string, error) {
 	t.Helper()
 
-	stdin := &spyReader{}
+	stdin := &testutil.SpyReader{}
 	stdout := new(bytes.Buffer)
 	stderr := new(bytes.Buffer)
 
@@ -54,23 +37,10 @@ func runBasenameStderr(t *testing.T, args ...string) (string, string, error) {
 	}
 	err := New(rt).Run(t.Context(), args...)
 
-	if stdin.read {
+	if stdin.Reads > 0 {
 		t.Error("Run() used stdin, want it untouched")
 	}
 	return stdout.String(), stderr.String(), err
-}
-
-func exitCode(t *testing.T, err error) int {
-	t.Helper()
-
-	if err == nil {
-		return 0
-	}
-	var exitErr *coreutils.ExitError
-	if !errors.As(err, &exitErr) {
-		t.Fatalf("Run() error = %v, want *coreutils.ExitError", err)
-	}
-	return exitErr.Code
 }
 
 func TestRun(t *testing.T) {
@@ -617,7 +587,7 @@ func TestRun(t *testing.T) {
 		for _, test := range tests {
 			t.Run(test.name, func(t *testing.T) {
 				got, stderr, err := runBasenameStderr(t, test.args...)
-				if code := exitCode(t, err); code != test.want {
+				if code := testutil.ExitCode(t, err); code != test.want {
 					t.Fatalf("Run() exit code = %d, want %d (error = %v)", code, test.want, err)
 				}
 				if got != "" {
@@ -631,7 +601,7 @@ func TestRun(t *testing.T) {
 
 		t.Run("the usage error hint", func(t *testing.T) {
 			_, got, err := runBasenameStderr(t)
-			if code := exitCode(t, err); code != 2 {
+			if code := testutil.ExitCode(t, err); code != 2 {
 				t.Fatalf("Run() exit code = %d, want 2 (error = %v)", code, err)
 			}
 			want := "basename: missing operand\nTry 'basename --help' for more information.\n"
@@ -646,13 +616,13 @@ func TestRunWriteError(t *testing.T) {
 	writeErr := errors.New("write failed")
 
 	rt := &coreutils.Runtime{
-		Stdin:  &spyReader{},
-		Stdout: errorWriter{err: writeErr},
+		Stdin:  &testutil.SpyReader{},
+		Stdout: testutil.ErrorWriter{Err: writeErr},
 		Stderr: new(bytes.Buffer),
 	}
 	err := New(rt).Run(t.Context(), "foo")
 
-	if code := exitCode(t, err); code != 1 {
+	if code := testutil.ExitCode(t, err); code != 1 {
 		t.Fatalf("Run() exit code = %d, want 1 (error = %v)", code, err)
 	}
 	if !errors.Is(err, writeErr) {

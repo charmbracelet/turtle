@@ -7,6 +7,7 @@ import (
 	"syscall"
 	"testing"
 
+	"charm.land/snail/coreutils/internal/testutil"
 	"charm.land/snail/fsx"
 )
 
@@ -75,30 +76,30 @@ func hardLinked() statFS {
 }
 
 func TestRunHardLinks(t *testing.T) {
-	runCases(t, []testCase{
+	testutil.Run(t, New, []testutil.Case{
 		{
-			name:    "a file with two links is counted once",
-			sys:     hardLinked(),
-			args:    []string{"tree"},
-			wantOut: "4 tree\n",
+			Name: "a file with two links is counted once",
+			FS:   hardLinked(),
+			Args: []string{"tree"},
+			Want: "4 tree\n",
 		},
 		{
-			name:    "-a writes only the first occurrence",
-			sys:     hardLinked(),
-			args:    []string{"-a", "tree"},
-			wantOut: "2 tree/a\n2 tree/c\n4 tree\n",
+			Name: "-a writes only the first occurrence",
+			FS:   hardLinked(),
+			Args: []string{"-a", "tree"},
+			Want: "2 tree/a\n2 tree/c\n4 tree\n",
 		},
 		{
-			name:    "the occurrences of an operand share the count",
-			sys:     hardLinked(),
-			args:    []string{"tree/a", "tree/b"},
-			wantOut: "2 tree/a\n",
+			Name: "the occurrences of an operand share the count",
+			FS:   hardLinked(),
+			Args: []string{"tree/a", "tree/b"},
+			Want: "2 tree/a\n",
 		},
 		{
-			name:    "-c totals the occurrences once",
-			sys:     hardLinked(),
-			args:    []string{"-c", "tree/a", "tree/b"},
-			wantOut: "2 tree/a\n2 total\n",
+			Name: "-c totals the occurrences once",
+			FS:   hardLinked(),
+			Args: []string{"-c", "tree/a", "tree/b"},
+			Want: "2 tree/a\n2 total\n",
 		},
 	})
 }
@@ -119,24 +120,24 @@ func TestRunDevices(t *testing.T) {
 			files["tree/mnt/x"]: {Dev: 2, Ino: 8, Nlink: 1, Blocks: 4},
 		},
 	}
-	runCases(t, []testCase{
+	testutil.Run(t, New, []testutil.Case{
 		{
-			name:    "a hierarchy holding another file system",
-			sys:     sys,
-			args:    []string{"tree"},
-			wantOut: "5 tree/mnt\n7 tree\n",
+			Name: "a hierarchy holding another file system",
+			FS:   sys,
+			Args: []string{"tree"},
+			Want: "5 tree/mnt\n7 tree\n",
 		},
 		{
-			name:    "-x skips the directories of another file system",
-			sys:     sys,
-			args:    []string{"-x", "tree"},
-			wantOut: "1 tree/mnt\n3 tree\n",
+			Name: "-x skips the directories of another file system",
+			FS:   sys,
+			Args: []string{"-x", "tree"},
+			Want: "1 tree/mnt\n3 tree\n",
 		},
 		{
-			name:    "-x keeps the operands on their own file system",
-			sys:     sys,
-			args:    []string{"-x", "tree/mnt"},
-			wantOut: "5 tree/mnt\n",
+			Name: "-x keeps the operands on their own file system",
+			FS:   sys,
+			Args: []string{"-x", "tree/mnt"},
+			Want: "5 tree/mnt\n",
 		},
 	})
 }
@@ -184,48 +185,48 @@ func reachable() statFS {
 }
 
 func TestRunDuplicateDirectories(t *testing.T) {
-	runCases(t, []testCase{
+	testutil.Run(t, New, []testutil.Case{
 		{
-			name:    "a repeated directory operand is written once",
-			sys:     identified(),
-			args:    []string{"tree", "tree"},
-			wantOut: "4 tree/sub\n7 tree\n",
+			Name: "a repeated directory operand is written once",
+			FS:   identified(),
+			Args: []string{"tree", "tree"},
+			Want: "4 tree/sub\n7 tree\n",
 		},
 		{
-			name:    "an operand below another one is written once",
-			sys:     identified(),
-			args:    []string{"tree", "tree/sub"},
-			wantOut: "4 tree/sub\n7 tree\n",
+			Name: "an operand below another one is written once",
+			FS:   identified(),
+			Args: []string{"tree", "tree/sub"},
+			Want: "4 tree/sub\n7 tree\n",
 		},
 		{
-			name:    "a repeated operand is counted once in the total",
-			sys:     identified(),
-			args:    []string{"-c", "tree", "tree"},
-			wantOut: "4 tree/sub\n7 tree\n7 total\n",
+			Name: "a repeated operand is counted once in the total",
+			FS:   identified(),
+			Args: []string{"-c", "tree", "tree"},
+			Want: "4 tree/sub\n7 tree\n7 total\n",
 		},
 		{
-			name:    "-a writes the hierarchy of repeated operands once",
-			sys:     identified(),
-			args:    []string{"-a", "tree", "tree"},
-			wantOut: "2 tree/a\n1 tree/b\n4 tree/sub/c\n4 tree/sub\n7 tree\n",
+			Name: "-a writes the hierarchy of repeated operands once",
+			FS:   identified(),
+			Args: []string{"-a", "tree", "tree"},
+			Want: "2 tree/a\n1 tree/b\n4 tree/sub/c\n4 tree/sub\n7 tree\n",
 		},
 		{
-			name:    "-s summarizes a repeated operand once",
-			sys:     identified(),
-			args:    []string{"-s", "tree", "tree/sub"},
-			wantOut: "7 tree\n",
+			Name: "-s summarizes a repeated operand once",
+			FS:   identified(),
+			Args: []string{"-s", "tree", "tree/sub"},
+			Want: "7 tree\n",
 		},
 		{
-			name:    "-L counts a directory reached by two links once",
-			sys:     reachable(),
-			args:    []string{"-L", "d"},
-			wantOut: "4 d/p1\n4 d\n",
+			Name: "-L counts a directory reached by two links once",
+			FS:   reachable(),
+			Args: []string{"-L", "d"},
+			Want: "4 d/p1\n4 d\n",
 		},
 		{
-			name:    "-L writes the files below a repeated directory once",
-			sys:     reachable(),
-			args:    []string{"-L", "-a", "d"},
-			wantOut: "4 d/p1/x\n4 d/p1\n4 d\n",
+			Name: "-L writes the files below a repeated directory once",
+			FS:   reachable(),
+			Args: []string{"-L", "-a", "d"},
+			Want: "4 d/p1/x\n4 d/p1\n4 d\n",
 		},
 	})
 }

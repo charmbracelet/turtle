@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"charm.land/snail/coreutils"
+	"charm.land/snail/coreutils/internal/testutil"
 	"charm.land/snail/fsx"
 )
 
@@ -21,14 +22,6 @@ var clockTime = time.Date(1990, 6, 26, 9, 58, 10, 0, time.UTC)
 // refTime is the modification time of the reference files of the tests.
 var refTime = time.Date(2020, 3, 1, 12, 30, 0, 0, time.UTC)
 
-type errorWriter struct {
-	err error
-}
-
-func (w errorWriter) Write([]byte) (int, error) {
-	return 0, w.err
-}
-
 type testCase struct {
 	name     string
 	fsys     fsx.MemFS
@@ -38,15 +31,6 @@ type testCase struct {
 	want     string
 	wantErr  string
 	wantExit int
-}
-
-// environ converts a map to a list of KEY=VALUE strings.
-func environ(env map[string]string) []string {
-	entries := make([]string, 0, len(env))
-	for name, value := range env {
-		entries = append(entries, name+"="+value)
-	}
-	return entries
 }
 
 func runCase(t *testing.T, test testCase) {
@@ -65,14 +49,14 @@ func runCase(t *testing.T, test testCase) {
 		Stderr:  stderr,
 		Stdin:   test.stdin,
 		Clock:   func() time.Time { return clockTime },
-		Environ: func() []string { return environ(env) },
+		Environ: func() []string { return testutil.Environ(env) },
 	}
 	if test.fsys != nil {
 		rt.FS = test.fsys
 	}
 	err := New(rt).Run(t.Context(), test.args...)
 
-	if code := exitCode(t, err); code != test.wantExit {
+	if code := testutil.ExitCode(t, err); code != test.wantExit {
 		t.Errorf("Run() exit code = %d, want %d (error = %v)", code, test.wantExit, err)
 	}
 	if got := stdout.String(); got != test.want {
@@ -81,19 +65,6 @@ func runCase(t *testing.T, test testCase) {
 	if got := stderr.String(); got != test.wantErr {
 		t.Errorf("Run() stderr = %q, want %q", got, test.wantErr)
 	}
-}
-
-func exitCode(t *testing.T, err error) int {
-	t.Helper()
-
-	if err == nil {
-		return 0
-	}
-	var exitErr *coreutils.ExitError
-	if !errors.As(err, &exitErr) {
-		t.Fatalf("Run() error = %v, want *coreutils.ExitError", err)
-	}
-	return exitErr.Code
 }
 
 func TestRun(t *testing.T) {
@@ -433,12 +404,12 @@ func TestRunFixedTZ(t *testing.T) {
 func TestRunErrors(t *testing.T) {
 	t.Run("a write error", func(t *testing.T) {
 		rt := &coreutils.Runtime{
-			Stdout: errorWriter{err: errors.New("boom")},
+			Stdout: testutil.ErrorWriter{Err: errors.New("boom")},
 			Stderr: new(bytes.Buffer),
 			Clock:  func() time.Time { return clockTime },
 		}
 		err := New(rt).Run(t.Context(), "+%Y")
-		if code := exitCode(t, err); code != 1 {
+		if code := testutil.ExitCode(t, err); code != 1 {
 			t.Errorf("Run() exit code = %d, want 1", code)
 		}
 	})
@@ -972,26 +943,5 @@ func TestRunRfc3339(t *testing.T) {
 }
 
 func TestHelpVersion(t *testing.T) {
-	t.Run("help", func(t *testing.T) {
-		stdout := new(bytes.Buffer)
-		rt := &coreutils.Runtime{Stdout: stdout, Stderr: new(bytes.Buffer)}
-		if err := New(rt).Run(t.Context(), "--help"); err != nil {
-			t.Fatalf("Run() error = %v, want nil (exit status 0)", err)
-		}
-		if got, want := stdout.String(), usage; got != want {
-			t.Errorf("Run() stdout = %q, want %q", got, want)
-		}
-	})
-
-	t.Run("version", func(t *testing.T) {
-		stdout := new(bytes.Buffer)
-		rt := &coreutils.Runtime{Stdout: stdout, Stderr: new(bytes.Buffer)}
-		if err := New(rt).Run(t.Context(), "--version"); err != nil {
-			t.Fatalf("Run() error = %v, want nil (exit status 0)", err)
-		}
-		want := "date (charm.land/snail/coreutils) " + coreutils.Version + "\nhttps://charm.land/snail\n"
-		if got := stdout.String(); got != want {
-			t.Errorf("Run() stdout = %q, want %q", got, want)
-		}
-	})
+	testutil.HelpVersion(t, New, "date", usage)
 }

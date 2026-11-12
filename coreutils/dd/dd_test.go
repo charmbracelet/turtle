@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"charm.land/snail/coreutils"
+	"charm.land/snail/coreutils/internal/testutil"
 
 	"charm.land/snail/fsx"
 )
@@ -56,17 +57,6 @@ func (r *errorReader) Read(b []byte) (int, error) {
 	return 0, io.EOF
 }
 
-// cancelReader cancels its context on the first read, standing for an
-// interrupted copy.
-type cancelReader struct {
-	cancel context.CancelFunc
-}
-
-func (r *cancelReader) Read([]byte) (int, error) {
-	r.cancel()
-	return 0, context.Canceled
-}
-
 // errAtReader reads its data, failing once when a read starts at a given
 // offset: the failing read returns partial bytes along with the error, like
 // device reads can. Its offset can be seeked.
@@ -108,197 +98,163 @@ func (r *errAtReader) Seek(offset int64, whence int) (int64, error) {
 	return offset, nil
 }
 
-func exitCode(t *testing.T, err error) int {
-	t.Helper()
-
-	if err == nil {
-		return 0
-	}
-	var exitErr *coreutils.ExitError
-	if !errors.As(err, &exitErr) {
-		t.Fatalf("Run() error = %v, want *coreutils.ExitError", err)
-	}
-	return exitErr.Code
-}
-
+// ddCase is the fields of a testutil.Case plus the input files as the plain
+// texts they hold: dd opens them through the file system, so they can't be
+// the standard input.
 type ddCase struct {
-	name      string
-	stdin     io.Reader
-	args      []string
-	files     map[string]string
-	want      string
-	wantErr   string
-	wantExit  int
-	wantFiles map[string]string
+	Name      string
+	Stdin     io.Reader
+	Args      []string
+	Want      string
+	WantErr   string
+	WantExit  int
+	WantFiles map[string]string
+
+	Files map[string]string
 }
 
 func runCase(t *testing.T, test ddCase) {
 	t.Helper()
 
-	stdout := new(bytes.Buffer)
-	stderr := new(bytes.Buffer)
 	fsys := fsx.MemFS{}
-	for name, data := range test.files {
+	for name, data := range test.Files {
 		fsys[name] = &fsx.MemFile{Data: []byte(data), Mode: 0o666}
 	}
-	stdin := test.stdin
+	stdin := test.Stdin
 	if stdin == nil {
 		stdin = strings.NewReader("")
 	}
-	rt := &coreutils.Runtime{
-		Stdin:  stdin,
-		Stdout: stdout,
-		Stderr: stderr,
-		FS:     fsys,
-	}
-	err := New(rt).Run(t.Context(), test.args...)
-
-	if code := exitCode(t, err); code != test.wantExit {
-		t.Errorf("Run() exit code = %d, want %d (error = %v)", code, test.wantExit, err)
-	}
-	if got := stdout.String(); got != test.want {
-		t.Errorf("Run() stdout = %q, want %q", got, test.want)
-	}
-	if got := stderr.String(); got != test.wantErr {
-		t.Errorf("Run() stderr = %q, want %q", got, test.wantErr)
-	}
-	for name, want := range test.wantFiles {
-		f, err := fsys.Open(name)
-		if err != nil {
-			t.Errorf("output file %s: %v", name, err)
-			continue
-		}
-		data, err := io.ReadAll(f)
-		f.Close()
-		if err != nil {
-			t.Errorf("reading %s: %v", name, err)
-			continue
-		}
-		if got := string(data); got != want {
-			t.Errorf("output file %s = %q, want %q", name, got, want)
-		}
-	}
+	testutil.Once(t, New, testutil.Case{
+		Name:      test.Name,
+		Stdin:     stdin,
+		FS:        fsys,
+		Args:      test.Args,
+		Want:      test.Want,
+		WantErr:   test.WantErr,
+		WantExit:  test.WantExit,
+		WantFiles: test.WantFiles,
+	})
 }
 
 func TestRunCopy(t *testing.T) {
 	tests := []ddCase{
 		{
-			name:    "the standard input is copied whole",
-			stdin:   strings.NewReader("hello"),
-			want:    "hello",
-			wantErr: "0+1 records in\n0+1 records out\n",
+			Name:    "the standard input is copied whole",
+			Stdin:   strings.NewReader("hello"),
+			Want:    "hello",
+			WantErr: "0+1 records in\n0+1 records out\n",
 		},
 		{
-			name:    "an empty input copies nothing",
-			stdin:   strings.NewReader(""),
-			wantErr: "0+0 records in\n0+0 records out\n",
+			Name:    "an empty input copies nothing",
+			Stdin:   strings.NewReader(""),
+			WantErr: "0+0 records in\n0+0 records out\n",
 		},
 		{
-			name:    "short input blocks are aggregated into output ones",
-			stdin:   strings.NewReader("0123456789"),
-			args:    []string{"ibs=3", "obs=7"},
-			want:    "0123456789",
-			wantErr: "3+1 records in\n1+1 records out\n",
+			Name:    "short input blocks are aggregated into output ones",
+			Stdin:   strings.NewReader("0123456789"),
+			Args:    []string{"ibs=3", "obs=7"},
+			Want:    "0123456789",
+			WantErr: "3+1 records in\n1+1 records out\n",
 		},
 		{
-			name:    "bs makes every input block a single output one",
-			stdin:   strings.NewReader("abcde"),
-			args:    []string{"bs=2"},
-			want:    "abcde",
-			wantErr: "2+1 records in\n2+1 records out\n",
+			Name:    "bs makes every input block a single output one",
+			Stdin:   strings.NewReader("abcde"),
+			Args:    []string{"bs=2"},
+			Want:    "abcde",
+			WantErr: "2+1 records in\n2+1 records out\n",
 		},
 		{
-			name:    "bs supersedes ibs and obs",
-			stdin:   strings.NewReader("abcdef"),
-			args:    []string{"ibs=1", "obs=1", "bs=4"},
-			want:    "abcdef",
-			wantErr: "1+1 records in\n1+1 records out\n",
+			Name:    "bs supersedes ibs and obs",
+			Stdin:   strings.NewReader("abcdef"),
+			Args:    []string{"ibs=1", "obs=1", "bs=4"},
+			Want:    "abcdef",
+			WantErr: "1+1 records in\n1+1 records out\n",
 		},
 		{
-			name:    "count copies only the first blocks",
-			stdin:   strings.NewReader("0123456789"),
-			args:    []string{"ibs=3", "count=2"},
-			want:    "012345",
-			wantErr: "2+0 records in\n0+1 records out\n",
+			Name:    "count copies only the first blocks",
+			Stdin:   strings.NewReader("0123456789"),
+			Args:    []string{"ibs=3", "count=2"},
+			Want:    "012345",
+			WantErr: "2+0 records in\n0+1 records out\n",
 		},
 		{
-			name:    "count of zero copies nothing",
-			stdin:   strings.NewReader("0123456789"),
-			args:    []string{"count=0"},
-			wantErr: "0+0 records in\n0+0 records out\n",
+			Name:    "count of zero copies nothing",
+			Stdin:   strings.NewReader("0123456789"),
+			Args:    []string{"count=0"},
+			WantErr: "0+0 records in\n0+0 records out\n",
 		},
 		{
-			name:    "count in bytes, as a trailing B asks",
-			stdin:   strings.NewReader("0123456789"),
-			args:    []string{"ibs=4", "count=7B"},
-			want:    "0123456",
-			wantErr: "1+1 records in\n0+1 records out\n",
+			Name:    "count in bytes, as a trailing B asks",
+			Stdin:   strings.NewReader("0123456789"),
+			Args:    []string{"ibs=4", "count=7B"},
+			Want:    "0123456",
+			WantErr: "1+1 records in\n0+1 records out\n",
 		},
 		{
-			name:    "skip drops the first input blocks",
-			stdin:   strings.NewReader("0123456789"),
-			args:    []string{"ibs=3", "skip=2"},
-			want:    "6789",
-			wantErr: "1+1 records in\n0+1 records out\n",
+			Name:    "skip drops the first input blocks",
+			Stdin:   strings.NewReader("0123456789"),
+			Args:    []string{"ibs=3", "skip=2"},
+			Want:    "6789",
+			WantErr: "1+1 records in\n0+1 records out\n",
 		},
 		{
-			name:    "skip in bytes, as a trailing B asks",
-			stdin:   strings.NewReader("0123456789"),
-			args:    []string{"ibs=4", "skip=2B"},
-			want:    "23456789",
-			wantErr: "2+0 records in\n0+1 records out\n",
+			Name:    "skip in bytes, as a trailing B asks",
+			Stdin:   strings.NewReader("0123456789"),
+			Args:    []string{"ibs=4", "skip=2B"},
+			Want:    "23456789",
+			WantErr: "2+0 records in\n0+1 records out\n",
 		},
 		{
-			name:    "iseek is another name for skip",
-			stdin:   strings.NewReader("0123456789"),
-			args:    []string{"ibs=3", "iseek=1"},
-			want:    "3456789",
-			wantErr: "2+1 records in\n0+1 records out\n",
+			Name:    "iseek is another name for skip",
+			Stdin:   strings.NewReader("0123456789"),
+			Args:    []string{"ibs=3", "iseek=1"},
+			Want:    "3456789",
+			WantErr: "2+1 records in\n0+1 records out\n",
 		},
 		{
-			name:    "skip is read and discarded on a non-seekable input",
-			stdin:   plainReader{strings.NewReader("0123456789")},
-			args:    []string{"ibs=3", "skip=2"},
-			want:    "6789",
-			wantErr: "1+1 records in\n0+1 records out\n",
+			Name:    "skip is read and discarded on a non-seekable input",
+			Stdin:   plainReader{strings.NewReader("0123456789")},
+			Args:    []string{"ibs=3", "skip=2"},
+			Want:    "6789",
+			WantErr: "1+1 records in\n0+1 records out\n",
 		},
 		{
-			name:  "skipping past the end of the input warns",
-			stdin: plainReader{strings.NewReader("abc")},
-			args:  []string{"ibs=2", "skip=5"},
-			wantErr: "dd: 'standard input': cannot skip to specified offset\n" +
+			Name:  "skipping past the end of the input warns",
+			Stdin: plainReader{strings.NewReader("abc")},
+			Args:  []string{"ibs=2", "skip=5"},
+			WantErr: "dd: 'standard input': cannot skip to specified offset\n" +
 				"0+0 records in\n0+0 records out\n",
 		},
 		{
-			name:  "status of none prints nothing",
-			stdin: strings.NewReader("hello"),
-			args:  []string{"status=none"},
-			want:  "hello",
+			Name:  "status of none prints nothing",
+			Stdin: strings.NewReader("hello"),
+			Args:  []string{"status=none"},
+			Want:  "hello",
 		},
 		{
-			name:    "status of noxfer keeps the records lines",
-			stdin:   strings.NewReader("hello"),
-			args:    []string{"status=noxfer"},
-			want:    "hello",
-			wantErr: "0+1 records in\n0+1 records out\n",
+			Name:    "status of noxfer keeps the records lines",
+			Stdin:   strings.NewReader("hello"),
+			Args:    []string{"status=noxfer"},
+			Want:    "hello",
+			WantErr: "0+1 records in\n0+1 records out\n",
 		},
 		{
-			name:    "the last status level wins",
-			stdin:   strings.NewReader("hello"),
-			args:    []string{"status=none", "status=progress"},
-			want:    "hello",
-			wantErr: "0+1 records in\n0+1 records out\n",
+			Name:    "the last status level wins",
+			Stdin:   strings.NewReader("hello"),
+			Args:    []string{"status=none", "status=progress"},
+			Want:    "hello",
+			WantErr: "0+1 records in\n0+1 records out\n",
 		},
 		{
-			name:    "a seek on a non-seekable output is filled with nulls",
-			stdin:   strings.NewReader("ab"),
-			args:    []string{"seek=2", "obs=2"},
-			want:    "\x00\x00\x00\x00ab",
-			wantErr: "0+1 records in\n1+0 records out\n",
+			Name:    "a seek on a non-seekable output is filled with nulls",
+			Stdin:   strings.NewReader("ab"),
+			Args:    []string{"seek=2", "obs=2"},
+			Want:    "\x00\x00\x00\x00ab",
+			WantErr: "0+1 records in\n1+0 records out\n",
 		},
 	}
 	for _, test := range tests {
-		t.Run(test.name, func(t *testing.T) {
+		t.Run(test.Name, func(t *testing.T) {
 			runCase(t, test)
 		})
 	}
@@ -307,183 +263,183 @@ func TestRunCopy(t *testing.T) {
 func TestRunConversions(t *testing.T) {
 	tests := []ddCase{
 		{
-			name:    "ucase",
-			stdin:   strings.NewReader("Hello, World!"),
-			args:    []string{"conv=ucase"},
-			want:    "HELLO, WORLD!",
-			wantErr: "0+1 records in\n0+1 records out\n",
+			Name:    "ucase",
+			Stdin:   strings.NewReader("Hello, World!"),
+			Args:    []string{"conv=ucase"},
+			Want:    "HELLO, WORLD!",
+			WantErr: "0+1 records in\n0+1 records out\n",
 		},
 		{
-			name:    "lcase",
-			stdin:   strings.NewReader("Hello, World!"),
-			args:    []string{"conv=lcase"},
-			want:    "hello, world!",
-			wantErr: "0+1 records in\n0+1 records out\n",
+			Name:    "lcase",
+			Stdin:   strings.NewReader("Hello, World!"),
+			Args:    []string{"conv=lcase"},
+			Want:    "hello, world!",
+			WantErr: "0+1 records in\n0+1 records out\n",
 		},
 		{
-			name:    "swab pairs every two bytes",
-			stdin:   strings.NewReader("abcde"),
-			args:    []string{"ibs=2", "obs=16", "conv=swab"},
-			want:    "badce",
-			wantErr: "2+1 records in\n0+1 records out\n",
+			Name:    "swab pairs every two bytes",
+			Stdin:   strings.NewReader("abcde"),
+			Args:    []string{"ibs=2", "obs=16", "conv=swab"},
+			Want:    "badce",
+			WantErr: "2+1 records in\n0+1 records out\n",
 		},
 		{
-			name:    "swab keeps the last byte of an even output whole",
-			stdin:   strings.NewReader("abcd"),
-			args:    []string{"ibs=2", "obs=16", "conv=swab"},
-			want:    "badc",
-			wantErr: "2+0 records in\n0+1 records out\n",
+			Name:    "swab keeps the last byte of an even output whole",
+			Stdin:   strings.NewReader("abcd"),
+			Args:    []string{"ibs=2", "obs=16", "conv=swab"},
+			Want:    "badc",
+			WantErr: "2+0 records in\n0+1 records out\n",
 		},
 		{
-			name:    "swab carries the odd byte across input blocks",
-			stdin:   strings.NewReader("abcdefg"),
-			args:    []string{"ibs=3", "obs=16", "conv=swab"},
-			want:    "badcfeg",
-			wantErr: "2+1 records in\n0+1 records out\n",
+			Name:    "swab carries the odd byte across input blocks",
+			Stdin:   strings.NewReader("abcdefg"),
+			Args:    []string{"ibs=3", "obs=16", "conv=swab"},
+			Want:    "badcfeg",
+			WantErr: "2+1 records in\n0+1 records out\n",
 		},
 		{
-			name:    "sync pads the input block with nulls",
-			stdin:   strings.NewReader("ab"),
-			args:    []string{"ibs=4", "obs=8", "conv=sync"},
-			want:    "ab\x00\x00",
-			wantErr: "0+1 records in\n0+1 records out\n",
+			Name:    "sync pads the input block with nulls",
+			Stdin:   strings.NewReader("ab"),
+			Args:    []string{"ibs=4", "obs=8", "conv=sync"},
+			Want:    "ab\x00\x00",
+			WantErr: "0+1 records in\n0+1 records out\n",
 		},
 		{
-			name:    "block pads short records with spaces",
-			stdin:   strings.NewReader("ab\ncd\n"),
-			args:    []string{"cbs=3", "obs=8", "conv=block"},
-			want:    "ab cd ",
-			wantErr: "0+1 records in\n0+1 records out\n",
+			Name:    "block pads short records with spaces",
+			Stdin:   strings.NewReader("ab\ncd\n"),
+			Args:    []string{"cbs=3", "obs=8", "conv=block"},
+			Want:    "ab cd ",
+			WantErr: "0+1 records in\n0+1 records out\n",
 		},
 		{
-			name:    "block truncates long records and counts one",
-			stdin:   strings.NewReader("abcd\n"),
-			args:    []string{"cbs=3", "obs=8", "conv=block"},
-			want:    "abc",
-			wantErr: "0+1 records in\n0+1 records out\n1 truncated record\n",
+			Name:    "block truncates long records and counts one",
+			Stdin:   strings.NewReader("abcd\n"),
+			Args:    []string{"cbs=3", "obs=8", "conv=block"},
+			Want:    "abc",
+			WantErr: "0+1 records in\n0+1 records out\n1 truncated record\n",
 		},
 		{
-			name:    "block truncates long records and counts many",
-			stdin:   strings.NewReader("abcd\nabcd\n"),
-			args:    []string{"cbs=3", "obs=8", "conv=block"},
-			want:    "abcabc",
-			wantErr: "0+1 records in\n0+1 records out\n2 truncated records\n",
+			Name:    "block truncates long records and counts many",
+			Stdin:   strings.NewReader("abcd\nabcd\n"),
+			Args:    []string{"cbs=3", "obs=8", "conv=block"},
+			Want:    "abcabc",
+			WantErr: "0+1 records in\n0+1 records out\n2 truncated records\n",
 		},
 		{
-			name:    "block counts one truncated record however long",
-			stdin:   strings.NewReader("abcdef\n"),
-			args:    []string{"cbs=3", "obs=8", "conv=block"},
-			want:    "abc",
-			wantErr: "0+1 records in\n0+1 records out\n1 truncated record\n",
+			Name:    "block counts one truncated record however long",
+			Stdin:   strings.NewReader("abcdef\n"),
+			Args:    []string{"cbs=3", "obs=8", "conv=block"},
+			Want:    "abc",
+			WantErr: "0+1 records in\n0+1 records out\n1 truncated record\n",
 		},
 		{
-			name:    "block counts a record truncated across input blocks",
-			stdin:   strings.NewReader("abcd\n"),
-			args:    []string{"ibs=2", "cbs=3", "obs=8", "conv=block"},
-			want:    "abc",
-			wantErr: "2+1 records in\n0+1 records out\n1 truncated record\n",
+			Name:    "block counts a record truncated across input blocks",
+			Stdin:   strings.NewReader("abcd\n"),
+			Args:    []string{"ibs=2", "cbs=3", "obs=8", "conv=block"},
+			Want:    "abc",
+			WantErr: "2+1 records in\n0+1 records out\n1 truncated record\n",
 		},
 		{
-			name:    "block pads the record cut by the end of the input",
-			stdin:   strings.NewReader("ab"),
-			args:    []string{"cbs=3", "obs=8", "conv=block"},
-			want:    "ab ",
-			wantErr: "0+1 records in\n0+1 records out\n",
+			Name:    "block pads the record cut by the end of the input",
+			Stdin:   strings.NewReader("ab"),
+			Args:    []string{"cbs=3", "obs=8", "conv=block"},
+			Want:    "ab ",
+			WantErr: "0+1 records in\n0+1 records out\n",
 		},
 		{
-			name:    "block spans input block boundaries",
-			stdin:   strings.NewReader("ab\ncd\n"),
-			args:    []string{"ibs=3", "cbs=4", "obs=8", "conv=block"},
-			want:    "ab  cd  ",
-			wantErr: "2+0 records in\n1+0 records out\n",
+			Name:    "block spans input block boundaries",
+			Stdin:   strings.NewReader("ab\ncd\n"),
+			Args:    []string{"ibs=3", "cbs=4", "obs=8", "conv=block"},
+			Want:    "ab  cd  ",
+			WantErr: "2+0 records in\n1+0 records out\n",
 		},
 		{
-			name:    "unblock replaces the trailing spaces with newlines",
-			stdin:   strings.NewReader("ab cd x"),
-			args:    []string{"cbs=3", "obs=8", "conv=unblock"},
-			want:    "ab\ncd\nx\n",
-			wantErr: "0+1 records in\n1+0 records out\n",
+			Name:    "unblock replaces the trailing spaces with newlines",
+			Stdin:   strings.NewReader("ab cd x"),
+			Args:    []string{"cbs=3", "obs=8", "conv=unblock"},
+			Want:    "ab\ncd\nx\n",
+			WantErr: "0+1 records in\n1+0 records out\n",
 		},
 		{
-			name:    "unblock keeps the spaces which are not trailing",
-			stdin:   strings.NewReader("a b c d "),
-			args:    []string{"cbs=2", "obs=8", "conv=unblock"},
-			want:    "a\nb\nc\nd\n",
-			wantErr: "0+1 records in\n1+0 records out\n",
+			Name:    "unblock keeps the spaces which are not trailing",
+			Stdin:   strings.NewReader("a b c d "),
+			Args:    []string{"cbs=2", "obs=8", "conv=unblock"},
+			Want:    "a\nb\nc\nd\n",
+			WantErr: "0+1 records in\n1+0 records out\n",
 		},
 		{
-			name:    "unblock drops the spaces held back at the end",
-			stdin:   strings.NewReader("a  b"),
-			args:    []string{"cbs=3", "obs=8", "conv=unblock"},
-			want:    "a\nb\n",
-			wantErr: "0+1 records in\n0+1 records out\n",
+			Name:    "unblock drops the spaces held back at the end",
+			Stdin:   strings.NewReader("a  b"),
+			Args:    []string{"cbs=3", "obs=8", "conv=unblock"},
+			Want:    "a\nb\n",
+			WantErr: "0+1 records in\n0+1 records out\n",
 		},
 		{
-			name:    "ascii converts and unblocks",
-			stdin:   strings.NewReader("\xc1\xc2\x40"),
-			args:    []string{"cbs=3", "obs=8", "conv=ascii"},
-			want:    "AB\n",
-			wantErr: "0+1 records in\n0+1 records out\n",
+			Name:    "ascii converts and unblocks",
+			Stdin:   strings.NewReader("\xc1\xc2\x40"),
+			Args:    []string{"cbs=3", "obs=8", "conv=ascii"},
+			Want:    "AB\n",
+			WantErr: "0+1 records in\n0+1 records out\n",
 		},
 		{
-			name:    "ebcdic converts and blocks",
-			stdin:   strings.NewReader("AB\n"),
-			args:    []string{"cbs=3", "obs=8", "conv=ebcdic"},
-			want:    "\xc1\xc2\x40",
-			wantErr: "0+1 records in\n0+1 records out\n",
+			Name:    "ebcdic converts and blocks",
+			Stdin:   strings.NewReader("AB\n"),
+			Args:    []string{"cbs=3", "obs=8", "conv=ebcdic"},
+			Want:    "\xc1\xc2\x40",
+			WantErr: "0+1 records in\n0+1 records out\n",
 		},
 		{
-			name:    "ascii converts the newlines the tables define",
-			stdin:   strings.NewReader("\x25\x25"),
-			args:    []string{"obs=8", "conv=ascii"},
-			want:    "\n\n",
-			wantErr: "0+1 records in\n0+1 records out\n",
+			Name:    "ascii converts the newlines the tables define",
+			Stdin:   strings.NewReader("\x25\x25"),
+			Args:    []string{"obs=8", "conv=ascii"},
+			Want:    "\n\n",
+			WantErr: "0+1 records in\n0+1 records out\n",
 		},
 		{
-			name:    "ibm converts to the alternate table",
-			stdin:   strings.NewReader("~"),
-			args:    []string{"obs=8", "conv=ibm"},
-			want:    "\xa1",
-			wantErr: "0+1 records in\n0+1 records out\n",
+			Name:    "ibm converts to the alternate table",
+			Stdin:   strings.NewReader("~"),
+			Args:    []string{"obs=8", "conv=ibm"},
+			Want:    "\xa1",
+			WantErr: "0+1 records in\n0+1 records out\n",
 		},
 		{
-			name:    "ebcdic and ascii are the inverse of each other",
-			stdin:   strings.NewReader("~[a\n"),
-			args:    []string{"obs=8", "conv=ebcdic"},
-			want:    "\x5f\xad\x81\x25",
-			wantErr: "0+1 records in\n0+1 records out\n",
+			Name:    "ebcdic and ascii are the inverse of each other",
+			Stdin:   strings.NewReader("~[a\n"),
+			Args:    []string{"obs=8", "conv=ebcdic"},
+			Want:    "\x5f\xad\x81\x25",
+			WantErr: "0+1 records in\n0+1 records out\n",
 		},
 		{
-			name:    "ascii and ucase compose",
-			stdin:   strings.NewReader("\x81\x82\x40"),
-			args:    []string{"cbs=3", "obs=8", "conv=ascii,ucase"},
-			want:    "AB\n",
-			wantErr: "0+1 records in\n0+1 records out\n",
+			Name:    "ascii and ucase compose",
+			Stdin:   strings.NewReader("\x81\x82\x40"),
+			Args:    []string{"cbs=3", "obs=8", "conv=ascii,ucase"},
+			Want:    "AB\n",
+			WantErr: "0+1 records in\n0+1 records out\n",
 		},
 		{
-			name:    "sync with block pads with spaces",
-			stdin:   strings.NewReader("ab"),
-			args:    []string{"ibs=4", "cbs=4", "obs=8", "conv=block,sync"},
-			want:    "ab  ",
-			wantErr: "0+1 records in\n0+1 records out\n",
+			Name:    "sync with block pads with spaces",
+			Stdin:   strings.NewReader("ab"),
+			Args:    []string{"ibs=4", "cbs=4", "obs=8", "conv=block,sync"},
+			Want:    "ab  ",
+			WantErr: "0+1 records in\n0+1 records out\n",
 		},
 		{
-			name:    "bs with a data conversion still aggregates",
-			stdin:   strings.NewReader("abcde"),
-			args:    []string{"bs=4", "conv=swab"},
-			want:    "badce",
-			wantErr: "1+1 records in\n1+1 records out\n",
+			Name:    "bs with a data conversion still aggregates",
+			Stdin:   strings.NewReader("abcde"),
+			Args:    []string{"bs=4", "conv=swab"},
+			Want:    "badce",
+			WantErr: "1+1 records in\n1+1 records out\n",
 		},
 		{
-			name:    "ascii and swab compose",
-			stdin:   strings.NewReader("\xc1\x82\xc3"),
-			args:    []string{"obs=8", "conv=ascii,swab"},
-			want:    "bAC",
-			wantErr: "0+1 records in\n0+1 records out\n",
+			Name:    "ascii and swab compose",
+			Stdin:   strings.NewReader("\xc1\x82\xc3"),
+			Args:    []string{"obs=8", "conv=ascii,swab"},
+			Want:    "bAC",
+			WantErr: "0+1 records in\n0+1 records out\n",
 		},
 	}
 	for _, test := range tests {
-		t.Run(test.name, func(t *testing.T) {
+		t.Run(test.Name, func(t *testing.T) {
 			runCase(t, test)
 		})
 	}
@@ -492,171 +448,171 @@ func TestRunConversions(t *testing.T) {
 func TestRunFiles(t *testing.T) {
 	tests := []ddCase{
 		{
-			name:  "if and of copy between files",
-			stdin: strings.NewReader("ignored"),
-			args:  []string{"if=in.txt", "of=out.txt"},
-			files: map[string]string{"in.txt": "hello"},
-			wantFiles: map[string]string{
+			Name:  "if and of copy between files",
+			Stdin: strings.NewReader("ignored"),
+			Args:  []string{"if=in.txt", "of=out.txt"},
+			Files: map[string]string{"in.txt": "hello"},
+			WantFiles: map[string]string{
 				"out.txt": "hello",
 			},
-			wantErr: "0+1 records in\n0+1 records out\n",
+			WantErr: "0+1 records in\n0+1 records out\n",
 		},
 		{
-			name:  "of creates the output file",
-			stdin: strings.NewReader("hi"),
-			args:  []string{"of=out.txt"},
-			wantFiles: map[string]string{
+			Name:  "of creates the output file",
+			Stdin: strings.NewReader("hi"),
+			Args:  []string{"of=out.txt"},
+			WantFiles: map[string]string{
 				"out.txt": "hi",
 			},
-			wantErr: "0+1 records in\n0+1 records out\n",
+			WantErr: "0+1 records in\n0+1 records out\n",
 		},
 		{
-			name:  "of truncates the output file",
-			stdin: strings.NewReader("hi"),
-			args:  []string{"of=out.txt"},
-			files: map[string]string{"out.txt": "OLD CONTENT"},
-			wantFiles: map[string]string{
+			Name:  "of truncates the output file",
+			Stdin: strings.NewReader("hi"),
+			Args:  []string{"of=out.txt"},
+			Files: map[string]string{"out.txt": "OLD CONTENT"},
+			WantFiles: map[string]string{
 				"out.txt": "hi",
 			},
-			wantErr: "0+1 records in\n0+1 records out\n",
+			WantErr: "0+1 records in\n0+1 records out\n",
 		},
 		{
-			name:  "notrunc keeps the rest of the output file",
-			stdin: strings.NewReader("hi"),
-			args:  []string{"of=out.txt", "conv=notrunc"},
-			files: map[string]string{"out.txt": "OLDOLDOLD"},
-			wantFiles: map[string]string{
+			Name:  "notrunc keeps the rest of the output file",
+			Stdin: strings.NewReader("hi"),
+			Args:  []string{"of=out.txt", "conv=notrunc"},
+			Files: map[string]string{"out.txt": "OLDOLDOLD"},
+			WantFiles: map[string]string{
 				"out.txt": "hiDOLDOLD",
 			},
-			wantErr: "0+1 records in\n0+1 records out\n",
+			WantErr: "0+1 records in\n0+1 records out\n",
 		},
 		{
-			name:  "seek writes past the preserved blocks",
-			stdin: strings.NewReader("XY"),
-			args:  []string{"of=out.txt", "seek=1", "obs=4"},
-			files: map[string]string{"out.txt": "0123456789"},
-			wantFiles: map[string]string{
+			Name:  "seek writes past the preserved blocks",
+			Stdin: strings.NewReader("XY"),
+			Args:  []string{"of=out.txt", "seek=1", "obs=4"},
+			Files: map[string]string{"out.txt": "0123456789"},
+			WantFiles: map[string]string{
 				"out.txt": "0123XY",
 			},
-			wantErr: "0+1 records in\n0+1 records out\n",
+			WantErr: "0+1 records in\n0+1 records out\n",
 		},
 		{
-			name:  "seek with notrunc keeps the tail of the output file",
-			stdin: strings.NewReader("XY"),
-			args:  []string{"of=out.txt", "seek=1", "obs=4", "conv=notrunc"},
-			files: map[string]string{"out.txt": "0123456789"},
-			wantFiles: map[string]string{
+			Name:  "seek with notrunc keeps the tail of the output file",
+			Stdin: strings.NewReader("XY"),
+			Args:  []string{"of=out.txt", "seek=1", "obs=4", "conv=notrunc"},
+			Files: map[string]string{"out.txt": "0123456789"},
+			WantFiles: map[string]string{
 				"out.txt": "0123XY6789",
 			},
-			wantErr: "0+1 records in\n0+1 records out\n",
+			WantErr: "0+1 records in\n0+1 records out\n",
 		},
 		{
-			name:  "seek past the end of the output file keeps its size",
-			stdin: strings.NewReader(""),
-			args:  []string{"of=out.txt", "seek=2", "obs=4"},
-			files: map[string]string{"out.txt": "01234567"},
-			wantFiles: map[string]string{
+			Name:  "seek past the end of the output file keeps its size",
+			Stdin: strings.NewReader(""),
+			Args:  []string{"of=out.txt", "seek=2", "obs=4"},
+			Files: map[string]string{"out.txt": "01234567"},
+			WantFiles: map[string]string{
 				"out.txt": "01234567",
 			},
-			wantErr: "0+0 records in\n0+0 records out\n",
+			WantErr: "0+0 records in\n0+0 records out\n",
 		},
 		{
-			name:  "seek with count of zero still shortens the file",
-			stdin: strings.NewReader("ignored"),
-			args:  []string{"of=out.txt", "seek=1", "obs=4", "count=0"},
-			files: map[string]string{"out.txt": "0123456789"},
-			wantFiles: map[string]string{
+			Name:  "seek with count of zero still shortens the file",
+			Stdin: strings.NewReader("ignored"),
+			Args:  []string{"of=out.txt", "seek=1", "obs=4", "count=0"},
+			Files: map[string]string{"out.txt": "0123456789"},
+			WantFiles: map[string]string{
 				"out.txt": "0123",
 			},
-			wantErr: "0+0 records in\n0+0 records out\n",
+			WantErr: "0+0 records in\n0+0 records out\n",
 		},
 		{
-			name:  "a seek with an empty input extends a new output file",
-			stdin: strings.NewReader(""),
-			args:  []string{"of=out.txt", "seek=2", "obs=4"},
-			wantFiles: map[string]string{
+			Name:  "a seek with an empty input extends a new output file",
+			Stdin: strings.NewReader(""),
+			Args:  []string{"of=out.txt", "seek=2", "obs=4"},
+			WantFiles: map[string]string{
 				"out.txt": "\x00\x00\x00\x00\x00\x00\x00\x00",
 			},
-			wantErr: "0+0 records in\n0+0 records out\n",
+			WantErr: "0+0 records in\n0+0 records out\n",
 		},
 		{
-			name:  "a seek with an empty input extends a shorter output file",
-			stdin: strings.NewReader(""),
-			args:  []string{"of=out.txt", "seek=2", "obs=4"},
-			files: map[string]string{"out.txt": "abcd"},
-			wantFiles: map[string]string{
+			Name:  "a seek with an empty input extends a shorter output file",
+			Stdin: strings.NewReader(""),
+			Args:  []string{"of=out.txt", "seek=2", "obs=4"},
+			Files: map[string]string{"out.txt": "abcd"},
+			WantFiles: map[string]string{
 				"out.txt": "abcd\x00\x00\x00\x00",
 			},
-			wantErr: "0+0 records in\n0+0 records out\n",
+			WantErr: "0+0 records in\n0+0 records out\n",
 		},
 		{
-			name:  "a seek past the end keeps the output size with notrunc",
-			stdin: strings.NewReader(""),
-			args:  []string{"of=out.txt", "seek=2", "obs=4", "conv=notrunc"},
-			files: map[string]string{"out.txt": "ab"},
-			wantFiles: map[string]string{
+			Name:  "a seek past the end keeps the output size with notrunc",
+			Stdin: strings.NewReader(""),
+			Args:  []string{"of=out.txt", "seek=2", "obs=4", "conv=notrunc"},
+			Files: map[string]string{"out.txt": "ab"},
+			WantFiles: map[string]string{
 				"out.txt": "ab",
 			},
-			wantErr: "0+0 records in\n0+0 records out\n",
+			WantErr: "0+0 records in\n0+0 records out\n",
 		},
 		{
-			name:  "oseek is another name for seek",
-			stdin: strings.NewReader("AB"),
-			args:  []string{"of=out.txt", "oseek=2", "obs=1"},
-			wantFiles: map[string]string{
+			Name:  "oseek is another name for seek",
+			Stdin: strings.NewReader("AB"),
+			Args:  []string{"of=out.txt", "oseek=2", "obs=1"},
+			WantFiles: map[string]string{
 				"out.txt": "\x00\x00AB",
 			},
-			wantErr: "0+1 records in\n2+0 records out\n",
+			WantErr: "0+1 records in\n2+0 records out\n",
 		},
 		{
-			name:    "skip seeks the input file",
-			stdin:   strings.NewReader("ignored"),
-			args:    []string{"if=in.txt", "ibs=2", "skip=2"},
-			files:   map[string]string{"in.txt": "0123456789"},
-			want:    "456789",
-			wantErr: "3+0 records in\n0+1 records out\n",
+			Name:    "skip seeks the input file",
+			Stdin:   strings.NewReader("ignored"),
+			Args:    []string{"if=in.txt", "ibs=2", "skip=2"},
+			Files:   map[string]string{"in.txt": "0123456789"},
+			Want:    "456789",
+			WantErr: "3+0 records in\n0+1 records out\n",
 		},
 		{
-			name:     "a missing input file fails",
-			args:     []string{"if=no.txt"},
-			wantExit: 1,
-			wantErr:  "dd: failed to open 'no.txt': file does not exist\n",
+			Name:     "a missing input file fails",
+			Args:     []string{"if=no.txt"},
+			WantExit: 1,
+			WantErr:  "dd: failed to open 'no.txt': file does not exist\n",
 		},
 		{
-			name:     "excl fails when the output file exists",
-			stdin:    strings.NewReader("hi"),
-			args:     []string{"of=out.txt", "conv=excl"},
-			files:    map[string]string{"out.txt": "old"},
-			wantExit: 1,
-			wantErr:  "dd: failed to open 'out.txt': file already exists\n",
+			Name:     "excl fails when the output file exists",
+			Stdin:    strings.NewReader("hi"),
+			Args:     []string{"of=out.txt", "conv=excl"},
+			Files:    map[string]string{"out.txt": "old"},
+			WantExit: 1,
+			WantErr:  "dd: failed to open 'out.txt': file already exists\n",
 		},
 		{
-			name:     "nocreat fails when the output file is missing",
-			stdin:    strings.NewReader("hi"),
-			args:     []string{"of=out.txt", "conv=nocreat"},
-			wantExit: 1,
-			wantErr:  "dd: failed to open 'out.txt': file does not exist\n",
+			Name:     "nocreat fails when the output file is missing",
+			Stdin:    strings.NewReader("hi"),
+			Args:     []string{"of=out.txt", "conv=nocreat"},
+			WantExit: 1,
+			WantErr:  "dd: failed to open 'out.txt': file does not exist\n",
 		},
 		{
-			name:  "fsync flushes the output file",
-			stdin: strings.NewReader("hi"),
-			args:  []string{"of=out.txt", "conv=fsync"},
-			wantFiles: map[string]string{
+			Name:  "fsync flushes the output file",
+			Stdin: strings.NewReader("hi"),
+			Args:  []string{"of=out.txt", "conv=fsync"},
+			WantFiles: map[string]string{
 				"out.txt": "hi",
 			},
-			wantErr: "0+1 records in\n0+1 records out\n",
+			WantErr: "0+1 records in\n0+1 records out\n",
 		},
 		{
-			name:    "operands are taken in any order",
-			stdin:   strings.NewReader("0123456789"),
-			args:    []string{"count=2", "ibs=3", "if=in.txt", "skip=1"},
-			files:   map[string]string{"in.txt": "0123456789"},
-			want:    "345678",
-			wantErr: "2+0 records in\n0+1 records out\n",
+			Name:    "operands are taken in any order",
+			Stdin:   strings.NewReader("0123456789"),
+			Args:    []string{"count=2", "ibs=3", "if=in.txt", "skip=1"},
+			Files:   map[string]string{"in.txt": "0123456789"},
+			Want:    "345678",
+			WantErr: "2+0 records in\n0+1 records out\n",
 		},
 	}
 	for _, test := range tests {
-		t.Run(test.name, func(t *testing.T) {
+		t.Run(test.Name, func(t *testing.T) {
 			runCase(t, test)
 		})
 	}
@@ -665,50 +621,50 @@ func TestRunFiles(t *testing.T) {
 func TestRunSizes(t *testing.T) {
 	tests := []ddCase{
 		{
-			name:    "a bare number counts bytes",
-			stdin:   strings.NewReader("01234567"),
-			args:    []string{"ibs=4"},
-			want:    "01234567",
-			wantErr: "2+0 records in\n0+1 records out\n",
+			Name:    "a bare number counts bytes",
+			Stdin:   strings.NewReader("01234567"),
+			Args:    []string{"ibs=4"},
+			Want:    "01234567",
+			WantErr: "2+0 records in\n0+1 records out\n",
 		},
 		{
-			name:    "b multiplies by 512",
-			stdin:   strings.NewReader("0123456789"),
-			args:    []string{"ibs=1b", "count=1"},
-			want:    "0123456789",
-			wantErr: "0+1 records in\n0+1 records out\n",
+			Name:    "b multiplies by 512",
+			Stdin:   strings.NewReader("0123456789"),
+			Args:    []string{"ibs=1b", "count=1"},
+			Want:    "0123456789",
+			WantErr: "0+1 records in\n0+1 records out\n",
 		},
 		{
-			name:    "k multiplies by 1024",
-			stdin:   strings.NewReader("0123456789"),
-			args:    []string{"ibs=1k", "obs=1k", "count=1"},
-			want:    "0123456789",
-			wantErr: "0+1 records in\n0+1 records out\n",
+			Name:    "k multiplies by 1024",
+			Stdin:   strings.NewReader("0123456789"),
+			Args:    []string{"ibs=1k", "obs=1k", "count=1"},
+			Want:    "0123456789",
+			WantErr: "0+1 records in\n0+1 records out\n",
 		},
 		{
-			name:    "x multiplies the numbers it separates",
-			stdin:   strings.NewReader("0123456"),
-			args:    []string{"bs=2x2"},
-			want:    "0123456",
-			wantErr: "1+1 records in\n1+1 records out\n",
+			Name:    "x multiplies the numbers it separates",
+			Stdin:   strings.NewReader("0123456"),
+			Args:    []string{"bs=2x2"},
+			Want:    "0123456",
+			WantErr: "1+1 records in\n1+1 records out\n",
 		},
 		{
-			name:    "KiB is the binary k",
-			stdin:   strings.NewReader("0123456789"),
-			args:    []string{"ibs=1KiB", "count=1"},
-			want:    "0123456789",
-			wantErr: "0+1 records in\n0+1 records out\n",
+			Name:    "KiB is the binary k",
+			Stdin:   strings.NewReader("0123456789"),
+			Args:    []string{"ibs=1KiB", "count=1"},
+			Want:    "0123456789",
+			WantErr: "0+1 records in\n0+1 records out\n",
 		},
 		{
-			name:    "KB is the decimal k",
-			stdin:   strings.NewReader(strings.Repeat("a", 999)),
-			args:    []string{"ibs=1KB", "count=1"},
-			want:    strings.Repeat("a", 999),
-			wantErr: "0+1 records in\n1+1 records out\n",
+			Name:    "KB is the decimal k",
+			Stdin:   strings.NewReader(strings.Repeat("a", 999)),
+			Args:    []string{"ibs=1KB", "count=1"},
+			Want:    strings.Repeat("a", 999),
+			WantErr: "0+1 records in\n1+1 records out\n",
 		},
 	}
 	for _, test := range tests {
-		t.Run(test.name, func(t *testing.T) {
+		t.Run(test.Name, func(t *testing.T) {
 			runCase(t, test)
 		})
 	}
@@ -717,36 +673,36 @@ func TestRunSizes(t *testing.T) {
 func TestRunFullblock(t *testing.T) {
 	tests := []ddCase{
 		{
-			name:    "short reads count as one block",
-			stdin:   shortReader{strings.NewReader("01234567")},
-			args:    []string{"ibs=4", "count=1"},
-			want:    "01",
-			wantErr: "0+1 records in\n0+1 records out\n",
+			Name:    "short reads count as one block",
+			Stdin:   shortReader{strings.NewReader("01234567")},
+			Args:    []string{"ibs=4", "count=1"},
+			Want:    "01",
+			WantErr: "0+1 records in\n0+1 records out\n",
 		},
 		{
-			name:    "fullblock accumulates the whole block",
-			stdin:   shortReader{strings.NewReader("01234567")},
-			args:    []string{"ibs=4", "count=1", "iflag=fullblock"},
-			want:    "0123",
-			wantErr: "1+0 records in\n0+1 records out\n",
+			Name:    "fullblock accumulates the whole block",
+			Stdin:   shortReader{strings.NewReader("01234567")},
+			Args:    []string{"ibs=4", "count=1", "iflag=fullblock"},
+			Want:    "0123",
+			WantErr: "1+0 records in\n0+1 records out\n",
 		},
 		{
-			name:    "fullblock without count copies everything",
-			stdin:   shortReader{strings.NewReader("01234567")},
-			args:    []string{"ibs=4", "iflag=fullblock"},
-			want:    "01234567",
-			wantErr: "2+0 records in\n0+1 records out\n",
+			Name:    "fullblock without count copies everything",
+			Stdin:   shortReader{strings.NewReader("01234567")},
+			Args:    []string{"ibs=4", "iflag=fullblock"},
+			Want:    "01234567",
+			WantErr: "2+0 records in\n0+1 records out\n",
 		},
 		{
-			name:    "fullblock reads the count in bytes tail",
-			stdin:   shortReader{strings.NewReader("01234567")},
-			args:    []string{"ibs=4", "count=7B", "iflag=fullblock"},
-			want:    "0123456",
-			wantErr: "1+1 records in\n0+1 records out\n",
+			Name:    "fullblock reads the count in bytes tail",
+			Stdin:   shortReader{strings.NewReader("01234567")},
+			Args:    []string{"ibs=4", "count=7B", "iflag=fullblock"},
+			Want:    "0123456",
+			WantErr: "1+1 records in\n0+1 records out\n",
 		},
 	}
 	for _, test := range tests {
-		t.Run(test.name, func(t *testing.T) {
+		t.Run(test.Name, func(t *testing.T) {
 			runCase(t, test)
 		})
 	}
@@ -754,56 +710,56 @@ func TestRunFullblock(t *testing.T) {
 
 func TestRunErrors(t *testing.T) {
 	tests := []struct {
-		name     string
-		stdin    io.Reader
-		args     []string
-		want     string
-		wantErr  string
-		wantExit int
+		Name     string
+		Stdin    io.Reader
+		Args     []string
+		Want     string
+		WantErr  string
+		WantExit int
 	}{
 		{
-			name:     "a read error stops the copy",
-			stdin:    &errorReader{data: "ab", err: errors.New("read failure")},
-			want:     "ab",
-			wantErr:  "dd: error reading 'standard input': read failure\n0+1 records in\n0+1 records out\n",
-			wantExit: 1,
+			Name:     "a read error stops the copy",
+			Stdin:    &errorReader{data: "ab", err: errors.New("read failure")},
+			Want:     "ab",
+			WantErr:  "dd: error reading 'standard input': read failure\n0+1 records in\n0+1 records out\n",
+			WantExit: 1,
 		},
 		{
-			name:  "noerror stops on an input it can't reposition",
-			stdin: &errorReader{data: "ab", err: errors.New("read failure")},
-			args:  []string{"conv=noerror"},
-			want:  "ab",
-			wantErr: "dd: error reading 'standard input': read failure\n" +
+			Name:  "noerror stops on an input it can't reposition",
+			Stdin: &errorReader{data: "ab", err: errors.New("read failure")},
+			Args:  []string{"conv=noerror"},
+			Want:  "ab",
+			WantErr: "dd: error reading 'standard input': read failure\n" +
 				"0+1 records in\n0+0 records out\n" +
 				"0+1 records in\n0+1 records out\n",
-			wantExit: 1,
+			WantExit: 1,
 		},
 		{
-			name:  "noerror and sync stop without the zeroed block",
-			stdin: &errorReader{err: errors.New("read failure")},
-			args:  []string{"ibs=4", "conv=noerror,sync"},
-			wantErr: "dd: error reading 'standard input': read failure\n" +
+			Name:  "noerror and sync stop without the zeroed block",
+			Stdin: &errorReader{err: errors.New("read failure")},
+			Args:  []string{"ibs=4", "conv=noerror,sync"},
+			WantErr: "dd: error reading 'standard input': read failure\n" +
 				"0+0 records in\n0+0 records out\n" +
 				"0+0 records in\n0+0 records out\n",
-			wantExit: 1,
+			WantExit: 1,
 		},
 		{
-			name:     "noerror stops silently with status of none",
-			stdin:    &errorReader{data: "ab", err: errors.New("read failure")},
-			args:     []string{"conv=noerror", "status=none"},
-			want:     "ab",
-			wantExit: 1,
+			Name:     "noerror stops silently with status of none",
+			Stdin:    &errorReader{data: "ab", err: errors.New("read failure")},
+			Args:     []string{"conv=noerror", "status=none"},
+			Want:     "ab",
+			WantExit: 1,
 		},
 	}
 	for _, test := range tests {
-		t.Run(test.name, func(t *testing.T) {
+		t.Run(test.Name, func(t *testing.T) {
 			runCase(t, ddCase{
-				name:     test.name,
-				stdin:    test.stdin,
-				args:     test.args,
-				want:     test.want,
-				wantErr:  test.wantErr,
-				wantExit: test.wantExit,
+				Name:     test.Name,
+				Stdin:    test.Stdin,
+				Args:     test.Args,
+				Want:     test.Want,
+				WantErr:  test.WantErr,
+				WantExit: test.WantExit,
 			})
 		})
 	}
@@ -845,37 +801,37 @@ func TestRunReadErrorRecovery(t *testing.T) {
 	readFailure := errors.New("read failure")
 	tests := []ddCase{
 		{
-			name:  "noerror skips the rest of the failed block only",
-			stdin: &errAtReader{data: "ABCDEFGHIJKLMNOPQRST", errAt: 11, partial: 1, err: readFailure},
-			args:  []string{"ibs=8", "obs=16", "conv=noerror"},
+			Name:  "noerror skips the rest of the failed block only",
+			Stdin: &errAtReader{data: "ABCDEFGHIJKLMNOPQRST", errAt: 11, partial: 1, err: readFailure},
+			Args:  []string{"ibs=8", "obs=16", "conv=noerror"},
 			// The failing read starts at 11 and intends 8 bytes, so the copy
 			// resumes at 19 and not at 16.
-			want: "ABCDEFGHIJKT",
-			wantErr: "dd: error reading 'standard input': read failure\n" +
+			Want: "ABCDEFGHIJKT",
+			WantErr: "dd: error reading 'standard input': read failure\n" +
 				"1+1 records in\n0+0 records out\n" +
 				"1+2 records in\n0+1 records out\n",
 		},
 		{
-			name:  "noerror and sync zero the failed block after a short one",
-			stdin: &errAtReader{data: "ABCDEFGHIJK", errAt: 11, partial: 0, err: readFailure},
-			args:  []string{"ibs=8", "obs=24", "conv=noerror,sync"},
-			want:  "ABCDEFGH" + "IJK\x00\x00\x00\x00\x00" + "\x00\x00\x00\x00\x00\x00\x00\x00",
-			wantErr: "dd: error reading 'standard input': read failure\n" +
+			Name:  "noerror and sync zero the failed block after a short one",
+			Stdin: &errAtReader{data: "ABCDEFGHIJK", errAt: 11, partial: 0, err: readFailure},
+			Args:  []string{"ibs=8", "obs=24", "conv=noerror,sync"},
+			Want:  "ABCDEFGH" + "IJK\x00\x00\x00\x00\x00" + "\x00\x00\x00\x00\x00\x00\x00\x00",
+			WantErr: "dd: error reading 'standard input': read failure\n" +
 				"1+1 records in\n0+0 records out\n" +
 				"1+2 records in\n1+0 records out\n",
 		},
 		{
-			name:  "noerror and sync keep the data a failed read returned",
-			stdin: &errAtReader{data: "ABCDEF", errAt: 0, partial: 2, err: readFailure},
-			args:  []string{"ibs=4", "obs=8", "conv=noerror,sync"},
-			want:  "AB\x00\x00EF\x00\x00",
-			wantErr: "dd: error reading 'standard input': read failure\n" +
+			Name:  "noerror and sync keep the data a failed read returned",
+			Stdin: &errAtReader{data: "ABCDEF", errAt: 0, partial: 2, err: readFailure},
+			Args:  []string{"ibs=4", "obs=8", "conv=noerror,sync"},
+			Want:  "AB\x00\x00EF\x00\x00",
+			WantErr: "dd: error reading 'standard input': read failure\n" +
 				"0+0 records in\n0+0 records out\n" +
 				"0+2 records in\n1+0 records out\n",
 		},
 	}
 	for _, test := range tests {
-		t.Run(test.name, func(t *testing.T) {
+		t.Run(test.Name, func(t *testing.T) {
 			runCase(t, test)
 		})
 	}
@@ -885,39 +841,39 @@ func TestRunStuckInput(t *testing.T) {
 	readFailure := errors.New("read failure")
 	tests := []ddCase{
 		{
-			name:     "a rejecting input stops the copy under noerror",
-			stdin:    &stuckReader{err: readFailure},
-			args:     []string{"ibs=4", "obs=8", "conv=noerror"},
-			wantExit: 1,
-			wantErr: "dd: error reading 'standard input': read failure\n" +
+			Name:     "a rejecting input stops the copy under noerror",
+			Stdin:    &stuckReader{err: readFailure},
+			Args:     []string{"ibs=4", "obs=8", "conv=noerror"},
+			WantExit: 1,
+			WantErr: "dd: error reading 'standard input': read failure\n" +
 				"0+0 records in\n0+0 records out\n" +
 				"dd: 'standard input': cannot seek\n" +
 				"0+0 records in\n0+0 records out\n",
 		},
 		{
-			name:     "a rejecting input stops the copy under noerror and sync",
-			stdin:    &stuckReader{err: readFailure},
-			args:     []string{"ibs=4", "obs=8", "conv=noerror,sync"},
-			wantExit: 1,
-			wantErr: "dd: error reading 'standard input': read failure\n" +
+			Name:     "a rejecting input stops the copy under noerror and sync",
+			Stdin:    &stuckReader{err: readFailure},
+			Args:     []string{"ibs=4", "obs=8", "conv=noerror,sync"},
+			WantExit: 1,
+			WantErr: "dd: error reading 'standard input': read failure\n" +
 				"0+0 records in\n0+0 records out\n" +
 				"dd: 'standard input': cannot seek\n" +
 				"0+0 records in\n0+0 records out\n",
 		},
 		{
-			name:     "the data copied before the input went bad is kept",
-			stdin:    &dyingReader{data: "ab", err: readFailure},
-			args:     []string{"ibs=4", "obs=8", "conv=noerror"},
-			want:     "ab",
-			wantExit: 1,
-			wantErr: "dd: error reading 'standard input': read failure\n" +
+			Name:     "the data copied before the input went bad is kept",
+			Stdin:    &dyingReader{data: "ab", err: readFailure},
+			Args:     []string{"ibs=4", "obs=8", "conv=noerror"},
+			Want:     "ab",
+			WantExit: 1,
+			WantErr: "dd: error reading 'standard input': read failure\n" +
 				"0+1 records in\n0+0 records out\n" +
 				"dd: 'standard input': cannot seek\n" +
 				"0+1 records in\n0+1 records out\n",
 		},
 	}
 	for _, test := range tests {
-		t.Run(test.name, func(t *testing.T) {
+		t.Run(test.Name, func(t *testing.T) {
 			runCase(t, test)
 		})
 	}
@@ -927,33 +883,33 @@ func TestRunSkipError(t *testing.T) {
 	readFailure := errors.New("read failure")
 	tests := []ddCase{
 		{
-			name:     "a read error while skipping stops the copy",
-			stdin:    plainReader{&errAtReader{data: "ABCD", errAt: 0, partial: 0, err: readFailure}},
-			args:     []string{"skip=2", "ibs=2", "obs=2"},
-			wantExit: 1,
-			wantErr: "dd: error reading 'standard input': read failure\n" +
+			Name:     "a read error while skipping stops the copy",
+			Stdin:    plainReader{&errAtReader{data: "ABCD", errAt: 0, partial: 0, err: readFailure}},
+			Args:     []string{"skip=2", "ibs=2", "obs=2"},
+			WantExit: 1,
+			WantErr: "dd: error reading 'standard input': read failure\n" +
 				"0+0 records in\n0+0 records out\n",
 		},
 		{
-			name:  "noerror keeps skipping after a read error",
-			stdin: plainReader{&errAtReader{data: "ABCD", errAt: 0, partial: 0, err: readFailure}},
-			args:  []string{"skip=2", "ibs=2", "obs=2", "conv=noerror"},
-			want:  "ABCD",
-			wantErr: "dd: error reading 'standard input': read failure\n" +
+			Name:  "noerror keeps skipping after a read error",
+			Stdin: plainReader{&errAtReader{data: "ABCD", errAt: 0, partial: 0, err: readFailure}},
+			Args:  []string{"skip=2", "ibs=2", "obs=2", "conv=noerror"},
+			Want:  "ABCD",
+			WantErr: "dd: error reading 'standard input': read failure\n" +
 				"0+0 records in\n0+0 records out\n" +
 				"dd: 'standard input': cannot skip to specified offset\n" +
 				"2+0 records in\n2+0 records out\n",
 		},
 		{
-			name:    "a seekable input is skipped without reading it",
-			stdin:   &errAtReader{data: "ABCD", errAt: 0, partial: 0, err: readFailure},
-			args:    []string{"skip=2", "ibs=2", "obs=2", "conv=noerror"},
-			want:    "",
-			wantErr: "0+0 records in\n0+0 records out\n",
+			Name:    "a seekable input is skipped without reading it",
+			Stdin:   &errAtReader{data: "ABCD", errAt: 0, partial: 0, err: readFailure},
+			Args:    []string{"skip=2", "ibs=2", "obs=2", "conv=noerror"},
+			Want:    "",
+			WantErr: "0+0 records in\n0+0 records out\n",
 		},
 	}
 	for _, test := range tests {
-		t.Run(test.name, func(t *testing.T) {
+		t.Run(test.Name, func(t *testing.T) {
 			runCase(t, test)
 		})
 	}
@@ -961,142 +917,121 @@ func TestRunSkipError(t *testing.T) {
 
 func TestRunInvalidOperands(t *testing.T) {
 	tests := []struct {
-		name    string
-		args    []string
-		wantErr string
+		Name    string
+		Args    []string
+		WantErr string
 	}{
 		{
-			name:    "an operand without a value",
-			args:    []string{"foo"},
-			wantErr: "dd: unrecognized operand 'foo'\n",
+			Name:    "an operand without a value",
+			Args:    []string{"foo"},
+			WantErr: "dd: unrecognized operand 'foo'\n",
 		},
 		{
-			name:    "an unknown operand name",
-			args:    []string{"foo=bar"},
-			wantErr: "dd: unrecognized operand 'foo=bar'\n",
+			Name:    "an unknown operand name",
+			Args:    []string{"foo=bar"},
+			WantErr: "dd: unrecognized operand 'foo=bar'\n",
 		},
 		{
-			name:    "an invalid number",
-			args:    []string{"ibs=abc"},
-			wantErr: "dd: invalid number 'abc'\n",
+			Name:    "an invalid number",
+			Args:    []string{"ibs=abc"},
+			WantErr: "dd: invalid number 'abc'\n",
 		},
 		{
-			name:    "a zero block size",
-			args:    []string{"ibs=0"},
-			wantErr: "dd: invalid number '0'\n",
+			Name:    "a zero block size",
+			Args:    []string{"ibs=0"},
+			WantErr: "dd: invalid number '0'\n",
 		},
 		{
-			name:    "an invalid count",
-			args:    []string{"count=x2"},
-			wantErr: "dd: invalid number 'x2'\n",
+			Name:    "an invalid count",
+			Args:    []string{"count=x2"},
+			WantErr: "dd: invalid number 'x2'\n",
 		},
 		{
-			name:    "an invalid conversion",
-			args:    []string{"conv=ascii,foo"},
-			wantErr: "dd: invalid conversion 'foo'\n",
+			Name:    "an invalid conversion",
+			Args:    []string{"conv=ascii,foo"},
+			WantErr: "dd: invalid conversion 'foo'\n",
 		},
 		{
-			name:    "an invalid status level",
-			args:    []string{"status=quiet"},
-			wantErr: "dd: invalid status level 'quiet'\n",
+			Name:    "an invalid status level",
+			Args:    []string{"status=quiet"},
+			WantErr: "dd: invalid status level 'quiet'\n",
 		},
 		{
-			name:    "an invalid input flag",
-			args:    []string{"iflag=direct"},
-			wantErr: "dd: invalid input flag 'direct'\n",
+			Name:    "an invalid input flag",
+			Args:    []string{"iflag=direct"},
+			WantErr: "dd: invalid input flag 'direct'\n",
 		},
 		{
-			name:    "an invalid output flag",
-			args:    []string{"oflag=fullblock"},
-			wantErr: "dd: invalid output flag 'fullblock'\n",
+			Name:    "an invalid output flag",
+			Args:    []string{"oflag=fullblock"},
+			WantErr: "dd: invalid output flag 'fullblock'\n",
 		},
 		{
-			name:    "two character set conversions",
-			args:    []string{"conv=ascii,ebcdic", "cbs=1"},
-			wantErr: "dd: cannot combine any two of ascii, ebcdic and ibm\n",
+			Name:    "two character set conversions",
+			Args:    []string{"conv=ascii,ebcdic", "cbs=1"},
+			WantErr: "dd: cannot combine any two of ascii, ebcdic and ibm\n",
 		},
 		{
-			name:    "block and unblock",
-			args:    []string{"conv=block,unblock", "cbs=1"},
-			wantErr: "dd: cannot combine block and unblock\n",
+			Name:    "block and unblock",
+			Args:    []string{"conv=block,unblock", "cbs=1"},
+			WantErr: "dd: cannot combine block and unblock\n",
 		},
 		{
-			name:    "lcase and ucase",
-			args:    []string{"conv=lcase,ucase"},
-			wantErr: "dd: cannot combine lcase and ucase\n",
+			Name:    "lcase and ucase",
+			Args:    []string{"conv=lcase,ucase"},
+			WantErr: "dd: cannot combine lcase and ucase\n",
 		},
 		{
-			name:    "excl and nocreat",
-			args:    []string{"conv=excl,nocreat"},
-			wantErr: "dd: cannot combine excl and nocreat\n",
+			Name:    "excl and nocreat",
+			Args:    []string{"conv=excl,nocreat"},
+			WantErr: "dd: cannot combine excl and nocreat\n",
 		},
 		{
-			name:    "an unknown option",
-			args:    []string{"--foo"},
-			wantErr: "dd: unrecognized option '--foo'\n",
+			Name:    "an unknown option",
+			Args:    []string{"--foo"},
+			WantErr: "dd: unrecognized option '--foo'\n",
 		},
 	}
 	for _, test := range tests {
-		t.Run(test.name, func(t *testing.T) {
+		t.Run(test.Name, func(t *testing.T) {
 			runCase(t, ddCase{
-				name:     test.name,
-				args:     test.args,
-				wantExit: 1,
-				wantErr:  test.wantErr + "Try 'dd --help' for more information.\n",
+				Name:     test.Name,
+				Args:     test.Args,
+				WantExit: 1,
+				WantErr:  test.WantErr + "Try 'dd --help' for more information.\n",
 			})
 		})
 	}
 }
 
 func TestRunStandardOptions(t *testing.T) {
-	tests := []struct {
-		name     string
-		args     []string
-		wantOut  string
-		wantExit int
-		wantErr  string
-	}{
+	tests := []testutil.Case{
 		{
-			name:    "help",
-			args:    []string{"--help"},
-			wantOut: usage,
+			Name: "help",
+			Args: []string{"--help"},
+			Want: usage,
 		},
 		{
-			name: "version",
-			args: []string{"--version"},
-			wantOut: fmt.Sprintf("dd (charm.land/snail/coreutils) %s\nhttps://charm.land/snail\n",
+			Name: "version",
+			Args: []string{"--version"},
+			Want: fmt.Sprintf("dd (charm.land/snail/coreutils) %s\nhttps://charm.land/snail\n",
 				coreutils.Version),
 		},
 		{
-			name:     "options are only taken before the operands",
-			args:     []string{"if=x", "--help"},
-			wantExit: 1,
-			wantErr:  "dd: unrecognized operand '--help'\nTry 'dd --help' for more information.\n",
+			Name:     "options are only taken before the operands",
+			Args:     []string{"if=x", "--help"},
+			WantExit: 1,
+			WantErr:  "dd: unrecognized operand '--help'\nTry 'dd --help' for more information.\n",
 		},
 	}
-	for _, test := range tests {
-		t.Run(test.name, func(t *testing.T) {
-			stdout := new(bytes.Buffer)
-			stderr := new(bytes.Buffer)
-			rt := &coreutils.Runtime{Stdout: stdout, Stderr: stderr}
-			err := New(rt).Run(t.Context(), test.args...)
-			if code := exitCode(t, err); code != test.wantExit {
-				t.Errorf("Run() exit code = %d, want %d (error = %v)", code, test.wantExit, err)
-			}
-			if got := stdout.String(); got != test.wantOut {
-				t.Errorf("Run() stdout = %q, want %q", got, test.wantOut)
-			}
-			if got := stderr.String(); got != test.wantErr {
-				t.Errorf("Run() stderr = %q, want %q", got, test.wantErr)
-			}
-		})
-	}
+
+	testutil.Run(t, New, tests)
 }
 
 func TestRunContext(t *testing.T) {
 	ctx, cancel := context.WithCancel(t.Context())
 	rt := &coreutils.Runtime{
-		Stdin:  &cancelReader{cancel: cancel},
+		Stdin:  &testutil.CancelReader{Cancel: cancel},
 		Stdout: new(bytes.Buffer),
 		Stderr: new(bytes.Buffer),
 	}
@@ -1124,7 +1059,7 @@ func TestRunProgress(t *testing.T) {
 		},
 	}
 	err := New(rt).Run(t.Context(), "ibs=1", "status=progress")
-	if code := exitCode(t, err); code != 0 {
+	if code := testutil.ExitCode(t, err); code != 0 {
 		t.Fatalf("Run() exit code = %d, want 0 (error = %v)", code, err)
 	}
 	want := "1+0 records in\n0+0 records out\n" +

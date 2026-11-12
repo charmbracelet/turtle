@@ -15,6 +15,7 @@ import (
 	"time"
 
 	"charm.land/snail/coreutils"
+	"charm.land/snail/coreutils/internal/testutil"
 	"charm.land/snail/fsx"
 )
 
@@ -119,15 +120,6 @@ func buildArchive(t *testing.T, entries ...entry) string {
 	return buf.String()
 }
 
-// environ converts a map to a list of KEY=VALUE strings.
-func environ(env map[string]string) []string {
-	entries := make([]string, 0, len(env))
-	for name, value := range env {
-		entries = append(entries, name+"="+value)
-	}
-	return entries
-}
-
 // run executes the utility against files, returning its streams and status.
 func run(t *testing.T, files fsx.FS, stdin string, env map[string]string, umask fs.FileMode, args ...string) (*bytes.Buffer, *bytes.Buffer, error) {
 	t.Helper()
@@ -139,23 +131,10 @@ func run(t *testing.T, files fsx.FS, stdin string, env map[string]string, umask 
 		Stderr:  stderr,
 		FS:      files,
 		Umask:   umask,
-		Environ: func() []string { return environ(env) },
+		Environ: func() []string { return testutil.Environ(env) },
 	}
 	err := New(rt).Run(t.Context(), args...)
 	return stdout, stderr, err
-}
-
-func exitCode(t *testing.T, err error) int {
-	t.Helper()
-
-	if err == nil {
-		return 0
-	}
-	var exitErr *coreutils.ExitError
-	if !errors.As(err, &exitErr) {
-		t.Fatalf("Run() error = %v, want *coreutils.ExitError", err)
-	}
-	return exitErr.Code
 }
 
 func TestParseFlags(t *testing.T) {
@@ -179,7 +158,7 @@ func TestParseFlags(t *testing.T) {
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
 			_, stderr, err := run(t, nil, "", nil, 0, test.args...)
-			if code := exitCode(t, err); code != 2 {
+			if code := testutil.ExitCode(t, err); code != 2 {
 				t.Errorf("Run() exit code = %d, want 2 (error = %v)", code, err)
 			}
 			if got := stderr.String(); got != test.wantErr {
@@ -231,7 +210,7 @@ func runCreate(t *testing.T, test createCase) {
 	t.Helper()
 
 	stdout, stderr, err := run(t, test.files, test.stdin, nil, test.umask, test.args...)
-	if code := exitCode(t, err); code != test.wantExit {
+	if code := testutil.ExitCode(t, err); code != test.wantExit {
 		t.Errorf("Run() exit code = %d, want %d (error = %v)", code, test.wantExit, err)
 	}
 	if got := stderr.String(); got != test.wantErr {
@@ -481,19 +460,15 @@ func TestCreateAbsolute(t *testing.T) {
 
 func TestWriteError(t *testing.T) {
 	rt := &coreutils.Runtime{
-		Stdout: errorWriter{},
+		Stdout: testutil.ErrorWriter{},
 		Stderr: new(bytes.Buffer),
 		FS:     fsx.MemFS{"hello.txt": helloFile()},
 	}
 	err := New(rt).Run(t.Context(), "-cf", "-", "hello.txt")
-	if code := exitCode(t, err); code != 1 {
+	if code := testutil.ExitCode(t, err); code != 1 {
 		t.Errorf("Run() exit code = %d, want 1", code)
 	}
 }
-
-type errorWriter struct{}
-
-func (errorWriter) Write(p []byte) (int, error) { return 0, errors.New("boom") }
 
 func TestContextCanceled(t *testing.T) {
 	ctx, cancel := context.WithCancel(t.Context())
@@ -514,7 +489,7 @@ func TestContextCanceled(t *testing.T) {
 
 func TestNoFileSystem(t *testing.T) {
 	_, stderr, err := run(t, nil, "", nil, 0, "-cf", "a.tar", "hello.txt")
-	if code := exitCode(t, err); code != 1 {
+	if code := testutil.ExitCode(t, err); code != 1 {
 		t.Errorf("Run() exit code = %d, want 1", code)
 	}
 	if got := stderr.String(); got != "tar: a.tar: no file system available\n" {
@@ -552,26 +527,5 @@ func TestParseSize(t *testing.T) {
 }
 
 func TestHelpVersion(t *testing.T) {
-	t.Run("help", func(t *testing.T) {
-		stdout, _, err := run(t, fsx.MemFS{}, "", nil, 0, "--help")
-
-		if code := exitCode(t, err); code != 0 {
-			t.Fatalf("Run() exit code = %d, want 0 (error = %v)", code, err)
-		}
-		if got := stdout.String(); got != usage {
-			t.Errorf("Run() stdout = %q, want %q", got, usage)
-		}
-	})
-
-	t.Run("version", func(t *testing.T) {
-		stdout, _, err := run(t, fsx.MemFS{}, "", nil, 0, "--version")
-
-		if code := exitCode(t, err); code != 0 {
-			t.Fatalf("Run() exit code = %d, want 0 (error = %v)", code, err)
-		}
-		want := "tar (charm.land/snail/coreutils) " + coreutils.Version + "\nhttps://charm.land/snail\n"
-		if got := stdout.String(); got != want {
-			t.Errorf("Run() stdout = %q, want %q", got, want)
-		}
-	})
+	testutil.HelpVersion(t, New, "tar", usage)
 }

@@ -2,35 +2,15 @@ package diff
 
 import (
 	"bytes"
-	"context"
 	"errors"
-	"io"
 	"strings"
 	"testing"
 	"time"
 
 	"charm.land/snail/coreutils"
+	"charm.land/snail/coreutils/internal/testutil"
 	"charm.land/snail/fsx"
 )
-
-// cancelReader cancels its context on the first read, simulating a context
-// that is done while input is being read.
-type cancelReader struct {
-	cancel context.CancelFunc
-}
-
-func (r *cancelReader) Read([]byte) (int, error) {
-	r.cancel()
-	return 0, context.Canceled
-}
-
-type errorWriter struct {
-	err error
-}
-
-func (w errorWriter) Write([]byte) (int, error) {
-	return 0, w.err
-}
 
 // testFS holds the fixtures used by the tests:
 //
@@ -81,292 +61,229 @@ func testFS() fsx.MemFS {
 	}
 }
 
-func exitCode(t *testing.T, err error) int {
-	t.Helper()
-
-	if err == nil {
-		return 0
-	}
-	var exitErr *coreutils.ExitError
-	if !errors.As(err, &exitErr) {
-		t.Fatalf("Run() error = %v, want *coreutils.ExitError", err)
-	}
-	return exitErr.Code
-}
-
-type testCase struct {
-	name     string
-	stdin    io.Reader
-	fsys     fsx.MemFS
-	dir      string
-	args     []string
-	want     string
-	wantErr  string
-	wantExit int
-}
-
-func runCase(t *testing.T, test testCase) {
-	t.Helper()
-
-	stdout := new(bytes.Buffer)
-	stderr := new(bytes.Buffer)
-	rt := &coreutils.Runtime{
-		Stdin:      test.stdin,
-		Stdout:     stdout,
-		Stderr:     stderr,
-		WorkingDir: test.dir,
-	}
-	if test.fsys != nil {
-		rt.FS = test.fsys
-	}
-	err := New(rt).Run(t.Context(), test.args...)
-
-	if code := exitCode(t, err); code != test.wantExit {
-		t.Errorf("Run() exit code = %d, want %d (error = %v)", code, test.wantExit, err)
-	}
-	if got := stdout.String(); got != test.want {
-		t.Errorf("Run() stdout = %q, want %q", got, test.want)
-	}
-	if got := stderr.String(); got != test.wantErr {
-		t.Errorf("Run() stderr = %q, want %q", got, test.wantErr)
-	}
-}
-
 func TestRunDefaults(t *testing.T) {
-	tests := []testCase{
+	tests := []testutil.Case{
 		{
-			name: "identical files produce no output",
-			fsys: testFS(),
-			args: []string{"same1.txt", "same2.txt"},
+			Name: "identical files produce no output",
+			FS:   testFS(),
+			Args: []string{"same1.txt", "same2.txt"},
 		},
 		{
-			name: "a file compares identical to itself",
-			fsys: testFS(),
-			args: []string{"a.txt", "a.txt"},
+			Name: "a file compares identical to itself",
+			FS:   testFS(),
+			Args: []string{"a.txt", "a.txt"},
 		},
 		{
-			name:     "changed line",
-			fsys:     testFS(),
-			args:     []string{"a.txt", "b.txt"},
-			want:     "2c2\n< 2\n---\n> x\n",
-			wantExit: 1,
+			Name:     "changed line",
+			FS:       testFS(),
+			Args:     []string{"a.txt", "b.txt"},
+			Want:     "2c2\n< 2\n---\n> x\n",
+			WantExit: 1,
 		},
 		{
-			name:     "deleted line",
-			fsys:     testFS(),
-			args:     []string{"a.txt", "c.txt"},
-			want:     "3d2\n< 3\n",
-			wantExit: 1,
+			Name:     "deleted line",
+			FS:       testFS(),
+			Args:     []string{"a.txt", "c.txt"},
+			Want:     "3d2\n< 3\n",
+			WantExit: 1,
 		},
 		{
-			name:     "added line",
-			fsys:     testFS(),
-			args:     []string{"a.txt", "d.txt"},
-			want:     "3a4\n> 4\n",
-			wantExit: 1,
+			Name:     "added line",
+			FS:       testFS(),
+			Args:     []string{"a.txt", "d.txt"},
+			Want:     "3a4\n> 4\n",
+			WantExit: 1,
 		},
 		{
-			name:     "missing newline at end of file",
-			fsys:     testFS(),
-			args:     []string{"nonl1", "nonl2"},
-			want:     "2c2\n< 2\n\\ No newline at end of file\n---\n> x\n\\ No newline at end of file\n",
-			wantExit: 1,
+			Name:     "missing newline at end of file",
+			FS:       testFS(),
+			Args:     []string{"nonl1", "nonl2"},
+			Want:     "2c2\n< 2\n\\ No newline at end of file\n---\n> x\n\\ No newline at end of file\n",
+			WantExit: 1,
 		},
 		{
-			name:     "newline added at end of file",
-			fsys:     testFS(),
-			args:     []string{"nonl1", "c.txt"},
-			want:     "2c2\n< 2\n\\ No newline at end of file\n---\n> 2\n",
-			wantExit: 1,
+			Name:     "newline added at end of file",
+			FS:       testFS(),
+			Args:     []string{"nonl1", "c.txt"},
+			Want:     "2c2\n< 2\n\\ No newline at end of file\n---\n> 2\n",
+			WantExit: 1,
 		},
 		{
-			name: "empty files",
-			fsys: testFS(),
-			args: []string{"empty1.txt", "empty2.txt"},
+			Name: "empty files",
+			FS:   testFS(),
+			Args: []string{"empty1.txt", "empty2.txt"},
 		},
 		{
-			name:     "empty against non-empty file",
-			fsys:     testFS(),
-			args:     []string{"empty1.txt", "c.txt"},
-			want:     "0a1,2\n> 1\n> 2\n",
-			wantExit: 1,
+			Name:     "empty against non-empty file",
+			FS:       testFS(),
+			Args:     []string{"empty1.txt", "c.txt"},
+			Want:     "0a1,2\n> 1\n> 2\n",
+			WantExit: 1,
 		},
 		{
-			name:     "binary files",
-			fsys:     testFS(),
-			args:     []string{"bin1", "bin2"},
-			want:     "Binary files bin1 and bin2 differ\n",
-			wantExit: 1,
+			Name:     "binary files",
+			FS:       testFS(),
+			Args:     []string{"bin1", "bin2"},
+			Want:     "Binary files bin1 and bin2 differ\n",
+			WantExit: 1,
 		},
 		{
-			name: "identical binary files",
-			fsys: testFS(),
-			args: []string{"binsame1", "binsame2"},
+			Name: "identical binary files",
+			FS:   testFS(),
+			Args: []string{"binsame1", "binsame2"},
 		},
 		{
-			name:     "text against binary file",
-			fsys:     testFS(),
-			args:     []string{"a.txt", "bin2"},
-			want:     "Binary files a.txt and bin2 differ\n",
-			wantExit: 1,
+			Name:     "text against binary file",
+			FS:       testFS(),
+			Args:     []string{"a.txt", "bin2"},
+			Want:     "Binary files a.txt and bin2 differ\n",
+			WantExit: 1,
 		},
 		{
-			name:     "the standard input",
-			stdin:    strings.NewReader("1\n2\n4\n"),
-			fsys:     testFS(),
-			args:     []string{"-", "a.txt"},
-			want:     "3c3\n< 4\n---\n> 3\n",
-			wantExit: 1,
+			Name:     "the standard input",
+			Stdin:    strings.NewReader("1\n2\n4\n"),
+			FS:       testFS(),
+			Args:     []string{"-", "a.txt"},
+			Want:     "3c3\n< 4\n---\n> 3\n",
+			WantExit: 1,
 		},
 		{
-			name:     "missing operand",
-			fsys:     testFS(),
-			args:     []string{"a.txt"},
-			wantErr:  "diff: missing operand\nTry 'diff --help' for more information.\n",
-			wantExit: 2,
+			Name:     "missing operand",
+			FS:       testFS(),
+			Args:     []string{"a.txt"},
+			WantErr:  "diff: missing operand\nTry 'diff --help' for more information.\n",
+			WantExit: 2,
 		},
 		{
-			name:     "extra operand",
-			fsys:     testFS(),
-			args:     []string{"a.txt", "b.txt", "c.txt"},
-			wantErr:  "diff: extra operand 'c.txt'\nTry 'diff --help' for more information.\n",
-			wantExit: 2,
+			Name:     "extra operand",
+			FS:       testFS(),
+			Args:     []string{"a.txt", "b.txt", "c.txt"},
+			WantErr:  "diff: extra operand 'c.txt'\nTry 'diff --help' for more information.\n",
+			WantExit: 2,
 		},
 		{
-			name:     "invalid option",
-			fsys:     testFS(),
-			args:     []string{"-j", "a.txt", "b.txt"},
-			wantErr:  "diff: invalid option -- 'j'\nTry 'diff --help' for more information.\n",
-			wantExit: 2,
+			Name:     "invalid option",
+			FS:       testFS(),
+			Args:     []string{"-j", "a.txt", "b.txt"},
+			WantErr:  "diff: invalid option -- 'j'\nTry 'diff --help' for more information.\n",
+			WantExit: 2,
 		},
 		{
-			name:     "missing file",
-			fsys:     testFS(),
-			args:     []string{"a.txt", "nope.txt"},
-			wantErr:  "diff: nope.txt: file does not exist\n",
-			wantExit: 2,
+			Name:     "missing file",
+			FS:       testFS(),
+			Args:     []string{"a.txt", "nope.txt"},
+			WantErr:  "diff: nope.txt: file does not exist\n",
+			WantExit: 2,
 		},
 		{
-			name:     "missing file of a directory operand",
-			fsys:     testFS(),
-			args:     []string{"a.txt", "d1"},
-			wantErr:  "diff: d1/a.txt: file does not exist\n",
-			wantExit: 2,
+			Name:     "missing file of a directory operand",
+			FS:       testFS(),
+			Args:     []string{"a.txt", "d1"},
+			WantErr:  "diff: d1/a.txt: file does not exist\n",
+			WantExit: 2,
 		},
 		{
-			name:     "no file system",
-			args:     []string{"a.txt", "b.txt"},
-			wantErr:  "diff: no file system available\n",
-			wantExit: 2,
+			Name:     "no file system",
+			Args:     []string{"a.txt", "b.txt"},
+			WantErr:  "diff: no file system available\n",
+			WantExit: 2,
 		},
 	}
-	for _, test := range tests {
-		t.Run(test.name, func(t *testing.T) {
-			runCase(t, test)
-		})
-	}
+	testutil.Run(t, New, tests)
 }
 
 func TestRunBlank(t *testing.T) {
-	tests := []testCase{
+	tests := []testutil.Case{
 		{
-			name: "files differing in blank amount only",
-			fsys: testFS(),
-			args: []string{"-b", "blank1.txt", "blank2.txt"},
+			Name: "files differing in blank amount only",
+			FS:   testFS(),
+			Args: []string{"-b", "blank1.txt", "blank2.txt"},
 		},
 		{
-			name:     "missing blanks still differ",
-			fsys:     testFS(),
-			args:     []string{"-b", "blank1.txt", "noblank.txt"},
-			want:     "1c1\n< a b\n---\n> ab\n",
-			wantExit: 1,
+			Name:     "missing blanks still differ",
+			FS:       testFS(),
+			Args:     []string{"-b", "blank1.txt", "noblank.txt"},
+			Want:     "1c1\n< a b\n---\n> ab\n",
+			WantExit: 1,
 		},
 		{
-			name:     "changes computed over blanks",
-			stdin:    strings.NewReader("x \ny\n"),
-			fsys:     testFS(),
-			args:     []string{"-b", "-", "b.txt"},
-			want:     "0a1\n> 1\n2c3\n< y\n---\n> 3\n",
-			wantExit: 1,
+			Name:     "changes computed over blanks",
+			Stdin:    strings.NewReader("x \ny\n"),
+			FS:       testFS(),
+			Args:     []string{"-b", "-", "b.txt"},
+			Want:     "0a1\n> 1\n2c3\n< y\n---\n> 3\n",
+			WantExit: 1,
 		},
 	}
-	for _, test := range tests {
-		t.Run(test.name, func(t *testing.T) {
-			runCase(t, test)
-		})
-	}
+	testutil.Run(t, New, tests)
 }
 
 func TestRunDirectories(t *testing.T) {
-	tests := []testCase{
+	tests := []testutil.Case{
 		{
-			name: "common subdirectories only",
-			fsys: fsx.MemFS{
+			Name: "common subdirectories only",
+			FS: fsx.MemFS{
 				"d1/sub/f": {Data: []byte("q\n")},
 				"d2/sub/f": {Data: []byte("q\n")},
 			},
-			args: []string{"d1", "d2"},
-			want: "Common subdirectories: d1/sub and d2/sub\n",
+			Args: []string{"d1", "d2"},
+			Want: "Common subdirectories: d1/sub and d2/sub\n",
 		},
 		{
-			name: "identical directories",
-			fsys: fsx.MemFS{
+			Name: "identical directories",
+			FS: fsx.MemFS{
 				"d1/x": {Data: []byte("a\n")},
 				"d2/x": {Data: []byte("a\n")},
 			},
-			args: []string{"d1", "d2"},
+			Args: []string{"d1", "d2"},
 		},
 		{
-			name:     "file only in the first directory",
-			fsys:     testFS(),
-			args:     []string{"d1", "d2"},
-			want:     "File d1/mix is a regular file while file d2/mix is a directory\nOnly in d1: only\nCommon subdirectories: d1/sub and d2/sub\ndiff d1/x d2/x\n1c1\n< a\n---\n> b\n",
-			wantExit: 1,
+			Name:     "file only in the first directory",
+			FS:       testFS(),
+			Args:     []string{"d1", "d2"},
+			Want:     "File d1/mix is a regular file while file d2/mix is a directory\nOnly in d1: only\nCommon subdirectories: d1/sub and d2/sub\ndiff d1/x d2/x\n1c1\n< a\n---\n> b\n",
+			WantExit: 1,
 		},
 		{
-			name:     "file operand of a directory",
-			fsys:     testFS(),
-			args:     []string{"d1/x", "d2"},
-			want:     "1c1\n< a\n---\n> b\n",
-			wantExit: 1,
+			Name:     "file operand of a directory",
+			FS:       testFS(),
+			Args:     []string{"d1/x", "d2"},
+			Want:     "1c1\n< a\n---\n> b\n",
+			WantExit: 1,
 		},
 		{
-			name:     "directory operand of a file",
-			fsys:     testFS(),
-			args:     []string{"d2", "d1/x"},
-			want:     "1c1\n< b\n---\n> a\n",
-			wantExit: 1,
+			Name:     "directory operand of a file",
+			FS:       testFS(),
+			Args:     []string{"d2", "d1/x"},
+			Want:     "1c1\n< b\n---\n> a\n",
+			WantExit: 1,
 		},
 		{
-			name:     "options in the header",
-			fsys:     testFS(),
-			args:     []string{"-b", "d1", "d2"},
-			want:     "File d1/mix is a regular file while file d2/mix is a directory\nOnly in d1: only\nCommon subdirectories: d1/sub and d2/sub\ndiff -b d1/x d2/x\n1c1\n< a\n---\n> b\n",
-			wantExit: 1,
+			Name:     "options in the header",
+			FS:       testFS(),
+			Args:     []string{"-b", "d1", "d2"},
+			Want:     "File d1/mix is a regular file while file d2/mix is a directory\nOnly in d1: only\nCommon subdirectories: d1/sub and d2/sub\ndiff -b d1/x d2/x\n1c1\n< a\n---\n> b\n",
+			WantExit: 1,
 		},
 		{
-			name:     "a directory compares identical to itself",
-			fsys:     testFS(),
-			args:     []string{"d1", "d1"},
-			want:     "Common subdirectories: d1/sub and d1/sub\n",
-			wantExit: 0,
+			Name:     "a directory compares identical to itself",
+			FS:       testFS(),
+			Args:     []string{"d1", "d1"},
+			Want:     "Common subdirectories: d1/sub and d1/sub\n",
+			WantExit: 0,
 		},
 	}
-	for _, test := range tests {
-		t.Run(test.name, func(t *testing.T) {
-			runCase(t, test)
-		})
-	}
+	testutil.Run(t, New, tests)
 }
 
 func TestRunWriteError(t *testing.T) {
 	rt := &coreutils.Runtime{
-		Stdout: errorWriter{err: errors.New("write failed")},
+		Stdout: testutil.ErrorWriter{Err: errors.New("write failed")},
 		Stderr: new(bytes.Buffer),
 		FS:     testFS(),
 	}
 	err := New(rt).Run(t.Context(), "a.txt", "b.txt")
-	if code := exitCode(t, err); code != 2 {
+	if code := testutil.ExitCode(t, err); code != 2 {
 		t.Errorf("Run() exit code = %d, want 2", code)
 	}
 	if got := rt.Stderr.(*bytes.Buffer).String(); got != "diff: write error: write failed\n" {
@@ -375,43 +292,15 @@ func TestRunWriteError(t *testing.T) {
 }
 
 func TestRunContext(t *testing.T) {
+	files := fsx.MemFS{"a.txt": {Data: []byte("hello\n")}}
+
 	t.Run("cancelled before running", func(t *testing.T) {
-		ctx, cancel := context.WithCancel(t.Context())
-		cancel()
-		runCancelled(t, ctx, strings.NewReader("hello\n"))
+		testutil.Cancelled(t, New, strings.NewReader("hello\n"), files, "-", "a.txt")
 	})
 
 	t.Run("cancelled while reading the standard input", func(t *testing.T) {
-		ctx, cancel := context.WithCancel(t.Context())
-		runCancelled(t, ctx, &cancelReader{cancel: cancel})
+		testutil.Cancelled(t, New, &testutil.CancelReader{}, files, "-", "a.txt")
 	})
-}
-
-// runCancelled runs the utility with a context that is either already done
-// or becomes done while reading, and checks that the context error is
-// returned without any output.
-func runCancelled(t *testing.T, ctx context.Context, stdin io.Reader) {
-	t.Helper()
-
-	stdout := new(bytes.Buffer)
-	stderr := new(bytes.Buffer)
-	rt := &coreutils.Runtime{
-		Stdin:  stdin,
-		Stdout: stdout,
-		Stderr: stderr,
-		FS:     fsx.MemFS{"a.txt": {Data: []byte("hello\n")}},
-	}
-	err := New(rt).Run(ctx, "-", "a.txt")
-
-	if !errors.Is(err, context.Canceled) {
-		t.Fatalf("Run() error = %v, want context.Canceled", err)
-	}
-	if got := stdout.String(); got != "" {
-		t.Errorf("Run() stdout = %q, want empty", got)
-	}
-	if got := stderr.String(); got != "" {
-		t.Errorf("Run() stderr = %q, want empty", got)
-	}
 }
 
 // stamp is the fixed modification time of the fixtures of the format tests.
@@ -431,131 +320,127 @@ func formatFS() fsx.MemFS {
 }
 
 func TestRunFormats(t *testing.T) {
-	tests := []testCase{
+	tests := []testutil.Case{
 		{
-			name: "context format",
-			fsys: formatFS(),
-			args: []string{"-c", "m1.txt", "m2.txt"},
-			want: "*** m1.txt\tFri Jan  2 03:04:05 2026\n--- m2.txt\tFri Jan  2 03:04:05 2026\n" +
+			Name: "context format",
+			FS:   formatFS(),
+			Args: []string{"-c", "m1.txt", "m2.txt"},
+			Want: "*** m1.txt\tFri Jan  2 03:04:05 2026\n--- m2.txt\tFri Jan  2 03:04:05 2026\n" +
 				"***************\n*** 1,3 ****\n  1\n! 2\n  3\n--- 1,3 ----\n  1\n! x\n  3\n",
-			wantExit: 1,
+			WantExit: 1,
 		},
 		{
-			name: "context format with a count",
-			fsys: formatFS(),
-			args: []string{"-C", "1", "m3.txt", "m4.txt"},
-			want: "*** m3.txt\tFri Jan  2 03:04:05 2026\n--- m4.txt\tFri Jan  2 03:04:05 2026\n" +
+			Name: "context format with a count",
+			FS:   formatFS(),
+			Args: []string{"-C", "1", "m3.txt", "m4.txt"},
+			Want: "*** m3.txt\tFri Jan  2 03:04:05 2026\n--- m4.txt\tFri Jan  2 03:04:05 2026\n" +
 				"***************\n*** 1,3 ****\n  1\n! 2\n  3\n--- 1,3 ----\n  1\n! X\n  3\n",
-			wantExit: 1,
+			WantExit: 1,
 		},
 		{
-			name: "context format with an attached count",
-			fsys: formatFS(),
-			args: []string{"-C2", "m3.txt", "m4.txt"},
-			want: "*** m3.txt\tFri Jan  2 03:04:05 2026\n--- m4.txt\tFri Jan  2 03:04:05 2026\n" +
+			Name: "context format with an attached count",
+			FS:   formatFS(),
+			Args: []string{"-C2", "m3.txt", "m4.txt"},
+			Want: "*** m3.txt\tFri Jan  2 03:04:05 2026\n--- m4.txt\tFri Jan  2 03:04:05 2026\n" +
 				"***************\n*** 1,4 ****\n  1\n! 2\n  3\n  4\n--- 1,4 ----\n  1\n! X\n  3\n  4\n",
-			wantExit: 1,
+			WantExit: 1,
 		},
 		{
-			name: "unified format",
-			fsys: formatFS(),
-			args: []string{"-u", "m1.txt", "m2.txt"},
-			want: "--- m1.txt\t2026-01-02 03:04:05 +0000\n+++ m2.txt\t2026-01-02 03:04:05 +0000\n" +
+			Name: "unified format",
+			FS:   formatFS(),
+			Args: []string{"-u", "m1.txt", "m2.txt"},
+			Want: "--- m1.txt\t2026-01-02 03:04:05 +0000\n+++ m2.txt\t2026-01-02 03:04:05 +0000\n" +
 				"@@ -1,3 +1,3 @@\n 1\n-2\n+x\n 3\n",
-			wantExit: 1,
+			WantExit: 1,
 		},
 		{
-			name: "unified format with a count",
-			fsys: formatFS(),
-			args: []string{"-U", "1", "m3.txt", "m4.txt"},
-			want: "--- m3.txt\t2026-01-02 03:04:05 +0000\n+++ m4.txt\t2026-01-02 03:04:05 +0000\n" +
+			Name: "unified format with a count",
+			FS:   formatFS(),
+			Args: []string{"-U", "1", "m3.txt", "m4.txt"},
+			Want: "--- m3.txt\t2026-01-02 03:04:05 +0000\n+++ m4.txt\t2026-01-02 03:04:05 +0000\n" +
 				"@@ -1,3 +1,3 @@\n 1\n-2\n+X\n 3\n",
-			wantExit: 1,
+			WantExit: 1,
 		},
 		{
-			name: "unified format without context",
-			fsys: formatFS(),
-			args: []string{"-U0", "m3.txt", "m4.txt"},
-			want: "--- m3.txt\t2026-01-02 03:04:05 +0000\n+++ m4.txt\t2026-01-02 03:04:05 +0000\n" +
+			Name: "unified format without context",
+			FS:   formatFS(),
+			Args: []string{"-U0", "m3.txt", "m4.txt"},
+			Want: "--- m3.txt\t2026-01-02 03:04:05 +0000\n+++ m4.txt\t2026-01-02 03:04:05 +0000\n" +
 				"@@ -2 +2 @@\n-2\n+X\n",
-			wantExit: 1,
+			WantExit: 1,
 		},
 		{
-			name:     "ed format",
-			fsys:     formatFS(),
-			args:     []string{"-e", "m1.txt", "m2.txt"},
-			want:     "2c\nx\n.\n",
-			wantExit: 1,
+			Name:     "ed format",
+			FS:       formatFS(),
+			Args:     []string{"-e", "m1.txt", "m2.txt"},
+			Want:     "2c\nx\n.\n",
+			WantExit: 1,
 		},
 		{
-			name:     "forward ed format",
-			fsys:     formatFS(),
-			args:     []string{"-f", "m1.txt", "m2.txt"},
-			want:     "c2\nx\n.\n",
-			wantExit: 1,
+			Name:     "forward ed format",
+			FS:       formatFS(),
+			Args:     []string{"-f", "m1.txt", "m2.txt"},
+			Want:     "c2\nx\n.\n",
+			WantExit: 1,
 		},
 		{
-			name: "identical files in the unified format",
-			fsys: formatFS(),
-			args: []string{"-u", "m1.txt", "m1.txt"},
+			Name: "identical files in the unified format",
+			FS:   formatFS(),
+			Args: []string{"-u", "m1.txt", "m1.txt"},
 		},
 		{
-			name:     "binary files in the unified format",
-			fsys:     testFS(),
-			args:     []string{"-u", "bin1", "bin2"},
-			want:     "Binary files bin1 and bin2 differ\n",
-			wantExit: 1,
+			Name:     "binary files in the unified format",
+			FS:       testFS(),
+			Args:     []string{"-u", "bin1", "bin2"},
+			Want:     "Binary files bin1 and bin2 differ\n",
+			WantExit: 1,
 		},
 		{
-			name: "context lines keep the first file contents with -b",
-			fsys: fsx.MemFS{"w1": {Data: []byte("1\n2 \n3\n"), ModTime: stamp}, "w2": {Data: []byte("1\n2\n4\n"), ModTime: stamp}},
-			args: []string{"-b", "-c", "w1", "w2"},
-			want: "*** w1\tFri Jan  2 03:04:05 2026\n--- w2\tFri Jan  2 03:04:05 2026\n" +
+			Name: "context lines keep the first file contents with -b",
+			FS:   fsx.MemFS{"w1": {Data: []byte("1\n2 \n3\n"), ModTime: stamp}, "w2": {Data: []byte("1\n2\n4\n"), ModTime: stamp}},
+			Args: []string{"-b", "-c", "w1", "w2"},
+			Want: "*** w1\tFri Jan  2 03:04:05 2026\n--- w2\tFri Jan  2 03:04:05 2026\n" +
 				"***************\n*** 1,3 ****\n  1\n  2 \n! 3\n--- 1,3 ----\n  1\n  2\n! 4\n",
-			wantExit: 1,
+			WantExit: 1,
 		},
 		{
-			name:     "conflicting output styles",
-			fsys:     formatFS(),
-			args:     []string{"-c", "-u", "m1.txt", "m2.txt"},
-			wantErr:  "diff: conflicting output style options\nTry 'diff --help' for more information.\n",
-			wantExit: 2,
+			Name:     "conflicting output styles",
+			FS:       formatFS(),
+			Args:     []string{"-c", "-u", "m1.txt", "m2.txt"},
+			WantErr:  "diff: conflicting output style options\nTry 'diff --help' for more information.\n",
+			WantExit: 2,
 		},
 		{
-			name: "same output styles combine",
-			fsys: formatFS(),
-			args: []string{"-c", "-C", "1", "m3.txt", "m4.txt"},
-			want: "*** m3.txt\tFri Jan  2 03:04:05 2026\n--- m4.txt\tFri Jan  2 03:04:05 2026\n" +
+			Name: "same output styles combine",
+			FS:   formatFS(),
+			Args: []string{"-c", "-C", "1", "m3.txt", "m4.txt"},
+			Want: "*** m3.txt\tFri Jan  2 03:04:05 2026\n--- m4.txt\tFri Jan  2 03:04:05 2026\n" +
 				"***************\n*** 1,3 ****\n  1\n! 2\n  3\n--- 1,3 ----\n  1\n! X\n  3\n",
-			wantExit: 1,
+			WantExit: 1,
 		},
 		{
-			name:     "invalid context count",
-			fsys:     formatFS(),
-			args:     []string{"-C", "0", "m1.txt", "m2.txt"},
-			wantErr:  "diff: invalid context length '0'\nTry 'diff --help' for more information.\n",
-			wantExit: 2,
+			Name:     "invalid context count",
+			FS:       formatFS(),
+			Args:     []string{"-C", "0", "m1.txt", "m2.txt"},
+			WantErr:  "diff: invalid context length '0'\nTry 'diff --help' for more information.\n",
+			WantExit: 2,
 		},
 		{
-			name:     "invalid context count argument",
-			fsys:     formatFS(),
-			args:     []string{"-C", "x", "m1.txt", "m2.txt"},
-			wantErr:  "diff: invalid context length 'x'\nTry 'diff --help' for more information.\n",
-			wantExit: 2,
+			Name:     "invalid context count argument",
+			FS:       formatFS(),
+			Args:     []string{"-C", "x", "m1.txt", "m2.txt"},
+			WantErr:  "diff: invalid context length 'x'\nTry 'diff --help' for more information.\n",
+			WantExit: 2,
 		},
 		{
-			name:     "negative unified context count",
-			fsys:     formatFS(),
-			args:     []string{"-U", "-1", "m1.txt", "m2.txt"},
-			wantErr:  "diff: invalid context length '-1'\nTry 'diff --help' for more information.\n",
-			wantExit: 2,
+			Name:     "negative unified context count",
+			FS:       formatFS(),
+			Args:     []string{"-U", "-1", "m1.txt", "m2.txt"},
+			WantErr:  "diff: invalid context length '-1'\nTry 'diff --help' for more information.\n",
+			WantExit: 2,
 		},
 	}
-	for _, test := range tests {
-		t.Run(test.name, func(t *testing.T) {
-			runCase(t, test)
-		})
-	}
+	testutil.Run(t, New, tests)
 }
 
 func TestRunFormatsStandardInput(t *testing.T) {
@@ -569,7 +454,7 @@ func TestRunFormatsStandardInput(t *testing.T) {
 		FS:     formatFS(),
 	}
 	err := New(rt).Run(t.Context(), "-u", "-", "m1.txt")
-	if code := exitCode(t, err); code != 1 {
+	if code := testutil.ExitCode(t, err); code != 1 {
 		t.Fatalf("Run() exit code = %d, want 1", code)
 	}
 	got := stdout.String()
@@ -583,79 +468,59 @@ func TestRunFormatsStandardInput(t *testing.T) {
 }
 
 func TestRunRecursive(t *testing.T) {
-	tests := []testCase{
+	tests := []testutil.Case{
 		{
-			name: "directories compared recursively",
-			fsys: testFS(),
-			args: []string{"-r", "d1", "d2"},
-			want: "File d1/mix is a regular file while file d2/mix is a directory\nOnly in d1: only\n" +
+			Name: "directories compared recursively",
+			FS:   testFS(),
+			Args: []string{"-r", "d1", "d2"},
+			Want: "File d1/mix is a regular file while file d2/mix is a directory\nOnly in d1: only\n" +
 				"diff -r d1/sub/f d2/sub/f\n1c1\n< q\n---\n> w\n" +
 				"diff -r d1/x d2/x\n1c1\n< a\n---\n> b\n",
-			wantExit: 1,
+			WantExit: 1,
 		},
 		{
-			name: "deeply nested files",
-			fsys: fsx.MemFS{
+			Name: "deeply nested files",
+			FS: fsx.MemFS{
 				"d3/a/b/c.txt": {Data: []byte("1\n")},
 				"d4/a/b/c.txt": {Data: []byte("2\n")},
 			},
-			args:     []string{"-r", "d3", "d4"},
-			want:     "diff -r d3/a/b/c.txt d4/a/b/c.txt\n1c1\n< 1\n---\n> 2\n",
-			wantExit: 1,
+			Args:     []string{"-r", "d3", "d4"},
+			Want:     "diff -r d3/a/b/c.txt d4/a/b/c.txt\n1c1\n< 1\n---\n> 2\n",
+			WantExit: 1,
 		},
 		{
-			name: "recursion options in the header",
-			fsys: fsx.MemFS{
+			Name: "recursion options in the header",
+			FS: fsx.MemFS{
 				"d3/a/b/c.txt": {Data: []byte("1\n2\n3\n4\n5\n"), ModTime: stamp},
 				"d4/a/b/c.txt": {Data: []byte("1\nX\n3\n4\n5\n"), ModTime: stamp},
 			},
-			args: []string{"-r", "-C", "2", "d3", "d4"},
-			want: "diff -r -C 2 d3/a/b/c.txt d4/a/b/c.txt\n" +
+			Args: []string{"-r", "-C", "2", "d3", "d4"},
+			Want: "diff -r -C 2 d3/a/b/c.txt d4/a/b/c.txt\n" +
 				"*** d3/a/b/c.txt\tFri Jan  2 03:04:05 2026\n--- d4/a/b/c.txt\tFri Jan  2 03:04:05 2026\n" +
 				"***************\n*** 1,4 ****\n  1\n! 2\n  3\n  4\n--- 1,4 ----\n  1\n! X\n  3\n  4\n",
-			wantExit: 1,
+			WantExit: 1,
 		},
 		{
-			name:     "ed format keeps the header under directories",
-			fsys:     testFS(),
-			args:     []string{"-r", "-e", "d1", "d2"},
-			want:     "File d1/mix is a regular file while file d2/mix is a directory\nOnly in d1: only\ndiff -r -e d1/sub/f d2/sub/f\n1c\nw\n.\ndiff -r -e d1/x d2/x\n1c\nb\n.\n",
-			wantExit: 1,
+			Name:     "ed format keeps the header under directories",
+			FS:       testFS(),
+			Args:     []string{"-r", "-e", "d1", "d2"},
+			Want:     "File d1/mix is a regular file while file d2/mix is a directory\nOnly in d1: only\ndiff -r -e d1/sub/f d2/sub/f\n1c\nw\n.\ndiff -r -e d1/x d2/x\n1c\nb\n.\n",
+			WantExit: 1,
 		},
 		{
-			name: "identical directories compare equal recursively",
-			fsys: fsx.MemFS{
+			Name: "identical directories compare equal recursively",
+			FS: fsx.MemFS{
 				"d1/x":   {Data: []byte("a\n")},
 				"d2/x":   {Data: []byte("a\n")},
 				"d1/s/y": {Data: []byte("b\n")},
 				"d2/s/y": {Data: []byte("b\n")},
 			},
-			args: []string{"-r", "d1", "d2"},
+			Args: []string{"-r", "d1", "d2"},
 		},
 	}
-	for _, test := range tests {
-		t.Run(test.name, func(t *testing.T) {
-			runCase(t, test)
-		})
-	}
+	testutil.Run(t, New, tests)
 }
 
 func TestHelpVersion(t *testing.T) {
-	tests := []struct {
-		name string
-		args []string
-		want string
-	}{
-		{"help", []string{"--help"}, usage},
-		{
-			"version",
-			[]string{"--version"},
-			"diff (charm.land/snail/coreutils) " + coreutils.Version + "\nhttps://charm.land/snail\n",
-		},
-	}
-	for _, test := range tests {
-		t.Run(test.name, func(t *testing.T) {
-			runCase(t, testCase{name: test.name, args: test.args, want: test.want})
-		})
-	}
+	testutil.HelpVersion(t, New, "diff", usage)
 }
