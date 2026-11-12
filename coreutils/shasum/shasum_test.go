@@ -2,12 +2,11 @@ package shasum
 
 import (
 	"bytes"
-	"errors"
-	"io"
 	"strings"
 	"testing"
 
 	"charm.land/snail/coreutils"
+	"charm.land/snail/coreutils/internal/testutil"
 	"charm.land/snail/fsx"
 )
 
@@ -42,97 +41,52 @@ func testFS() fsx.MemFS {
 	}
 }
 
-type testCase struct {
-	name     string
-	stdin    io.Reader
-	fsys     fsx.FS
-	args     []string
-	want     string
-	wantErr  string
-	wantExit int
-}
-
-func runCase(t *testing.T, test testCase) {
-	t.Helper()
-
-	stdout, stderr := new(bytes.Buffer), new(bytes.Buffer)
-	rt := &coreutils.Runtime{
-		Stdin:  test.stdin,
-		Stdout: stdout,
-		Stderr: stderr,
-		FS:     test.fsys,
-	}
-	err := New(rt).Run(t.Context(), test.args...)
-
-	code := 0
-	if err != nil {
-		var exitErr *coreutils.ExitError
-		if !errors.As(err, &exitErr) {
-			t.Fatalf("Run() error = %v, want *coreutils.ExitError", err)
-		}
-		code = exitErr.Code
-	}
-	if code != test.wantExit {
-		t.Errorf("Run() exit code = %d, want %d (error = %v)", code, test.wantExit, err)
-	}
-	if got := stdout.String(); got != test.want {
-		t.Errorf("Run() stdout = %q, want %q", got, test.want)
-	}
-	if got := stderr.String(); got != test.wantErr {
-		t.Errorf("Run() stderr = %q, want %q", got, test.wantErr)
-	}
-}
-
 func TestRun(t *testing.T) {
-	tests := []testCase{
+	tests := []testutil.Case{
 		{
-			name: "the digest of a file",
-			fsys: testFS(),
-			args: []string{"hello.txt"},
-			want: helloSHA1 + "  hello.txt\n",
+			Name: "the digest of a file",
+			FS:   testFS(),
+			Args: []string{"hello.txt"},
+			Want: helloSHA1 + "  hello.txt\n",
 		},
 		{
-			name:  "the digest of the standard input",
-			stdin: strings.NewReader("hello\n"),
-			want:  helloSHA1 + "  -\n",
+			Name:  "the digest of the standard input",
+			Stdin: strings.NewReader("hello\n"),
+			Want:  helloSHA1 + "  -\n",
 		},
 		{
-			name: "an algorithm attached to its option",
-			fsys: testFS(),
-			args: []string{"-a256", "hello.txt"},
-			want: helloSHA256 + "  hello.txt\n",
+			Name: "an algorithm attached to its option",
+			FS:   testFS(),
+			Args: []string{"-a256", "hello.txt"},
+			Want: helloSHA256 + "  hello.txt\n",
 		},
 		{
-			name: "a long algorithm option with an attached value",
-			fsys: testFS(),
-			args: []string{"--algorithm=256", "hello.txt"},
-			want: helloSHA256 + "  hello.txt\n",
+			Name: "a long algorithm option with an attached value",
+			FS:   testFS(),
+			Args: []string{"--algorithm=256", "hello.txt"},
+			Want: helloSHA256 + "  hello.txt\n",
 		},
 		{
-			name: "a long algorithm option with the value in the next argument",
-			fsys: testFS(),
-			args: []string{"--algorithm", "256", "hello.txt"},
-			want: helloSHA256 + "  hello.txt\n",
+			Name: "a long algorithm option with the value in the next argument",
+			FS:   testFS(),
+			Args: []string{"--algorithm", "256", "hello.txt"},
+			Want: helloSHA256 + "  hello.txt\n",
 		},
 		{
-			name: "binary mode",
-			fsys: testFS(),
-			args: []string{"-b", "hello.txt"},
-			want: helloSHA1 + " *hello.txt\n",
+			Name: "binary mode",
+			FS:   testFS(),
+			Args: []string{"-b", "hello.txt"},
+			Want: helloSHA1 + " *hello.txt\n",
 		},
 		{
-			name: "a BSD style line",
-			fsys: testFS(),
-			args: []string{"--tag", "hello.txt"},
-			want: "SHA1 (hello.txt) = " + helloSHA1 + "\n",
+			Name: "a BSD style line",
+			FS:   testFS(),
+			Args: []string{"--tag", "hello.txt"},
+			Want: "SHA1 (hello.txt) = " + helloSHA1 + "\n",
 		},
 	}
 
-	for _, test := range tests {
-		t.Run(test.name, func(t *testing.T) {
-			runCase(t, test)
-		})
-	}
+	testutil.Run(t, New, tests)
 }
 
 func TestRunAlgorithms(t *testing.T) {
@@ -149,10 +103,10 @@ func TestRunAlgorithms(t *testing.T) {
 		{"512256", helloSHA512256},
 	} {
 		t.Run("the "+test.algorithm+" algorithm", func(t *testing.T) {
-			runCase(t, testCase{
-				fsys: testFS(),
-				args: []string{"-a", test.algorithm, "hello.txt"},
-				want: test.digest + "  hello.txt\n",
+			testutil.Once(t, New, testutil.Case{
+				FS:   testFS(),
+				Args: []string{"-a", test.algorithm, "hello.txt"},
+				Want: test.digest + "  hello.txt\n",
 			})
 		})
 	}
@@ -171,92 +125,88 @@ func TestRunAlgorithms(t *testing.T) {
 		{"512256", "SHA512/256", helloSHA512256},
 	} {
 		t.Run("the "+test.algorithm+" algorithm with --tag", func(t *testing.T) {
-			runCase(t, testCase{
-				fsys: testFS(),
-				args: []string{"-a", test.algorithm, "--tag", "hello.txt"},
-				want: test.tag + " (hello.txt) = " + test.digest + "\n",
+			testutil.Once(t, New, testutil.Case{
+				FS:   testFS(),
+				Args: []string{"-a", test.algorithm, "--tag", "hello.txt"},
+				Want: test.tag + " (hello.txt) = " + test.digest + "\n",
 			})
 		})
 	}
 }
 
 func TestRunInvalid(t *testing.T) {
-	tests := []testCase{
+	tests := []testutil.Case{
 		{
-			name:     "the short help option",
-			args:     []string{"-h"},
-			wantErr:  "shasum: invalid option -- 'h'\nTry 'shasum --help' for more information.\n",
-			wantExit: 1,
+			Name:     "the short help option",
+			Args:     []string{"-h"},
+			WantErr:  "shasum: invalid option -- 'h'\nTry 'shasum --help' for more information.\n",
+			WantExit: 1,
 		},
 		{
-			name:     "the short version option",
-			args:     []string{"-v"},
-			wantErr:  "shasum: invalid option -- 'v'\nTry 'shasum --help' for more information.\n",
-			wantExit: 1,
+			Name:     "the short version option",
+			Args:     []string{"-v"},
+			WantErr:  "shasum: invalid option -- 'v'\nTry 'shasum --help' for more information.\n",
+			WantExit: 1,
 		},
 		{
-			name:     "an unrecognized algorithm",
-			fsys:     testFS(),
-			args:     []string{"-a", "3", "hello.txt"},
-			wantErr:  "shasum: unrecognized algorithm '3'\nTry 'shasum --help' for more information.\n",
-			wantExit: 1,
+			Name:     "an unrecognized algorithm",
+			FS:       testFS(),
+			Args:     []string{"-a", "3", "hello.txt"},
+			WantErr:  "shasum: unrecognized algorithm '3'\nTry 'shasum --help' for more information.\n",
+			WantExit: 1,
 		},
 		{
-			name:     "an option the GNU utilities take",
-			fsys:     testFS(),
-			args:     []string{"--zero", "hello.txt"},
-			wantErr:  "shasum: unrecognized option '--zero'\nTry 'shasum --help' for more information.\n",
-			wantExit: 1,
+			Name:     "an option the GNU utilities take",
+			FS:       testFS(),
+			Args:     []string{"--zero", "hello.txt"},
+			WantErr:  "shasum: unrecognized option '--zero'\nTry 'shasum --help' for more information.\n",
+			WantExit: 1,
 		},
 		{
-			name:     "an option of the Perl script which isn't supported",
-			fsys:     testFS(),
-			args:     []string{"-0", "hello.txt"},
-			wantErr:  "shasum: invalid option -- '0'\nTry 'shasum --help' for more information.\n",
-			wantExit: 1,
+			Name:     "an option of the Perl script which isn't supported",
+			FS:       testFS(),
+			Args:     []string{"-0", "hello.txt"},
+			WantErr:  "shasum: invalid option -- '0'\nTry 'shasum --help' for more information.\n",
+			WantExit: 1,
 		},
 		{
-			name:     "an algorithm without its value",
-			fsys:     testFS(),
-			args:     []string{"-a"},
-			wantErr:  "shasum: option requires an argument -- 'a'\nTry 'shasum --help' for more information.\n",
-			wantExit: 1,
+			Name:     "an algorithm without its value",
+			FS:       testFS(),
+			Args:     []string{"-a"},
+			WantErr:  "shasum: option requires an argument -- 'a'\nTry 'shasum --help' for more information.\n",
+			WantExit: 1,
 		},
 		{
-			name:     "both file modes",
-			fsys:     testFS(),
-			args:     []string{"-bt", "hello.txt"},
-			wantErr:  "shasum: Ambiguous file mode\nTry 'shasum --help' for more information.\n",
-			wantExit: 1,
+			Name:     "both file modes",
+			FS:       testFS(),
+			Args:     []string{"-bt", "hello.txt"},
+			WantErr:  "shasum: Ambiguous file mode\nTry 'shasum --help' for more information.\n",
+			WantExit: 1,
 		},
 		{
-			name:     "warn without verifying",
-			fsys:     testFS(),
-			args:     []string{"-w", "hello.txt"},
-			wantErr:  "shasum: --warn option used only when verifying checksums\nTry 'shasum --help' for more information.\n",
-			wantExit: 1,
+			Name:     "warn without verifying",
+			FS:       testFS(),
+			Args:     []string{"-w", "hello.txt"},
+			WantErr:  "shasum: --warn option used only when verifying checksums\nTry 'shasum --help' for more information.\n",
+			WantExit: 1,
 		},
 		{
-			name:     "the tag option with the text mode",
-			fsys:     testFS(),
-			args:     []string{"--tag", "-t", "hello.txt"},
-			wantErr:  "shasum: --tag does not support --text mode\nTry 'shasum --help' for more information.\n",
-			wantExit: 1,
+			Name:     "the tag option with the text mode",
+			FS:       testFS(),
+			Args:     []string{"--tag", "-t", "hello.txt"},
+			WantErr:  "shasum: --tag does not support --text mode\nTry 'shasum --help' for more information.\n",
+			WantExit: 1,
 		},
 		{
-			name:     "a file which isn't there",
-			fsys:     testFS(),
-			args:     []string{"missing.txt"},
-			wantErr:  "shasum: missing.txt: file does not exist\n",
-			wantExit: 1,
+			Name:     "a file which isn't there",
+			FS:       testFS(),
+			Args:     []string{"missing.txt"},
+			WantErr:  "shasum: missing.txt: file does not exist\n",
+			WantExit: 1,
 		},
 	}
 
-	for _, test := range tests {
-		t.Run(test.name, func(t *testing.T) {
-			runCase(t, test)
-		})
-	}
+	testutil.Run(t, New, tests)
 }
 
 func TestHelpVersion(t *testing.T) {
@@ -319,63 +269,59 @@ func TestHelpVersion(t *testing.T) {
 }
 
 func TestRunCheck(t *testing.T) {
-	tests := []testCase{
+	tests := []testutil.Case{
 		{
-			name: "verifying a checksum",
-			fsys: testFS(),
-			args: []string{"-c", "sums.txt"},
-			want: "hello.txt: OK\n",
+			Name: "verifying a checksum",
+			FS:   testFS(),
+			Args: []string{"-c", "sums.txt"},
+			Want: "hello.txt: OK\n",
 		},
 		{
-			name: "verifying with another algorithm",
-			fsys: testFS(),
-			args: []string{"-a", "256", "-c", "sha256.txt"},
-			want: "hello.txt: OK\n",
+			Name: "verifying with another algorithm",
+			FS:   testFS(),
+			Args: []string{"-a", "256", "-c", "sha256.txt"},
+			Want: "hello.txt: OK\n",
 		},
 		{
-			name: "verifying a BSD style line",
-			fsys: testFS(),
-			args: []string{"-a", "256", "-c", "bsd256.txt"},
-			want: "hello.txt: OK\n",
+			Name: "verifying a BSD style line",
+			FS:   testFS(),
+			Args: []string{"-a", "256", "-c", "bsd256.txt"},
+			Want: "hello.txt: OK\n",
 		},
 		{
-			name:     "a checksum which doesn't match",
-			fsys:     testFS(),
-			args:     []string{"-c", "bad.txt"},
-			want:     "hello.txt: FAILED\n",
-			wantErr:  "shasum: WARNING: 1 computed checksum did NOT match\n",
-			wantExit: 1,
+			Name:     "a checksum which doesn't match",
+			FS:       testFS(),
+			Args:     []string{"-c", "bad.txt"},
+			Want:     "hello.txt: FAILED\n",
+			WantErr:  "shasum: WARNING: 1 computed checksum did NOT match\n",
+			WantExit: 1,
 		},
 		{
-			name:     "the algorithm the checksum lines don't hold",
-			fsys:     testFS(),
-			args:     []string{"-c", "sha256.txt"},
-			wantErr:  "shasum: sha256.txt: no properly formatted checksum lines found\n",
-			wantExit: 1,
+			Name:     "the algorithm the checksum lines don't hold",
+			FS:       testFS(),
+			Args:     []string{"-c", "sha256.txt"},
+			WantErr:  "shasum: sha256.txt: no properly formatted checksum lines found\n",
+			WantExit: 1,
 		},
 		{
-			name: "the quiet option hides the OK lines",
-			fsys: testFS(),
-			args: []string{"-q", "-c", "sums.txt"},
+			Name: "the quiet option hides the OK lines",
+			FS:   testFS(),
+			Args: []string{"-q", "-c", "sums.txt"},
 		},
 		{
-			name:     "the status option holds everything back",
-			fsys:     testFS(),
-			args:     []string{"-s", "-c", "bad.txt"},
-			wantExit: 1,
+			Name:     "the status option holds everything back",
+			FS:       testFS(),
+			Args:     []string{"-s", "-c", "bad.txt"},
+			WantExit: 1,
 		},
 		{
-			name:     "a checksum file which isn't there",
-			fsys:     testFS(),
-			args:     []string{"-c", "missing.txt"},
-			wantErr:  "shasum: missing.txt: file does not exist\n",
-			wantExit: 1,
+			Name:     "a checksum file which isn't there",
+			FS:       testFS(),
+			Args:     []string{"-c", "missing.txt"},
+			WantErr:  "shasum: missing.txt: file does not exist\n",
+			WantExit: 1,
 		},
 	}
 
-	for _, test := range tests {
-		t.Run(test.name, func(t *testing.T) {
-			runCase(t, test)
-		})
-	}
+	testutil.Run(t, New, tests)
 }

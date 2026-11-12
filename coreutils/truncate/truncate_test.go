@@ -10,48 +10,38 @@ import (
 	"testing"
 
 	"charm.land/snail/coreutils"
+	"charm.land/snail/coreutils/internal/testutil"
 	"charm.land/snail/fsx"
 )
 
 type testCase struct {
-	name     string
-	fsys     fsx.FS
-	args     []string
+	Name     string
+	FS       fsx.FS
+	Args     []string
+	WantErr  string
+	WantExit int
 	want     map[string]string
-	wantErr  string
-	wantExit int
 }
 
-// runCase runs a single test case, checking the exit status, the
-// diagnostics and the resulting files.
+// runCase runs a single test case like testutil.Once, with an empty file
+// system when the case sets none, checking the resulting files like the
+// table asks.
 func runCase(t *testing.T, test testCase) {
 	t.Helper()
 
-	fsys := test.fsys
-	if fsys == nil {
-		fsys = fsx.MemFS{}
+	if test.FS == nil {
+		test.FS = fsx.MemFS{}
 	}
-	stderr := new(bytes.Buffer)
-	rt := &coreutils.Runtime{
-		Stdout: new(bytes.Buffer),
-		Stderr: stderr,
-		FS:     fsys,
-	}
-	err := New(rt).Run(t.Context(), test.args...)
-
-	code := 0
-	if exitErr, ok := errors.AsType[*coreutils.ExitError](err); ok {
-		code = exitErr.Code
-	} else if err != nil {
-		t.Fatalf("Run() error = %v", err)
-	}
-	if code != test.wantExit {
-		t.Errorf("Run() exit code = %d, want %d (error = %v)", code, test.wantExit, err)
-	}
-	if got := stderr.String(); got != test.wantErr {
-		t.Errorf("Run() stderr = %q, want %q", got, test.wantErr)
-	}
-	checkFiles(t, fsys, test.want)
+	testutil.Once(t, New, testutil.Case{
+		Name:     test.Name,
+		FS:       test.FS,
+		Args:     test.Args,
+		WantErr:  test.WantErr,
+		WantExit: test.WantExit,
+		Check: func(t *testing.T, rt *coreutils.Runtime) {
+			checkFiles(t, rt.FS, test.want)
+		},
+	})
 }
 
 // checkFiles checks that the file system holds exactly the wanted files,
@@ -99,8 +89,8 @@ func memOf(fsys fsx.FS) fsx.MemFS {
 		return f
 	case nonSeekableFS:
 		return f.MemFS
-	case failWriteFS:
-		return f.MemFS
+	case testutil.FailWriteFS:
+		return memOf(f.FS)
 	}
 	return nil
 }
@@ -115,466 +105,466 @@ func TestRun(t *testing.T) {
 	tests := []testCase{
 		// Absolute sizes.
 		{
-			name:     "an absolute size shrinks a file",
-			fsys:     file("f", "hello world"),
-			args:     []string{"-s", "5", "f"},
+			Name:     "an absolute size shrinks a file",
+			FS:       file("f", "hello world"),
+			Args:     []string{"-s", "5", "f"},
 			want:     map[string]string{"f": "hello"},
-			wantExit: 0,
+			WantExit: 0,
 		},
 		{
-			name:     "an absolute size grows a file",
-			fsys:     file("f", "abc"),
-			args:     []string{"-s", "5", "f"},
+			Name:     "an absolute size grows a file",
+			FS:       file("f", "abc"),
+			Args:     []string{"-s", "5", "f"},
 			want:     map[string]string{"f": "abc\x00\x00"},
-			wantExit: 0,
+			WantExit: 0,
 		},
 		{
-			name:     "an absolute size of zero empties a file",
-			fsys:     file("f", "hello"),
-			args:     []string{"-s", "0", "f"},
+			Name:     "an absolute size of zero empties a file",
+			FS:       file("f", "hello"),
+			Args:     []string{"-s", "0", "f"},
 			want:     map[string]string{"f": ""},
-			wantExit: 0,
+			WantExit: 0,
 		},
 		{
-			name:     "an absolute size keeps a file of the same size",
-			fsys:     file("f", "hello"),
-			args:     []string{"-s", "5", "f"},
+			Name:     "an absolute size keeps a file of the same size",
+			FS:       file("f", "hello"),
+			Args:     []string{"-s", "5", "f"},
 			want:     map[string]string{"f": "hello"},
-			wantExit: 0,
+			WantExit: 0,
 		},
 		{
-			name:     "an absolute size of a missing file creates it",
-			args:     []string{"-s", "3", "f"},
+			Name:     "an absolute size of a missing file creates it",
+			Args:     []string{"-s", "3", "f"},
 			want:     map[string]string{"f": "\x00\x00\x00"},
-			wantExit: 0,
+			WantExit: 0,
 		},
 		{
-			name:     "an absolute size of zero creates an empty file",
-			args:     []string{"-s", "0", "f"},
+			Name:     "an absolute size of zero creates an empty file",
+			Args:     []string{"-s", "0", "f"},
 			want:     map[string]string{"f": ""},
-			wantExit: 0,
+			WantExit: 0,
 		},
 
 		// Relative sizes.
 		{
-			name:     "a plus size extends a file",
-			fsys:     file("f", "abc"),
-			args:     []string{"-s", "+3", "f"},
+			Name:     "a plus size extends a file",
+			FS:       file("f", "abc"),
+			Args:     []string{"-s", "+3", "f"},
 			want:     map[string]string{"f": "abc\x00\x00\x00"},
-			wantExit: 0,
+			WantExit: 0,
 		},
 		{
-			name:     "a plus size of zero keeps a file",
-			fsys:     file("f", "abc"),
-			args:     []string{"-s", "+0", "f"},
+			Name:     "a plus size of zero keeps a file",
+			FS:       file("f", "abc"),
+			Args:     []string{"-s", "+0", "f"},
 			want:     map[string]string{"f": "abc"},
-			wantExit: 0,
+			WantExit: 0,
 		},
 		{
-			name:     "a minus size reduces a file",
-			fsys:     file("f", "abcdef"),
-			args:     []string{"-s", "-2", "f"},
+			Name:     "a minus size reduces a file",
+			FS:       file("f", "abcdef"),
+			Args:     []string{"-s", "-2", "f"},
 			want:     map[string]string{"f": "abcd"},
-			wantExit: 0,
+			WantExit: 0,
 		},
 		{
-			name:     "a minus size past the file empties it",
-			fsys:     file("f", "abc"),
-			args:     []string{"-s", "-10", "f"},
+			Name:     "a minus size past the file empties it",
+			FS:       file("f", "abc"),
+			Args:     []string{"-s", "-10", "f"},
 			want:     map[string]string{"f": ""},
-			wantExit: 0,
+			WantExit: 0,
 		},
 		{
-			name:     "a plus size creates a missing file",
-			args:     []string{"-s", "+2", "f"},
+			Name:     "a plus size creates a missing file",
+			Args:     []string{"-s", "+2", "f"},
 			want:     map[string]string{"f": "\x00\x00"},
-			wantExit: 0,
+			WantExit: 0,
 		},
 		{
-			name:     "a minus size creates an empty missing file",
-			args:     []string{"-s", "-2", "f"},
+			Name:     "a minus size creates an empty missing file",
+			Args:     []string{"-s", "-2", "f"},
 			want:     map[string]string{"f": ""},
-			wantExit: 0,
+			WantExit: 0,
 		},
 		{
-			name:     "a minus size skips a missing file with -c",
-			args:     []string{"-c", "-s", "-2", "f"},
+			Name:     "a minus size skips a missing file with -c",
+			Args:     []string{"-c", "-s", "-2", "f"},
 			want:     map[string]string{},
-			wantExit: 0,
+			WantExit: 0,
 		},
 		{
-			name:     "a plus size skips a missing file with -c",
-			args:     []string{"-c", "-s", "+2", "f"},
+			Name:     "a plus size skips a missing file with -c",
+			Args:     []string{"-c", "-s", "+2", "f"},
 			want:     map[string]string{},
-			wantExit: 0,
+			WantExit: 0,
 		},
 
 		// At-most and at-least sizes.
 		{
-			name:     "an at most size keeps a smaller file",
-			fsys:     file("f", "abc"),
-			args:     []string{"-s", "<10", "f"},
+			Name:     "an at most size keeps a smaller file",
+			FS:       file("f", "abc"),
+			Args:     []string{"-s", "<10", "f"},
 			want:     map[string]string{"f": "abc"},
-			wantExit: 0,
+			WantExit: 0,
 		},
 		{
-			name:     "an at most size shrinks a bigger file",
-			fsys:     file("f", "abcdef"),
-			args:     []string{"-s", "<4", "f"},
+			Name:     "an at most size shrinks a bigger file",
+			FS:       file("f", "abcdef"),
+			Args:     []string{"-s", "<4", "f"},
 			want:     map[string]string{"f": "abcd"},
-			wantExit: 0,
+			WantExit: 0,
 		},
 		{
-			name:     "an at least size keeps a bigger file",
-			fsys:     file("f", "abcdef"),
-			args:     []string{"-s", ">3", "f"},
+			Name:     "an at least size keeps a bigger file",
+			FS:       file("f", "abcdef"),
+			Args:     []string{"-s", ">3", "f"},
 			want:     map[string]string{"f": "abcdef"},
-			wantExit: 0,
+			WantExit: 0,
 		},
 		{
-			name:     "an at least size grows a smaller file",
-			fsys:     file("f", "abc"),
-			args:     []string{"-s", ">5", "f"},
+			Name:     "an at least size grows a smaller file",
+			FS:       file("f", "abc"),
+			Args:     []string{"-s", ">5", "f"},
 			want:     map[string]string{"f": "abc\x00\x00"},
-			wantExit: 0,
+			WantExit: 0,
 		},
 
 		// Rounded sizes.
 		{
-			name:     "a round down size keeps an exact multiple",
-			fsys:     file("f", strings.Repeat("a", 10)),
-			args:     []string{"-s", "/5", "f"},
+			Name:     "a round down size keeps an exact multiple",
+			FS:       file("f", strings.Repeat("a", 10)),
+			Args:     []string{"-s", "/5", "f"},
 			want:     map[string]string{"f": strings.Repeat("a", 10)},
-			wantExit: 0,
+			WantExit: 0,
 		},
 		{
-			name:     "a round down size truncates a file",
-			fsys:     file("f", strings.Repeat("a", 12)),
-			args:     []string{"-s", "/5", "f"},
+			Name:     "a round down size truncates a file",
+			FS:       file("f", strings.Repeat("a", 12)),
+			Args:     []string{"-s", "/5", "f"},
 			want:     map[string]string{"f": strings.Repeat("a", 10)},
-			wantExit: 0,
+			WantExit: 0,
 		},
 		{
-			name:     "a round up size grows a file",
-			fsys:     file("f", strings.Repeat("a", 12)),
-			args:     []string{"-s", "%5", "f"},
+			Name:     "a round up size grows a file",
+			FS:       file("f", strings.Repeat("a", 12)),
+			Args:     []string{"-s", "%5", "f"},
 			want:     map[string]string{"f": strings.Repeat("a", 12) + "\x00\x00\x00"},
-			wantExit: 0,
+			WantExit: 0,
 		},
 		{
-			name:     "a round up size keeps an exact multiple",
-			fsys:     file("f", strings.Repeat("a", 10)),
-			args:     []string{"-s", "%5", "f"},
+			Name:     "a round up size keeps an exact multiple",
+			FS:       file("f", strings.Repeat("a", 10)),
+			Args:     []string{"-s", "%5", "f"},
 			want:     map[string]string{"f": strings.Repeat("a", 10)},
-			wantExit: 0,
+			WantExit: 0,
 		},
 		{
-			name:     "a round down size creates a missing file",
-			args:     []string{"-s", "/5", "f"},
+			Name:     "a round down size creates a missing file",
+			Args:     []string{"-s", "/5", "f"},
 			want:     map[string]string{"f": ""},
-			wantExit: 0,
+			WantExit: 0,
 		},
 		{
-			name:     "a round up size creates an empty missing file",
-			args:     []string{"-s", "%5", "f"},
+			Name:     "a round up size creates an empty missing file",
+			Args:     []string{"-s", "%5", "f"},
 			want:     map[string]string{"f": ""},
-			wantExit: 0,
+			WantExit: 0,
 		},
 		{
-			name:     "a round down size of zero fails",
-			fsys:     file("f", "abc"),
-			args:     []string{"-s", "/0", "f"},
+			Name:     "a round down size of zero fails",
+			FS:       file("f", "abc"),
+			Args:     []string{"-s", "/0", "f"},
 			want:     map[string]string{"f": "abc"},
-			wantErr:  "truncate: division by zero\nTry 'truncate --help' for more information.\n",
-			wantExit: 2,
+			WantErr:  "truncate: division by zero\nTry 'truncate --help' for more information.\n",
+			WantExit: 2,
 		},
 		{
-			name:     "a round up size of zero fails",
-			fsys:     file("f", "abc"),
-			args:     []string{"-s", "%0", "f"},
+			Name:     "a round up size of zero fails",
+			FS:       file("f", "abc"),
+			Args:     []string{"-s", "%0", "f"},
 			want:     map[string]string{"f": "abc"},
-			wantErr:  "truncate: division by zero\nTry 'truncate --help' for more information.\n",
-			wantExit: 2,
+			WantErr:  "truncate: division by zero\nTry 'truncate --help' for more information.\n",
+			WantExit: 2,
 		},
 
 		// Size suffixes.
 		{
-			name:     "a K suffix is a kibibyte",
-			fsys:     file("f", "abc"),
-			args:     []string{"-s", "1K", "f"},
+			Name:     "a K suffix is a kibibyte",
+			FS:       file("f", "abc"),
+			Args:     []string{"-s", "1K", "f"},
 			want:     map[string]string{"f": "abc" + strings.Repeat("\x00", 1024-3)},
-			wantExit: 0,
+			WantExit: 0,
 		},
 		{
-			name:     "a KB suffix is a kilobyte",
-			fsys:     file("f", "abc"),
-			args:     []string{"-s", "1KB", "f"},
+			Name:     "a KB suffix is a kilobyte",
+			FS:       file("f", "abc"),
+			Args:     []string{"-s", "1KB", "f"},
 			want:     map[string]string{"f": "abc" + strings.Repeat("\x00", 1000-3)},
-			wantExit: 0,
+			WantExit: 0,
 		},
 		{
-			name:     "a KiB suffix is a kibibyte",
-			fsys:     file("f", "abc"),
-			args:     []string{"-s", "1KiB", "f"},
+			Name:     "a KiB suffix is a kibibyte",
+			FS:       file("f", "abc"),
+			Args:     []string{"-s", "1KiB", "f"},
 			want:     map[string]string{"f": "abc" + strings.Repeat("\x00", 1024-3)},
-			wantExit: 0,
+			WantExit: 0,
 		},
 		{
-			name:     "a lowercase suffix is accepted",
-			fsys:     file("f", "abc"),
-			args:     []string{"-s", "2k", "f"},
+			Name:     "a lowercase suffix is accepted",
+			FS:       file("f", "abc"),
+			Args:     []string{"-s", "2k", "f"},
 			want:     map[string]string{"f": "abc" + strings.Repeat("\x00", 2048-3)},
-			wantExit: 0,
+			WantExit: 0,
 		},
 		{
-			name:     "an M suffix is a mebibyte",
-			fsys:     file("f", ""),
-			args:     []string{"-s", "1M", "f"},
+			Name:     "an M suffix is a mebibyte",
+			FS:       file("f", ""),
+			Args:     []string{"-s", "1M", "f"},
 			want:     map[string]string{"f": strings.Repeat("\x00", 1024*1024)},
-			wantExit: 0,
+			WantExit: 0,
 		},
 		{
-			name:     "an MB suffix is a megabyte",
-			fsys:     file("f", ""),
-			args:     []string{"-s", "1MB", "f"},
+			Name:     "an MB suffix is a megabyte",
+			FS:       file("f", ""),
+			Args:     []string{"-s", "1MB", "f"},
 			want:     map[string]string{"f": strings.Repeat("\x00", 1000*1000)},
-			wantExit: 0,
+			WantExit: 0,
 		},
 		{
-			name:     "a G suffix extends with a plus size",
-			fsys:     file("f", ""),
-			args:     []string{"-s", "+1G", "f"},
+			Name:     "a G suffix extends with a plus size",
+			FS:       file("f", ""),
+			Args:     []string{"-s", "+1G", "f"},
 			want:     map[string]string{"f": strings.Repeat("\x00", 1024*1024*1024)},
-			wantExit: 0,
+			WantExit: 0,
 		},
 		{
-			name:     "an unknown suffix is invalid",
-			fsys:     file("f", "abc"),
-			args:     []string{"-s", "1X", "f"},
+			Name:     "an unknown suffix is invalid",
+			FS:       file("f", "abc"),
+			Args:     []string{"-s", "1X", "f"},
 			want:     map[string]string{"f": "abc"},
-			wantErr:  "truncate: invalid number: '1X'\nTry 'truncate --help' for more information.\n",
-			wantExit: 2,
+			WantErr:  "truncate: invalid number: '1X'\nTry 'truncate --help' for more information.\n",
+			WantExit: 2,
 		},
 
 		// The -r reference file.
 		{
-			name: "a reference size grows a file",
-			fsys: fsx.MemFS{
+			Name: "a reference size grows a file",
+			FS: fsx.MemFS{
 				"f":   {Data: []byte("abc")},
 				"ref": {Data: []byte(strings.Repeat("r", 10))},
 			},
-			args:     []string{"-r", "ref", "f"},
+			Args:     []string{"-r", "ref", "f"},
 			want:     map[string]string{"f": "abc" + strings.Repeat("\x00", 7), "ref": strings.Repeat("r", 10)},
-			wantExit: 0,
+			WantExit: 0,
 		},
 		{
-			name: "a reference size shrinks a file",
-			fsys: fsx.MemFS{
+			Name: "a reference size shrinks a file",
+			FS: fsx.MemFS{
 				"f":   {Data: []byte("abcdef")},
 				"ref": {Data: []byte("rr")},
 			},
-			args:     []string{"-r", "ref", "f"},
+			Args:     []string{"-r", "ref", "f"},
 			want:     map[string]string{"f": "ab", "ref": "rr"},
-			wantExit: 0,
+			WantExit: 0,
 		},
 		{
-			name: "a reference size applies to every file",
-			fsys: fsx.MemFS{
+			Name: "a reference size applies to every file",
+			FS: fsx.MemFS{
 				"a":   {Data: []byte("aaa")},
 				"b":   {Data: []byte(strings.Repeat("b", 8))},
 				"ref": {Data: []byte(strings.Repeat("r", 5))},
 			},
-			args: []string{"-r", "ref", "a", "b"},
+			Args: []string{"-r", "ref", "a", "b"},
 			want: map[string]string{
 				"a":   "aaa\x00\x00",
 				"b":   "bbbbb",
 				"ref": strings.Repeat("r", 5),
 			},
-			wantExit: 0,
+			WantExit: 0,
 		},
 		{
-			name: "a relative size is relative to the reference size",
-			fsys: fsx.MemFS{
+			Name: "a relative size is relative to the reference size",
+			FS: fsx.MemFS{
 				"f":   {Data: []byte(strings.Repeat("a", 100))},
 				"ref": {Data: []byte(strings.Repeat("r", 4))},
 			},
-			args:     []string{"-r", "ref", "-s", "+2", "f"},
+			Args:     []string{"-r", "ref", "-s", "+2", "f"},
 			want:     map[string]string{"f": strings.Repeat("a", 6), "ref": strings.Repeat("r", 4)},
-			wantExit: 0,
+			WantExit: 0,
 		},
 		{
-			name:     "a missing reference fails",
-			fsys:     file("f", "abc"),
-			args:     []string{"-r", "ref", "f"},
+			Name:     "a missing reference fails",
+			FS:       file("f", "abc"),
+			Args:     []string{"-r", "ref", "f"},
 			want:     map[string]string{"f": "abc"},
-			wantErr:  "truncate: cannot stat ref: file does not exist\n",
-			wantExit: 1,
+			WantErr:  "truncate: cannot stat ref: file does not exist\n",
+			WantExit: 1,
 		},
 		{
-			name:     "an empty reference is a name, not an omitted option",
-			fsys:     file("f", "abc"),
-			args:     []string{"-r", "", "f"},
+			Name:     "an empty reference is a name, not an omitted option",
+			FS:       file("f", "abc"),
+			Args:     []string{"-r", "", "f"},
 			want:     map[string]string{"f": "abc"},
-			wantErr:  "truncate: cannot stat : invalid argument\n",
-			wantExit: 1,
+			WantErr:  "truncate: cannot stat : invalid argument\n",
+			WantExit: 1,
 		},
 		{
-			name:     "an absolute size fails with a reference",
-			fsys:     file("f", "abc"),
-			args:     []string{"-r", "f", "-s", "10", "f"},
+			Name:     "an absolute size fails with a reference",
+			FS:       file("f", "abc"),
+			Args:     []string{"-r", "f", "-s", "10", "f"},
 			want:     map[string]string{"f": "abc"},
-			wantErr:  "truncate: you must specify a relative --size with --reference\nTry 'truncate --help' for more information.\n",
-			wantExit: 2,
+			WantErr:  "truncate: you must specify a relative --size with --reference\nTry 'truncate --help' for more information.\n",
+			WantExit: 2,
 		},
 
 		// Missing files.
 		{
-			name:     "a missing file with -c is skipped",
-			args:     []string{"-c", "-s", "5", "f"},
+			Name:     "a missing file with -c is skipped",
+			Args:     []string{"-c", "-s", "5", "f"},
 			want:     map[string]string{},
-			wantExit: 0,
+			WantExit: 0,
 		},
 		{
-			name:     "a missing file in a missing directory fails",
-			args:     []string{"-s", "5", "no/dir/f"},
+			Name:     "a missing file in a missing directory fails",
+			Args:     []string{"-s", "5", "no/dir/f"},
 			want:     map[string]string{},
-			wantErr:  "truncate: cannot open no/dir/f for writing: file does not exist\n",
-			wantExit: 1,
+			WantErr:  "truncate: cannot open no/dir/f for writing: file does not exist\n",
+			WantExit: 1,
 		},
 		{
-			name:     "a missing file with -c in a missing directory is skipped",
-			args:     []string{"-c", "-s", "5", "no/dir/f"},
+			Name:     "a missing file with -c in a missing directory is skipped",
+			Args:     []string{"-c", "-s", "5", "no/dir/f"},
 			want:     map[string]string{},
-			wantExit: 0,
+			WantExit: 0,
 		},
 		{
-			name:     "an existing file is truncated with -c",
-			fsys:     file("f", "hello world"),
-			args:     []string{"-c", "-s", "5", "f"},
+			Name:     "an existing file is truncated with -c",
+			FS:       file("f", "hello world"),
+			Args:     []string{"-c", "-s", "5", "f"},
 			want:     map[string]string{"f": "hello"},
-			wantExit: 0,
+			WantExit: 0,
 		},
 
 		// Usage errors.
 		{
-			name:     "no size or reference fails",
-			fsys:     file("f", "abc"),
-			args:     []string{"f"},
+			Name:     "no size or reference fails",
+			FS:       file("f", "abc"),
+			Args:     []string{"f"},
 			want:     map[string]string{"f": "abc"},
-			wantErr:  "truncate: you must specify either --size or --reference\nTry 'truncate --help' for more information.\n",
-			wantExit: 2,
+			WantErr:  "truncate: you must specify either --size or --reference\nTry 'truncate --help' for more information.\n",
+			WantExit: 2,
 		},
 		{
-			name:     "no file operand fails",
-			args:     []string{"-s", "5"},
+			Name:     "no file operand fails",
+			Args:     []string{"-s", "5"},
 			want:     map[string]string{},
-			wantErr:  "truncate: missing file operand\nTry 'truncate --help' for more information.\n",
-			wantExit: 2,
+			WantErr:  "truncate: missing file operand\nTry 'truncate --help' for more information.\n",
+			WantExit: 2,
 		},
 		{
-			name:     "no options at all fails",
-			args:     nil,
+			Name:     "no options at all fails",
+			Args:     nil,
 			want:     map[string]string{},
-			wantErr:  "truncate: missing file operand\nTry 'truncate --help' for more information.\n",
-			wantExit: 2,
+			WantErr:  "truncate: missing file operand\nTry 'truncate --help' for more information.\n",
+			WantExit: 2,
 		},
 		{
-			name:     "an invalid number fails",
-			fsys:     file("f", "abc"),
-			args:     []string{"-s", "abc", "f"},
+			Name:     "an invalid number fails",
+			FS:       file("f", "abc"),
+			Args:     []string{"-s", "abc", "f"},
 			want:     map[string]string{"f": "abc"},
-			wantErr:  "truncate: invalid number: 'abc'\nTry 'truncate --help' for more information.\n",
-			wantExit: 2,
+			WantErr:  "truncate: invalid number: 'abc'\nTry 'truncate --help' for more information.\n",
+			WantExit: 2,
 		},
 		{
-			name:     "an empty size fails",
-			fsys:     file("f", "abc"),
-			args:     []string{"-s", "", "f"},
+			Name:     "an empty size fails",
+			FS:       file("f", "abc"),
+			Args:     []string{"-s", "", "f"},
 			want:     map[string]string{"f": "abc"},
-			wantErr:  "truncate: invalid number: ''\nTry 'truncate --help' for more information.\n",
-			wantExit: 2,
+			WantErr:  "truncate: invalid number: ''\nTry 'truncate --help' for more information.\n",
+			WantExit: 2,
 		},
 		{
-			name:     "a trailing size character fails",
-			fsys:     file("f", "abc"),
-			args:     []string{"-s", "3x", "f"},
+			Name:     "a trailing size character fails",
+			FS:       file("f", "abc"),
+			Args:     []string{"-s", "3x", "f"},
 			want:     map[string]string{"f": "abc"},
-			wantErr:  "truncate: invalid number: '3x'\nTry 'truncate --help' for more information.\n",
-			wantExit: 2,
+			WantErr:  "truncate: invalid number: '3x'\nTry 'truncate --help' for more information.\n",
+			WantExit: 2,
 		},
 		{
-			name:     "combined relative modifiers fail",
-			fsys:     file("f", "abc"),
-			args:     []string{"-s", "/+3", "f"},
+			Name:     "combined relative modifiers fail",
+			FS:       file("f", "abc"),
+			Args:     []string{"-s", "/+3", "f"},
 			want:     map[string]string{"f": "abc"},
-			wantErr:  "truncate: multiple relative modifiers specified\nTry 'truncate --help' for more information.\n",
-			wantExit: 2,
+			WantErr:  "truncate: multiple relative modifiers specified\nTry 'truncate --help' for more information.\n",
+			WantExit: 2,
 		},
 		{
-			name:     "an invalid option fails",
-			fsys:     file("f", "abc"),
-			args:     []string{"-x", "-s", "3", "f"},
+			Name:     "an invalid option fails",
+			FS:       file("f", "abc"),
+			Args:     []string{"-x", "-s", "3", "f"},
 			want:     map[string]string{"f": "abc"},
-			wantErr:  "truncate: invalid option -- 'x'\nTry 'truncate --help' for more information.\n",
-			wantExit: 2,
+			WantErr:  "truncate: invalid option -- 'x'\nTry 'truncate --help' for more information.\n",
+			WantExit: 2,
 		},
 		{
-			name:     "a missing option-argument fails",
-			fsys:     file("f", "abc"),
-			args:     []string{"-s"},
+			Name:     "a missing option-argument fails",
+			FS:       file("f", "abc"),
+			Args:     []string{"-s"},
 			want:     map[string]string{"f": "abc"},
-			wantErr:  "truncate: option requires an argument -- 's'\nTry 'truncate --help' for more information.\n",
-			wantExit: 2,
+			WantErr:  "truncate: option requires an argument -- 's'\nTry 'truncate --help' for more information.\n",
+			WantExit: 2,
 		},
 		{
-			name:     "an overflowing size fails",
-			fsys:     file("f", "abc"),
-			args:     []string{"-s", "999999999999999999999999999999", "f"},
+			Name:     "an overflowing size fails",
+			FS:       file("f", "abc"),
+			Args:     []string{"-s", "999999999999999999999999999999", "f"},
 			want:     map[string]string{"f": "abc"},
-			wantErr:  "truncate: invalid number: '999999999999999999999999999999'\nTry 'truncate --help' for more information.\n",
-			wantExit: 2,
+			WantErr:  "truncate: invalid number: '999999999999999999999999999999'\nTry 'truncate --help' for more information.\n",
+			WantExit: 2,
 		},
 
 		// Option forms.
 		{
-			name:     "an attached option-argument works",
-			fsys:     file("f", "hello world"),
-			args:     []string{"-s5", "f"},
+			Name:     "an attached option-argument works",
+			FS:       file("f", "hello world"),
+			Args:     []string{"-s5", "f"},
 			want:     map[string]string{"f": "hello"},
-			wantExit: 0,
+			WantExit: 0,
 		},
 		{
-			name:     "a grouped option works",
-			fsys:     file("f", "hello world"),
-			args:     []string{"-cs", "5", "f"},
+			Name:     "a grouped option works",
+			FS:       file("f", "hello world"),
+			Args:     []string{"-cs", "5", "f"},
 			want:     map[string]string{"f": "hello"},
-			wantExit: 0,
+			WantExit: 0,
 		},
 		{
-			name:     "long options work",
-			fsys:     file("f", "hello world"),
-			args:     []string{"--no-create", "--size=5", "f"},
+			Name:     "long options work",
+			FS:       file("f", "hello world"),
+			Args:     []string{"--no-create", "--size=5", "f"},
 			want:     map[string]string{"f": "hello"},
-			wantExit: 0,
+			WantExit: 0,
 		},
 		{
-			name:     "a long option in the next argument works",
-			fsys:     file("f", "hello world"),
-			args:     []string{"--size", "5", "f"},
+			Name:     "a long option in the next argument works",
+			FS:       file("f", "hello world"),
+			Args:     []string{"--size", "5", "f"},
 			want:     map[string]string{"f": "hello"},
-			wantExit: 0,
+			WantExit: 0,
 		},
 		{
-			name:     "operands after -- are files",
-			fsys:     file("f", "hello world"),
-			args:     []string{"-s", "5", "--", "f"},
+			Name:     "operands after -- are files",
+			FS:       file("f", "hello world"),
+			Args:     []string{"-s", "5", "--", "f"},
 			want:     map[string]string{"f": "hello"},
-			wantExit: 0,
+			WantExit: 0,
 		},
 	}
 
 	for _, test := range tests {
-		t.Run(test.name, func(t *testing.T) {
+		t.Run(test.Name, func(t *testing.T) {
 			runCase(t, test)
 		})
 	}
@@ -587,10 +577,10 @@ func TestRunMultipleFiles(t *testing.T) {
 			"b": {Data: []byte("bbbbbb")},
 		}
 		runCase(t, testCase{
-			fsys:     fsys,
-			args:     []string{"-s", "2", "a", "b"},
+			FS:       fsys,
+			Args:     []string{"-s", "2", "a", "b"},
 			want:     map[string]string{"a": "aa", "b": "bb"},
-			wantExit: 0,
+			WantExit: 0,
 		})
 	})
 
@@ -601,11 +591,11 @@ func TestRunMultipleFiles(t *testing.T) {
 			"dir": {Mode: fs.ModeDir | 0o755},
 		}
 		runCase(t, testCase{
-			fsys:     fsys,
-			args:     []string{"-s", "2", "a", "dir", "b"},
+			FS:       fsys,
+			Args:     []string{"-s", "2", "a", "dir", "b"},
 			want:     map[string]string{"a": "aa", "b": "bb", "dir": ""},
-			wantErr:  "truncate: cannot open dir for writing: invalid argument\n",
-			wantExit: 1,
+			WantErr:  "truncate: cannot open dir for writing: invalid argument\n",
+			WantExit: 1,
 		})
 	})
 
@@ -614,11 +604,11 @@ func TestRunMultipleFiles(t *testing.T) {
 			"dir": {Mode: fs.ModeDir | 0o755},
 		}
 		runCase(t, testCase{
-			fsys:     fsys,
-			args:     []string{"-s", "2", "dir", "dir"},
+			FS:       fsys,
+			Args:     []string{"-s", "2", "dir", "dir"},
 			want:     map[string]string{"dir": ""},
-			wantErr:  strings.Repeat("truncate: cannot open dir for writing: invalid argument\n", 2),
-			wantExit: 1,
+			WantErr:  strings.Repeat("truncate: cannot open dir for writing: invalid argument\n", 2),
+			WantExit: 1,
 		})
 	})
 }
@@ -640,31 +630,6 @@ func TestRunContext(t *testing.T) {
 	if data, err := fs.ReadFile(fsys, "f"); err != nil || string(data) != "hello" {
 		t.Errorf("Run() changed f to %q (%v)", data, err)
 	}
-}
-
-// failWriteFS wraps a MemFS so that writing to opened files fails.
-type failWriteFS struct {
-	fsx.MemFS
-	err error
-}
-
-// OpenFile implements fsx.WriteFS.
-func (m failWriteFS) OpenFile(name string, flag int, perm fs.FileMode) (fsx.File, error) {
-	f, err := m.MemFS.OpenFile(name, flag, perm)
-	if err != nil {
-		return nil, err
-	}
-	return failWriteFile{File: f, err: m.err}, nil
-}
-
-type failWriteFile struct {
-	fsx.File
-	err error
-}
-
-// Write implements io.Writer.
-func (f failWriteFile) Write([]byte) (int, error) {
-	return 0, f.err
 }
 
 // nonSeekableFS wraps a MemFS so that its files can't be sought.
@@ -689,7 +654,7 @@ func TestRunWriteFailure(t *testing.T) {
 		rt := &coreutils.Runtime{
 			Stdout: new(bytes.Buffer),
 			Stderr: stderr,
-			FS:     failWriteFS{MemFS: file("f", "hello"), err: errors.New("boom")},
+			FS:     testutil.FailWriteFS{FS: file("f", "hello"), Err: errors.New("boom")},
 		}
 		err := New(rt).Run(t.Context(), "-s", "10", "f")
 		code := 0
@@ -713,20 +678,20 @@ func TestRunAppendOnly(t *testing.T) {
 	t.Run("a file grows through appended zeroes", func(t *testing.T) {
 		fsys := nonSeekableFS{MemFS: file("f", "abc")}
 		runCase(t, testCase{
-			fsys:     fsys,
-			args:     []string{"-s", "5", "f"},
+			FS:       fsys,
+			Args:     []string{"-s", "5", "f"},
 			want:     map[string]string{"f": "abc\x00\x00"},
-			wantExit: 0,
+			WantExit: 0,
 		})
 	})
 
 	t.Run("a missing file grows through appended zeroes", func(t *testing.T) {
 		fsys := nonSeekableFS{MemFS: fsx.MemFS{}}
 		runCase(t, testCase{
-			fsys:     fsys,
-			args:     []string{"-s", "3", "f"},
+			FS:       fsys,
+			Args:     []string{"-s", "3", "f"},
 			want:     map[string]string{"f": "\x00\x00\x00"},
-			wantExit: 0,
+			WantExit: 0,
 		})
 	})
 }
@@ -811,26 +776,5 @@ func TestParseSizeError(t *testing.T) {
 }
 
 func TestHelpVersion(t *testing.T) {
-	t.Run("help", func(t *testing.T) {
-		stdout := new(bytes.Buffer)
-		rt := &coreutils.Runtime{Stdout: stdout, Stderr: new(bytes.Buffer)}
-		if err := New(rt).Run(t.Context(), "--help"); err != nil {
-			t.Fatalf("Run() error = %v, want nil (exit status 0)", err)
-		}
-		if got, want := stdout.String(), usage; got != want {
-			t.Errorf("Run() stdout = %q, want %q", got, want)
-		}
-	})
-
-	t.Run("version", func(t *testing.T) {
-		stdout := new(bytes.Buffer)
-		rt := &coreutils.Runtime{Stdout: stdout, Stderr: new(bytes.Buffer)}
-		if err := New(rt).Run(t.Context(), "--version"); err != nil {
-			t.Fatalf("Run() error = %v, want nil (exit status 0)", err)
-		}
-		want := "truncate (charm.land/snail/coreutils) " + coreutils.Version + "\nhttps://charm.land/snail\n"
-		if got := stdout.String(); got != want {
-			t.Errorf("Run() stdout = %q, want %q", got, want)
-		}
-	})
+	testutil.HelpVersion(t, New, "truncate", usage)
 }

@@ -14,6 +14,7 @@ import (
 	"time"
 
 	"charm.land/snail/coreutils"
+	"charm.land/snail/coreutils/internal/testutil"
 	"charm.land/snail/fsx"
 )
 
@@ -103,19 +104,6 @@ func stdout(t *testing.T, rt *coreutils.Runtime) string {
 func stderr(t *testing.T, rt *coreutils.Runtime) string {
 	t.Helper()
 	return rt.Stderr.(*bytes.Buffer).String()
-}
-
-// exitCode reports the exit status an error stands for.
-func exitCode(t *testing.T, err error) int {
-	t.Helper()
-	if err == nil {
-		return 0
-	}
-	var exitErr *coreutils.ExitError
-	if !errors.As(err, &exitErr) {
-		t.Fatalf("Run() error = %v, want *coreutils.ExitError", err)
-	}
-	return exitErr.Code
 }
 
 func TestRun(t *testing.T) {
@@ -905,7 +893,7 @@ func TestUsageUnavailable(t *testing.T) {
 		rt.ExecUsage = failedUsage
 
 		err := New(rt).Run(t.Context(), "false")
-		if code := exitCode(t, err); code != 3 {
+		if code := testutil.ExitCode(t, err); code != 3 {
 			t.Errorf("Run() exit status = %d, want 3", code)
 		}
 		want := "real 2.00\nuser 0.00\nsys 0.00\n"
@@ -1151,7 +1139,7 @@ func TestOutputFile(t *testing.T) {
 
 				err := New(rt).Run(t.Context(), append(args, "true")...)
 
-				if code := exitCode(t, err); code != 125 {
+				if code := testutil.ExitCode(t, err); code != 125 {
 					t.Errorf("Run() exit status = %d, want 125", code)
 				}
 				if got, want := stderr(t, rt), "time: open : invalid argument\n"; got != want {
@@ -1173,7 +1161,7 @@ func TestOutputFile(t *testing.T) {
 
 		err := New(rt).Run(t.Context(), "-o", "no/out.txt", "true")
 
-		if code := exitCode(t, err); code != 125 {
+		if code := testutil.ExitCode(t, err); code != 125 {
 			t.Errorf("Run() exit status = %d, want 125", code)
 		}
 		if got, want := stderr(t, rt),
@@ -1193,7 +1181,7 @@ func TestOutputFile(t *testing.T) {
 
 		err := New(rt).Run(t.Context(), "-o", "out.txt", "true")
 
-		if code := exitCode(t, err); code != 125 {
+		if code := testutil.ExitCode(t, err); code != 125 {
 			t.Errorf("Run() exit status = %d, want 125", code)
 		}
 		if got, want := stderr(t, rt), "time: no file system available\n"; got != want {

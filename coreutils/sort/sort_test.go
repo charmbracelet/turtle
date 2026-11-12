@@ -2,43 +2,15 @@ package sort
 
 import (
 	"bytes"
-	"context"
 	"errors"
-	"io"
 	"io/fs"
 	"strings"
 	"testing"
 
 	"charm.land/snail/coreutils"
+	"charm.land/snail/coreutils/internal/testutil"
 	"charm.land/snail/fsx"
 )
-
-type errorReader struct {
-	err error
-}
-
-func (r errorReader) Read([]byte) (int, error) {
-	return 0, r.err
-}
-
-type errorWriter struct {
-	err error
-}
-
-func (w errorWriter) Write([]byte) (int, error) {
-	return 0, w.err
-}
-
-// cancelReader cancels its context on the first read, simulating a context
-// that is done while input is being read.
-type cancelReader struct {
-	cancel context.CancelFunc
-}
-
-func (r *cancelReader) Read([]byte) (int, error) {
-	r.cancel()
-	return 0, context.Canceled
-}
 
 // testFS holds the fixtures used by the tests:
 //
@@ -69,1236 +41,1090 @@ func testFS() fsx.MemFS {
 	}
 }
 
-func exitCode(t *testing.T, err error) int {
-	t.Helper()
-
-	if err == nil {
-		return 0
-	}
-	var exitErr *coreutils.ExitError
-	if !errors.As(err, &exitErr) {
-		t.Fatalf("Run() error = %v, want *coreutils.ExitError", err)
-	}
-	return exitErr.Code
-}
-
-type testCase struct {
-	name      string
-	stdin     io.Reader
-	fsys      fsx.MemFS
-	dir       string
-	args      []string
-	want      string
-	wantErr   string
-	wantExit  int
-	wantFiles map[string]string
-}
-
-func runCase(t *testing.T, test testCase) {
-	t.Helper()
-
-	stdout := new(bytes.Buffer)
-	stderr := new(bytes.Buffer)
-	rt := &coreutils.Runtime{
-		Stdin:      test.stdin,
-		Stdout:     stdout,
-		Stderr:     stderr,
-		WorkingDir: test.dir,
-	}
-	if test.fsys != nil {
-		rt.FS = test.fsys
-	}
-	err := New(rt).Run(t.Context(), test.args...)
-
-	if code := exitCode(t, err); code != test.wantExit {
-		t.Errorf("Run() exit code = %d, want %d (error = %v)", code, test.wantExit, err)
-	}
-	if got := stdout.String(); got != test.want {
-		t.Errorf("Run() stdout = %q, want %q", got, test.want)
-	}
-	if got := stderr.String(); got != test.wantErr {
-		t.Errorf("Run() stderr = %q, want %q", got, test.wantErr)
-	}
-	for name, want := range test.wantFiles {
-		f := test.fsys[name]
-		if f == nil {
-			t.Errorf("Run() didn't create file %q", name)
-			continue
-		}
-		if got := string(f.Data); got != want {
-			t.Errorf("Run() file %q = %q, want %q", name, got, want)
-		}
-	}
-}
-
 func TestRunDefaults(t *testing.T) {
-	tests := []testCase{
+	tests := []testutil.Case{
 		{
-			name:  "no operands read the standard input",
-			stdin: strings.NewReader("b\na\nc\n"),
-			want:  "a\nb\nc\n",
+			Name:  "no operands read the standard input",
+			Stdin: strings.NewReader("b\na\nc\n"),
+			Want:  "a\nb\nc\n",
 		},
 		{
-			name:  "an already sorted input",
-			stdin: strings.NewReader("a\nb\nc\n"),
-			want:  "a\nb\nc\n",
+			Name:  "an already sorted input",
+			Stdin: strings.NewReader("a\nb\nc\n"),
+			Want:  "a\nb\nc\n",
 		},
 		{
-			name:  "an empty standard input",
-			stdin: strings.NewReader(""),
-			want:  "",
+			Name:  "an empty standard input",
+			Stdin: strings.NewReader(""),
+			Want:  "",
 		},
 		{
-			name:  "an empty line sorts first",
-			stdin: strings.NewReader("b\n\na\n"),
-			want:  "\na\nb\n",
+			Name:  "an empty line sorts first",
+			Stdin: strings.NewReader("b\n\na\n"),
+			Want:  "\na\nb\n",
 		},
 		{
-			name:  "duplicate lines are kept",
-			stdin: strings.NewReader("b\na\na\n"),
-			want:  "a\na\nb\n",
+			Name:  "duplicate lines are kept",
+			Stdin: strings.NewReader("b\na\na\n"),
+			Want:  "a\na\nb\n",
 		},
 		{
-			name:  "the comparison is by byte",
-			stdin: strings.NewReader("Z\na\nB\n"),
-			want:  "B\nZ\na\n",
+			Name:  "the comparison is by byte",
+			Stdin: strings.NewReader("Z\na\nB\n"),
+			Want:  "B\nZ\na\n",
 		},
 		{
-			name:  "numbers sort as text",
-			stdin: strings.NewReader("10\n2\n"),
-			want:  "10\n2\n",
+			Name:  "numbers sort as text",
+			Stdin: strings.NewReader("10\n2\n"),
+			Want:  "10\n2\n",
 		},
 		{
-			name:  "multibyte characters sort by byte",
-			stdin: strings.NewReader("á\nz\n"),
-			want:  "z\ná\n",
+			Name:  "multibyte characters sort by byte",
+			Stdin: strings.NewReader("á\nz\n"),
+			Want:  "z\ná\n",
 		},
 		{
-			name:  "a missing final newline is added",
-			stdin: strings.NewReader("b\na"),
-			want:  "a\nb\n",
+			Name:  "a missing final newline is added",
+			Stdin: strings.NewReader("b\na"),
+			Want:  "a\nb\n",
 		},
 	}
 
-	for _, test := range tests {
-		t.Run(test.name, func(t *testing.T) {
-			runCase(t, test)
-		})
-	}
+	testutil.Run(t, New, tests)
 }
 
 func TestRunFiles(t *testing.T) {
-	tests := []testCase{
+	tests := []testutil.Case{
 		{
-			name: "a file operand",
-			fsys: testFS(),
-			args: []string{"names.txt"},
-			want: "amy\neve\nzoe\n",
+			Name: "a file operand",
+			FS:   testFS(),
+			Args: []string{"names.txt"},
+			Want: "amy\neve\nzoe\n",
 		},
 		{
-			name: "multiple files are sorted together",
-			fsys: testFS(),
-			args: []string{"sorted2.txt", "sorted1.txt"},
-			want: "a\nb\nc\nd\n",
+			Name: "multiple files are sorted together",
+			FS:   testFS(),
+			Args: []string{"sorted2.txt", "sorted1.txt"},
+			Want: "a\nb\nc\nd\n",
 		},
 		{
-			name:  "dash reads the standard input",
-			stdin: strings.NewReader("b\na\n"),
-			fsys:  testFS(),
-			args:  []string{"-"},
-			want:  "a\nb\n",
+			Name:  "dash reads the standard input",
+			Stdin: strings.NewReader("b\na\n"),
+			FS:    testFS(),
+			Args:  []string{"-"},
+			Want:  "a\nb\n",
 		},
 		{
-			name:  "dash between files reads the standard input at that point",
-			stdin: strings.NewReader("bb\n"),
-			fsys:  testFS(),
-			args:  []string{"sorted1.txt", "-", "sorted2.txt"},
-			want:  "a\nb\nbb\nc\nd\n",
+			Name:  "dash between files reads the standard input at that point",
+			Stdin: strings.NewReader("bb\n"),
+			FS:    testFS(),
+			Args:  []string{"sorted1.txt", "-", "sorted2.txt"},
+			Want:  "a\nb\nbb\nc\nd\n",
 		},
 		{
-			name: "pathnames are resolved from the working directory",
-			fsys: testFS(),
-			dir:  "sub",
-			args: []string{"inner.txt"},
-			want: "a\nb\n",
+			Name: "pathnames are resolved from the working directory",
+			FS:   testFS(),
+			Dir:  "sub",
+			Args: []string{"inner.txt"},
+			Want: "a\nb\n",
 		},
 		{
-			name: "a file named like an option after a double dash",
-			fsys: testFS(),
-			args: []string{"--", "-n"},
-			want: "1\n3\n",
+			Name: "a file named like an option after a double dash",
+			FS:   testFS(),
+			Args: []string{"--", "-n"},
+			Want: "1\n3\n",
 		},
 		{
-			name:     "options are not parsed after the first operand",
-			fsys:     testFS(),
-			args:     []string{"sorted1.txt", "-x"},
-			want:     "",
-			wantErr:  "sort: -x: file does not exist\n",
-			wantExit: 2,
+			Name:     "options are not parsed after the first operand",
+			FS:       testFS(),
+			Args:     []string{"sorted1.txt", "-x"},
+			Want:     "",
+			WantErr:  "sort: -x: file does not exist\n",
+			WantExit: 2,
 		},
 	}
 
-	for _, test := range tests {
-		t.Run(test.name, func(t *testing.T) {
-			runCase(t, test)
-		})
-	}
+	testutil.Run(t, New, tests)
 }
 
 func TestRunReverse(t *testing.T) {
-	tests := []testCase{
+	tests := []testutil.Case{
 		{
-			name:  "the comparison is reversed",
-			stdin: strings.NewReader("a\nb\nc\n"),
-			args:  []string{"-r"},
-			want:  "c\nb\na\n",
+			Name:  "the comparison is reversed",
+			Stdin: strings.NewReader("a\nb\nc\n"),
+			Args:  []string{"-r"},
+			Want:  "c\nb\na\n",
 		},
 		{
-			name:  "the fallback comparison is reversed",
-			stdin: strings.NewReader("a 1\nb 1\n"),
-			args:  []string{"-r", "-k", "2"},
-			want:  "b 1\na 1\n",
+			Name:  "the fallback comparison is reversed",
+			Stdin: strings.NewReader("a 1\nb 1\n"),
+			Args:  []string{"-r", "-k", "2"},
+			Want:  "b 1\na 1\n",
 		},
 	}
 
-	for _, test := range tests {
-		t.Run(test.name, func(t *testing.T) {
-			runCase(t, test)
-		})
-	}
+	testutil.Run(t, New, tests)
 }
 
 func TestRunNumeric(t *testing.T) {
-	tests := []testCase{
+	tests := []testutil.Case{
 		{
-			name:  "numbers sort by arithmetic value",
-			stdin: strings.NewReader("10\n2\n1\n"),
-			args:  []string{"-n"},
-			want:  "1\n2\n10\n",
+			Name:  "numbers sort by arithmetic value",
+			Stdin: strings.NewReader("10\n2\n1\n"),
+			Args:  []string{"-n"},
+			Want:  "1\n2\n10\n",
 		},
 		{
-			name:  "negative numbers",
-			stdin: strings.NewReader("3\n-1\n-20\n2\n"),
-			args:  []string{"-n"},
-			want:  "-20\n-1\n2\n3\n",
+			Name:  "negative numbers",
+			Stdin: strings.NewReader("3\n-1\n-20\n2\n"),
+			Args:  []string{"-n"},
+			Want:  "-20\n-1\n2\n3\n",
 		},
 		{
-			name:  "decimal numbers",
-			stdin: strings.NewReader("1.5\n1.25\n"),
-			args:  []string{"-n"},
-			want:  "1.25\n1.5\n",
+			Name:  "decimal numbers",
+			Stdin: strings.NewReader("1.5\n1.25\n"),
+			Args:  []string{"-n"},
+			Want:  "1.25\n1.5\n",
 		},
 		{
-			name:  "leading blanks are skipped",
-			stdin: strings.NewReader("  10\n 2\n"),
-			args:  []string{"-n"},
-			want:  " 2\n  10\n",
+			Name:  "leading blanks are skipped",
+			Stdin: strings.NewReader("  10\n 2\n"),
+			Args:  []string{"-n"},
+			Want:  " 2\n  10\n",
 		},
 		{
-			name:  "a key without digits is zero",
-			stdin: strings.NewReader("2\nabc\n"),
-			args:  []string{"-n"},
-			want:  "abc\n2\n",
+			Name:  "a key without digits is zero",
+			Stdin: strings.NewReader("2\nabc\n"),
+			Args:  []string{"-n"},
+			Want:  "abc\n2\n",
 		},
 		{
-			name:  "zeros compare equal no matter the sign",
-			stdin: strings.NewReader("0\n-0\n"),
-			args:  []string{"-n"},
-			want:  "-0\n0\n",
+			Name:  "zeros compare equal no matter the sign",
+			Stdin: strings.NewReader("0\n-0\n"),
+			Args:  []string{"-n"},
+			Want:  "-0\n0\n",
 		},
 		{
-			name:  "equal values fall back to the whole lines",
-			stdin: strings.NewReader("1.0\n1\n"),
-			args:  []string{"-n"},
-			want:  "1\n1.0\n",
+			Name:  "equal values fall back to the whole lines",
+			Stdin: strings.NewReader("1.0\n1\n"),
+			Args:  []string{"-n"},
+			Want:  "1\n1.0\n",
 		},
 		{
-			name:  "huge numbers compare exactly",
-			stdin: strings.NewReader("100000000000000000000\n99999999999999999999\n"),
-			args:  []string{"-n"},
-			want:  "99999999999999999999\n100000000000000000000\n",
+			Name:  "huge numbers compare exactly",
+			Stdin: strings.NewReader("100000000000000000000\n99999999999999999999\n"),
+			Args:  []string{"-n"},
+			Want:  "99999999999999999999\n100000000000000000000\n",
 		},
 	}
 
-	for _, test := range tests {
-		t.Run(test.name, func(t *testing.T) {
-			runCase(t, test)
-		})
-	}
+	testutil.Run(t, New, tests)
 }
 
 func TestRunHumanNumeric(t *testing.T) {
-	tests := []testCase{
+	tests := []testutil.Case{
 		{
-			name:  "sizes sort by unit and then by value",
-			stdin: strings.NewReader("1023M\n1G\n1K\n2K\n"),
-			args:  []string{"-h"},
-			want:  "1K\n2K\n1023M\n1G\n",
+			Name:  "sizes sort by unit and then by value",
+			Stdin: strings.NewReader("1023M\n1G\n1K\n2K\n"),
+			Args:  []string{"-h"},
+			Want:  "1K\n2K\n1023M\n1G\n",
 		},
 		{
-			name:  "a plain number sorts before a suffixed one",
-			stdin: strings.NewReader("2000\n1K\n"),
-			args:  []string{"-h"},
-			want:  "2000\n1K\n",
+			Name:  "a plain number sorts before a suffixed one",
+			Stdin: strings.NewReader("2000\n1K\n"),
+			Args:  []string{"-h"},
+			Want:  "2000\n1K\n",
 		},
 		{
-			name:  "the suffixes are case insensitive",
-			stdin: strings.NewReader("2m\n1M\n5M\n1g\n"),
-			args:  []string{"-h"},
-			want:  "1M\n2m\n5M\n1g\n",
+			Name:  "the suffixes are case insensitive",
+			Stdin: strings.NewReader("2m\n1M\n5M\n1g\n"),
+			Args:  []string{"-h"},
+			Want:  "1M\n2m\n5M\n1g\n",
 		},
 		{
-			name:  "decimal values are compared",
-			stdin: strings.NewReader("1.5\n1.25\n"),
-			args:  []string{"-h"},
-			want:  "1.25\n1.5\n",
+			Name:  "decimal values are compared",
+			Stdin: strings.NewReader("1.5\n1.25\n"),
+			Args:  []string{"-h"},
+			Want:  "1.25\n1.5\n",
 		},
 		{
-			name:  "leading blanks are skipped",
-			stdin: strings.NewReader("  10\n2\n"),
-			args:  []string{"-h"},
-			want:  "2\n  10\n",
+			Name:  "leading blanks are skipped",
+			Stdin: strings.NewReader("  10\n2\n"),
+			Args:  []string{"-h"},
+			Want:  "2\n  10\n",
 		},
 		{
-			name:  "a negative number sorts by its negated unit order",
-			stdin: strings.NewReader("-1K\n5\n"),
-			args:  []string{"-h"},
-			want:  "-1K\n5\n",
+			Name:  "a negative number sorts by its negated unit order",
+			Stdin: strings.NewReader("-1K\n5\n"),
+			Args:  []string{"-h"},
+			Want:  "-1K\n5\n",
 		},
 		{
-			name:  "a zero number has no unit",
-			stdin: strings.NewReader("0K\n5\n1K\n"),
-			args:  []string{"-h"},
-			want:  "0K\n5\n1K\n",
+			Name:  "a zero number has no unit",
+			Stdin: strings.NewReader("0K\n5\n1K\n"),
+			Args:  []string{"-h"},
+			Want:  "0K\n5\n1K\n",
 		},
 		{
-			name:  "missing and invalid numbers sort as zero",
-			stdin: strings.NewReader("abc\n0\n"),
-			args:  []string{"-h"},
-			want:  "0\nabc\n",
+			Name:  "missing and invalid numbers sort as zero",
+			Stdin: strings.NewReader("abc\n0\n"),
+			Args:  []string{"-h"},
+			Want:  "0\nabc\n",
 		},
 		{
-			name:  "a human numeric key",
-			stdin: strings.NewReader("a 1K\nb 2\n"),
-			args:  []string{"-k", "2h"},
-			want:  "b 2\na 1K\n",
+			Name:  "a human numeric key",
+			Stdin: strings.NewReader("a 1K\nb 2\n"),
+			Args:  []string{"-k", "2h"},
+			Want:  "b 2\na 1K\n",
 		},
 		{
-			name:  "a key inherits the global human numeric ordering",
-			stdin: strings.NewReader("a 1K\nb 2\n"),
-			args:  []string{"-h", "-k", "2"},
-			want:  "b 2\na 1K\n",
+			Name:  "a key inherits the global human numeric ordering",
+			Stdin: strings.NewReader("a 1K\nb 2\n"),
+			Args:  []string{"-h", "-k", "2"},
+			Want:  "b 2\na 1K\n",
 		},
 		{
-			name:  "the sort=human-numeric long form",
-			stdin: strings.NewReader("10\n2\n"),
-			args:  []string{"--sort=human-numeric"},
-			want:  "2\n10\n",
+			Name:  "the sort=human-numeric long form",
+			Stdin: strings.NewReader("10\n2\n"),
+			Args:  []string{"--sort=human-numeric"},
+			Want:  "2\n10\n",
 		},
 	}
 
-	for _, test := range tests {
-		t.Run(test.name, func(t *testing.T) {
-			runCase(t, test)
-		})
-	}
+	testutil.Run(t, New, tests)
 }
 
 func TestRunMonthSort(t *testing.T) {
-	tests := []testCase{
+	tests := []testutil.Case{
 		{
-			name:  "months compare in calendar order",
-			stdin: strings.NewReader("MAR\nJAN\nFEB\n"),
-			args:  []string{"-M"},
-			want:  "JAN\nFEB\nMAR\n",
+			Name:  "months compare in calendar order",
+			Stdin: strings.NewReader("MAR\nJAN\nFEB\n"),
+			Args:  []string{"-M"},
+			Want:  "JAN\nFEB\nMAR\n",
 		},
 		{
-			name:  "the comparison is case insensitive",
-			stdin: strings.NewReader("jan\nFeb\nDEC\nMAR\n"),
-			args:  []string{"-M"},
-			want:  "jan\nFeb\nMAR\nDEC\n",
+			Name:  "the comparison is case insensitive",
+			Stdin: strings.NewReader("jan\nFeb\nDEC\nMAR\n"),
+			Args:  []string{"-M"},
+			Want:  "jan\nFeb\nMAR\nDEC\n",
 		},
 		{
-			name:  "only the month abbreviation is significant",
-			stdin: strings.NewReader("MARCH\nJANUARY\nAPR\n"),
-			args:  []string{"-M"},
-			want:  "JANUARY\nMARCH\nAPR\n",
+			Name:  "only the month abbreviation is significant",
+			Stdin: strings.NewReader("MARCH\nJANUARY\nAPR\n"),
+			Args:  []string{"-M"},
+			Want:  "JANUARY\nMARCH\nAPR\n",
 		},
 		{
-			name:  "unknown months sort low to known ones",
-			stdin: strings.NewReader("xyz\nJAN\n"),
-			args:  []string{"-M"},
-			want:  "xyz\nJAN\n",
+			Name:  "unknown months sort low to known ones",
+			Stdin: strings.NewReader("xyz\nJAN\n"),
+			Args:  []string{"-M"},
+			Want:  "xyz\nJAN\n",
 		},
 		{
-			name:  "equal unknown months fall back to the whole lines",
-			stdin: strings.NewReader("zzz\naaa\nJAN\n"),
-			args:  []string{"-M"},
-			want:  "aaa\nzzz\nJAN\n",
+			Name:  "equal unknown months fall back to the whole lines",
+			Stdin: strings.NewReader("zzz\naaa\nJAN\n"),
+			Args:  []string{"-M"},
+			Want:  "aaa\nzzz\nJAN\n",
 		},
 		{
-			name:  "blanks before the month are skipped",
-			stdin: strings.NewReader("  FEB\nJAN\n"),
-			args:  []string{"-M"},
-			want:  "JAN\n  FEB\n",
+			Name:  "blanks before the month are skipped",
+			Stdin: strings.NewReader("  FEB\nJAN\n"),
+			Args:  []string{"-M"},
+			Want:  "JAN\n  FEB\n",
 		},
 		{
-			name:  "a month key",
-			stdin: strings.NewReader("a MAR\nb JAN\n"),
-			args:  []string{"-k", "2,2M"},
-			want:  "b JAN\na MAR\n",
+			Name:  "a month key",
+			Stdin: strings.NewReader("a MAR\nb JAN\n"),
+			Args:  []string{"-k", "2,2M"},
+			Want:  "b JAN\na MAR\n",
 		},
 		{
-			name:  "the sort=month long form",
-			stdin: strings.NewReader("MAR\nJAN\n"),
-			args:  []string{"--sort=month"},
-			want:  "JAN\nMAR\n",
+			Name:  "the sort=month long form",
+			Stdin: strings.NewReader("MAR\nJAN\n"),
+			Args:  []string{"--sort=month"},
+			Want:  "JAN\nMAR\n",
 		},
 	}
 
-	for _, test := range tests {
-		t.Run(test.name, func(t *testing.T) {
-			runCase(t, test)
-		})
-	}
+	testutil.Run(t, New, tests)
 }
 
 func TestRunVersionSort(t *testing.T) {
-	tests := []testCase{
+	tests := []testutil.Case{
 		{
-			name:  "digits compare numerically",
-			stdin: strings.NewReader("1.10\n1.2\n1\n"),
-			args:  []string{"-V"},
-			want:  "1\n1.2\n1.10\n",
+			Name:  "digits compare numerically",
+			Stdin: strings.NewReader("1.10\n1.2\n1\n"),
+			Args:  []string{"-V"},
+			Want:  "1\n1.2\n1.10\n",
 		},
 		{
-			name:  "a digit run longer than the other wins",
-			stdin: strings.NewReader("10\n9\n"),
-			args:  []string{"-V"},
-			want:  "9\n10\n",
+			Name:  "a digit run longer than the other wins",
+			Stdin: strings.NewReader("10\n9\n"),
+			Args:  []string{"-V"},
+			Want:  "9\n10\n",
 		},
 		{
-			name:  "letters sort before other bytes",
-			stdin: strings.NewReader("foo07.7z\nfoo7a.7z\n"),
-			args:  []string{"-V"},
-			want:  "foo7a.7z\nfoo07.7z\n",
+			Name:  "letters sort before other bytes",
+			Stdin: strings.NewReader("foo07.7z\nfoo7a.7z\n"),
+			Args:  []string{"-V"},
+			Want:  "foo7a.7z\nfoo07.7z\n",
 		},
 		{
-			name:  "a tilde sorts before anything",
-			stdin: strings.NewReader("1.0~rc1\n1.0\n"),
-			args:  []string{"-V"},
-			want:  "1.0~rc1\n1.0\n",
+			Name:  "a tilde sorts before anything",
+			Stdin: strings.NewReader("1.0~rc1\n1.0\n"),
+			Args:  []string{"-V"},
+			Want:  "1.0~rc1\n1.0\n",
 		},
 		{
-			name:  "equal numeric values fall back to the whole lines",
-			stdin: strings.NewReader("00123\n123\n"),
-			args:  []string{"-V"},
-			want:  "00123\n123\n",
+			Name:  "equal numeric values fall back to the whole lines",
+			Stdin: strings.NewReader("00123\n123\n"),
+			Args:  []string{"-V"},
+			Want:  "00123\n123\n",
 		},
 		{
-			name:  "the empty string counts as zero",
-			stdin: strings.NewReader("0\n\n"),
-			args:  []string{"-V"},
-			want:  "\n0\n",
+			Name:  "the empty string counts as zero",
+			Stdin: strings.NewReader("0\n\n"),
+			Args:  []string{"-V"},
+			Want:  "\n0\n",
 		},
 		{
-			name:  "a version key",
-			stdin: strings.NewReader("a 1.10\nb 1.2\n"),
-			args:  []string{"-k", "2V"},
-			want:  "b 1.2\na 1.10\n",
+			Name:  "a version key",
+			Stdin: strings.NewReader("a 1.10\nb 1.2\n"),
+			Args:  []string{"-k", "2V"},
+			Want:  "b 1.2\na 1.10\n",
 		},
 		{
-			name:  "the sort=version long form",
-			stdin: strings.NewReader("1.10\n1.2\n"),
-			args:  []string{"--sort=version"},
-			want:  "1.2\n1.10\n",
+			Name:  "the sort=version long form",
+			Stdin: strings.NewReader("1.10\n1.2\n"),
+			Args:  []string{"--sort=version"},
+			Want:  "1.2\n1.10\n",
 		},
 	}
 
-	for _, test := range tests {
-		t.Run(test.name, func(t *testing.T) {
-			runCase(t, test)
-		})
-	}
+	testutil.Run(t, New, tests)
 }
 
 func TestRunRandomSort(t *testing.T) {
-	tests := []testCase{
+	tests := []testutil.Case{
 		{
-			name:  "the permutation is deterministic",
-			stdin: strings.NewReader("b\na\nd\nc\n"),
-			args:  []string{"-R"},
-			want:  "d\nb\nc\na\n",
+			Name:  "the permutation is deterministic",
+			Stdin: strings.NewReader("b\na\nd\nc\n"),
+			Args:  []string{"-R"},
+			Want:  "d\nb\nc\na\n",
 		},
 		{
-			name:  "a longer permutation",
-			stdin: strings.NewReader("a\nb\nc\nd\ne\nf\ng\nh\n"),
-			args:  []string{"-R"},
-			want:  "f\ng\nd\ne\nb\nc\na\nh\n",
+			Name:  "a longer permutation",
+			Stdin: strings.NewReader("a\nb\nc\nd\ne\nf\ng\nh\n"),
+			Args:  []string{"-R"},
+			Want:  "f\ng\nd\ne\nb\nc\na\nh\n",
 		},
 		{
-			name:  "equal keys sort together",
-			stdin: strings.NewReader("b\na\nb\n"),
-			args:  []string{"-R"},
-			want:  "b\nb\na\n",
+			Name:  "equal keys sort together",
+			Stdin: strings.NewReader("b\na\nb\n"),
+			Args:  []string{"-R"},
+			Want:  "b\nb\na\n",
 		},
 		{
-			name:  "a random key",
-			stdin: strings.NewReader("1 b\n2 a\n"),
-			args:  []string{"-k", "2,2R"},
-			want:  "1 b\n2 a\n",
+			Name:  "a random key",
+			Stdin: strings.NewReader("1 b\n2 a\n"),
+			Args:  []string{"-k", "2,2R"},
+			Want:  "1 b\n2 a\n",
 		},
 		{
-			name:  "the sort=random long form",
-			stdin: strings.NewReader("b\na\nd\nc\n"),
-			args:  []string{"--sort=random"},
-			want:  "d\nb\nc\na\n",
+			Name:  "the sort=random long form",
+			Stdin: strings.NewReader("b\na\nd\nc\n"),
+			Args:  []string{"--sort=random"},
+			Want:  "d\nb\nc\na\n",
 		},
 	}
 
-	for _, test := range tests {
-		t.Run(test.name, func(t *testing.T) {
-			runCase(t, test)
-		})
-	}
+	testutil.Run(t, New, tests)
 }
 
 func TestRunDictionary(t *testing.T) {
-	tests := []testCase{
+	tests := []testutil.Case{
 		{
-			name:  "only blanks and alphanumerics are significant",
-			stdin: strings.NewReader("a!z\nab\n"),
-			args:  []string{"-d"},
-			want:  "ab\na!z\n",
+			Name:  "only blanks and alphanumerics are significant",
+			Stdin: strings.NewReader("a!z\nab\n"),
+			Args:  []string{"-d"},
+			Want:  "ab\na!z\n",
 		},
 		{
-			name:  "without d the punctuation is significant",
-			stdin: strings.NewReader("a!z\nab\n"),
-			want:  "a!z\nab\n",
+			Name:  "without d the punctuation is significant",
+			Stdin: strings.NewReader("a!z\nab\n"),
+			Want:  "a!z\nab\n",
 		},
 		{
-			name:  "blanks are significant",
-			stdin: strings.NewReader("ab\na b\n"),
-			args:  []string{"-d"},
-			want:  "a b\nab\n",
+			Name:  "blanks are significant",
+			Stdin: strings.NewReader("ab\na b\n"),
+			Args:  []string{"-d"},
+			Want:  "a b\nab\n",
 		},
 	}
 
-	for _, test := range tests {
-		t.Run(test.name, func(t *testing.T) {
-			runCase(t, test)
-		})
-	}
+	testutil.Run(t, New, tests)
 }
 
 func TestRunFoldCase(t *testing.T) {
-	tests := []testCase{
+	tests := []testutil.Case{
 		{
-			name:  "lowercase folds to uppercase",
-			stdin: strings.NewReader("b\nA\n"),
-			args:  []string{"-f"},
-			want:  "A\nb\n",
+			Name:  "lowercase folds to uppercase",
+			Stdin: strings.NewReader("b\nA\n"),
+			Args:  []string{"-f"},
+			Want:  "A\nb\n",
 		},
 		{
-			name:  "equal folded lines fall back to the whole lines",
-			stdin: strings.NewReader("a\nA\n"),
-			args:  []string{"-f"},
-			want:  "A\na\n",
+			Name:  "equal folded lines fall back to the whole lines",
+			Stdin: strings.NewReader("a\nA\n"),
+			Args:  []string{"-f"},
+			Want:  "A\na\n",
 		},
 	}
 
-	for _, test := range tests {
-		t.Run(test.name, func(t *testing.T) {
-			runCase(t, test)
-		})
-	}
+	testutil.Run(t, New, tests)
 }
 
 func TestRunIgnoreNonPrint(t *testing.T) {
-	tests := []testCase{
+	tests := []testutil.Case{
 		{
-			name:  "non printable characters are ignored",
-			stdin: strings.NewReader("a\tx\nab\n"),
-			args:  []string{"-i"},
-			want:  "ab\na\tx\n",
+			Name:  "non printable characters are ignored",
+			Stdin: strings.NewReader("a\tx\nab\n"),
+			Args:  []string{"-i"},
+			Want:  "ab\na\tx\n",
 		},
 		{
-			name:  "without i the tab is significant",
-			stdin: strings.NewReader("a\tx\nab\n"),
-			want:  "a\tx\nab\n",
+			Name:  "without i the tab is significant",
+			Stdin: strings.NewReader("a\tx\nab\n"),
+			Want:  "a\tx\nab\n",
 		},
 	}
 
-	for _, test := range tests {
-		t.Run(test.name, func(t *testing.T) {
-			runCase(t, test)
-		})
-	}
+	testutil.Run(t, New, tests)
 }
 
 func TestRunKeys(t *testing.T) {
-	tests := []testCase{
+	tests := []testutil.Case{
 		{
-			name:  "the second field as the key",
-			stdin: strings.NewReader("z b\ny a\n"),
-			args:  []string{"-k", "2"},
-			want:  "y a\nz b\n",
+			Name:  "the second field as the key",
+			Stdin: strings.NewReader("z b\ny a\n"),
+			Args:  []string{"-k", "2"},
+			Want:  "y a\nz b\n",
 		},
 		{
-			name:  "a restricted key",
-			stdin: strings.NewReader("z b\ny a\n"),
-			args:  []string{"-k", "2,2"},
-			want:  "y a\nz b\n",
+			Name:  "a restricted key",
+			Stdin: strings.NewReader("z b\ny a\n"),
+			Args:  []string{"-k", "2,2"},
+			Want:  "y a\nz b\n",
 		},
 		{
-			name:  "the field separator is part of the field",
-			stdin: strings.NewReader("y a\nz  b\n"),
-			args:  []string{"-k", "2.2"},
-			want:  "z  b\ny a\n",
+			Name:  "the field separator is part of the field",
+			Stdin: strings.NewReader("y a\nz  b\n"),
+			Args:  []string{"-k", "2.2"},
+			Want:  "z  b\ny a\n",
 		},
 		{
-			name:  "leading blanks are ignored with the global b",
-			stdin: strings.NewReader("y a\nz  b\n"),
-			args:  []string{"-b", "-k", "2"},
-			want:  "y a\nz  b\n",
+			Name:  "leading blanks are ignored with the global b",
+			Stdin: strings.NewReader("y a\nz  b\n"),
+			Args:  []string{"-b", "-k", "2"},
+			Want:  "y a\nz  b\n",
 		},
 		{
-			name:  "leading blanks are ignored with an attached b",
-			stdin: strings.NewReader("y a\nz  b\n"),
-			args:  []string{"-k", "2b"},
-			want:  "y a\nz  b\n",
+			Name:  "leading blanks are ignored with an attached b",
+			Stdin: strings.NewReader("y a\nz  b\n"),
+			Args:  []string{"-k", "2b"},
+			Want:  "y a\nz  b\n",
 		},
 		{
-			name: "a character separator",
-			fsys: testFS(),
-			args: []string{"-t", ":", "-k", "2,2", "ids.txt"},
-			want: "c:1\na:10\nb:2\n",
+			Name: "a character separator",
+			FS:   testFS(),
+			Args: []string{"-t", ":", "-k", "2,2", "ids.txt"},
+			Want: "c:1\na:10\nb:2\n",
 		},
 		{
-			name:  "empty fields with a character separator",
-			stdin: strings.NewReader("a:\n:b\n"),
-			args:  []string{"-t", ":", "-k", "1,1"},
-			want:  ":b\na:\n",
+			Name:  "empty fields with a character separator",
+			Stdin: strings.NewReader("a:\n:b\n"),
+			Args:  []string{"-t", ":", "-k", "1,1"},
+			Want:  ":b\na:\n",
 		},
 		{
-			name:  "a key past the end of the line is empty",
-			stdin: strings.NewReader("b 1\na\n"),
-			args:  []string{"-k", "2"},
-			want:  "a\nb 1\n",
+			Name:  "a key past the end of the line is empty",
+			Stdin: strings.NewReader("b 1\na\n"),
+			Args:  []string{"-k", "2"},
+			Want:  "a\nb 1\n",
 		},
 		{
-			name:  "multiple keys break ties in order",
-			stdin: strings.NewReader("a 2\nb 1\na 1\n"),
-			args:  []string{"-k", "2,2", "-k", "1,1"},
-			want:  "a 1\nb 1\na 2\n",
+			Name:  "multiple keys break ties in order",
+			Stdin: strings.NewReader("a 2\nb 1\na 1\n"),
+			Args:  []string{"-k", "2,2", "-k", "1,1"},
+			Want:  "a 1\nb 1\na 2\n",
 		},
 		{
-			name:  "a numeric key",
-			stdin: strings.NewReader("a 10\nb 2\n"),
-			args:  []string{"-k", "2n"},
-			want:  "b 2\na 10\n",
+			Name:  "a numeric key",
+			Stdin: strings.NewReader("a 10\nb 2\n"),
+			Args:  []string{"-k", "2n"},
+			Want:  "b 2\na 10\n",
 		},
 		{
-			name:  "a reversed key",
-			stdin: strings.NewReader("a 1\nb 2\n"),
-			args:  []string{"-k", "2r"},
-			want:  "b 2\na 1\n",
+			Name:  "a reversed key",
+			Stdin: strings.NewReader("a 1\nb 2\n"),
+			Args:  []string{"-k", "2r"},
+			Want:  "b 2\na 1\n",
 		},
 		{
-			name:  "a key inherits the global ordering",
-			stdin: strings.NewReader("a 10\nb 2\n"),
-			args:  []string{"-n", "-k", "2"},
-			want:  "b 2\na 10\n",
+			Name:  "a key inherits the global ordering",
+			Stdin: strings.NewReader("a 10\nb 2\n"),
+			Args:  []string{"-n", "-k", "2"},
+			Want:  "b 2\na 10\n",
 		},
 		{
-			name:  "a key with modifiers doesn't inherit the global ordering",
-			stdin: strings.NewReader("a 1\nb 2\n"),
-			args:  []string{"-r", "-k", "2n,2"},
-			want:  "a 1\nb 2\n",
+			Name:  "a key with modifiers doesn't inherit the global ordering",
+			Stdin: strings.NewReader("a 1\nb 2\n"),
+			Args:  []string{"-r", "-k", "2n,2"},
+			Want:  "a 1\nb 2\n",
 		},
 		{
-			name:  "character positions",
-			stdin: strings.NewReader("xb\nya\n"),
-			args:  []string{"-k", "1.2,1.2"},
-			want:  "ya\nxb\n",
+			Name:  "character positions",
+			Stdin: strings.NewReader("xb\nya\n"),
+			Args:  []string{"-k", "1.2,1.2"},
+			Want:  "ya\nxb\n",
 		},
 		{
-			name:  "a key end past the end of the field",
-			stdin: strings.NewReader("ab ef\nab cd\n"),
-			args:  []string{"-k", "1.1,1.5"},
-			want:  "ab cd\nab ef\n",
+			Name:  "a key end past the end of the field",
+			Stdin: strings.NewReader("ab ef\nab cd\n"),
+			Args:  []string{"-k", "1.1,1.5"},
+			Want:  "ab cd\nab ef\n",
 		},
 		{
-			name:  "a zero end character is the end of the field",
-			stdin: strings.NewReader("z bq\ny ap\n"),
-			args:  []string{"-k", "2.1,2.0"},
-			want:  "y ap\nz bq\n",
+			Name:  "a zero end character is the end of the field",
+			Stdin: strings.NewReader("z bq\ny ap\n"),
+			Args:  []string{"-k", "2.1,2.0"},
+			Want:  "y ap\nz bq\n",
 		},
 		{
-			name:  "a key start past the key end is empty",
-			stdin: strings.NewReader("b\na\n"),
-			args:  []string{"-k", "2,1"},
-			want:  "a\nb\n",
+			Name:  "a key start past the key end is empty",
+			Stdin: strings.NewReader("b\na\n"),
+			Args:  []string{"-k", "2,1"},
+			Want:  "a\nb\n",
 		},
 	}
 
-	for _, test := range tests {
-		t.Run(test.name, func(t *testing.T) {
-			runCase(t, test)
-		})
-	}
+	testutil.Run(t, New, tests)
 }
 
 func TestRunUnique(t *testing.T) {
-	tests := []testCase{
+	tests := []testutil.Case{
 		{
-			name:  "only one line of each set of equal lines",
-			stdin: strings.NewReader("b\na\na\n"),
-			args:  []string{"-u"},
-			want:  "a\nb\n",
+			Name:  "only one line of each set of equal lines",
+			Stdin: strings.NewReader("b\na\na\n"),
+			Args:  []string{"-u"},
+			Want:  "a\nb\n",
 		},
 		{
-			name:  "lines with equal keys, not equal lines",
-			stdin: strings.NewReader("x 1\ny 1\nz 2\n"),
-			args:  []string{"-u", "-k", "2"},
-			want:  "x 1\nz 2\n",
+			Name:  "lines with equal keys, not equal lines",
+			Stdin: strings.NewReader("x 1\ny 1\nz 2\n"),
+			Args:  []string{"-u", "-k", "2"},
+			Want:  "x 1\nz 2\n",
 		},
 		{
-			name:  "keys folded by f keep the first of each set",
-			stdin: strings.NewReader("a\nA\nb\n"),
-			args:  []string{"-u", "-f"},
-			want:  "a\nb\n",
+			Name:  "keys folded by f keep the first of each set",
+			Stdin: strings.NewReader("a\nA\nb\n"),
+			Args:  []string{"-u", "-f"},
+			Want:  "a\nb\n",
 		},
 	}
 
-	for _, test := range tests {
-		t.Run(test.name, func(t *testing.T) {
-			runCase(t, test)
-		})
-	}
+	testutil.Run(t, New, tests)
 }
 
 func TestRunStable(t *testing.T) {
-	tests := []testCase{
+	tests := []testutil.Case{
 		{
-			name:  "lines with equal keys keep their input order",
-			stdin: strings.NewReader("b 2\na 2\n"),
-			args:  []string{"-s", "-k", "2,2n"},
-			want:  "b 2\na 2\n",
+			Name:  "lines with equal keys keep their input order",
+			Stdin: strings.NewReader("b 2\na 2\n"),
+			Args:  []string{"-s", "-k", "2,2n"},
+			Want:  "b 2\na 2\n",
 		},
 		{
-			name:  "without s the last resort comparison applies",
-			stdin: strings.NewReader("b 2\na 2\n"),
-			args:  []string{"-k", "2,2n"},
-			want:  "a 2\nb 2\n",
+			Name:  "without s the last resort comparison applies",
+			Stdin: strings.NewReader("b 2\na 2\n"),
+			Args:  []string{"-k", "2,2n"},
+			Want:  "a 2\nb 2\n",
 		},
 		{
-			name:  "the whole line is still the key without keys",
-			stdin: strings.NewReader("b\na\n"),
-			args:  []string{"-s"},
-			want:  "a\nb\n",
+			Name:  "the whole line is still the key without keys",
+			Stdin: strings.NewReader("b\na\n"),
+			Args:  []string{"-s"},
+			Want:  "a\nb\n",
 		},
 		{
-			name:  "the random ordering can be made stable",
-			stdin: strings.NewReader("1 b\n2 a\n1 a\n"),
-			args:  []string{"-R", "-s", "-k", "1,1"},
-			want:  "2 a\n1 b\n1 a\n",
+			Name:  "the random ordering can be made stable",
+			Stdin: strings.NewReader("1 b\n2 a\n1 a\n"),
+			Args:  []string{"-R", "-s", "-k", "1,1"},
+			Want:  "2 a\n1 b\n1 a\n",
 		},
 	}
 
-	for _, test := range tests {
-		t.Run(test.name, func(t *testing.T) {
-			runCase(t, test)
-		})
-	}
+	testutil.Run(t, New, tests)
 }
 
 func TestRunZeroTerminated(t *testing.T) {
-	tests := []testCase{
+	tests := []testutil.Case{
 		{
-			name:  "items are NUL terminated",
-			stdin: strings.NewReader("b\x00a\x00"),
-			args:  []string{"-z"},
-			want:  "a\x00b\x00",
+			Name:  "items are NUL terminated",
+			Stdin: strings.NewReader("b\x00a\x00"),
+			Args:  []string{"-z"},
+			Want:  "a\x00b\x00",
 		},
 		{
-			name:  "a missing final NUL is added",
-			stdin: strings.NewReader("b\x00a"),
-			args:  []string{"-z"},
-			want:  "a\x00b\x00",
+			Name:  "a missing final NUL is added",
+			Stdin: strings.NewReader("b\x00a"),
+			Args:  []string{"-z"},
+			Want:  "a\x00b\x00",
 		},
 		{
-			name:  "items can contain newlines",
-			stdin: strings.NewReader("b x\ny\x00a\x00"),
-			args:  []string{"-z"},
-			want:  "a\x00b x\ny\x00",
+			Name:  "items can contain newlines",
+			Stdin: strings.NewReader("b x\ny\x00a\x00"),
+			Args:  []string{"-z"},
+			Want:  "a\x00b x\ny\x00",
 		},
 		{
-			name:  "a sorted input passes the check",
-			stdin: strings.NewReader("a\x00b\x00"),
-			args:  []string{"-z", "-c"},
+			Name:  "a sorted input passes the check",
+			Stdin: strings.NewReader("a\x00b\x00"),
+			Args:  []string{"-z", "-c"},
 		},
 		{
-			name:     "a disordered input fails the check",
-			stdin:    strings.NewReader("b\x00a\x00"),
-			args:     []string{"-z", "-c"},
-			wantErr:  "sort: -:2: disorder: a\n",
-			wantExit: 1,
+			Name:     "a disordered input fails the check",
+			Stdin:    strings.NewReader("b\x00a\x00"),
+			Args:     []string{"-z", "-c"},
+			WantErr:  "sort: -:2: disorder: a\n",
+			WantExit: 1,
 		},
 		{
-			name:      "the output goes to a file",
-			stdin:     strings.NewReader("b\x00a\x00"),
-			fsys:      testFS(),
-			args:      []string{"-z", "-o", "out.txt"},
-			wantFiles: map[string]string{"out.txt": "a\x00b\x00"},
+			Name:      "the output goes to a file",
+			Stdin:     strings.NewReader("b\x00a\x00"),
+			FS:        testFS(),
+			Args:      []string{"-z", "-o", "out.txt"},
+			WantFiles: map[string]string{"out.txt": "a\x00b\x00"},
 		},
 	}
 
-	for _, test := range tests {
-		t.Run(test.name, func(t *testing.T) {
-			runCase(t, test)
-		})
-	}
+	testutil.Run(t, New, tests)
 }
 
 func TestRunCheck(t *testing.T) {
-	tests := []testCase{
+	tests := []testutil.Case{
 		{
-			name:  "a sorted input",
-			stdin: strings.NewReader("a\nb\n"),
-			args:  []string{"-c"},
+			Name:  "a sorted input",
+			Stdin: strings.NewReader("a\nb\n"),
+			Args:  []string{"-c"},
 		},
 		{
-			name:     "a disordered input",
-			stdin:    strings.NewReader("b\na\n"),
-			args:     []string{"-c"},
-			wantErr:  "sort: -:2: disorder: a\n",
-			wantExit: 1,
+			Name:     "a disordered input",
+			Stdin:    strings.NewReader("b\na\n"),
+			Args:     []string{"-c"},
+			WantErr:  "sort: -:2: disorder: a\n",
+			WantExit: 1,
 		},
 		{
-			name:     "a disordered file",
-			fsys:     testFS(),
-			args:     []string{"-c", "bad.txt"},
-			wantErr:  "sort: bad.txt:2: disorder: a\n",
-			wantExit: 1,
+			Name:     "a disordered file",
+			FS:       testFS(),
+			Args:     []string{"-c", "bad.txt"},
+			WantErr:  "sort: bad.txt:2: disorder: a\n",
+			WantExit: 1,
 		},
 		{
-			name:     "a silent check",
-			stdin:    strings.NewReader("b\na\n"),
-			args:     []string{"-C"},
-			wantExit: 1,
+			Name:     "a silent check",
+			Stdin:    strings.NewReader("b\na\n"),
+			Args:     []string{"-C"},
+			WantExit: 1,
 		},
 		{
-			name:     "a check with the numeric ordering",
-			stdin:    strings.NewReader("10\n2\n"),
-			args:     []string{"-c", "-n"},
-			wantErr:  "sort: -:2: disorder: 2\n",
-			wantExit: 1,
+			Name:     "a check with the numeric ordering",
+			Stdin:    strings.NewReader("10\n2\n"),
+			Args:     []string{"-c", "-n"},
+			WantErr:  "sort: -:2: disorder: 2\n",
+			WantExit: 1,
 		},
 		{
-			name:     "a duplicate key is a disorder with u",
-			stdin:    strings.NewReader("a\na\n"),
-			args:     []string{"-c", "-u"},
-			wantErr:  "sort: -:2: disorder: a\n",
-			wantExit: 1,
+			Name:     "a duplicate key is a disorder with u",
+			Stdin:    strings.NewReader("a\na\n"),
+			Args:     []string{"-c", "-u"},
+			WantErr:  "sort: -:2: disorder: a\n",
+			WantExit: 1,
 		},
 		{
-			name:  "duplicate lines are ordered without u",
-			stdin: strings.NewReader("a\na\n"),
-			args:  []string{"-c"},
+			Name:  "duplicate lines are ordered without u",
+			Stdin: strings.NewReader("a\na\n"),
+			Args:  []string{"-c"},
 		},
 		{
-			name:     "an extra operand",
-			fsys:     testFS(),
-			args:     []string{"-c", "sorted1.txt", "sorted2.txt"},
-			wantErr:  "sort: extra operand 'sorted2.txt' not allowed with -c\nTry 'sort --help' for more information.\n",
-			wantExit: 2,
+			Name:     "an extra operand",
+			FS:       testFS(),
+			Args:     []string{"-c", "sorted1.txt", "sorted2.txt"},
+			WantErr:  "sort: extra operand 'sorted2.txt' not allowed with -c\nTry 'sort --help' for more information.\n",
+			WantExit: 2,
 		},
 		{
-			name:     "c and m are incompatible",
-			fsys:     testFS(),
-			args:     []string{"-c", "-m", "sorted1.txt"},
-			wantErr:  "sort: options -c and -m are incompatible\nTry 'sort --help' for more information.\n",
-			wantExit: 2,
+			Name:     "c and m are incompatible",
+			FS:       testFS(),
+			Args:     []string{"-c", "-m", "sorted1.txt"},
+			WantErr:  "sort: options -c and -m are incompatible\nTry 'sort --help' for more information.\n",
+			WantExit: 2,
 		},
 		{
-			name:     "a missing file",
-			fsys:     testFS(),
-			args:     []string{"-c", "missing.txt"},
-			wantErr:  "sort: missing.txt: file does not exist\n",
-			wantExit: 2,
+			Name:     "a missing file",
+			FS:       testFS(),
+			Args:     []string{"-c", "missing.txt"},
+			WantErr:  "sort: missing.txt: file does not exist\n",
+			WantExit: 2,
 		},
 	}
 
-	for _, test := range tests {
-		t.Run(test.name, func(t *testing.T) {
-			runCase(t, test)
-		})
-	}
+	testutil.Run(t, New, tests)
 }
 
 func TestRunMerge(t *testing.T) {
-	tests := []testCase{
+	tests := []testutil.Case{
 		{
-			name: "presorted files are merged",
-			fsys: testFS(),
-			args: []string{"-m", "sorted1.txt", "sorted2.txt"},
-			want: "a\nb\nc\nd\n",
+			Name: "presorted files are merged",
+			FS:   testFS(),
+			Args: []string{"-m", "sorted1.txt", "sorted2.txt"},
+			Want: "a\nb\nc\nd\n",
 		},
 		{
-			name: "merged lines keep duplicates",
-			fsys: fsx.MemFS{
+			Name: "merged lines keep duplicates",
+			FS: fsx.MemFS{
 				"one.txt": {Data: []byte("a\nb\n")},
 				"two.txt": {Data: []byte("b\nc\n")},
 			},
-			args: []string{"-m", "one.txt", "two.txt"},
-			want: "a\nb\nb\nc\n",
+			Args: []string{"-m", "one.txt", "two.txt"},
+			Want: "a\nb\nb\nc\n",
 		},
 		{
-			name: "a merged unique",
-			fsys: fsx.MemFS{
+			Name: "a merged unique",
+			FS: fsx.MemFS{
 				"one.txt": {Data: []byte("a\nb\n")},
 				"two.txt": {Data: []byte("b\nc\n")},
 			},
-			args: []string{"-m", "-u", "one.txt", "two.txt"},
-			want: "a\nb\nc\n",
+			Args: []string{"-m", "-u", "one.txt", "two.txt"},
+			Want: "a\nb\nc\n",
 		},
 		{
-			name:  "merge from the standard input",
-			stdin: strings.NewReader("a\nc\n"),
-			fsys:  testFS(),
-			args:  []string{"-m", "-", "sorted2.txt"},
-			want:  "a\nb\nc\nd\n",
+			Name:  "merge from the standard input",
+			Stdin: strings.NewReader("a\nc\n"),
+			FS:    testFS(),
+			Args:  []string{"-m", "-", "sorted2.txt"},
+			Want:  "a\nb\nc\nd\n",
 		},
 	}
 
-	for _, test := range tests {
-		t.Run(test.name, func(t *testing.T) {
-			runCase(t, test)
-		})
-	}
+	testutil.Run(t, New, tests)
 }
 
 func TestRunOutput(t *testing.T) {
-	tests := []testCase{
+	tests := []testutil.Case{
 		{
-			name:      "the output goes to a file",
-			stdin:     strings.NewReader("b\na\n"),
-			fsys:      testFS(),
-			args:      []string{"-o", "out.txt"},
-			wantFiles: map[string]string{"out.txt": "a\nb\n"},
+			Name:      "the output goes to a file",
+			Stdin:     strings.NewReader("b\na\n"),
+			FS:        testFS(),
+			Args:      []string{"-o", "out.txt"},
+			WantFiles: map[string]string{"out.txt": "a\nb\n"},
 		},
 		{
-			name:      "the output file can be the input file",
-			fsys:      testFS(),
-			args:      []string{"-o", "bad.txt", "bad.txt"},
-			wantFiles: map[string]string{"bad.txt": "a\nb\n"},
+			Name:      "the output file can be the input file",
+			FS:        testFS(),
+			Args:      []string{"-o", "bad.txt", "bad.txt"},
+			WantFiles: map[string]string{"bad.txt": "a\nb\n"},
 		},
 		{
-			name:      "the output file is truncated",
-			fsys:      testFS(),
-			args:      []string{"-o", "out.txt", "sorted1.txt"},
-			wantFiles: map[string]string{"out.txt": "a\nc\n"},
+			Name:      "the output file is truncated",
+			FS:        testFS(),
+			Args:      []string{"-o", "out.txt", "sorted1.txt"},
+			WantFiles: map[string]string{"out.txt": "a\nc\n"},
 		},
 		{
-			name:     "an output with a missing parent directory",
-			stdin:    strings.NewReader("a\n"),
-			fsys:     testFS(),
-			args:     []string{"-o", "no/such/out.txt"},
-			wantErr:  "sort: no/such/out.txt: file does not exist\n",
-			wantExit: 2,
+			Name:     "an output with a missing parent directory",
+			Stdin:    strings.NewReader("a\n"),
+			FS:       testFS(),
+			Args:     []string{"-o", "no/such/out.txt"},
+			WantErr:  "sort: no/such/out.txt: file does not exist\n",
+			WantExit: 2,
 		},
 		{
-			name:     "a zero-length output name",
-			stdin:    strings.NewReader("a\n"),
-			args:     []string{"-o", ""},
-			wantErr:  "sort: invalid zero-length file name\nTry 'sort --help' for more information.\n",
-			wantExit: 2,
+			Name:     "a zero-length output name",
+			Stdin:    strings.NewReader("a\n"),
+			Args:     []string{"-o", ""},
+			WantErr:  "sort: invalid zero-length file name\nTry 'sort --help' for more information.\n",
+			WantExit: 2,
 		},
 	}
 
-	for _, test := range tests {
-		t.Run(test.name, func(t *testing.T) {
-			runCase(t, test)
-		})
-	}
+	testutil.Run(t, New, tests)
 }
 
 func TestRunOptions(t *testing.T) {
-	tests := []testCase{
+	tests := []testutil.Case{
 		{
-			name:     "invalid option",
-			args:     []string{"-x"},
-			wantErr:  "sort: invalid option -- 'x'\nTry 'sort --help' for more information.\n",
-			wantExit: 2,
+			Name:     "invalid option",
+			Args:     []string{"-x"},
+			WantErr:  "sort: invalid option -- 'x'\nTry 'sort --help' for more information.\n",
+			WantExit: 2,
 		},
 		{
-			name:     "unknown long option",
-			args:     []string{"--foo"},
-			wantErr:  "sort: unrecognized option '--foo'\nTry 'sort --help' for more information.\n",
-			wantExit: 2,
+			Name:     "unknown long option",
+			Args:     []string{"--foo"},
+			WantErr:  "sort: unrecognized option '--foo'\nTry 'sort --help' for more information.\n",
+			WantExit: 2,
 		},
 		{
-			name:     "missing key argument",
-			args:     []string{"-k"},
-			wantErr:  "sort: option requires an argument -- 'k'\nTry 'sort --help' for more information.\n",
-			wantExit: 2,
+			Name:     "missing key argument",
+			Args:     []string{"-k"},
+			WantErr:  "sort: option requires an argument -- 'k'\nTry 'sort --help' for more information.\n",
+			WantExit: 2,
 		},
 		{
-			name:     "missing output argument",
-			args:     []string{"-o"},
-			wantErr:  "sort: option requires an argument -- 'o'\nTry 'sort --help' for more information.\n",
-			wantExit: 2,
+			Name:     "missing output argument",
+			Args:     []string{"-o"},
+			WantErr:  "sort: option requires an argument -- 'o'\nTry 'sort --help' for more information.\n",
+			WantExit: 2,
 		},
 		{
-			name:     "missing separator argument",
-			args:     []string{"-t"},
-			wantErr:  "sort: option requires an argument -- 't'\nTry 'sort --help' for more information.\n",
-			wantExit: 2,
+			Name:     "missing separator argument",
+			Args:     []string{"-t"},
+			WantErr:  "sort: option requires an argument -- 't'\nTry 'sort --help' for more information.\n",
+			WantExit: 2,
 		},
 		{
-			name:     "a separator of two characters",
-			args:     []string{"-t", "::"},
-			wantErr:  "sort: the separator must be a single character\nTry 'sort --help' for more information.\n",
-			wantExit: 2,
+			Name:     "a separator of two characters",
+			Args:     []string{"-t", "::"},
+			WantErr:  "sort: the separator must be a single character\nTry 'sort --help' for more information.\n",
+			WantExit: 2,
 		},
 		{
-			name:     "an empty key definition",
-			args:     []string{"-k", ""},
-			wantErr:  "sort: invalid key definition: ''\nTry 'sort --help' for more information.\n",
-			wantExit: 2,
+			Name:     "an empty key definition",
+			Args:     []string{"-k", ""},
+			WantErr:  "sort: invalid key definition: ''\nTry 'sort --help' for more information.\n",
+			WantExit: 2,
 		},
 		{
-			name:     "a zero field",
-			args:     []string{"-k", "0"},
-			wantErr:  "sort: invalid key definition: '0'\nTry 'sort --help' for more information.\n",
-			wantExit: 2,
+			Name:     "a zero field",
+			Args:     []string{"-k", "0"},
+			WantErr:  "sort: invalid key definition: '0'\nTry 'sort --help' for more information.\n",
+			WantExit: 2,
 		},
 		{
-			name:     "a zero start character",
-			args:     []string{"-k", "1.0"},
-			wantErr:  "sort: invalid key definition: '1.0'\nTry 'sort --help' for more information.\n",
-			wantExit: 2,
+			Name:     "a zero start character",
+			Args:     []string{"-k", "1.0"},
+			WantErr:  "sort: invalid key definition: '1.0'\nTry 'sort --help' for more information.\n",
+			WantExit: 2,
 		},
 		{
-			name:     "a non numeric field",
-			args:     []string{"-k", "x"},
-			wantErr:  "sort: invalid key definition: 'x'\nTry 'sort --help' for more information.\n",
-			wantExit: 2,
+			Name:     "a non numeric field",
+			Args:     []string{"-k", "x"},
+			WantErr:  "sort: invalid key definition: 'x'\nTry 'sort --help' for more information.\n",
+			WantExit: 2,
 		},
 		{
-			name:     "an unknown key modifier",
-			args:     []string{"-k", "1x"},
-			wantErr:  "sort: invalid key definition: '1x'\nTry 'sort --help' for more information.\n",
-			wantExit: 2,
+			Name:     "an unknown key modifier",
+			Args:     []string{"-k", "1x"},
+			WantErr:  "sort: invalid key definition: '1x'\nTry 'sort --help' for more information.\n",
+			WantExit: 2,
 		},
 		{
-			name:     "a zero end field",
-			args:     []string{"-k", "1,0"},
-			wantErr:  "sort: invalid key definition: '1,0'\nTry 'sort --help' for more information.\n",
-			wantExit: 2,
+			Name:     "a zero end field",
+			Args:     []string{"-k", "1,0"},
+			WantErr:  "sort: invalid key definition: '1,0'\nTry 'sort --help' for more information.\n",
+			WantExit: 2,
 		},
 		{
-			name:     "an empty key end",
-			args:     []string{"-k", "1,"},
-			wantErr:  "sort: invalid key definition: '1,'\nTry 'sort --help' for more information.\n",
-			wantExit: 2,
+			Name:     "an empty key end",
+			Args:     []string{"-k", "1,"},
+			WantErr:  "sort: invalid key definition: '1,'\nTry 'sort --help' for more information.\n",
+			WantExit: 2,
 		},
 		{
-			name:     "an invalid sort word",
-			args:     []string{"--sort=bogus"},
-			wantErr:  "sort: invalid argument 'bogus' for '--sort'\nTry 'sort --help' for more information.\n",
-			wantExit: 2,
+			Name:     "an invalid sort word",
+			Args:     []string{"--sort=bogus"},
+			WantErr:  "sort: invalid argument 'bogus' for '--sort'\nTry 'sort --help' for more information.\n",
+			WantExit: 2,
 		},
 		{
-			name:     "a missing sort argument",
-			args:     []string{"--sort"},
-			wantErr:  "sort: option '--sort' requires an argument\nTry 'sort --help' for more information.\n",
-			wantExit: 2,
+			Name:     "a missing sort argument",
+			Args:     []string{"--sort"},
+			WantErr:  "sort: option '--sort' requires an argument\nTry 'sort --help' for more information.\n",
+			WantExit: 2,
 		},
 	}
 
-	for _, test := range tests {
-		t.Run(test.name, func(t *testing.T) {
-			runCase(t, test)
-		})
-	}
+	testutil.Run(t, New, tests)
 }
 
 func TestRunLongOptions(t *testing.T) {
-	tests := []testCase{
+	tests := []testutil.Case{
 		{
-			name:  "reverse",
-			stdin: strings.NewReader("a\nb\n"),
-			args:  []string{"--reverse"},
-			want:  "b\na\n",
+			Name:  "reverse",
+			Stdin: strings.NewReader("a\nb\n"),
+			Args:  []string{"--reverse"},
+			Want:  "b\na\n",
 		},
 		{
-			name:  "numeric-sort",
-			stdin: strings.NewReader("10\n2\n"),
-			args:  []string{"--numeric-sort"},
-			want:  "2\n10\n",
+			Name:  "numeric-sort",
+			Stdin: strings.NewReader("10\n2\n"),
+			Args:  []string{"--numeric-sort"},
+			Want:  "2\n10\n",
 		},
 		{
-			name:  "sort word",
-			stdin: strings.NewReader("10\n2\n"),
-			args:  []string{"--sort=numeric"},
-			want:  "2\n10\n",
+			Name:  "sort word",
+			Stdin: strings.NewReader("10\n2\n"),
+			Args:  []string{"--sort=numeric"},
+			Want:  "2\n10\n",
 		},
 		{
-			name:  "unique",
-			stdin: strings.NewReader("a\na\nb\n"),
-			args:  []string{"--unique"},
-			want:  "a\nb\n",
+			Name:  "unique",
+			Stdin: strings.NewReader("a\na\nb\n"),
+			Args:  []string{"--unique"},
+			Want:  "a\nb\n",
 		},
 		{
-			name:  "key",
-			stdin: strings.NewReader("z b\ny a\n"),
-			args:  []string{"--key", "2"},
-			want:  "y a\nz b\n",
+			Name:  "key",
+			Stdin: strings.NewReader("z b\ny a\n"),
+			Args:  []string{"--key", "2"},
+			Want:  "y a\nz b\n",
 		},
 		{
-			name: "field-separator",
-			fsys: testFS(),
-			args: []string{"--field-separator", ":", "--key=2,2", "ids.txt"},
-			want: "c:1\na:10\nb:2\n",
+			Name: "field-separator",
+			FS:   testFS(),
+			Args: []string{"--field-separator", ":", "--key=2,2", "ids.txt"},
+			Want: "c:1\na:10\nb:2\n",
 		},
 		{
-			name:     "check",
-			stdin:    strings.NewReader("b\na\n"),
-			args:     []string{"--check"},
-			wantErr:  "sort: -:2: disorder: a\n",
-			wantExit: 1,
+			Name:     "check",
+			Stdin:    strings.NewReader("b\na\n"),
+			Args:     []string{"--check"},
+			WantErr:  "sort: -:2: disorder: a\n",
+			WantExit: 1,
 		},
 		{
-			name: "merge",
-			fsys: testFS(),
-			args: []string{"--merge", "sorted1.txt", "sorted2.txt"},
-			want: "a\nb\nc\nd\n",
+			Name: "merge",
+			FS:   testFS(),
+			Args: []string{"--merge", "sorted1.txt", "sorted2.txt"},
+			Want: "a\nb\nc\nd\n",
 		},
 		{
-			name:      "output with an attached value",
-			stdin:     strings.NewReader("b\na\n"),
-			fsys:      testFS(),
-			args:      []string{"--output=out.txt"},
-			wantFiles: map[string]string{"out.txt": "a\nb\n"},
+			Name:      "output with an attached value",
+			Stdin:     strings.NewReader("b\na\n"),
+			FS:        testFS(),
+			Args:      []string{"--output=out.txt"},
+			WantFiles: map[string]string{"out.txt": "a\nb\n"},
 		},
 		{
-			name:  "ignore-leading-blanks",
-			stdin: strings.NewReader("y a\nz  b\n"),
-			args:  []string{"--ignore-leading-blanks", "--key", "2"},
-			want:  "y a\nz  b\n",
+			Name:  "ignore-leading-blanks",
+			Stdin: strings.NewReader("y a\nz  b\n"),
+			Args:  []string{"--ignore-leading-blanks", "--key", "2"},
+			Want:  "y a\nz  b\n",
 		},
 		{
-			name:  "dictionary-order",
-			stdin: strings.NewReader("a!z\nab\n"),
-			args:  []string{"--dictionary-order"},
-			want:  "ab\na!z\n",
+			Name:  "dictionary-order",
+			Stdin: strings.NewReader("a!z\nab\n"),
+			Args:  []string{"--dictionary-order"},
+			Want:  "ab\na!z\n",
 		},
 		{
-			name:  "ignore-case",
-			stdin: strings.NewReader("b\nA\n"),
-			args:  []string{"--ignore-case"},
-			want:  "A\nb\n",
+			Name:  "ignore-case",
+			Stdin: strings.NewReader("b\nA\n"),
+			Args:  []string{"--ignore-case"},
+			Want:  "A\nb\n",
 		},
 		{
-			name:  "ignore-nonprinting",
-			stdin: strings.NewReader("a\tx\nab\n"),
-			args:  []string{"--ignore-nonprinting"},
-			want:  "ab\na\tx\n",
+			Name:  "ignore-nonprinting",
+			Stdin: strings.NewReader("a\tx\nab\n"),
+			Args:  []string{"--ignore-nonprinting"},
+			Want:  "ab\na\tx\n",
 		},
 		{
-			name:  "human-numeric-sort",
-			stdin: strings.NewReader("10\n2\n"),
-			args:  []string{"--human-numeric-sort"},
-			want:  "2\n10\n",
+			Name:  "human-numeric-sort",
+			Stdin: strings.NewReader("10\n2\n"),
+			Args:  []string{"--human-numeric-sort"},
+			Want:  "2\n10\n",
 		},
 		{
-			name:  "month-sort",
-			stdin: strings.NewReader("MAR\nJAN\n"),
-			args:  []string{"--month-sort"},
-			want:  "JAN\nMAR\n",
+			Name:  "month-sort",
+			Stdin: strings.NewReader("MAR\nJAN\n"),
+			Args:  []string{"--month-sort"},
+			Want:  "JAN\nMAR\n",
 		},
 		{
-			name:  "version-sort",
-			stdin: strings.NewReader("1.10\n1.2\n"),
-			args:  []string{"--version-sort"},
-			want:  "1.2\n1.10\n",
+			Name:  "version-sort",
+			Stdin: strings.NewReader("1.10\n1.2\n"),
+			Args:  []string{"--version-sort"},
+			Want:  "1.2\n1.10\n",
 		},
 		{
-			name:  "random-sort",
-			stdin: strings.NewReader("b\na\nd\nc\n"),
-			args:  []string{"--random-sort"},
-			want:  "d\nb\nc\na\n",
+			Name:  "random-sort",
+			Stdin: strings.NewReader("b\na\nd\nc\n"),
+			Args:  []string{"--random-sort"},
+			Want:  "d\nb\nc\na\n",
 		},
 		{
-			name:  "zero-terminated",
-			stdin: strings.NewReader("b\x00a\x00"),
-			args:  []string{"--zero-terminated"},
-			want:  "a\x00b\x00",
+			Name:  "zero-terminated",
+			Stdin: strings.NewReader("b\x00a\x00"),
+			Args:  []string{"--zero-terminated"},
+			Want:  "a\x00b\x00",
 		},
 		{
-			name:  "stable",
-			stdin: strings.NewReader("b 2\na 2\n"),
-			args:  []string{"--stable", "-k", "2,2n"},
-			want:  "b 2\na 2\n",
+			Name:  "stable",
+			Stdin: strings.NewReader("b 2\na 2\n"),
+			Args:  []string{"--stable", "-k", "2,2n"},
+			Want:  "b 2\na 2\n",
 		},
 	}
 
-	for _, test := range tests {
-		t.Run(test.name, func(t *testing.T) {
-			runCase(t, test)
-		})
-	}
+	testutil.Run(t, New, tests)
 }
 
 func TestRunErrors(t *testing.T) {
-	tests := []testCase{
+	tests := []testutil.Case{
 		{
-			name:     "missing file",
-			fsys:     testFS(),
-			args:     []string{"missing.txt"},
-			wantErr:  "sort: missing.txt: file does not exist\n",
-			wantExit: 2,
+			Name:     "missing file",
+			FS:       testFS(),
+			Args:     []string{"missing.txt"},
+			WantErr:  "sort: missing.txt: file does not exist\n",
+			WantExit: 2,
 		},
 		{
-			name:     "directory operand",
-			fsys:     fsx.MemFS{"dir": {Mode: fs.ModeDir}},
-			args:     []string{"dir"},
-			wantErr:  "sort: dir: invalid argument\n",
-			wantExit: 2,
+			Name:     "directory operand",
+			FS:       fsx.MemFS{"dir": {Mode: fs.ModeDir}},
+			Args:     []string{"dir"},
+			WantErr:  "sort: dir: invalid argument\n",
+			WantExit: 2,
 		},
 		{
-			name:     "zero-length file name",
-			fsys:     testFS(),
-			args:     []string{""},
-			wantErr:  "sort: invalid zero-length file name\n",
-			wantExit: 2,
+			Name:     "zero-length file name",
+			FS:       testFS(),
+			Args:     []string{""},
+			WantErr:  "sort: invalid zero-length file name\n",
+			WantExit: 2,
 		},
 		{
-			name:     "file operand without a file system",
-			args:     []string{"names.txt"},
-			wantErr:  "sort: names.txt: no file system available\n",
-			wantExit: 2,
+			Name:     "file operand without a file system",
+			Args:     []string{"names.txt"},
+			WantErr:  "sort: names.txt: no file system available\n",
+			WantExit: 2,
 		},
 		{
-			name:     "no standard input",
-			wantErr:  "sort: standard input: no standard input available\n",
-			wantExit: 2,
+			Name:     "no standard input",
+			WantErr:  "sort: standard input: no standard input available\n",
+			WantExit: 2,
 		},
 		{
-			name:     "standard input read error",
-			stdin:    errorReader{err: errors.New("read failed")},
-			wantErr:  "sort: standard input: read failed\n",
-			wantExit: 2,
+			Name:     "standard input read error",
+			Stdin:    testutil.ErrorReader{Err: errors.New("read failed")},
+			WantErr:  "sort: standard input: read failed\n",
+			WantExit: 2,
 		},
 	}
 
-	for _, test := range tests {
-		t.Run(test.name, func(t *testing.T) {
-			runCase(t, test)
-		})
-	}
+	testutil.Run(t, New, tests)
 }
 
 func TestRunWriteError(t *testing.T) {
@@ -1307,12 +1133,12 @@ func TestRunWriteError(t *testing.T) {
 	stderr := new(bytes.Buffer)
 	rt := &coreutils.Runtime{
 		Stdin:  strings.NewReader("b\na\n"),
-		Stdout: errorWriter{err: writeErr},
+		Stdout: testutil.ErrorWriter{Err: writeErr},
 		Stderr: stderr,
 	}
 	err := New(rt).Run(t.Context())
 
-	if code := exitCode(t, err); code != 2 {
+	if code := testutil.ExitCode(t, err); code != 2 {
 		t.Fatalf("Run() exit code = %d, want 2 (error = %v)", code, err)
 	}
 	if !errors.Is(err, writeErr) {
@@ -1325,98 +1151,44 @@ func TestRunWriteError(t *testing.T) {
 
 func TestRunContext(t *testing.T) {
 	t.Run("cancelled before running", func(t *testing.T) {
-		ctx, cancel := context.WithCancel(t.Context())
-		cancel()
-		runCancelled(t, ctx, strings.NewReader("b\na\n"))
+		testutil.Cancelled(t, New, strings.NewReader("b\na\n"), nil)
 	})
 
 	t.Run("cancelled while reading the standard input", func(t *testing.T) {
-		ctx, cancel := context.WithCancel(t.Context())
-		runCancelled(t, ctx, &cancelReader{cancel: cancel})
+		testutil.Cancelled(t, New, &testutil.CancelReader{}, nil)
 	})
-}
-
-// runCancelled runs the utility with a context that is either already done or
-// becomes done while reading, and checks that the context error is returned
-// without any output.
-func runCancelled(t *testing.T, ctx context.Context, stdin io.Reader) {
-	t.Helper()
-
-	stdout := new(bytes.Buffer)
-	stderr := new(bytes.Buffer)
-	rt := &coreutils.Runtime{
-		Stdin:  stdin,
-		Stdout: stdout,
-		Stderr: stderr,
-	}
-	err := New(rt).Run(ctx)
-
-	if !errors.Is(err, context.Canceled) {
-		t.Fatalf("Run() error = %v, want context.Canceled", err)
-	}
-	if got := stdout.String(); got != "" {
-		t.Errorf("Run() stdout = %q, want empty", got)
-	}
-	if got := stderr.String(); got != "" {
-		t.Errorf("Run() stderr = %q, want empty", got)
-	}
 }
 
 func TestRunSortTypeLastWins(t *testing.T) {
-	tests := []testCase{
+	tests := []testutil.Case{
 		{
-			name:  "a later month sort replaces the numeric one",
-			stdin: strings.NewReader("2\n10\n1\n"),
-			args:  []string{"-n", "-M"},
-			want:  "1\n10\n2\n",
+			Name:  "a later month sort replaces the numeric one",
+			Stdin: strings.NewReader("2\n10\n1\n"),
+			Args:  []string{"-n", "-M"},
+			Want:  "1\n10\n2\n",
 		},
 		{
-			name:  "a later numeric sort replaces the month one",
-			stdin: strings.NewReader("2\n10\n1\n"),
-			args:  []string{"-M", "-n"},
-			want:  "1\n2\n10\n",
+			Name:  "a later numeric sort replaces the month one",
+			Stdin: strings.NewReader("2\n10\n1\n"),
+			Args:  []string{"-M", "-n"},
+			Want:  "1\n2\n10\n",
 		},
 		{
-			name:  "the long forms replace each other too",
-			stdin: strings.NewReader("2\n10\n1\n"),
-			args:  []string{"--sort=numeric", "--sort=month"},
-			want:  "1\n10\n2\n",
+			Name:  "the long forms replace each other too",
+			Stdin: strings.NewReader("2\n10\n1\n"),
+			Args:  []string{"--sort=numeric", "--sort=month"},
+			Want:  "1\n10\n2\n",
 		},
 		{
-			name:  "a key modifier replaces the global type",
-			stdin: strings.NewReader("2\n10\n1\n"),
-			args:  []string{"-M", "-k1,1n"},
-			want:  "1\n2\n10\n",
+			Name:  "a key modifier replaces the global type",
+			Stdin: strings.NewReader("2\n10\n1\n"),
+			Args:  []string{"-M", "-k1,1n"},
+			Want:  "1\n2\n10\n",
 		},
 	}
-	for _, test := range tests {
-		t.Run(test.name, func(t *testing.T) {
-			runCase(t, test)
-		})
-	}
+	testutil.Run(t, New, tests)
 }
 
 func TestHelpVersion(t *testing.T) {
-	t.Run("help", func(t *testing.T) {
-		stdout := new(bytes.Buffer)
-		rt := &coreutils.Runtime{Stdout: stdout, Stderr: new(bytes.Buffer)}
-		if err := New(rt).Run(t.Context(), "--help"); err != nil {
-			t.Fatalf("Run() error = %v, want nil (exit status 0)", err)
-		}
-		if got, want := stdout.String(), usage; got != want {
-			t.Errorf("Run() stdout = %q, want %q", got, want)
-		}
-	})
-
-	t.Run("version", func(t *testing.T) {
-		stdout := new(bytes.Buffer)
-		rt := &coreutils.Runtime{Stdout: stdout, Stderr: new(bytes.Buffer)}
-		if err := New(rt).Run(t.Context(), "--version"); err != nil {
-			t.Fatalf("Run() error = %v, want nil (exit status 0)", err)
-		}
-		want := "sort (charm.land/snail/coreutils) " + coreutils.Version + "\nhttps://charm.land/snail\n"
-		if got := stdout.String(); got != want {
-			t.Errorf("Run() stdout = %q, want %q", got, want)
-		}
-	})
+	testutil.HelpVersion(t, New, "sort", usage)
 }

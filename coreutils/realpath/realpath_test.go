@@ -2,7 +2,6 @@ package realpath
 
 import (
 	"bytes"
-	"errors"
 	"io/fs"
 	"os"
 	"path/filepath"
@@ -12,6 +11,7 @@ import (
 	"testing"
 
 	"charm.land/snail/coreutils"
+	"charm.land/snail/coreutils/internal/testutil"
 	"charm.land/snail/fsx"
 )
 
@@ -33,736 +33,643 @@ func tree() fsx.MemFS {
 	}
 }
 
-type testCase struct {
-	name     string
-	files    fsx.MemFS
-	wd       string
-	args     []string
-	environ  []string
-	wantOut  string
-	wantErr  string
-	wantExit int
-}
-
-func runCase(t *testing.T, test testCase) {
-	t.Helper()
-
-	stdout := new(bytes.Buffer)
-	stderr := new(bytes.Buffer)
-	rt := &coreutils.Runtime{
-		Stdin:      strings.NewReader(""),
-		Stdout:     stdout,
-		Stderr:     stderr,
-		FS:         test.files,
-		WorkingDir: test.wd,
-	}
-	if test.environ != nil {
-		rt.Environ = func() []string { return test.environ }
-	}
-
-	err := New(rt).Run(t.Context(), test.args...)
-
-	if got := stdout.String(); got != test.wantOut {
-		t.Errorf("Run() stdout = %q, want %q", got, test.wantOut)
-	}
-	if got := stderr.String(); got != test.wantErr {
-		t.Errorf("Run() stderr = %q, want %q", got, test.wantErr)
-	}
-	if code := exitCode(t, err); code != test.wantExit {
-		t.Errorf("Run() exit code = %d, want %d (error = %v)", code, test.wantExit, err)
-	}
-}
-
-func exitCode(t *testing.T, err error) int {
-	t.Helper()
-
-	if err == nil {
-		return 0
-	}
-	var exitErr *coreutils.ExitError
-	if !errors.As(err, &exitErr) {
-		t.Fatalf("Run() error = %v, want *coreutils.ExitError", err)
-	}
-	return exitErr.Code
-}
-
 func TestRunDefaults(t *testing.T) {
-	tests := []testCase{
+	tests := []testutil.Case{
 		{
-			name:    "resolves a file to the working directory",
-			files:   tree(),
-			wd:      "work",
-			args:    []string{"a.txt"},
-			wantOut: "work/a.txt\n",
+			Name: "resolves a file to the working directory",
+			FS:   tree(),
+			Dir:  "work",
+			Args: []string{"a.txt"},
+			Want: "work/a.txt\n",
 		},
 		{
-			name:    "resolves each operand on its own line",
-			files:   tree(),
-			wd:      "work",
-			args:    []string{"a.txt", "d/keep.txt"},
-			wantOut: "work/a.txt\nwork/d/keep.txt\n",
+			Name: "resolves each operand on its own line",
+			FS:   tree(),
+			Dir:  "work",
+			Args: []string{"a.txt", "d/keep.txt"},
+			Want: "work/a.txt\nwork/d/keep.txt\n",
 		},
 		{
-			name:    "the working directory is a prefix of the output",
-			files:   tree(),
-			wd:      "work/d",
-			args:    []string{"keep.txt"},
-			wantOut: "work/d/keep.txt\n",
+			Name: "the working directory is a prefix of the output",
+			FS:   tree(),
+			Dir:  "work/d",
+			Args: []string{"keep.txt"},
+			Want: "work/d/keep.txt\n",
 		},
 		{
-			name:    "resolves the working directory itself",
-			files:   tree(),
-			wd:      "work/d",
-			args:    []string{"."},
-			wantOut: "work/d\n",
+			Name: "resolves the working directory itself",
+			FS:   tree(),
+			Dir:  "work/d",
+			Args: []string{"."},
+			Want: "work/d\n",
 		},
 		{
-			name:    "the parent of the working directory is the file system root",
-			files:   tree(),
-			wd:      "work",
-			args:    []string{".."},
-			wantOut: ".\n",
+			Name: "the parent of the working directory is the file system root",
+			FS:   tree(),
+			Dir:  "work",
+			Args: []string{".."},
+			Want: ".\n",
 		},
 		{
-			name:    "removes dot and extra slash components",
-			files:   tree(),
-			wd:      "work",
-			args:    []string{"d/./keep.txt", "d//keep.txt"},
-			wantOut: "work/d/keep.txt\nwork/d/keep.txt\n",
+			Name: "removes dot and extra slash components",
+			FS:   tree(),
+			Dir:  "work",
+			Args: []string{"d/./keep.txt", "d//keep.txt"},
+			Want: "work/d/keep.txt\nwork/d/keep.txt\n",
 		},
 		{
-			name:    "resolves the parent of a directory",
-			files:   tree(),
-			wd:      "work",
-			args:    []string{"d/.."},
-			wantOut: "work\n",
+			Name: "resolves the parent of a directory",
+			FS:   tree(),
+			Dir:  "work",
+			Args: []string{"d/.."},
+			Want: "work\n",
 		},
 		{
-			name:    "a missing last component is not an error",
-			files:   tree(),
-			wd:      "work",
-			args:    []string{"missing.txt"},
-			wantOut: "work/missing.txt\n",
+			Name: "a missing last component is not an error",
+			FS:   tree(),
+			Dir:  "work",
+			Args: []string{"missing.txt"},
+			Want: "work/missing.txt\n",
 		},
 		{
-			name:     "a missing component before the last is an error",
-			files:    tree(),
-			wd:       "work",
-			args:     []string{"missing/missing.txt"},
-			wantErr:  "realpath: missing/missing.txt: file does not exist\n",
-			wantExit: 1,
+			Name:     "a missing component before the last is an error",
+			FS:       tree(),
+			Dir:      "work",
+			Args:     []string{"missing/missing.txt"},
+			WantErr:  "realpath: missing/missing.txt: file does not exist\n",
+			WantExit: 1,
 		},
 		{
-			name:     "keeps going after a failing operand",
-			files:    tree(),
-			wd:       "work",
-			args:     []string{"missing/x", "a.txt"},
-			wantOut:  "work/a.txt\n",
-			wantErr:  "realpath: missing/x: file does not exist\n",
-			wantExit: 1,
+			Name:     "keeps going after a failing operand",
+			FS:       tree(),
+			Dir:      "work",
+			Args:     []string{"missing/x", "a.txt"},
+			Want:     "work/a.txt\n",
+			WantErr:  "realpath: missing/x: file does not exist\n",
+			WantExit: 1,
 		},
 		{
-			name:    "-E is the default",
-			files:   tree(),
-			wd:      "work",
-			args:    []string{"-E", "missing.txt"},
-			wantOut: "work/missing.txt\n",
+			Name: "-E is the default",
+			FS:   tree(),
+			Dir:  "work",
+			Args: []string{"-E", "missing.txt"},
+			Want: "work/missing.txt\n",
 		},
 		{
-			name:    "ignores trailing slashes",
-			files:   tree(),
-			wd:      "work",
-			args:    []string{"d/", "missing.txt/"},
-			wantOut: "work/d\nwork/missing.txt\n",
+			Name: "ignores trailing slashes",
+			FS:   tree(),
+			Dir:  "work",
+			Args: []string{"d/", "missing.txt/"},
+			Want: "work/d\nwork/missing.txt\n",
 		},
 		{
-			name:    "resolves a symbolic link to a file",
-			files:   tree(),
-			wd:      "work",
-			args:    []string{"link.txt"},
-			wantOut: "work/a.txt\n",
+			Name: "resolves a symbolic link to a file",
+			FS:   tree(),
+			Dir:  "work",
+			Args: []string{"link.txt"},
+			Want: "work/a.txt\n",
 		},
 		{
-			name:    "resolves a symbolic link to a directory",
-			files:   tree(),
-			wd:      "work",
-			args:    []string{"link-d/b.txt"},
-			wantOut: "work/x/b.txt\n",
+			Name: "resolves a symbolic link to a directory",
+			FS:   tree(),
+			Dir:  "work",
+			Args: []string{"link-d/b.txt"},
+			Want: "work/x/b.txt\n",
 		},
 		{
-			name:    "the parent of a symbolic link is the link target",
-			files:   tree(),
-			wd:      "work",
-			args:    []string{"link-d/.."},
-			wantOut: "work\n",
+			Name: "the parent of a symbolic link is the link target",
+			FS:   tree(),
+			Dir:  "work",
+			Args: []string{"link-d/.."},
+			Want: "work\n",
 		},
 		{
-			name:    "a dangling symbolic link resolves to its missing target",
-			files:   tree(),
-			wd:      "work",
-			args:    []string{"dangling"},
-			wantOut: "work/missing.txt\n",
+			Name: "a dangling symbolic link resolves to its missing target",
+			FS:   tree(),
+			Dir:  "work",
+			Args: []string{"dangling"},
+			Want: "work/missing.txt\n",
 		},
 		{
-			name:     "a symbolic link loop is an error",
-			files:    tree(),
-			wd:       "work",
-			args:     []string{"loop"},
-			wantErr:  "realpath: loop: too many levels of symbolic links\n",
-			wantExit: 1,
+			Name:     "a symbolic link loop is an error",
+			FS:       tree(),
+			Dir:      "work",
+			Args:     []string{"loop"},
+			WantErr:  "realpath: loop: too many levels of symbolic links\n",
+			WantExit: 1,
 		},
 		{
-			name:     "a symbolic link cycle is an error",
-			files:    tree(),
-			wd:       "work",
-			args:     []string{"ping", "pong"},
-			wantErr:  "realpath: ping: too many levels of symbolic links\nrealpath: pong: too many levels of symbolic links\n",
-			wantExit: 1,
+			Name:     "a symbolic link cycle is an error",
+			FS:       tree(),
+			Dir:      "work",
+			Args:     []string{"ping", "pong"},
+			WantErr:  "realpath: ping: too many levels of symbolic links\nrealpath: pong: too many levels of symbolic links\n",
+			WantExit: 1,
 		},
 		{
-			name:  "an absolute operand is used as given",
-			files: tree(),
-			args:  []string{"work/a.txt"},
-			wd:    "work",
+			Name: "an absolute operand is used as given",
+			FS:   tree(),
+			Args: []string{"work/a.txt"},
+			Dir:  "work",
 			// The memory file system has no names with a leading slash,
 			// so the components of the absolute name don't resolve.
-			wantErr:  "realpath: work/a.txt: file does not exist\n",
-			wantExit: 1,
+			WantErr:  "realpath: work/a.txt: file does not exist\n",
+			WantExit: 1,
 		},
 	}
 
-	for _, test := range tests {
-		t.Run(test.name, func(t *testing.T) {
-			runCase(t, test)
-		})
-	}
+	testutil.Run(t, New, tests)
 }
 
 func TestRunExisting(t *testing.T) {
-	tests := []testCase{
+	tests := []testutil.Case{
 		{
-			name:    "an existing file resolves",
-			files:   tree(),
-			wd:      "work",
-			args:    []string{"-e", "a.txt"},
-			wantOut: "work/a.txt\n",
+			Name: "an existing file resolves",
+			FS:   tree(),
+			Dir:  "work",
+			Args: []string{"-e", "a.txt"},
+			Want: "work/a.txt\n",
 		},
 		{
-			name:     "a missing last component is an error",
-			files:    tree(),
-			wd:       "work",
-			args:     []string{"-e", "missing.txt"},
-			wantErr:  "realpath: missing.txt: file does not exist\n",
-			wantExit: 1,
+			Name:     "a missing last component is an error",
+			FS:       tree(),
+			Dir:      "work",
+			Args:     []string{"-e", "missing.txt"},
+			WantErr:  "realpath: missing.txt: file does not exist\n",
+			WantExit: 1,
 		},
 		{
-			name:     "a missing component before the last is an error",
-			files:    tree(),
-			wd:       "work",
-			args:     []string{"-e", "missing/missing.txt"},
-			wantErr:  "realpath: missing/missing.txt: file does not exist\n",
-			wantExit: 1,
+			Name:     "a missing component before the last is an error",
+			FS:       tree(),
+			Dir:      "work",
+			Args:     []string{"-e", "missing/missing.txt"},
+			WantErr:  "realpath: missing/missing.txt: file does not exist\n",
+			WantExit: 1,
 		},
 		{
-			name:     "a dangling symbolic link is an error",
-			files:    tree(),
-			wd:       "work",
-			args:     []string{"-e", "dangling"},
-			wantErr:  "realpath: dangling: file does not exist\n",
-			wantExit: 1,
+			Name:     "a dangling symbolic link is an error",
+			FS:       tree(),
+			Dir:      "work",
+			Args:     []string{"-e", "dangling"},
+			WantErr:  "realpath: dangling: file does not exist\n",
+			WantExit: 1,
 		},
 		{
-			name:    "a trailing slash on a directory resolves",
-			files:   tree(),
-			wd:      "work",
-			args:    []string{"-e", "d/"},
-			wantOut: "work/d\n",
+			Name: "a trailing slash on a directory resolves",
+			FS:   tree(),
+			Dir:  "work",
+			Args: []string{"-e", "d/"},
+			Want: "work/d\n",
 		},
 		{
-			name:     "a trailing slash requires the name to be a directory",
-			files:    tree(),
-			wd:       "work",
-			args:     []string{"-e", "a.txt/"},
-			wantErr:  "realpath: a.txt/: not a directory\n",
-			wantExit: 1,
+			Name:     "a trailing slash requires the name to be a directory",
+			FS:       tree(),
+			Dir:      "work",
+			Args:     []string{"-e", "a.txt/"},
+			WantErr:  "realpath: a.txt/: not a directory\n",
+			WantExit: 1,
 		},
 		{
-			name:     "a missing directory with a trailing slash is an error",
-			files:    tree(),
-			wd:       "work",
-			args:     []string{"-e", "missing/"},
-			wantErr:  "realpath: missing/: file does not exist\n",
-			wantExit: 1,
+			Name:     "a missing directory with a trailing slash is an error",
+			FS:       tree(),
+			Dir:      "work",
+			Args:     []string{"-e", "missing/"},
+			WantErr:  "realpath: missing/: file does not exist\n",
+			WantExit: 1,
 		},
 		{
-			name:    "resolves through a symbolic link",
-			files:   tree(),
-			wd:      "work",
-			args:    []string{"-e", "link.txt"},
-			wantOut: "work/a.txt\n",
+			Name: "resolves through a symbolic link",
+			FS:   tree(),
+			Dir:  "work",
+			Args: []string{"-e", "link.txt"},
+			Want: "work/a.txt\n",
 		},
 		{
-			name:    "an existing symbolic link with -m like checks still resolves",
-			files:   tree(),
-			wd:      "work",
-			args:    []string{"-e", "link-d/b.txt"},
-			wantOut: "work/x/b.txt\n",
+			Name: "an existing symbolic link with -m like checks still resolves",
+			FS:   tree(),
+			Dir:  "work",
+			Args: []string{"-e", "link-d/b.txt"},
+			Want: "work/x/b.txt\n",
 		},
 	}
 
-	for _, test := range tests {
-		t.Run(test.name, func(t *testing.T) {
-			runCase(t, test)
-		})
-	}
+	testutil.Run(t, New, tests)
 }
 
 func TestRunMissing(t *testing.T) {
-	tests := []testCase{
+	tests := []testutil.Case{
 		{
-			name:    "missing components are treated as directories",
-			files:   tree(),
-			wd:      "work",
-			args:    []string{"-m", "none/missing.txt"},
-			wantOut: "work/none/missing.txt\n",
+			Name: "missing components are treated as directories",
+			FS:   tree(),
+			Dir:  "work",
+			Args: []string{"-m", "none/missing.txt"},
+			Want: "work/none/missing.txt\n",
 		},
 		{
-			name:    "the target of a dangling link is treated as a directory",
-			files:   tree(),
-			wd:      "work",
-			args:    []string{"-m", "dangling/keep"},
-			wantOut: "work/missing.txt/keep\n",
+			Name: "the target of a dangling link is treated as a directory",
+			FS:   tree(),
+			Dir:  "work",
+			Args: []string{"-m", "dangling/keep"},
+			Want: "work/missing.txt/keep\n",
 		},
 		{
-			name:    "missing components apply to the parent operations",
-			files:   tree(),
-			wd:      "work",
-			args:    []string{"-m", "none/missing/../keep"},
-			wantOut: "work/none/keep\n",
+			Name: "missing components apply to the parent operations",
+			FS:   tree(),
+			Dir:  "work",
+			Args: []string{"-m", "none/missing/../keep"},
+			Want: "work/none/keep\n",
 		},
 		{
-			name:     "an existing file in the middle is still an error",
-			files:    tree(),
-			wd:       "work",
-			args:     []string{"-m", "a.txt/x"},
-			wantErr:  "realpath: a.txt/x: not a directory\n",
-			wantExit: 1,
+			Name:     "an existing file in the middle is still an error",
+			FS:       tree(),
+			Dir:      "work",
+			Args:     []string{"-m", "a.txt/x"},
+			WantErr:  "realpath: a.txt/x: not a directory\n",
+			WantExit: 1,
 		},
 		{
-			name:    "an existing file as the last component resolves",
-			files:   tree(),
-			wd:      "work",
-			args:    []string{"-m", "a.txt"},
-			wantOut: "work/a.txt\n",
+			Name: "an existing file as the last component resolves",
+			FS:   tree(),
+			Dir:  "work",
+			Args: []string{"-m", "a.txt"},
+			Want: "work/a.txt\n",
 		},
 	}
 
-	for _, test := range tests {
-		t.Run(test.name, func(t *testing.T) {
-			runCase(t, test)
-		})
-	}
+	testutil.Run(t, New, tests)
 }
 
 func TestRunStrip(t *testing.T) {
-	tests := []testCase{
+	tests := []testutil.Case{
 		{
-			name:    "a symbolic link is not resolved",
-			files:   tree(),
-			wd:      "work",
-			args:    []string{"-s", "link.txt"},
-			wantOut: "work/link.txt\n",
+			Name: "a symbolic link is not resolved",
+			FS:   tree(),
+			Dir:  "work",
+			Args: []string{"-s", "link.txt"},
+			Want: "work/link.txt\n",
 		},
 		{
-			name:    "a dangling symbolic link is left as is",
-			files:   tree(),
-			wd:      "work",
-			args:    []string{"-s", "dangling"},
-			wantOut: "work/dangling\n",
+			Name: "a dangling symbolic link is left as is",
+			FS:   tree(),
+			Dir:  "work",
+			Args: []string{"-s", "dangling"},
+			Want: "work/dangling\n",
 		},
 		{
-			name:     "the components of a symbolic link are not followed",
-			files:    tree(),
-			wd:       "work",
-			args:     []string{"-s", "link.txt/x"},
-			wantErr:  "realpath: link.txt/x: not a directory\n",
-			wantExit: 1,
+			Name:     "the components of a symbolic link are not followed",
+			FS:       tree(),
+			Dir:      "work",
+			Args:     []string{"-s", "link.txt/x"},
+			WantErr:  "realpath: link.txt/x: not a directory\n",
+			WantExit: 1,
 		},
 		{
-			name:    "a missing last component is not an error",
-			files:   tree(),
-			wd:      "work",
-			args:    []string{"-s", "missing.txt"},
-			wantOut: "work/missing.txt\n",
+			Name: "a missing last component is not an error",
+			FS:   tree(),
+			Dir:  "work",
+			Args: []string{"-s", "missing.txt"},
+			Want: "work/missing.txt\n",
 		},
 		{
-			name:     "a missing component before the last is an error",
-			files:    tree(),
-			wd:       "work",
-			args:     []string{"-s", "missing/x"},
-			wantErr:  "realpath: missing/x: file does not exist\n",
-			wantExit: 1,
+			Name:     "a missing component before the last is an error",
+			FS:       tree(),
+			Dir:      "work",
+			Args:     []string{"-s", "missing/x"},
+			WantErr:  "realpath: missing/x: file does not exist\n",
+			WantExit: 1,
 		},
 		{
-			name:    "resolves only the dot components and extra slashes",
-			files:   tree(),
-			wd:      "work",
-			args:    []string{"-s", "d/./../a.txt"},
-			wantOut: "work/a.txt\n",
+			Name: "resolves only the dot components and extra slashes",
+			FS:   tree(),
+			Dir:  "work",
+			Args: []string{"-s", "d/./../a.txt"},
+			Want: "work/a.txt\n",
 		},
 		{
-			name:  "with -m no existing file is touched at all",
-			files: fsx.MemFS{"work/none": {Data: []byte("a.txt"), Mode: fs.ModeSymlink}},
-			wd:    "work",
-			args:  []string{"-sm", "none/missing/../x"},
+			Name: "with -m no existing file is touched at all",
+			FS:   fsx.MemFS{"work/none": {Data: []byte("a.txt"), Mode: fs.ModeSymlink}},
+			Dir:  "work",
+			Args: []string{"-sm", "none/missing/../x"},
 			// The link would resolve to a.txt, which is not a
 			// directory; only the name is processed.
-			wantOut: "work/none/x\n",
+			Want: "work/none/x\n",
 		},
 		{
-			name:    "with -m an existing file is not inspected at all",
-			files:   tree(),
-			wd:      "work",
-			args:    []string{"-sm", "a.txt/x"},
-			wantOut: "work/a.txt/x\n",
+			Name: "with -m an existing file is not inspected at all",
+			FS:   tree(),
+			Dir:  "work",
+			Args: []string{"-sm", "a.txt/x"},
+			Want: "work/a.txt/x\n",
 		},
 	}
 
-	for _, test := range tests {
-		t.Run(test.name, func(t *testing.T) {
-			runCase(t, test)
-		})
-	}
+	testutil.Run(t, New, tests)
 }
 
 func TestRunLogical(t *testing.T) {
-	tests := []testCase{
+	tests := []testutil.Case{
 		{
-			name: "the parent applies to the logical name",
-			files: fsx.MemFS{
+			Name: "the parent applies to the logical name",
+			FS: fsx.MemFS{
 				"work/x/real.txt": {Data: []byte("x")},
 				"work/link-d":     {Data: []byte("x"), Mode: fs.ModeSymlink},
 			},
-			wd:      "work",
-			args:    []string{"-L", "link-d/missing/.."},
-			wantOut: "work/x\n",
+			Dir:  "work",
+			Args: []string{"-L", "link-d/missing/.."},
+			Want: "work/x\n",
 		},
 		{
-			name: "the physical mode still requires the component to exist",
-			files: fsx.MemFS{
+			Name: "the physical mode still requires the component to exist",
+			FS: fsx.MemFS{
 				"work/x/real.txt": {Data: []byte("x")},
 				"work/link-d":     {Data: []byte("x"), Mode: fs.ModeSymlink},
 			},
-			wd:       "work",
-			args:     []string{"-P", "link-d/missing/.."},
-			wantErr:  "realpath: link-d/missing/..: file does not exist\n",
-			wantExit: 1,
+			Dir:      "work",
+			Args:     []string{"-P", "link-d/missing/.."},
+			WantErr:  "realpath: link-d/missing/..: file does not exist\n",
+			WantExit: 1,
 		},
 		{
-			name:    "the parent applies to the resolved name of the links",
-			files:   tree(),
-			wd:      "work",
-			args:    []string{"-L", "link-d/b.txt/../b.txt"},
-			wantOut: "work/x/b.txt\n",
+			Name: "the parent applies to the resolved name of the links",
+			FS:   tree(),
+			Dir:  "work",
+			Args: []string{"-L", "link-d/b.txt/../b.txt"},
+			Want: "work/x/b.txt\n",
 		},
 		{
-			name:    "dot components are removed before the links are resolved",
-			files:   tree(),
-			wd:      "work",
-			args:    []string{"-L", "./link.txt"},
-			wantOut: "work/a.txt\n",
+			Name: "dot components are removed before the links are resolved",
+			FS:   tree(),
+			Dir:  "work",
+			Args: []string{"-L", "./link.txt"},
+			Want: "work/a.txt\n",
 		},
 		{
-			name:    "the links themselves are still resolved",
-			files:   tree(),
-			wd:      "work",
-			args:    []string{"-L", "link.txt"},
-			wantOut: "work/a.txt\n",
+			Name: "the links themselves are still resolved",
+			FS:   tree(),
+			Dir:  "work",
+			Args: []string{"-L", "link.txt"},
+			Want: "work/a.txt\n",
 		},
 	}
 
-	for _, test := range tests {
-		t.Run(test.name, func(t *testing.T) {
-			runCase(t, test)
-		})
-	}
+	testutil.Run(t, New, tests)
 }
 
 func TestRunQuiet(t *testing.T) {
-	tests := []testCase{
+	tests := []testutil.Case{
 		{
-			name:     "suppresses the diagnostic of a failing operand",
-			files:    tree(),
-			wd:       "work",
-			args:     []string{"-q", "missing/x"},
-			wantExit: 1,
+			Name:     "suppresses the diagnostic of a failing operand",
+			FS:       tree(),
+			Dir:      "work",
+			Args:     []string{"-q", "missing/x"},
+			WantExit: 1,
 		},
 		{
-			name:     "the other operands are still resolved",
-			files:    tree(),
-			wd:       "work",
-			args:     []string{"-q", "missing/x", "a.txt"},
-			wantOut:  "work/a.txt\n",
-			wantExit: 1,
+			Name:     "the other operands are still resolved",
+			FS:       tree(),
+			Dir:      "work",
+			Args:     []string{"-q", "missing/x", "a.txt"},
+			Want:     "work/a.txt\n",
+			WantExit: 1,
 		},
 		{
-			name:    "does not change the output of successful operands",
-			files:   tree(),
-			wd:      "work",
-			args:    []string{"-q", "a.txt"},
-			wantOut: "work/a.txt\n",
+			Name: "does not change the output of successful operands",
+			FS:   tree(),
+			Dir:  "work",
+			Args: []string{"-q", "a.txt"},
+			Want: "work/a.txt\n",
 		},
 	}
 
-	for _, test := range tests {
-		t.Run(test.name, func(t *testing.T) {
-			runCase(t, test)
-		})
-	}
+	testutil.Run(t, New, tests)
 }
 
 func TestRunDelimiters(t *testing.T) {
-	tests := []testCase{
+	tests := []testutil.Case{
 		{
-			name:    "-z ends each line with NUL",
-			files:   tree(),
-			wd:      "work",
-			args:    []string{"-z", "a.txt", "d"},
-			wantOut: "work/a.txt\x00work/d\x00",
+			Name: "-z ends each line with NUL",
+			FS:   tree(),
+			Dir:  "work",
+			Args: []string{"-z", "a.txt", "d"},
+			Want: "work/a.txt\x00work/d\x00",
 		},
 		{
-			name:    "-z keeps working with -q",
-			files:   tree(),
-			wd:      "work",
-			args:    []string{"-qz", "a.txt"},
-			wantOut: "work/a.txt\x00",
+			Name: "-z keeps working with -q",
+			FS:   tree(),
+			Dir:  "work",
+			Args: []string{"-qz", "a.txt"},
+			Want: "work/a.txt\x00",
 		},
 		{
-			name:     "-n is not an option of realpath",
-			files:    tree(),
-			wd:       "work",
-			args:     []string{"-n", "a.txt"},
-			wantErr:  "realpath: invalid option -- 'n'\nTry 'realpath --help' for more information.\n",
-			wantExit: 1,
+			Name:     "-n is not an option of realpath",
+			FS:       tree(),
+			Dir:      "work",
+			Args:     []string{"-n", "a.txt"},
+			WantErr:  "realpath: invalid option -- 'n'\nTry 'realpath --help' for more information.\n",
+			WantExit: 1,
 		},
 		{
-			name:     "--no-newline is not an option of realpath",
-			files:    tree(),
-			wd:       "work",
-			args:     []string{"--no-newline", "a.txt"},
-			wantErr:  "realpath: unrecognized option '--no-newline'\nTry 'realpath --help' for more information.\n",
-			wantExit: 1,
+			Name:     "--no-newline is not an option of realpath",
+			FS:       tree(),
+			Dir:      "work",
+			Args:     []string{"--no-newline", "a.txt"},
+			WantErr:  "realpath: unrecognized option '--no-newline'\nTry 'realpath --help' for more information.\n",
+			WantExit: 1,
 		},
 	}
 
-	for _, test := range tests {
-		t.Run(test.name, func(t *testing.T) {
-			runCase(t, test)
-		})
-	}
+	testutil.Run(t, New, tests)
 }
 
 func TestRelativeTo(t *testing.T) {
-	tests := []testCase{
+	tests := []testutil.Case{
 		{
-			name:    "the directory itself prints as a dot",
-			files:   tree(),
-			wd:      "work",
-			args:    []string{"--relative-to=usr/bin", "usr/bin"},
-			wantOut: ".\n",
+			Name: "the directory itself prints as a dot",
+			FS:   tree(),
+			Dir:  "work",
+			Args: []string{"--relative-to=usr/bin", "usr/bin"},
+			Want: ".\n",
 		},
 		{
-			name:    "a file outside the directory climbs with the parent components",
-			files:   tree(),
-			wd:      "work",
-			args:    []string{"--relative-to=usr/bin", "tmp/foo"},
-			wantOut: "../../tmp/foo\n",
+			Name: "a file outside the directory climbs with the parent components",
+			FS:   tree(),
+			Dir:  "work",
+			Args: []string{"--relative-to=usr/bin", "tmp/foo"},
+			Want: "../../tmp/foo\n",
 		},
 		{
-			name:    "a file below the directory is relative to it",
-			files:   tree(),
-			wd:      "work",
-			args:    []string{"--relative-to=usr/bin", "usr/share/dict/american-english"},
-			wantOut: "../share/dict/american-english\n",
+			Name: "a file below the directory is relative to it",
+			FS:   tree(),
+			Dir:  "work",
+			Args: []string{"--relative-to=usr/bin", "usr/share/dict/american-english"},
+			Want: "../share/dict/american-english\n",
 		},
 		{
-			name:    "the directory may be relative to the working directory",
-			files:   tree(),
-			wd:      "work",
-			args:    []string{"--relative-to=d", "a.txt"},
-			wantOut: "../a.txt\n",
+			Name: "the directory may be relative to the working directory",
+			FS:   tree(),
+			Dir:  "work",
+			Args: []string{"--relative-to=d", "a.txt"},
+			Want: "../a.txt\n",
 		},
 		{
-			name:    "the directory follows the symbolic links of the operands",
-			files:   tree(),
-			wd:      "work",
-			args:    []string{"--relative-to=link-d", "x/b.txt"},
-			wantOut: "b.txt\n",
+			Name: "the directory follows the symbolic links of the operands",
+			FS:   tree(),
+			Dir:  "work",
+			Args: []string{"--relative-to=link-d", "x/b.txt"},
+			Want: "b.txt\n",
 		},
 		{
-			name:    "a missing directory is fine by default",
-			files:   tree(),
-			wd:      "work",
-			args:    []string{"--relative-to=none", "a.txt"},
-			wantOut: "../a.txt\n",
+			Name: "a missing directory is fine by default",
+			FS:   tree(),
+			Dir:  "work",
+			Args: []string{"--relative-to=none", "a.txt"},
+			Want: "../a.txt\n",
 		},
 		{
-			name:     "a missing directory is an error with -e",
-			files:    tree(),
-			wd:       "work",
-			args:     []string{"-e", "--relative-to=none", "a.txt"},
-			wantErr:  "realpath: none: file does not exist\n",
-			wantExit: 1,
+			Name:     "a missing directory is an error with -e",
+			FS:       tree(),
+			Dir:      "work",
+			Args:     []string{"-e", "--relative-to=none", "a.txt"},
+			WantErr:  "realpath: none: file does not exist\n",
+			WantExit: 1,
 		},
 	}
 
-	for _, test := range tests {
-		t.Run(test.name, func(t *testing.T) {
-			runCase(t, test)
-		})
-	}
+	testutil.Run(t, New, tests)
 }
 
 func TestRelativeBase(t *testing.T) {
-	tests := []testCase{
+	tests := []testutil.Case{
 		{
-			name:    "a file below the base is relative to it",
-			files:   tree(),
-			wd:      "work",
-			args:    []string{"--relative-base=usr", "usr/bin"},
-			wantOut: "bin\n",
+			Name: "a file below the base is relative to it",
+			FS:   tree(),
+			Dir:  "work",
+			Args: []string{"--relative-base=usr", "usr/bin"},
+			Want: "bin\n",
 		},
 		{
-			name:    "the base itself is relative",
-			files:   tree(),
-			wd:      "work",
-			args:    []string{"--relative-base=usr", "usr"},
-			wantOut: ".\n",
+			Name: "the base itself is relative",
+			FS:   tree(),
+			Dir:  "work",
+			Args: []string{"--relative-base=usr", "usr"},
+			Want: ".\n",
 		},
 		{
-			name:    "a file outside the base is absolute",
-			files:   tree(),
-			wd:      "work",
-			args:    []string{"--relative-base=usr", "tmp/foo"},
-			wantOut: "work/tmp/foo\n",
+			Name: "a file outside the base is absolute",
+			FS:   tree(),
+			Dir:  "work",
+			Args: []string{"--relative-base=usr", "tmp/foo"},
+			Want: "work/tmp/foo\n",
 		},
 		{
-			name:    "a file below the base is relative to the base",
-			files:   tree(),
-			wd:      "work",
-			args:    []string{"--relative-base=usr", "usr/share/dict/american-english"},
-			wantOut: "share/dict/american-english\n",
+			Name: "a file below the base is relative to the base",
+			FS:   tree(),
+			Dir:  "work",
+			Args: []string{"--relative-base=usr", "usr/share/dict/american-english"},
+			Want: "share/dict/american-english\n",
 		},
 		{
-			name:    "both options print relative to --relative-to when below --relative-base",
-			files:   tree(),
-			wd:      "work",
-			args:    []string{"--relative-to=usr/bin", "--relative-base=usr", "usr/bin", "tmp/foo", "usr/share/dict/american-english"},
-			wantOut: ".\nwork/tmp/foo\n../share/dict/american-english\n",
+			Name: "both options print relative to --relative-to when below --relative-base",
+			FS:   tree(),
+			Dir:  "work",
+			Args: []string{"--relative-to=usr/bin", "--relative-base=usr", "usr/bin", "tmp/foo", "usr/share/dict/american-english"},
+			Want: ".\nwork/tmp/foo\n../share/dict/american-english\n",
 		},
 		{
-			name:    "a --relative-to outside the base makes the names absolute",
-			files:   tree(),
-			wd:      "work",
-			args:    []string{"--relative-to=tmp", "--relative-base=usr", "usr/bin", "tmp/foo"},
-			wantOut: "work/usr/bin\nwork/tmp/foo\n",
+			Name: "a --relative-to outside the base makes the names absolute",
+			FS:   tree(),
+			Dir:  "work",
+			Args: []string{"--relative-to=tmp", "--relative-base=usr", "usr/bin", "tmp/foo"},
+			Want: "work/usr/bin\nwork/tmp/foo\n",
 		},
 	}
 
-	for _, test := range tests {
-		t.Run(test.name, func(t *testing.T) {
-			runCase(t, test)
-		})
-	}
+	testutil.Run(t, New, tests)
 }
 
 func TestRunUsageErrors(t *testing.T) {
-	tests := []testCase{
+	tests := []testutil.Case{
 		{
-			name:     "missing operands",
-			files:    tree(),
-			wd:       "work",
-			wantErr:  "realpath: missing file operand\nTry 'realpath --help' for more information.\n",
-			wantExit: 1,
+			Name:     "missing operands",
+			FS:       tree(),
+			Dir:      "work",
+			WantErr:  "realpath: missing file operand\nTry 'realpath --help' for more information.\n",
+			WantExit: 1,
 		},
 		{
-			name:     "an invalid short option",
-			files:    tree(),
-			wd:       "work",
-			args:     []string{"-X", "a.txt"},
-			wantErr:  "realpath: invalid option -- 'X'\nTry 'realpath --help' for more information.\n",
-			wantExit: 1,
+			Name:     "an invalid short option",
+			FS:       tree(),
+			Dir:      "work",
+			Args:     []string{"-X", "a.txt"},
+			WantErr:  "realpath: invalid option -- 'X'\nTry 'realpath --help' for more information.\n",
+			WantExit: 1,
 		},
 		{
-			name:     "an unknown long option",
-			files:    tree(),
-			wd:       "work",
-			args:     []string{"--bogus", "a.txt"},
-			wantErr:  "realpath: unrecognized option '--bogus'\nTry 'realpath --help' for more information.\n",
-			wantExit: 1,
+			Name:     "an unknown long option",
+			FS:       tree(),
+			Dir:      "work",
+			Args:     []string{"--bogus", "a.txt"},
+			WantErr:  "realpath: unrecognized option '--bogus'\nTry 'realpath --help' for more information.\n",
+			WantExit: 1,
 		},
 		{
-			name:     "a long option without its argument",
-			files:    tree(),
-			wd:       "work",
-			args:     []string{"--relative-to"},
-			wantErr:  "realpath: option '--relative-to' requires an argument\nTry 'realpath --help' for more information.\n",
-			wantExit: 1,
+			Name:     "a long option without its argument",
+			FS:       tree(),
+			Dir:      "work",
+			Args:     []string{"--relative-to"},
+			WantErr:  "realpath: option '--relative-to' requires an argument\nTry 'realpath --help' for more information.\n",
+			WantExit: 1,
 		},
 		{
-			name:     "an option argument held by the next argument",
-			files:    tree(),
-			wd:       "work",
-			args:     []string{"--relative-to", "usr", "a.txt"},
-			wantOut:  "../a.txt\n",
-			wantExit: 0,
+			Name:     "an option argument held by the next argument",
+			FS:       tree(),
+			Dir:      "work",
+			Args:     []string{"--relative-to", "usr", "a.txt"},
+			Want:     "../a.txt\n",
+			WantExit: 0,
 		},
 		{
-			name:     "an empty operand",
-			files:    tree(),
-			wd:       "work",
-			args:     []string{""},
-			wantErr:  "realpath: invalid zero-length file name\nTry 'realpath --help' for more information.\n",
-			wantExit: 1,
+			Name:     "an empty operand",
+			FS:       tree(),
+			Dir:      "work",
+			Args:     []string{""},
+			WantErr:  "realpath: invalid zero-length file name\nTry 'realpath --help' for more information.\n",
+			WantExit: 1,
 		},
 		{
-			name:    "the options end at the first operand",
-			files:   tree(),
-			wd:      "work",
-			args:    []string{"--", "-e"},
-			wantOut: "work/-e\n",
+			Name: "the options end at the first operand",
+			FS:   tree(),
+			Dir:  "work",
+			Args: []string{"--", "-e"},
+			Want: "work/-e\n",
 		},
 		{
-			name:    "the options end at --",
-			files:   tree(),
-			wd:      "work",
-			args:    []string{"-s", "--", "link.txt"},
-			wantOut: "work/link.txt\n",
+			Name: "the options end at --",
+			FS:   tree(),
+			Dir:  "work",
+			Args: []string{"-s", "--", "link.txt"},
+			Want: "work/link.txt\n",
 		},
 		{
-			name:     "options after the operands are operands themselves",
-			files:    tree(),
-			wd:       "work",
-			args:     []string{"a.txt", "-z"},
-			wantOut:  "work/a.txt\nwork/-z\n",
-			wantExit: 0,
+			Name:     "options after the operands are operands themselves",
+			FS:       tree(),
+			Dir:      "work",
+			Args:     []string{"a.txt", "-z"},
+			Want:     "work/a.txt\nwork/-z\n",
+			WantExit: 0,
 		},
 	}
 
-	for _, test := range tests {
-		t.Run(test.name, func(t *testing.T) {
-			runCase(t, test)
-		})
-	}
+	testutil.Run(t, New, tests)
 }
 
 func TestCommonOptions(t *testing.T) {
 	t.Run("--help prints the usage", func(t *testing.T) {
-		runCase(t, testCase{
-			files:   tree(),
-			wd:      "work",
-			args:    []string{"--help"},
-			wantOut: usage,
+		testutil.Once(t, New, testutil.Case{
+			FS:   tree(),
+			Dir:  "work",
+			Args: []string{"--help"},
+			Want: usage,
 		})
 	})
 	t.Run("--version prints the program name", func(t *testing.T) {
@@ -776,106 +683,102 @@ func TestCommonOptions(t *testing.T) {
 		}
 	})
 	t.Run("--help after an operand is an operand", func(t *testing.T) {
-		runCase(t, testCase{
-			files:    tree(),
-			wd:       "work",
-			args:     []string{"a.txt", "--help"},
-			wantOut:  "work/a.txt\nwork/--help\n",
-			wantExit: 0,
+		testutil.Once(t, New, testutil.Case{
+			FS:       tree(),
+			Dir:      "work",
+			Args:     []string{"a.txt", "--help"},
+			Want:     "work/a.txt\nwork/--help\n",
+			WantExit: 0,
 		})
 	})
 }
 
 func TestRunInteractions(t *testing.T) {
-	tests := []testCase{
+	tests := []testutil.Case{
 		{
-			name:     "a missing component with a parent after it is an error",
-			files:    tree(),
-			wd:       "work",
-			args:     []string{"d/missing/../keep.txt"},
-			wantErr:  "realpath: d/missing/../keep.txt: file does not exist\n",
-			wantExit: 1,
+			Name:     "a missing component with a parent after it is an error",
+			FS:       tree(),
+			Dir:      "work",
+			Args:     []string{"d/missing/../keep.txt"},
+			WantErr:  "realpath: d/missing/../keep.txt: file does not exist\n",
+			WantExit: 1,
 		},
 		{
-			name:    "the logical mode applies the parent to the missing component",
-			files:   tree(),
-			wd:      "work",
-			args:    []string{"-Le", "link-d/missing/.."},
-			wantOut: "work/x\n",
+			Name: "the logical mode applies the parent to the missing component",
+			FS:   tree(),
+			Dir:  "work",
+			Args: []string{"-Le", "link-d/missing/.."},
+			Want: "work/x\n",
 		},
 		{
-			name:    "the missing mode leaves a looping link as it is",
-			files:   tree(),
-			wd:      "work",
-			args:    []string{"-m", "loop"},
-			wantOut: "work/loop\n",
+			Name: "the missing mode leaves a looping link as it is",
+			FS:   tree(),
+			Dir:  "work",
+			Args: []string{"-m", "loop"},
+			Want: "work/loop\n",
 		},
 		{
-			name:     "a stripped name with a trailing slash is still a directory",
-			files:    tree(),
-			wd:       "work",
-			args:     []string{"-s", "a.txt/"},
-			wantErr:  "realpath: a.txt/: not a directory\n",
-			wantExit: 1,
+			Name:     "a stripped name with a trailing slash is still a directory",
+			FS:       tree(),
+			Dir:      "work",
+			Args:     []string{"-s", "a.txt/"},
+			WantErr:  "realpath: a.txt/: not a directory\n",
+			WantExit: 1,
 		},
 		{
-			name:    "a stripped directory with a trailing slash resolves",
-			files:   tree(),
-			wd:      "work",
-			args:    []string{"-s", "d/"},
-			wantOut: "work/d\n",
+			Name: "a stripped directory with a trailing slash resolves",
+			FS:   tree(),
+			Dir:  "work",
+			Args: []string{"-s", "d/"},
+			Want: "work/d\n",
 		},
 		{
-			name:     "-e requires the --relative-to directory to exist as a directory",
-			files:    tree(),
-			wd:       "work",
-			args:     []string{"-e", "--relative-to=a.txt", "a.txt"},
-			wantErr:  "realpath: a.txt: not a directory\n",
-			wantExit: 1,
+			Name:     "-e requires the --relative-to directory to exist as a directory",
+			FS:       tree(),
+			Dir:      "work",
+			Args:     []string{"-e", "--relative-to=a.txt", "a.txt"},
+			WantErr:  "realpath: a.txt: not a directory\n",
+			WantExit: 1,
 		},
 		{
-			name:     "-e requires the --relative-base directory to be a directory",
-			files:    tree(),
-			wd:       "work",
-			args:     []string{"-e", "--relative-base=d/keep.txt", "a.txt"},
-			wantErr:  "realpath: d/keep.txt: not a directory\n",
-			wantExit: 1,
+			Name:     "-e requires the --relative-base directory to be a directory",
+			FS:       tree(),
+			Dir:      "work",
+			Args:     []string{"-e", "--relative-base=d/keep.txt", "a.txt"},
+			WantErr:  "realpath: d/keep.txt: not a directory\n",
+			WantExit: 1,
 		},
 		{
-			name:    "the last --relative-to wins",
-			files:   tree(),
-			wd:      "work",
-			args:    []string{"--relative-to=usr/share", "--relative-to=d", "a.txt"},
-			wantOut: "../a.txt\n",
+			Name: "the last --relative-to wins",
+			FS:   tree(),
+			Dir:  "work",
+			Args: []string{"--relative-to=usr/share", "--relative-to=d", "a.txt"},
+			Want: "../a.txt\n",
 		},
 		{
-			name:    "-z ends the relative names with NUL",
-			files:   tree(),
-			wd:      "work",
-			args:    []string{"-z", "--relative-to=d", "a.txt"},
-			wantOut: "../a.txt\x00",
+			Name: "-z ends the relative names with NUL",
+			FS:   tree(),
+			Dir:  "work",
+			Args: []string{"-z", "--relative-to=d", "a.txt"},
+			Want: "../a.txt\x00",
 		},
 		{
-			name:    "the last of -L, -P and -s wins: sP",
-			files:   tree(),
-			wd:      "work",
-			args:    []string{"-sP", "link.txt"},
-			wantOut: "work/a.txt\n",
+			Name: "the last of -L, -P and -s wins: sP",
+			FS:   tree(),
+			Dir:  "work",
+			Args: []string{"-sP", "link.txt"},
+			Want: "work/a.txt\n",
 		},
 		{
-			name:    "the last of -L, -P and -s wins: Ps",
-			files:   tree(),
-			wd:      "work",
-			args:    []string{"-Ps", "link.txt"},
-			wantOut: "work/link.txt\n",
+			Name: "the last of -L, -P and -s wins: Ps",
+			FS:   tree(),
+			Dir:  "work",
+			Args: []string{"-Ps", "link.txt"},
+			Want: "work/link.txt\n",
 		},
 	}
 
-	for _, test := range tests {
-		t.Run(test.name, func(t *testing.T) {
-			runCase(t, test)
-		})
-	}
+	testutil.Run(t, New, tests)
 }
 
 func TestPathPrefix(t *testing.T) {
@@ -904,34 +807,30 @@ func TestPathPrefix(t *testing.T) {
 
 func TestRunRootBase(t *testing.T) {
 	t.Run("a root base keeps the names relative to the file system root", func(t *testing.T) {
-		tests := []testCase{
+		tests := []testutil.Case{
 			{
-				name:    "--relative-to=/",
-				files:   tree(),
-				wd:      "work",
-				args:    []string{"--relative-to=/", "d/keep.txt"},
-				wantOut: "work/d/keep.txt\n",
+				Name: "--relative-to=/",
+				FS:   tree(),
+				Dir:  "work",
+				Args: []string{"--relative-to=/", "d/keep.txt"},
+				Want: "work/d/keep.txt\n",
 			},
 			{
-				name:    "--relative-base=/",
-				files:   tree(),
-				wd:      "work",
-				args:    []string{"--relative-base=/", "d/keep.txt"},
-				wantOut: "work/d/keep.txt\n",
+				Name: "--relative-base=/",
+				FS:   tree(),
+				Dir:  "work",
+				Args: []string{"--relative-base=/", "d/keep.txt"},
+				Want: "work/d/keep.txt\n",
 			},
 			{
-				name:    "both options with a root base",
-				files:   tree(),
-				wd:      "work",
-				args:    []string{"--relative-to=/", "--relative-base=/", "d/keep.txt"},
-				wantOut: "work/d/keep.txt\n",
+				Name: "both options with a root base",
+				FS:   tree(),
+				Dir:  "work",
+				Args: []string{"--relative-to=/", "--relative-base=/", "d/keep.txt"},
+				Want: "work/d/keep.txt\n",
 			},
 		}
-		for _, test := range tests {
-			t.Run(test.name, func(t *testing.T) {
-				runCase(t, test)
-			})
-		}
+		testutil.Run(t, New, tests)
 	})
 
 	t.Run("a root base makes absolute names relative", func(t *testing.T) {

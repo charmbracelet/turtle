@@ -4,204 +4,145 @@ import (
 	"bytes"
 	"context"
 	"errors"
-	"strings"
 	"testing"
 
 	"charm.land/snail/coreutils"
+	"charm.land/snail/coreutils/internal/testutil"
 	"charm.land/snail/fsx"
 )
 
-type testCase struct {
-	name     string
-	files    fsx.MemFS
-	wd       string
-	args     []string
-	wantErr  string
-	wantExit int
-}
-
-func runCase(t *testing.T, test testCase) {
-	t.Helper()
-
-	stdout, stderr := new(bytes.Buffer), new(bytes.Buffer)
-	rt := &coreutils.Runtime{
-		Stdin:      strings.NewReader(""),
-		Stdout:     stdout,
-		Stderr:     stderr,
-		FS:         test.files,
-		WorkingDir: test.wd,
-	}
-
-	err := New(rt).Run(t.Context(), test.args...)
-
-	if code := exitCode(t, err); code != test.wantExit {
-		t.Errorf("Run() exit code = %d, want %d (error = %v)", code, test.wantExit, err)
-	}
-	if got := stderr.String(); got != test.wantErr {
-		t.Errorf("Run() stderr = %q, want %q", got, test.wantErr)
-	}
-	if got := stdout.String(); got != "" {
-		t.Errorf("Run() stdout = %q, want none", got)
-	}
-}
-
-func exitCode(t *testing.T, err error) int {
-	t.Helper()
-
-	if err == nil {
-		return 0
-	}
-	var exitErr *coreutils.ExitError
-	if !errors.As(err, &exitErr) {
-		t.Fatalf("Run() error = %v, want *coreutils.ExitError", err)
-	}
-	return exitErr.Code
-}
-
 func TestRun(t *testing.T) {
 	t.Run("success", func(t *testing.T) {
-		tests := []testCase{
+		tests := []testutil.Case{
 			{
-				name:  "no operands",
-				files: fsx.MemFS{"a.txt": {Data: []byte("a")}},
-				args:  nil,
+				Name: "no operands",
+				FS:   fsx.MemFS{"a.txt": {Data: []byte("a")}},
+				Args: nil,
 			},
 			{
-				name:  "file operands",
-				files: fsx.MemFS{"a.txt": {Data: []byte("a")}, "b.txt": {Data: []byte("b")}},
-				args:  []string{"a.txt", "b.txt"},
+				Name: "file operands",
+				FS:   fsx.MemFS{"a.txt": {Data: []byte("a")}, "b.txt": {Data: []byte("b")}},
+				Args: []string{"a.txt", "b.txt"},
 			},
 			{
-				name:  "resolves the operands against the working directory",
-				files: fsx.MemFS{"d/a.txt": {Data: []byte("a")}},
-				wd:    "d",
-				args:  []string{"a.txt"},
+				Name: "resolves the operands against the working directory",
+				FS:   fsx.MemFS{"d/a.txt": {Data: []byte("a")}},
+				Dir:  "d",
+				Args: []string{"a.txt"},
 			},
 			{
-				name:  "a dash operand is a file name",
-				files: fsx.MemFS{"-": {Data: []byte("a")}},
-				args:  []string{"-"},
+				Name: "a dash operand is a file name",
+				FS:   fsx.MemFS{"-": {Data: []byte("a")}},
+				Args: []string{"-"},
 			},
 			{
-				name:  "a file after a double dash",
-				files: fsx.MemFS{"-d.txt": {Data: []byte("a")}},
-				args:  []string{"--", "-d.txt"},
+				Name: "a file after a double dash",
+				FS:   fsx.MemFS{"-d.txt": {Data: []byte("a")}},
+				Args: []string{"--", "-d.txt"},
 			},
 		}
-		for _, test := range tests {
-			t.Run(test.name, func(t *testing.T) {
-				runCase(t, test)
-			})
-		}
+		testutil.Run(t, New, tests)
 	})
 
 	t.Run("failures", func(t *testing.T) {
-		tests := []testCase{
+		tests := []testutil.Case{
 			{
-				name:     "a missing file is an error",
-				files:    fsx.MemFS{},
-				args:     []string{"missing"},
-				wantErr:  "sync: error opening 'missing': file does not exist\n",
-				wantExit: 1,
+				Name:     "a missing file is an error",
+				FS:       fsx.MemFS{},
+				Args:     []string{"missing"},
+				WantErr:  "sync: error opening 'missing': file does not exist\n",
+				WantExit: 1,
 			},
 			{
-				name:     "a good file doesn't hide a missing one",
-				files:    fsx.MemFS{"a.txt": {Data: []byte("a")}},
-				args:     []string{"a.txt", "missing"},
-				wantErr:  "sync: error opening 'missing': file does not exist\n",
-				wantExit: 1,
+				Name:     "a good file doesn't hide a missing one",
+				FS:       fsx.MemFS{"a.txt": {Data: []byte("a")}},
+				Args:     []string{"a.txt", "missing"},
+				WantErr:  "sync: error opening 'missing': file does not exist\n",
+				WantExit: 1,
 			},
 			{
-				name:     "a missing file in the working directory is an error",
-				files:    fsx.MemFS{"d/a.txt": {Data: []byte("a")}},
-				wd:       "d",
-				args:     []string{"missing"},
-				wantErr:  "sync: error opening 'missing': file does not exist\n",
-				wantExit: 1,
+				Name:     "a missing file in the working directory is an error",
+				FS:       fsx.MemFS{"d/a.txt": {Data: []byte("a")}},
+				Dir:      "d",
+				Args:     []string{"missing"},
+				WantErr:  "sync: error opening 'missing': file does not exist\n",
+				WantExit: 1,
 			},
 			{
-				name:     "an invalid option is an error",
-				files:    fsx.MemFS{},
-				args:     []string{"-x"},
-				wantErr:  "sync: invalid option -- 'x'\nTry 'sync --help' for more information.\n",
-				wantExit: 2,
+				Name:     "an invalid option is an error",
+				FS:       fsx.MemFS{},
+				Args:     []string{"-x"},
+				WantErr:  "sync: invalid option -- 'x'\nTry 'sync --help' for more information.\n",
+				WantExit: 2,
 			},
 			{
-				name:     "an unrecognized long option is an error",
-				files:    fsx.MemFS{},
-				args:     []string{"--nope"},
-				wantErr:  "sync: unrecognized option '--nope'\nTry 'sync --help' for more information.\n",
-				wantExit: 2,
+				Name:     "an unrecognized long option is an error",
+				FS:       fsx.MemFS{},
+				Args:     []string{"--nope"},
+				WantErr:  "sync: unrecognized option '--nope'\nTry 'sync --help' for more information.\n",
+				WantExit: 2,
 			},
 			{
-				name:     "a long option with an argument is an error",
-				files:    fsx.MemFS{},
-				args:     []string{"--data=1"},
-				wantErr:  "sync: option '--data=1' doesn't allow an argument\nTry 'sync --help' for more information.\n",
-				wantExit: 2,
+				Name:     "a long option with an argument is an error",
+				FS:       fsx.MemFS{},
+				Args:     []string{"--data=1"},
+				WantErr:  "sync: option '--data=1' doesn't allow an argument\nTry 'sync --help' for more information.\n",
+				WantExit: 2,
 			},
 		}
-		for _, test := range tests {
-			t.Run(test.name, func(t *testing.T) {
-				runCase(t, test)
-			})
-		}
+		testutil.Run(t, New, tests)
 	})
 
 	t.Run("options", func(t *testing.T) {
-		tests := []testCase{
+		tests := []testutil.Case{
 			{
-				name:  "-d with a file",
-				files: fsx.MemFS{"a.txt": {Data: []byte("a")}},
-				args:  []string{"-d", "a.txt"},
+				Name: "-d with a file",
+				FS:   fsx.MemFS{"a.txt": {Data: []byte("a")}},
+				Args: []string{"-d", "a.txt"},
 			},
 			{
-				name:  "--data with a file",
-				files: fsx.MemFS{"a.txt": {Data: []byte("a")}},
-				args:  []string{"--data", "a.txt"},
+				Name: "--data with a file",
+				FS:   fsx.MemFS{"a.txt": {Data: []byte("a")}},
+				Args: []string{"--data", "a.txt"},
 			},
 			{
-				name:  "-f with a file",
-				files: fsx.MemFS{"a.txt": {Data: []byte("a")}},
-				args:  []string{"-f", "a.txt"},
+				Name: "-f with a file",
+				FS:   fsx.MemFS{"a.txt": {Data: []byte("a")}},
+				Args: []string{"-f", "a.txt"},
 			},
 			{
-				name:  "--file-system with a file",
-				files: fsx.MemFS{"a.txt": {Data: []byte("a")}},
-				args:  []string{"--file-system", "a.txt"},
+				Name: "--file-system with a file",
+				FS:   fsx.MemFS{"a.txt": {Data: []byte("a")}},
+				Args: []string{"--file-system", "a.txt"},
 			},
 			{
-				name:  "-f with a missing file falls back to the global sync",
-				files: fsx.MemFS{},
-				args:  []string{"-f", "missing"},
+				Name: "-f with a missing file falls back to the global sync",
+				FS:   fsx.MemFS{},
+				Args: []string{"-f", "missing"},
 			},
 			{
-				name:     "both -d and -f are an error",
-				files:    fsx.MemFS{"a.txt": {Data: []byte("a")}},
-				args:     []string{"-d", "-f", "a.txt"},
-				wantErr:  "sync: cannot specify both --data and --file-system\nTry 'sync --help' for more information.\n",
-				wantExit: 1,
+				Name:     "both -d and -f are an error",
+				FS:       fsx.MemFS{"a.txt": {Data: []byte("a")}},
+				Args:     []string{"-d", "-f", "a.txt"},
+				WantErr:  "sync: cannot specify both --data and --file-system\nTry 'sync --help' for more information.\n",
+				WantExit: 1,
 			},
 			{
-				name:     "both --data and --file-system are an error",
-				files:    fsx.MemFS{},
-				args:     []string{"--data", "--file-system"},
-				wantErr:  "sync: cannot specify both --data and --file-system\nTry 'sync --help' for more information.\n",
-				wantExit: 1,
+				Name:     "both --data and --file-system are an error",
+				FS:       fsx.MemFS{},
+				Args:     []string{"--data", "--file-system"},
+				WantErr:  "sync: cannot specify both --data and --file-system\nTry 'sync --help' for more information.\n",
+				WantExit: 1,
 			},
 			{
-				name:     "--data without operands is an error",
-				files:    fsx.MemFS{},
-				args:     []string{"--data"},
-				wantErr:  "sync: --data needs at least one argument\nTry 'sync --help' for more information.\n",
-				wantExit: 1,
+				Name:     "--data without operands is an error",
+				FS:       fsx.MemFS{},
+				Args:     []string{"--data"},
+				WantErr:  "sync: --data needs at least one argument\nTry 'sync --help' for more information.\n",
+				WantExit: 1,
 			},
 		}
-		for _, test := range tests {
-			t.Run(test.name, func(t *testing.T) {
-				runCase(t, test)
-			})
-		}
+		testutil.Run(t, New, tests)
 	})
 }
 
@@ -280,26 +221,5 @@ func TestRunContext(t *testing.T) {
 }
 
 func TestHelpVersion(t *testing.T) {
-	t.Run("help", func(t *testing.T) {
-		stdout := new(bytes.Buffer)
-		rt := &coreutils.Runtime{Stdout: stdout, Stderr: new(bytes.Buffer)}
-		if err := New(rt).Run(t.Context(), "--help"); err != nil {
-			t.Fatalf("Run() error = %v, want nil (exit status 0)", err)
-		}
-		if got, want := stdout.String(), usage; got != want {
-			t.Errorf("Run() stdout = %q, want %q", got, want)
-		}
-	})
-
-	t.Run("version", func(t *testing.T) {
-		stdout := new(bytes.Buffer)
-		rt := &coreutils.Runtime{Stdout: stdout, Stderr: new(bytes.Buffer)}
-		if err := New(rt).Run(t.Context(), "--version"); err != nil {
-			t.Fatalf("Run() error = %v, want nil (exit status 0)", err)
-		}
-		want := "sync (charm.land/snail/coreutils) " + coreutils.Version + "\nhttps://charm.land/snail\n"
-		if got := stdout.String(); got != want {
-			t.Errorf("Run() stdout = %q, want %q", got, want)
-		}
-	})
+	testutil.HelpVersion(t, New, "sync", usage)
 }

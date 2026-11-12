@@ -6,67 +6,29 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"io/fs"
 	"sort"
 	"strings"
 	"testing"
 
 	"charm.land/snail/coreutils"
+	"charm.land/snail/coreutils/internal/testutil"
 	"charm.land/snail/fsx"
 )
 
-type errorReader struct {
-	err error
-}
-
-func (r errorReader) Read([]byte) (int, error) {
-	return 0, r.err
-}
-
-// cancelReader cancels its context on the first read, simulating a context
-// that is done while input is being read.
-type cancelReader struct {
-	cancel context.CancelFunc
-}
-
-func (r *cancelReader) Read([]byte) (int, error) {
-	r.cancel()
-	return 0, context.Canceled
-}
-
-// failWriteFS wraps a MemFS so writes to created files fail.
-type failWriteFS struct {
-	fsx.MemFS
-	err error
-}
-
-// OpenFile implements fsx.WriteFS.
-func (m failWriteFS) OpenFile(name string, flag int, perm fs.FileMode) (fsx.File, error) {
-	f, err := m.MemFS.OpenFile(name, flag, perm)
-	if err != nil {
-		return nil, err
-	}
-	return failWriteFile{File: f, err: m.err}, nil
-}
-
-type failWriteFile struct {
-	fsx.File
-	err error
-}
-
-func (f failWriteFile) Write([]byte) (int, error) {
-	return 0, f.err
-}
-
+// testCase is a testutil.Case plus the exact list of the files the run must
+// leave in the file system of the case, when the file names alone matter.
 type testCase struct {
-	name      string
-	stdin     io.Reader
-	fsys      fsx.FS
-	args      []string
-	want      map[string]string
-	wantOut   string
-	wantErr   string
-	wantExit  int
+	Name      string
+	Stdin     io.Reader
+	FS        fsx.FS
+	Args      []string
+	Want      string
+	WantErr   string
+	WantExit  int
+	WantFiles map[string]string
+
+	// wantFiles is the exact list of the files that must be left behind,
+	// overriding the names of WantFiles.
 	wantFiles []string
 }
 
@@ -81,145 +43,128 @@ func lines(from, to int) string {
 func runCase(t *testing.T, test testCase) {
 	t.Helper()
 
-	fsys := test.fsys
-	if fsys == nil {
-		fsys = fsx.MemFS{}
+	if test.FS == nil {
+		test.FS = fsx.MemFS{}
 	}
-	stdout := new(bytes.Buffer)
-	stderr := new(bytes.Buffer)
-	rt := &coreutils.Runtime{
-		Stdin:  test.stdin,
-		Stdout: stdout,
-		Stderr: stderr,
-		FS:     fsys,
+	want := test.wantFiles
+	if want == nil {
+		want = make([]string, 0, len(test.WantFiles))
+		for name := range test.WantFiles {
+			want = append(want, name)
+		}
+		sort.Strings(want)
 	}
-	err := New(rt).Run(t.Context(), test.args...)
-
-	code := 0
-	if exitErr, ok := errors.AsType[*coreutils.ExitError](err); ok {
-		code = exitErr.Code
-	} else if err != nil {
-		t.Fatalf("Run() error = %v", err)
-	}
-	if code != test.wantExit {
-		t.Errorf("Run() exit code = %d, want %d (error = %v)", code, test.wantExit, err)
-	}
-	if got := stdout.String(); got != test.wantOut {
-		t.Errorf("Run() stdout = %q, want %q", got, test.wantOut)
-	}
-	if got := stderr.String(); got != test.wantErr {
-		t.Errorf("Run() stderr = %q, want %q", got, test.wantErr)
-	}
-
-	if mem, ok := fsys.(fsx.MemFS); ok {
+	check := func(t *testing.T, rt *coreutils.Runtime) {
+		mem, ok := rt.FS.(fsx.MemFS)
+		if !ok {
+			return
+		}
 		var got []string
 		for name := range mem {
 			got = append(got, name)
 		}
 		sort.Strings(got)
-		want := test.wantFiles
-		if want == nil {
-			want = make([]string, 0, len(test.want))
-			for name := range test.want {
-				want = append(want, name)
-			}
-			sort.Strings(want)
-		}
 		if fmt.Sprint(got) != fmt.Sprint(want) {
 			t.Errorf("Run() files = %v, want %v", got, want)
 		}
-		for name, content := range test.want {
-			if got := string(mem[name].Data); got != content {
-				t.Errorf("Run() file %s = %q, want %q", name, got, content)
-			}
-		}
 	}
+	testutil.Once(t, New, testutil.Case{
+		Name:      test.Name,
+		Stdin:     test.Stdin,
+		FS:        test.FS,
+		Args:      test.Args,
+		Want:      test.Want,
+		WantErr:   test.WantErr,
+		WantExit:  test.WantExit,
+		WantFiles: test.WantFiles,
+		Check:     check,
+	})
 }
 
 func TestRunLines(t *testing.T) {
 	tests := []testCase{
 		{
-			name:      "default is 1000 lines per piece",
-			fsys:      fsx.MemFS{"in.txt": {Data: []byte(lines(1, 2500))}},
-			args:      []string{"in.txt"},
+			Name:      "default is 1000 lines per piece",
+			FS:        fsx.MemFS{"in.txt": {Data: []byte(lines(1, 2500))}},
+			Args:      []string{"in.txt"},
 			wantFiles: []string{"in.txt", "xaa", "xab", "xac"},
-			want: map[string]string{
+			WantFiles: map[string]string{
 				"xaa": lines(1, 1000),
 				"xab": lines(1001, 2000),
 				"xac": lines(2001, 2500),
 			},
 		},
 		{
-			name:  "pieces of two lines",
-			stdin: strings.NewReader("a\nb\nc\nd\ne\n"),
-			args:  []string{"-l", "2"},
-			want: map[string]string{
+			Name:  "pieces of two lines",
+			Stdin: strings.NewReader("a\nb\nc\nd\ne\n"),
+			Args:  []string{"-l", "2"},
+			WantFiles: map[string]string{
 				"xaa": "a\nb\n",
 				"xab": "c\nd\n",
 				"xac": "e\n",
 			},
 		},
 		{
-			name:  "an input ending at a boundary leaves no empty piece",
-			stdin: strings.NewReader("a\nb\nc\nd\n"),
-			args:  []string{"-l2"},
-			want: map[string]string{
+			Name:  "an input ending at a boundary leaves no empty piece",
+			Stdin: strings.NewReader("a\nb\nc\nd\n"),
+			Args:  []string{"-l2"},
+			WantFiles: map[string]string{
 				"xaa": "a\nb\n",
 				"xab": "c\nd\n",
 			},
 		},
 		{
-			name:  "the last line may miss its newline",
-			stdin: strings.NewReader("a\nb\nc"),
-			args:  []string{"-l", "2"},
-			want: map[string]string{
+			Name:  "the last line may miss its newline",
+			Stdin: strings.NewReader("a\nb\nc"),
+			Args:  []string{"-l", "2"},
+			WantFiles: map[string]string{
 				"xaa": "a\nb\n",
 				"xab": "c",
 			},
 		},
 		{
-			name:  "custom prefix",
-			stdin: strings.NewReader("a\nb\nc\n"),
-			args:  []string{"-l", "2", "-", "part_"},
-			want: map[string]string{
+			Name:  "custom prefix",
+			Stdin: strings.NewReader("a\nb\nc\n"),
+			Args:  []string{"-l", "2", "-", "part_"},
+			WantFiles: map[string]string{
 				"part_aa": "a\nb\n",
 				"part_ab": "c\n",
 			},
 		},
 		{
-			name:  "longer suffixes",
-			stdin: strings.NewReader("a\nb\nc\n"),
-			args:  []string{"-l", "1", "-a3"},
-			want: map[string]string{
+			Name:  "longer suffixes",
+			Stdin: strings.NewReader("a\nb\nc\n"),
+			Args:  []string{"-l", "1", "-a3"},
+			WantFiles: map[string]string{
 				"xaaa": "a\n",
 				"xaab": "b\n",
 				"xaac": "c\n",
 			},
 		},
 		{
-			name:      "empty input creates no files",
-			fsys:      fsx.MemFS{"empty.txt": {Data: []byte("")}},
-			args:      []string{"empty.txt"},
+			Name:      "empty input creates no files",
+			FS:        fsx.MemFS{"empty.txt": {Data: []byte("")}},
+			Args:      []string{"empty.txt"},
 			wantFiles: []string{"empty.txt"},
 		},
 		{
-			name:      "empty input creates no files even with zero suffix length",
-			fsys:      fsx.MemFS{"empty.txt": {Data: []byte("")}},
-			args:      []string{"-a", "0", "empty.txt"},
+			Name:      "empty input creates no files even with zero suffix length",
+			FS:        fsx.MemFS{"empty.txt": {Data: []byte("")}},
+			Args:      []string{"-a", "0", "empty.txt"},
 			wantFiles: []string{"empty.txt"},
 		},
 		{
-			name:  "zero suffix length selects the default",
-			stdin: strings.NewReader("a\nb\n"),
-			args:  []string{"-a", "0", "-l", "9"},
-			want:  map[string]string{"xaa": "a\nb\n"},
+			Name:      "zero suffix length selects the default",
+			Stdin:     strings.NewReader("a\nb\n"),
+			Args:      []string{"-a", "0", "-l", "9"},
+			WantFiles: map[string]string{"xaa": "a\nb\n"},
 		},
 		{
-			name:      "pieces in a subdirectory prefix",
-			fsys:      fsx.MemFS{"in.txt": {Data: []byte("a\nb\nc\n")}, "out/keep.txt": {Data: []byte("k")}},
-			args:      []string{"-l", "1", "in.txt", "out/p_"},
+			Name:      "pieces in a subdirectory prefix",
+			FS:        fsx.MemFS{"in.txt": {Data: []byte("a\nb\nc\n")}, "out/keep.txt": {Data: []byte("k")}},
+			Args:      []string{"-l", "1", "in.txt", "out/p_"},
 			wantFiles: []string{"in.txt", "out/keep.txt", "out/p_aa", "out/p_ab", "out/p_ac"},
-			want: map[string]string{
+			WantFiles: map[string]string{
 				"out/p_aa": "a\n",
 				"out/p_ab": "b\n",
 				"out/p_ac": "c\n",
@@ -227,7 +172,7 @@ func TestRunLines(t *testing.T) {
 		},
 	}
 	for _, test := range tests {
-		t.Run(test.name, func(t *testing.T) {
+		t.Run(test.Name, func(t *testing.T) {
 			runCase(t, test)
 		})
 	}
@@ -236,52 +181,52 @@ func TestRunLines(t *testing.T) {
 func TestRunBytes(t *testing.T) {
 	tests := []testCase{
 		{
-			name:  "pieces of two bytes",
-			stdin: strings.NewReader("abcde"),
-			args:  []string{"-b", "2"},
-			want: map[string]string{
+			Name:  "pieces of two bytes",
+			Stdin: strings.NewReader("abcde"),
+			Args:  []string{"-b", "2"},
+			WantFiles: map[string]string{
 				"xaa": "ab",
 				"xab": "cd",
 				"xac": "e",
 			},
 		},
 		{
-			name:  "a trailing k multiplies by 1024",
-			stdin: strings.NewReader(strings.Repeat("z", 3000)),
-			args:  []string{"-b", "1k"},
-			want: map[string]string{
+			Name:  "a trailing k multiplies by 1024",
+			Stdin: strings.NewReader(strings.Repeat("z", 3000)),
+			Args:  []string{"-b", "1k"},
+			WantFiles: map[string]string{
 				"xaa": strings.Repeat("z", 1024),
 				"xab": strings.Repeat("z", 1024),
 				"xac": strings.Repeat("z", 952),
 			},
 		},
 		{
-			name:  "a trailing m multiplies by 1048576",
-			stdin: strings.NewReader(strings.Repeat("z", 1048576+10)),
-			args:  []string{"-b1m"},
-			want: map[string]string{
+			Name:  "a trailing m multiplies by 1048576",
+			Stdin: strings.NewReader(strings.Repeat("z", 1048576+10)),
+			Args:  []string{"-b1m"},
+			WantFiles: map[string]string{
 				"xaa": strings.Repeat("z", 1048576),
 				"xab": strings.Repeat("z", 10),
 			},
 		},
 		{
-			name:  "byte pieces may split lines",
-			stdin: strings.NewReader("ab\ncd\nef"),
-			args:  []string{"-b", "4"},
-			want: map[string]string{
+			Name:  "byte pieces may split lines",
+			Stdin: strings.NewReader("ab\ncd\nef"),
+			Args:  []string{"-b", "4"},
+			WantFiles: map[string]string{
 				"xaa": "ab\nc",
 				"xab": "d\nef",
 			},
 		},
 		{
-			name:  "an input ending at a boundary leaves no empty piece",
-			stdin: strings.NewReader("abcd"),
-			args:  []string{"-b", "4"},
-			want:  map[string]string{"xaa": "abcd"},
+			Name:      "an input ending at a boundary leaves no empty piece",
+			Stdin:     strings.NewReader("abcd"),
+			Args:      []string{"-b", "4"},
+			WantFiles: map[string]string{"xaa": "abcd"},
 		},
 	}
 	for _, test := range tests {
-		t.Run(test.name, func(t *testing.T) {
+		t.Run(test.Name, func(t *testing.T) {
 			runCase(t, test)
 		})
 	}
@@ -322,69 +267,69 @@ func TestRunInvalidUsage(t *testing.T) {
 	long := strings.Repeat("n", 254)
 	tests := []testCase{
 		{
-			name:     "unknown option",
-			args:     []string{"-q"},
-			wantErr:  "split: invalid option -- 'q'\nTry 'split --help' for more information.\n",
-			wantExit: 2,
+			Name:     "unknown option",
+			Args:     []string{"-q"},
+			WantErr:  "split: invalid option -- 'q'\nTry 'split --help' for more information.\n",
+			WantExit: 2,
 		},
 		{
-			name:     "byte and line modes conflict",
-			args:     []string{"-b", "1", "-l", "1"},
-			wantErr:  "split: cannot split in more than one way\nTry 'split --help' for more information.\n",
-			wantExit: 2,
+			Name:     "byte and line modes conflict",
+			Args:     []string{"-b", "1", "-l", "1"},
+			WantErr:  "split: cannot split in more than one way\nTry 'split --help' for more information.\n",
+			WantExit: 2,
 		},
 		{
-			name:     "zero lines is invalid",
-			args:     []string{"-l", "0"},
-			wantErr:  "split: invalid number of lines: '0'\nTry 'split --help' for more information.\n",
-			wantExit: 2,
+			Name:     "zero lines is invalid",
+			Args:     []string{"-l", "0"},
+			WantErr:  "split: invalid number of lines: '0'\nTry 'split --help' for more information.\n",
+			WantExit: 2,
 		},
 		{
-			name:     "a non numeric line count is invalid",
-			args:     []string{"-l", "1x"},
-			wantErr:  "split: invalid number of lines: '1x'\nTry 'split --help' for more information.\n",
-			wantExit: 2,
+			Name:     "a non numeric line count is invalid",
+			Args:     []string{"-l", "1x"},
+			WantErr:  "split: invalid number of lines: '1x'\nTry 'split --help' for more information.\n",
+			WantExit: 2,
 		},
 		{
-			name:     "zero bytes is invalid",
-			args:     []string{"-b", "0"},
-			wantErr:  "split: invalid number of bytes: '0'\nTry 'split --help' for more information.\n",
-			wantExit: 2,
+			Name:     "zero bytes is invalid",
+			Args:     []string{"-b", "0"},
+			WantErr:  "split: invalid number of bytes: '0'\nTry 'split --help' for more information.\n",
+			WantExit: 2,
 		},
 		{
-			name:     "an unknown multiplier is invalid",
-			args:     []string{"-b", "1j"},
-			wantErr:  "split: invalid number of bytes: '1j'\nTry 'split --help' for more information.\n",
-			wantExit: 2,
+			Name:     "an unknown multiplier is invalid",
+			Args:     []string{"-b", "1j"},
+			WantErr:  "split: invalid number of bytes: '1j'\nTry 'split --help' for more information.\n",
+			WantExit: 2,
 		},
 		{
-			name:     "a non numeric suffix length is invalid",
-			args:     []string{"-a", "x"},
-			wantErr:  "split: invalid suffix length: 'x'\nTry 'split --help' for more information.\n",
-			wantExit: 2,
+			Name:     "a non numeric suffix length is invalid",
+			Args:     []string{"-a", "x"},
+			WantErr:  "split: invalid suffix length: 'x'\nTry 'split --help' for more information.\n",
+			WantExit: 2,
 		},
 		{
-			name:     "a negative suffix length is invalid",
-			args:     []string{"-a", "-1"},
-			wantErr:  "split: invalid suffix length: '-1'\nTry 'split --help' for more information.\n",
-			wantExit: 2,
+			Name:     "a negative suffix length is invalid",
+			Args:     []string{"-a", "-1"},
+			WantErr:  "split: invalid suffix length: '-1'\nTry 'split --help' for more information.\n",
+			WantExit: 2,
 		},
 		{
-			name:     "extra operand",
-			args:     []string{"a", "b", "c"},
-			wantErr:  "split: extra operand 'c'\nTry 'split --help' for more information.\n",
-			wantExit: 2,
+			Name:     "extra operand",
+			Args:     []string{"a", "b", "c"},
+			WantErr:  "split: extra operand 'c'\nTry 'split --help' for more information.\n",
+			WantExit: 2,
 		},
 		{
-			name:     "a prefix that would exceed NAME_MAX fails before any file",
-			args:     []string{"-l", "1", "-", long},
-			stdin:    strings.NewReader("a\n"),
-			wantErr:  "split: " + long + "aa: file name too long\n",
-			wantExit: 1,
+			Name:     "a prefix that would exceed NAME_MAX fails before any file",
+			Args:     []string{"-l", "1", "-", long},
+			Stdin:    strings.NewReader("a\n"),
+			WantErr:  "split: " + long + "aa: file name too long\n",
+			WantExit: 1,
 		},
 	}
 	for _, test := range tests {
-		t.Run(test.name, func(t *testing.T) {
+		t.Run(test.Name, func(t *testing.T) {
 			runCase(t, test)
 		})
 	}
@@ -393,33 +338,33 @@ func TestRunInvalidUsage(t *testing.T) {
 func TestRunErrors(t *testing.T) {
 	tests := []testCase{
 		{
-			name:     "missing input file",
-			fsys:     fsx.MemFS{},
-			args:     []string{"missing.txt"},
-			wantErr:  "split: missing.txt: file does not exist\n",
-			wantExit: 1,
+			Name:     "missing input file",
+			FS:       fsx.MemFS{},
+			Args:     []string{"missing.txt"},
+			WantErr:  "split: missing.txt: file does not exist\n",
+			WantExit: 1,
 		},
 		{
-			name:     "read error",
-			stdin:    errorReader{err: errors.New("boom")},
-			args:     []string{"-l", "1"},
-			wantErr:  "split: -: boom\n",
-			wantExit: 1,
+			Name:     "read error",
+			Stdin:    testutil.ErrorReader{Err: errors.New("boom")},
+			Args:     []string{"-l", "1"},
+			WantErr:  "split: -: boom\n",
+			WantExit: 1,
 		},
 	}
 	for _, test := range tests {
-		t.Run(test.name, func(t *testing.T) {
+		t.Run(test.Name, func(t *testing.T) {
 			runCase(t, test)
 		})
 	}
 
 	t.Run("write error", func(t *testing.T) {
 		runCase(t, testCase{
-			fsys:     failWriteFS{MemFS: fsx.MemFS{}, err: errors.New("disk full")},
-			stdin:    strings.NewReader("a\n"),
-			args:     []string{"-l", "1"},
-			wantErr:  "split: xaa: disk full\n",
-			wantExit: 1,
+			FS:       testutil.FailWriteFS{FS: fsx.MemFS{}, Err: errors.New("disk full")},
+			Stdin:    strings.NewReader("a\n"),
+			Args:     []string{"-l", "1"},
+			WantErr:  "split: xaa: disk full\n",
+			WantExit: 1,
 		})
 	})
 }
@@ -427,7 +372,7 @@ func TestRunErrors(t *testing.T) {
 func TestRunCancellation(t *testing.T) {
 	ctx, cancel := context.WithCancel(t.Context())
 	prog := New(&coreutils.Runtime{
-		Stdin:  &cancelReader{cancel: cancel},
+		Stdin:  &testutil.CancelReader{Cancel: cancel},
 		Stdout: io.Discard,
 		Stderr: io.Discard,
 		FS:     fsx.MemFS{},
@@ -440,75 +385,75 @@ func TestRunCancellation(t *testing.T) {
 func TestRunNumericSuffixes(t *testing.T) {
 	tests := []testCase{
 		{
-			name:  "digits replace letters",
-			stdin: strings.NewReader(lines(1, 3)),
-			args:  []string{"-d", "-l", "1"},
-			want: map[string]string{
+			Name:  "digits replace letters",
+			Stdin: strings.NewReader(lines(1, 3)),
+			Args:  []string{"-d", "-l", "1"},
+			WantFiles: map[string]string{
 				"x00": lines(1, 1),
 				"x01": lines(2, 2),
 				"x02": lines(3, 3),
 			},
 		},
 		{
-			name:  "the long form works",
-			stdin: strings.NewReader(lines(1, 2)),
-			args:  []string{"--numeric-suffixes", "-l", "1"},
-			want: map[string]string{
+			Name:  "the long form works",
+			Stdin: strings.NewReader(lines(1, 2)),
+			Args:  []string{"--numeric-suffixes", "-l", "1"},
+			WantFiles: map[string]string{
 				"x00": lines(1, 1),
 				"x01": lines(2, 2),
 			},
 		},
 		{
-			name:  "a starting number counts from it",
-			stdin: strings.NewReader(lines(1, 2)),
-			args:  []string{"-d", "-l", "1"},
-			want: map[string]string{
+			Name:  "a starting number counts from it",
+			Stdin: strings.NewReader(lines(1, 2)),
+			Args:  []string{"-d", "-l", "1"},
+			WantFiles: map[string]string{
 				"x00": lines(1, 1),
 				"x01": lines(2, 2),
 			},
 		},
 		{
-			name:  "an attached starting number counts from it",
-			stdin: strings.NewReader(lines(1, 2)),
-			args:  []string{"--numeric-suffixes=4", "-l", "1"},
-			want: map[string]string{
+			Name:  "an attached starting number counts from it",
+			Stdin: strings.NewReader(lines(1, 2)),
+			Args:  []string{"--numeric-suffixes=4", "-l", "1"},
+			WantFiles: map[string]string{
 				"x04": lines(1, 1),
 				"x05": lines(2, 2),
 			},
 		},
 		{
-			name:  "hexadecimal suffixes",
-			stdin: strings.NewReader(lines(1, 2)),
-			args:  []string{"-x", "-l", "1"},
-			want: map[string]string{
+			Name:  "hexadecimal suffixes",
+			Stdin: strings.NewReader(lines(1, 2)),
+			Args:  []string{"-x", "-l", "1"},
+			WantFiles: map[string]string{
 				"x00": lines(1, 1),
 				"x01": lines(2, 2),
 			},
 		},
 		{
-			name:  "an additional suffix is appended",
-			stdin: strings.NewReader(lines(1, 2)),
-			args:  []string{"-d", "--additional-suffix=.part", "-l", "1"},
-			want: map[string]string{
+			Name:  "an additional suffix is appended",
+			Stdin: strings.NewReader(lines(1, 2)),
+			Args:  []string{"-d", "--additional-suffix=.part", "-l", "1"},
+			WantFiles: map[string]string{
 				"x00.part": lines(1, 1),
 				"x01.part": lines(2, 2),
 			},
 		},
 		{
-			name:     "numeric and hexadecimal conflict",
-			args:     []string{"-d", "-x", "-l", "1"},
-			wantErr:  "split: cannot combine -d and -x\nTry 'split --help' for more information.\n",
-			wantExit: 2,
+			Name:     "numeric and hexadecimal conflict",
+			Args:     []string{"-d", "-x", "-l", "1"},
+			WantErr:  "split: cannot combine -d and -x\nTry 'split --help' for more information.\n",
+			WantExit: 2,
 		},
 		{
-			name:     "an additional suffix with a slash is invalid",
-			args:     []string{"--additional-suffix=a/b", "-l", "1"},
-			wantErr:  "split: additional suffix contains slash: 'a/b'\nTry 'split --help' for more information.\n",
-			wantExit: 2,
+			Name:     "an additional suffix with a slash is invalid",
+			Args:     []string{"--additional-suffix=a/b", "-l", "1"},
+			WantErr:  "split: additional suffix contains slash: 'a/b'\nTry 'split --help' for more information.\n",
+			WantExit: 2,
 		},
 	}
 	for _, test := range tests {
-		t.Run(test.name, func(t *testing.T) {
+		t.Run(test.Name, func(t *testing.T) {
 			runCase(t, test)
 		})
 	}
@@ -517,19 +462,19 @@ func TestRunNumericSuffixes(t *testing.T) {
 func TestRunLineBytes(t *testing.T) {
 	tests := []testCase{
 		{
-			name:  "as many whole lines as fit",
-			stdin: strings.NewReader("ab\ncd\nef\n"),
-			args:  []string{"-C", "6"},
-			want: map[string]string{
+			Name:  "as many whole lines as fit",
+			Stdin: strings.NewReader("ab\ncd\nef\n"),
+			Args:  []string{"-C", "6"},
+			WantFiles: map[string]string{
 				"xaa": "ab\ncd\n",
 				"xab": "ef\n",
 			},
 		},
 		{
-			name:  "a line longer than the size is broken",
-			stdin: strings.NewReader("abcdef\ngh\n"),
-			args:  []string{"-C", "3"},
-			want: map[string]string{
+			Name:  "a line longer than the size is broken",
+			Stdin: strings.NewReader("abcdef\ngh\n"),
+			Args:  []string{"-C", "3"},
+			WantFiles: map[string]string{
 				"xaa": "abc",
 				"xab": "def",
 				"xac": "\n",
@@ -537,17 +482,17 @@ func TestRunLineBytes(t *testing.T) {
 			},
 		},
 		{
-			name:  "the long form works",
-			stdin: strings.NewReader("ab\ncd\n"),
-			args:  []string{"--line-bytes=4"},
-			want: map[string]string{
+			Name:  "the long form works",
+			Stdin: strings.NewReader("ab\ncd\n"),
+			Args:  []string{"--line-bytes=4"},
+			WantFiles: map[string]string{
 				"xaa": "ab\n",
 				"xab": "cd\n",
 			},
 		},
 	}
 	for _, test := range tests {
-		t.Run(test.name, func(t *testing.T) {
+		t.Run(test.Name, func(t *testing.T) {
 			runCase(t, test)
 		})
 	}
@@ -556,83 +501,83 @@ func TestRunLineBytes(t *testing.T) {
 func TestRunNumber(t *testing.T) {
 	tests := []testCase{
 		{
-			name:  "byte chunks are equal, early ones longer",
-			stdin: strings.NewReader("abcdefgh"),
-			args:  []string{"-n", "3"},
-			want: map[string]string{
+			Name:  "byte chunks are equal, early ones longer",
+			Stdin: strings.NewReader("abcdefgh"),
+			Args:  []string{"-n", "3"},
+			WantFiles: map[string]string{
 				"xaa": "abc",
 				"xab": "def",
 				"xac": "gh",
 			},
 		},
 		{
-			name:  "byte chunks with a remainder",
-			stdin: strings.NewReader("abcde"),
-			args:  []string{"-n", "2"},
-			want: map[string]string{
+			Name:  "byte chunks with a remainder",
+			Stdin: strings.NewReader("abcde"),
+			Args:  []string{"-n", "2"},
+			WantFiles: map[string]string{
 				"xaa": "abc",
 				"xab": "de",
 			},
 		},
 		{
-			name:    "the kth byte chunk goes to the standard output",
-			stdin:   strings.NewReader("abcdefgh"),
-			args:    []string{"-n", "2/3"},
-			wantOut: "def",
+			Name:  "the kth byte chunk goes to the standard output",
+			Stdin: strings.NewReader("abcdefgh"),
+			Args:  []string{"-n", "2/3"},
+			Want:  "def",
 		},
 		{
-			name:  "line chunks hold the lines which start in them",
-			stdin: strings.NewReader("ab\ncd\nef\ngh\n"),
-			args:  []string{"-n", "l/2"},
-			want: map[string]string{
+			Name:  "line chunks hold the lines which start in them",
+			Stdin: strings.NewReader("ab\ncd\nef\ngh\n"),
+			Args:  []string{"-n", "l/2"},
+			WantFiles: map[string]string{
 				"xaa": "ab\ncd\n",
 				"xab": "ef\ngh\n",
 			},
 		},
 		{
-			name:    "the kth line chunk goes to the standard output",
-			stdin:   strings.NewReader("ab\ncd\nef\ngh\n"),
-			args:    []string{"-n", "l/2/3"},
-			wantOut: "ef\n",
+			Name:  "the kth line chunk goes to the standard output",
+			Stdin: strings.NewReader("ab\ncd\nef\ngh\n"),
+			Args:  []string{"-n", "l/2/3"},
+			Want:  "ef\n",
 		},
 		{
-			name:  "a region with no line starting in it is empty",
-			stdin: strings.NewReader("abcdefgh\n"),
-			args:  []string{"-n", "l/3"},
-			want: map[string]string{
+			Name:  "a region with no line starting in it is empty",
+			Stdin: strings.NewReader("abcdefgh\n"),
+			Args:  []string{"-n", "l/3"},
+			WantFiles: map[string]string{
 				"xaa": "abcdefgh\n",
 				"xab": "",
 				"xac": "",
 			},
 		},
 		{
-			name:  "-e elides the empty pieces",
-			stdin: strings.NewReader("abcdefgh\n"),
-			args:  []string{"-e", "-n", "l/3"},
-			want: map[string]string{
+			Name:  "-e elides the empty pieces",
+			Stdin: strings.NewReader("abcdefgh\n"),
+			Args:  []string{"-e", "-n", "l/3"},
+			WantFiles: map[string]string{
 				"xaa": "abcdefgh\n",
 			},
 		},
 		{
-			name:  "round robin distributes the lines",
-			stdin: strings.NewReader("a\nb\nc\nd\n"),
-			args:  []string{"-n", "r/2"},
-			want: map[string]string{
+			Name:  "round robin distributes the lines",
+			Stdin: strings.NewReader("a\nb\nc\nd\n"),
+			Args:  []string{"-n", "r/2"},
+			WantFiles: map[string]string{
 				"xaa": "a\nc\n",
 				"xab": "b\nd\n",
 			},
 		},
 		{
-			name:    "the kth round robin chunk goes to the standard output",
-			stdin:   strings.NewReader("a\nb\nc\nd\n"),
-			args:    []string{"-n", "r/2/4"},
-			wantOut: "b\n",
+			Name:  "the kth round robin chunk goes to the standard output",
+			Stdin: strings.NewReader("a\nb\nc\nd\n"),
+			Args:  []string{"-n", "r/2/4"},
+			Want:  "b\n",
 		},
 		{
-			name:  "all chunks are created when the input is short",
-			stdin: strings.NewReader("ab"),
-			args:  []string{"-n", "5"},
-			want: map[string]string{
+			Name:  "all chunks are created when the input is short",
+			Stdin: strings.NewReader("ab"),
+			Args:  []string{"-n", "5"},
+			WantFiles: map[string]string{
 				"xaa": "a",
 				"xab": "b",
 				"xac": "",
@@ -641,55 +586,34 @@ func TestRunNumber(t *testing.T) {
 			},
 		},
 		{
-			name:  "with -e only the non-empty chunks are created",
-			stdin: strings.NewReader("ab"),
-			args:  []string{"-e", "-n", "5"},
-			want: map[string]string{
+			Name:  "with -e only the non-empty chunks are created",
+			Stdin: strings.NewReader("ab"),
+			Args:  []string{"-e", "-n", "5"},
+			WantFiles: map[string]string{
 				"xaa": "a",
 				"xab": "b",
 			},
 		},
 		{
-			name:     "an invalid chunk count",
-			args:     []string{"-n", "x"},
-			wantErr:  "split: invalid number of chunks: 'x'\nTry 'split --help' for more information.\n",
-			wantExit: 2,
+			Name:     "an invalid chunk count",
+			Args:     []string{"-n", "x"},
+			WantErr:  "split: invalid number of chunks: 'x'\nTry 'split --help' for more information.\n",
+			WantExit: 2,
 		},
 		{
-			name:     "a chunk past the count",
-			args:     []string{"-n", "3/2"},
-			wantErr:  "split: invalid chunk number: '3/2'\nTry 'split --help' for more information.\n",
-			wantExit: 2,
+			Name:     "a chunk past the count",
+			Args:     []string{"-n", "3/2"},
+			WantErr:  "split: invalid chunk number: '3/2'\nTry 'split --help' for more information.\n",
+			WantExit: 2,
 		},
 	}
 	for _, test := range tests {
-		t.Run(test.name, func(t *testing.T) {
+		t.Run(test.Name, func(t *testing.T) {
 			runCase(t, test)
 		})
 	}
 }
 
 func TestHelpVersion(t *testing.T) {
-	t.Run("help", func(t *testing.T) {
-		stdout := new(bytes.Buffer)
-		rt := &coreutils.Runtime{Stdout: stdout, Stderr: new(bytes.Buffer)}
-		if err := New(rt).Run(t.Context(), "--help"); err != nil {
-			t.Fatalf("Run() error = %v, want nil (exit status 0)", err)
-		}
-		if got, want := stdout.String(), usage; got != want {
-			t.Errorf("Run() stdout = %q, want %q", got, want)
-		}
-	})
-
-	t.Run("version", func(t *testing.T) {
-		stdout := new(bytes.Buffer)
-		rt := &coreutils.Runtime{Stdout: stdout, Stderr: new(bytes.Buffer)}
-		if err := New(rt).Run(t.Context(), "--version"); err != nil {
-			t.Fatalf("Run() error = %v, want nil (exit status 0)", err)
-		}
-		want := "split (charm.land/snail/coreutils) " + coreutils.Version + "\nhttps://charm.land/snail\n"
-		if got := stdout.String(); got != want {
-			t.Errorf("Run() stdout = %q, want %q", got, want)
-		}
-	})
+	testutil.HelpVersion(t, New, "split", usage)
 }

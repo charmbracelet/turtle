@@ -9,6 +9,7 @@ import (
 	"testing"
 
 	"charm.land/snail/coreutils"
+	"charm.land/snail/coreutils/internal/testutil"
 	"charm.land/snail/fsx"
 )
 
@@ -34,28 +35,6 @@ func (e *execRecorder) exec(_ context.Context, opts coreutils.ExecOpts) (int, er
 		return 0, nil
 	}
 	return e.statuses[len(e.commands)-1], nil
-}
-
-// errorReader fails reads with the given error.
-type errorReader struct {
-	err error
-}
-
-func (r errorReader) Read([]byte) (int, error) {
-	return 0, r.err
-}
-
-func exitCode(t *testing.T, err error) int {
-	t.Helper()
-
-	if err == nil {
-		return 0
-	}
-	var exitErr *coreutils.ExitError
-	if !errors.As(err, &exitErr) {
-		t.Fatalf("Run() error = %v, want *coreutils.ExitError", err)
-	}
-	return exitErr.Code
 }
 
 type testCase struct {
@@ -95,7 +74,7 @@ func (tc testCase) run(t *testing.T) {
 	if got := stderr.String(); got != tc.wantErr {
 		t.Errorf("stderr = %q, want %q", got, tc.wantErr)
 	}
-	if code := exitCode(t, err); code != tc.wantExit {
+	if code := testutil.ExitCode(t, err); code != tc.wantExit {
 		t.Errorf("exit code = %d, want %d", code, tc.wantExit)
 	}
 }
@@ -1279,7 +1258,7 @@ func TestRunErrors(t *testing.T) {
 			Stderr: io.Discard,
 		})
 		err := p.Run(t.Context())
-		if code := exitCode(t, err); code != 1 {
+		if code := testutil.ExitCode(t, err); code != 1 {
 			t.Errorf("exit code = %d, want 1", code)
 		}
 	})
@@ -1287,7 +1266,7 @@ func TestRunErrors(t *testing.T) {
 	t.Run("standard input read error", func(t *testing.T) {
 		t.Parallel()
 		p := New(&coreutils.Runtime{
-			Stdin:  errorReader{err: errors.New("read failure")},
+			Stdin:  testutil.ErrorReader{Err: errors.New("read failure")},
 			Stderr: io.Discard,
 			Exec:   newExec().exec,
 		})
@@ -1362,7 +1341,7 @@ func TestRunErrors(t *testing.T) {
 			Stdin: strings.NewReader(""),
 			Exec:  newExec().exec,
 		})
-		if code := exitCode(t, p.Run(t.Context(), "-z")); code != 2 {
+		if code := testutil.ExitCode(t, p.Run(t.Context(), "-z")); code != 2 {
 			t.Errorf("exit code = %d, want 2", code)
 		}
 	})
@@ -1466,26 +1445,5 @@ func (c *cancelAfter) Err() error {
 }
 
 func TestHelpVersion(t *testing.T) {
-	t.Run("help", func(t *testing.T) {
-		stdout := new(bytes.Buffer)
-		rt := &coreutils.Runtime{Stdout: stdout, Stderr: new(bytes.Buffer)}
-		if err := New(rt).Run(t.Context(), "--help"); err != nil {
-			t.Fatalf("Run() error = %v, want nil (exit status 0)", err)
-		}
-		if got, want := stdout.String(), usage; got != want {
-			t.Errorf("Run() stdout = %q, want %q", got, want)
-		}
-	})
-
-	t.Run("version", func(t *testing.T) {
-		stdout := new(bytes.Buffer)
-		rt := &coreutils.Runtime{Stdout: stdout, Stderr: new(bytes.Buffer)}
-		if err := New(rt).Run(t.Context(), "--version"); err != nil {
-			t.Fatalf("Run() error = %v, want nil (exit status 0)", err)
-		}
-		want := "xargs (charm.land/snail/coreutils) " + coreutils.Version + "\nhttps://charm.land/snail\n"
-		if got := stdout.String(); got != want {
-			t.Errorf("Run() stdout = %q, want %q", got, want)
-		}
-	})
+	testutil.HelpVersion(t, New, "xargs", usage)
 }

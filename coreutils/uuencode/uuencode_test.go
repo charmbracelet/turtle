@@ -5,11 +5,11 @@ import (
 	"context"
 	"errors"
 	"io"
-	"io/fs"
 	"strings"
 	"testing"
 
 	"charm.land/snail/coreutils"
+	"charm.land/snail/coreutils/internal/testutil"
 	"charm.land/snail/coreutils/uudecode"
 	"charm.land/snail/fsx"
 )
@@ -31,308 +31,224 @@ func testFS() fsx.MemFS {
 	}
 }
 
-// errorReader always fails to be read.
-type errorReader struct{}
-
-func (errorReader) Read([]byte) (int, error) { return 0, errors.New("boom") }
-
-// errorWriter always fails to be written to.
-type errorWriter struct{}
-
-func (errorWriter) Write([]byte) (int, error) { return 0, errors.New("boom") }
-
-// cancelReader cancels its context on the first read, simulating a context
-// that is done while reading the input.
-type cancelReader struct {
-	cancel context.CancelFunc
-	reads  int
-}
-
-func (r *cancelReader) Read(p []byte) (int, error) {
-	if r.reads > 0 {
-		return 0, io.EOF
-	}
-	r.reads++
-	r.cancel()
-	return copy(p, "hello"), nil
-}
-
-type testCase struct {
-	name     string
-	stdin    io.Reader
-	fsys     fsx.FS
-	dir      string
-	umask    fs.FileMode
-	args     []string
-	want     string
-	wantErr  string
-	wantExit int
-}
-
-func runCase(t *testing.T, test testCase) {
-	t.Helper()
-
-	stdout := new(bytes.Buffer)
-	stderr := new(bytes.Buffer)
-	rt := &coreutils.Runtime{
-		Stdin:      test.stdin,
-		Stdout:     stdout,
-		Stderr:     stderr,
-		FS:         test.fsys,
-		WorkingDir: test.dir,
-		Umask:      test.umask,
-	}
-	err := New(rt).Run(t.Context(), test.args...)
-
-	code := 0
-	if err != nil {
-		var exitErr *coreutils.ExitError
-		if !errors.As(err, &exitErr) {
-			t.Fatalf("Run() error = %v, want *coreutils.ExitError", err)
-		}
-		code = exitErr.Code
-	}
-	if code != test.wantExit {
-		t.Errorf("Run() exit code = %d, want %d (error = %v)", code, test.wantExit, err)
-	}
-	if got := stdout.String(); got != test.want {
-		t.Errorf("Run() stdout = %q, want %q", got, test.want)
-	}
-	if got := stderr.String(); got != test.wantErr {
-		t.Errorf("Run() stderr = %q, want %q", got, test.wantErr)
-	}
-}
-
 func TestRunEncode(t *testing.T) {
-	tests := []testCase{
+	tests := []testutil.Case{
 		{
-			name:  "the standard input is encoded with the default creation mode",
-			stdin: strings.NewReader("hello"),
-			umask: 0o022,
-			args:  []string{"dest"},
-			want:  "begin 644 dest\n%:&5L;&\\`\n`\nend\n",
+			Name:  "the standard input is encoded with the default creation mode",
+			Stdin: strings.NewReader("hello"),
+			Umask: 0o022,
+			Args:  []string{"dest"},
+			Want:  "begin 644 dest\n%:&5L;&\\`\n`\nend\n",
 		},
 		{
-			name:  "the standard input with no umask gets mode 666",
-			stdin: strings.NewReader("hello"),
-			args:  []string{"dest"},
-			want:  "begin 666 dest\n%:&5L;&\\`\n`\nend\n",
+			Name:  "the standard input with no umask gets mode 666",
+			Stdin: strings.NewReader("hello"),
+			Args:  []string{"dest"},
+			Want:  "begin 666 dest\n%:&5L;&\\`\n`\nend\n",
 		},
 		{
-			name:  "empty input writes an empty body",
-			stdin: strings.NewReader(""),
-			umask: 0o022,
-			args:  []string{"dest"},
-			want:  "begin 644 dest\n`\nend\n",
+			Name:  "empty input writes an empty body",
+			Stdin: strings.NewReader(""),
+			Umask: 0o022,
+			Args:  []string{"dest"},
+			Want:  "begin 644 dest\n`\nend\n",
 		},
 		{
-			name: "a file operand",
-			fsys: testFS(),
-			args: []string{"hello.txt", "dest"},
-			want: "begin 644 dest\n%:&5L;&\\`\n`\nend\n",
+			Name: "a file operand",
+			FS:   testFS(),
+			Args: []string{"hello.txt", "dest"},
+			Want: "begin 644 dest\n%:&5L;&\\`\n`\nend\n",
 		},
 		{
-			name: "the header holds the mode of the input file",
-			fsys: testFS(),
-			args: []string{"bin.dat", "dest"},
-			want: "begin 750 dest\n&``$\"`P0%\n`\nend\n",
+			Name: "the header holds the mode of the input file",
+			FS:   testFS(),
+			Args: []string{"bin.dat", "dest"},
+			Want: "begin 750 dest\n&``$\"`P0%\n`\nend\n",
 		},
 		{
-			name: "an empty file",
-			fsys: testFS(),
-			args: []string{"empty.txt", "dest"},
-			want: "begin 600 dest\n`\nend\n",
+			Name: "an empty file",
+			FS:   testFS(),
+			Args: []string{"empty.txt", "dest"},
+			Want: "begin 600 dest\n`\nend\n",
 		},
 		{
-			name: "the file is resolved against the working directory",
-			fsys: testFS(),
-			dir:  "sub",
-			args: []string{"inner.txt", "dest"},
-			want: "begin 644 dest\n&:6YN97(*\n`\nend\n",
+			Name: "the file is resolved against the working directory",
+			FS:   testFS(),
+			Dir:  "sub",
+			Args: []string{"inner.txt", "dest"},
+			Want: "begin 644 dest\n&:6YN97(*\n`\nend\n",
 		},
 		{
-			name:  "dash reads the standard input",
-			stdin: strings.NewReader("hello"),
-			umask: 0o022,
-			args:  []string{"-", "dest"},
-			want:  "begin 644 dest\n%:&5L;&\\`\n`\nend\n",
+			Name:  "dash reads the standard input",
+			Stdin: strings.NewReader("hello"),
+			Umask: 0o022,
+			Args:  []string{"-", "dest"},
+			Want:  "begin 644 dest\n%:&5L;&\\`\n`\nend\n",
 		},
 		{
-			name: "a file named like an option after a double dash",
-			fsys: testFS(),
-			args: []string{"--", "-m", "dest"},
-			want: "begin 000 dest\n!>```\n`\nend\n",
+			Name: "a file named like an option after a double dash",
+			FS:   testFS(),
+			Args: []string{"--", "-m", "dest"},
+			Want: "begin 000 dest\n!>```\n`\nend\n",
 		},
 		{
-			name:  "a name of dash is kept verbatim",
-			stdin: strings.NewReader("x"),
-			args:  []string{"-"},
-			want:  "begin 666 -\n!>```\n`\nend\n",
+			Name:  "a name of dash is kept verbatim",
+			Stdin: strings.NewReader("x"),
+			Args:  []string{"-"},
+			Want:  "begin 666 -\n!>```\n`\nend\n",
 		},
 		{
-			name:  "a name of /dev/stdout is kept verbatim",
-			stdin: strings.NewReader("x"),
-			args:  []string{"/dev/stdout"},
-			want:  "begin 666 /dev/stdout\n!>```\n`\nend\n",
+			Name:  "a name of /dev/stdout is kept verbatim",
+			Stdin: strings.NewReader("x"),
+			Args:  []string{"/dev/stdout"},
+			Want:  "begin 666 /dev/stdout\n!>```\n`\nend\n",
 		},
 	}
 
-	for _, test := range tests {
-		t.Run(test.name, func(t *testing.T) {
-			runCase(t, test)
-		})
-	}
+	testutil.Run(t, New, tests)
 }
 
 func TestRunEncodeBase64(t *testing.T) {
-	tests := []testCase{
+	tests := []testutil.Case{
 		{
-			name:  "-m encodes with base64",
-			stdin: strings.NewReader("hello"),
-			umask: 0o022,
-			args:  []string{"-m", "dest"},
-			want:  "begin-base64 644 dest\naGVsbG8=\n====\n",
+			Name:  "-m encodes with base64",
+			Stdin: strings.NewReader("hello"),
+			Umask: 0o022,
+			Args:  []string{"-m", "dest"},
+			Want:  "begin-base64 644 dest\naGVsbG8=\n====\n",
 		},
 		{
-			name:  "the long base64 option",
-			stdin: strings.NewReader("hello"),
-			umask: 0o022,
-			args:  []string{"--base64", "dest"},
-			want:  "begin-base64 644 dest\naGVsbG8=\n====\n",
+			Name:  "the long base64 option",
+			Stdin: strings.NewReader("hello"),
+			Umask: 0o022,
+			Args:  []string{"--base64", "dest"},
+			Want:  "begin-base64 644 dest\naGVsbG8=\n====\n",
 		},
 		{
-			name:  "empty input writes an empty body",
-			stdin: strings.NewReader(""),
-			umask: 0o022,
-			args:  []string{"-m", "dest"},
-			want:  "begin-base64 644 dest\n====\n",
+			Name:  "empty input writes an empty body",
+			Stdin: strings.NewReader(""),
+			Umask: 0o022,
+			Args:  []string{"-m", "dest"},
+			Want:  "begin-base64 644 dest\n====\n",
 		},
 		{
-			name: "a file operand",
-			fsys: testFS(),
-			args: []string{"-m", "hello.txt", "dest"},
-			want: "begin-base64 644 dest\naGVsbG8=\n====\n",
+			Name: "a file operand",
+			FS:   testFS(),
+			Args: []string{"-m", "hello.txt", "dest"},
+			Want: "begin-base64 644 dest\naGVsbG8=\n====\n",
 		},
 		{
-			name:  "lines wrap at 76 columns",
-			stdin: strings.NewReader(strings.Repeat("a", 60)),
-			args:  []string{"-m", "dest"},
-			want: "begin-base64 666 dest\n" +
+			Name:  "lines wrap at 76 columns",
+			Stdin: strings.NewReader(strings.Repeat("a", 60)),
+			Args:  []string{"-m", "dest"},
+			Want: "begin-base64 666 dest\n" +
 				strings.Repeat("YWFh", 19) + "\n" +
 				"YWFh" + "\n" +
 				"====\n",
 		},
 	}
 
-	for _, test := range tests {
-		t.Run(test.name, func(t *testing.T) {
-			runCase(t, test)
-		})
-	}
+	testutil.Run(t, New, tests)
 }
 
 func TestRunErrors(t *testing.T) {
-	tests := []testCase{
+	tests := []testutil.Case{
 		{
-			name:     "the name operand is required",
-			stdin:    strings.NewReader("hello"),
-			wantErr:  "uuencode: missing operand\nTry 'uuencode --help' for more information.\n",
-			wantExit: 2,
+			Name:     "the name operand is required",
+			Stdin:    strings.NewReader("hello"),
+			WantErr:  "uuencode: missing operand\nTry 'uuencode --help' for more information.\n",
+			WantExit: 2,
 		},
 		{
-			name:     "at most two operands",
-			fsys:     testFS(),
-			args:     []string{"hello.txt", "dest", "extra"},
-			wantErr:  "uuencode: extra operand 'extra'\nTry 'uuencode --help' for more information.\n",
-			wantExit: 2,
+			Name:     "at most two operands",
+			FS:       testFS(),
+			Args:     []string{"hello.txt", "dest", "extra"},
+			WantErr:  "uuencode: extra operand 'extra'\nTry 'uuencode --help' for more information.\n",
+			WantExit: 2,
 		},
 		{
-			name:     "an unknown option",
-			args:     []string{"-x", "dest"},
-			wantErr:  "uuencode: invalid option -- 'x'\nTry 'uuencode --help' for more information.\n",
-			wantExit: 2,
+			Name:     "an unknown option",
+			Args:     []string{"-x", "dest"},
+			WantErr:  "uuencode: invalid option -- 'x'\nTry 'uuencode --help' for more information.\n",
+			WantExit: 2,
 		},
 		{
-			name:     "an unknown long option",
-			args:     []string{"--nope", "dest"},
-			wantErr:  "uuencode: unrecognized option '--nope'\nTry 'uuencode --help' for more information.\n",
-			wantExit: 2,
+			Name:     "an unknown long option",
+			Args:     []string{"--nope", "dest"},
+			WantErr:  "uuencode: unrecognized option '--nope'\nTry 'uuencode --help' for more information.\n",
+			WantExit: 2,
 		},
 		{
-			name:     "a missing input file",
-			fsys:     testFS(),
-			args:     []string{"nope.txt", "dest"},
-			wantErr:  "uuencode: nope.txt: file does not exist\n",
-			wantExit: 1,
+			Name:     "a missing input file",
+			FS:       testFS(),
+			Args:     []string{"nope.txt", "dest"},
+			WantErr:  "uuencode: nope.txt: file does not exist\n",
+			WantExit: 1,
 		},
 		{
-			name:     "an empty input name",
-			fsys:     testFS(),
-			args:     []string{"", "dest"},
-			wantErr:  "uuencode: invalid zero-length file name\n",
-			wantExit: 1,
+			Name:     "an empty input name",
+			FS:       testFS(),
+			Args:     []string{"", "dest"},
+			WantErr:  "uuencode: invalid zero-length file name\n",
+			WantExit: 1,
 		},
 		{
-			name:     "no standard input",
-			args:     []string{"dest"},
-			wantErr:  "uuencode: standard input: no standard input available\n",
-			wantExit: 1,
+			Name:     "no standard input",
+			Args:     []string{"dest"},
+			WantErr:  "uuencode: standard input: no standard input available\n",
+			WantExit: 1,
 		},
 		{
-			name:     "no file system",
-			args:     []string{"hello.txt", "dest"},
-			wantErr:  "uuencode: hello.txt: no file system available\n",
-			wantExit: 1,
+			Name:     "no file system",
+			Args:     []string{"hello.txt", "dest"},
+			WantErr:  "uuencode: hello.txt: no file system available\n",
+			WantExit: 1,
 		},
 		{
-			name:     "a read error",
-			stdin:    errorReader{},
-			args:     []string{"dest"},
-			want:     "begin 666 dest\n",
-			wantErr:  "uuencode: standard input: boom\n",
-			wantExit: 1,
+			Name:     "a read error",
+			Stdin:    testutil.ErrorReader{},
+			Args:     []string{"dest"},
+			Want:     "begin 666 dest\n",
+			WantErr:  "uuencode: standard input: boom\n",
+			WantExit: 1,
 		},
 	}
 
-	for _, test := range tests {
-		t.Run(test.name, func(t *testing.T) {
-			runCase(t, test)
-		})
-	}
+	testutil.Run(t, New, tests)
 }
 
 func TestRunWriteError(t *testing.T) {
-	tests := []testCase{
+	tests := []testutil.Case{
 		{
-			name:    "encoding",
-			stdin:   strings.NewReader("hello"),
-			args:    []string{"dest"},
-			wantErr: "uuencode: write error: boom\n",
+			Name:    "encoding",
+			Stdin:   strings.NewReader("hello"),
+			Args:    []string{"dest"},
+			WantErr: "uuencode: write error: boom\n",
 		},
 		{
-			name:    "encoding with base64",
-			stdin:   strings.NewReader("hello"),
-			args:    []string{"-m", "dest"},
-			wantErr: "uuencode: write error: boom\n",
+			Name:    "encoding with base64",
+			Stdin:   strings.NewReader("hello"),
+			Args:    []string{"-m", "dest"},
+			WantErr: "uuencode: write error: boom\n",
 		},
 	}
 
 	for _, test := range tests {
-		t.Run(test.name, func(t *testing.T) {
+		t.Run(test.Name, func(t *testing.T) {
 			stderr := new(bytes.Buffer)
 			rt := &coreutils.Runtime{
-				Stdin:  test.stdin,
-				Stdout: errorWriter{},
+				Stdin:  test.Stdin,
+				Stdout: testutil.ErrorWriter{},
 				Stderr: stderr,
 			}
-			err := New(rt).Run(t.Context(), test.args...)
+			err := New(rt).Run(t.Context(), test.Args...)
 
 			var exitErr *coreutils.ExitError
 			if !errors.As(err, &exitErr) || exitErr.Code != 1 {
 				t.Fatalf("Run() error = %v, want exit code 1", err)
 			}
-			if got := stderr.String(); got != test.wantErr {
-				t.Errorf("Run() stderr = %q, want %q", got, test.wantErr)
+			if got := stderr.String(); got != test.WantErr {
+				t.Errorf("Run() stderr = %q, want %q", got, test.WantErr)
 			}
 		})
 	}
@@ -347,7 +263,7 @@ func TestRunContext(t *testing.T) {
 
 	t.Run("cancelled while reading", func(t *testing.T) {
 		ctx, cancel := context.WithCancel(t.Context())
-		runCancelled(t, ctx, &cancelReader{cancel: cancel})
+		runCancelled(t, ctx, &testutil.CancelReader{Cancel: cancel, Data: []byte("hello")})
 	})
 }
 
@@ -418,7 +334,7 @@ func TestHelpVersion(t *testing.T) {
 	}
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			runCase(t, testCase{name: test.name, args: test.args, want: test.want})
+			testutil.Once(t, New, testutil.Case{Name: test.name, Args: test.args, Want: test.want})
 		})
 	}
 }

@@ -5,10 +5,12 @@ import (
 	"context"
 	"errors"
 	"io"
+	"io/fs"
 	"strings"
 	"testing"
 
 	"charm.land/snail/coreutils"
+	"charm.land/snail/coreutils/internal/testutil"
 	"charm.land/snail/coreutils/uuencode"
 	"charm.land/snail/fsx"
 )
@@ -35,423 +37,296 @@ func testFS() fsx.MemFS {
 	}
 }
 
-// errorReader always fails to be read.
-type errorReader struct{}
-
-func (errorReader) Read([]byte) (int, error) { return 0, errors.New("boom") }
-
-// errorWriter always fails to be written to.
-type errorWriter struct{}
-
-func (errorWriter) Write([]byte) (int, error) { return 0, errors.New("boom") }
-
-// cancelReader cancels its context on the first read, simulating a context
-// that is done while reading the input.
-type cancelReader struct {
-	cancel context.CancelFunc
-	reads  int
-}
-
-func (r *cancelReader) Read(p []byte) (int, error) {
-	if r.reads > 0 {
-		return 0, io.EOF
-	}
-	r.reads++
-	r.cancel()
-	return copy(p, "hello"), nil
-}
-
-// wantFile describes a file which the run recreated.
-type wantFile struct {
-	data string
-	mode uint32
-}
-
-type testCase struct {
-	name      string
-	stdin     io.Reader
-	fsys      fsx.FS
-	dir       string
-	args      []string
-	want      string
-	wantErr   string
-	wantExit  int
-	wantFiles map[string]wantFile
-}
-
-func runCase(t *testing.T, test testCase) {
-	t.Helper()
-
-	stdout := new(bytes.Buffer)
-	stderr := new(bytes.Buffer)
-	rt := &coreutils.Runtime{
-		Stdin:      test.stdin,
-		Stdout:     stdout,
-		Stderr:     stderr,
-		FS:         test.fsys,
-		WorkingDir: test.dir,
-	}
-	err := New(rt).Run(t.Context(), test.args...)
-
-	code := 0
-	if err != nil {
-		var exitErr *coreutils.ExitError
-		if !errors.As(err, &exitErr) {
-			t.Fatalf("Run() error = %v, want *coreutils.ExitError", err)
-		}
-		code = exitErr.Code
-	}
-	if code != test.wantExit {
-		t.Errorf("Run() exit code = %d, want %d (error = %v)", code, test.wantExit, err)
-	}
-	if got := stdout.String(); got != test.want {
-		t.Errorf("Run() stdout = %q, want %q", got, test.want)
-	}
-	if got := stderr.String(); got != test.wantErr {
-		t.Errorf("Run() stderr = %q, want %q", got, test.wantErr)
-	}
-	for name, want := range test.wantFiles {
-		checkFile(t, test.fsys, name, want)
-	}
-}
-
-// checkFile checks a recreated file against what the test wants.
-func checkFile(t *testing.T, fsys fsx.FS, name string, want wantFile) {
-	t.Helper()
-
-	mem, ok := fsys.(fsx.MemFS)
-	if !ok {
-		t.Fatalf("a MemFS is needed to check the file %s", name)
-	}
-	entry, ok := mem[name]
-	if !ok {
-		t.Errorf("the file %s wasn't created", name)
-		return
-	}
-	if got := string(entry.Data); got != want.data {
-		t.Errorf("the file %s = %q, want %q", name, got, want.data)
-	}
-	if got := entry.Mode.Perm(); uint32(got) != want.mode {
-		t.Errorf("the file %s has mode %o, want %o", name, got, want.mode)
-	}
-}
-
 func TestRunDecode(t *testing.T) {
-	tests := []testCase{
+	tests := []testutil.Case{
 		{
-			name:  "a historical input recreates the file",
-			stdin: strings.NewReader(historical),
-			fsys:  fsx.MemFS{},
-			wantFiles: map[string]wantFile{
-				"out.txt": {data: "hello", mode: 0o644},
-			},
+			Name:      "a historical input recreates the file",
+			Stdin:     strings.NewReader(historical),
+			FS:        fsx.MemFS{},
+			WantFiles: map[string]string{"out.txt": "hello"},
+			WantMode:  map[string]fs.FileMode{"out.txt": 0o644},
 		},
 		{
-			name:  "a base64 input recreates the file",
-			stdin: strings.NewReader(base64Body),
-			fsys:  fsx.MemFS{},
-			wantFiles: map[string]wantFile{
-				"b64.txt": {data: "hello", mode: 0o600},
-			},
+			Name:      "a base64 input recreates the file",
+			Stdin:     strings.NewReader(base64Body),
+			FS:        fsx.MemFS{},
+			WantFiles: map[string]string{"b64.txt": "hello"},
+			WantMode:  map[string]fs.FileMode{"b64.txt": 0o600},
 		},
 		{
-			name:  "leading text is skipped",
-			stdin: strings.NewReader("junk\n" + historical),
-			fsys:  fsx.MemFS{},
-			wantFiles: map[string]wantFile{
-				"out.txt": {data: "hello", mode: 0o644},
-			},
+			Name:      "leading text is skipped",
+			Stdin:     strings.NewReader("junk\n" + historical),
+			FS:        fsx.MemFS{},
+			WantFiles: map[string]string{"out.txt": "hello"},
+			WantMode:  map[string]fs.FileMode{"out.txt": 0o644},
 		},
 		{
-			name:  "a space encodes a zero as well as a backquote",
-			stdin: strings.NewReader("begin 644 out.txt\n%:&5L;&\\ \n \nend\n"),
-			fsys:  fsx.MemFS{},
-			wantFiles: map[string]wantFile{
-				"out.txt": {data: "hello", mode: 0o644},
-			},
+			Name:      "a space encodes a zero as well as a backquote",
+			Stdin:     strings.NewReader("begin 644 out.txt\n%:&5L;&\\ \n \nend\n"),
+			FS:        fsx.MemFS{},
+			WantFiles: map[string]string{"out.txt": "hello"},
+			WantMode:  map[string]fs.FileMode{"out.txt": 0o644},
 		},
 		{
-			name:  "the end line may be missing after the terminator",
-			stdin: strings.NewReader("begin 644 out.txt\n%:&5L;&\\`\n`\n"),
-			fsys:  fsx.MemFS{},
-			wantFiles: map[string]wantFile{
-				"out.txt": {data: "hello", mode: 0o644},
-			},
+			Name:      "the end line may be missing after the terminator",
+			Stdin:     strings.NewReader("begin 644 out.txt\n%:&5L;&\\`\n`\n"),
+			FS:        fsx.MemFS{},
+			WantFiles: map[string]string{"out.txt": "hello"},
+			WantMode:  map[string]fs.FileMode{"out.txt": 0o644},
 		},
 		{
-			name:  "Windows line endings are accepted",
-			stdin: strings.NewReader("begin 644 out.txt\r\n%:&5L;&\\`\r\n`\r\nend\r\n"),
-			fsys:  fsx.MemFS{},
-			wantFiles: map[string]wantFile{
-				"out.txt": {data: "hello", mode: 0o644},
-			},
+			Name:      "Windows line endings are accepted",
+			Stdin:     strings.NewReader("begin 644 out.txt\r\n%:&5L;&\\`\r\n`\r\nend\r\n"),
+			FS:        fsx.MemFS{},
+			WantFiles: map[string]string{"out.txt": "hello"},
+			WantMode:  map[string]fs.FileMode{"out.txt": 0o644},
 		},
 		{
-			name:  "a symbolic mode is accepted",
-			stdin: strings.NewReader("begin u=rwx,go=r out.txt\n%:&5L;&\\`\n`\nend\n"),
-			fsys:  fsx.MemFS{},
-			wantFiles: map[string]wantFile{
-				"out.txt": {data: "hello", mode: 0o744},
-			},
+			Name:      "a symbolic mode is accepted",
+			Stdin:     strings.NewReader("begin u=rwx,go=r out.txt\n%:&5L;&\\`\n`\nend\n"),
+			FS:        fsx.MemFS{},
+			WantFiles: map[string]string{"out.txt": "hello"},
+			WantMode:  map[string]fs.FileMode{"out.txt": 0o744},
 		},
 		{
-			name:  "base64 ignores the garbage of a mail header",
-			stdin: strings.NewReader("begin-base64 644 out.txt\naG Vs bG8=\n====\n"),
-			fsys:  fsx.MemFS{},
-			wantFiles: map[string]wantFile{
-				"out.txt": {data: "hello", mode: 0o644},
-			},
+			Name:      "base64 ignores the garbage of a mail header",
+			Stdin:     strings.NewReader("begin-base64 644 out.txt\naG Vs bG8=\n====\n"),
+			FS:        fsx.MemFS{},
+			WantFiles: map[string]string{"out.txt": "hello"},
+			WantMode:  map[string]fs.FileMode{"out.txt": 0o644},
 		},
 		{
-			name: "a file operand",
-			fsys: testFS(),
-			args: []string{"encoded.uue"},
-			wantFiles: map[string]wantFile{
-				"out.txt": {data: "hello", mode: 0o644},
-			},
+			Name:      "a file operand",
+			FS:        testFS(),
+			Args:      []string{"encoded.uue"},
+			WantFiles: map[string]string{"out.txt": "hello"},
+			WantMode:  map[string]fs.FileMode{"out.txt": 0o644},
 		},
 		{
-			name:  "the output is resolved against the working directory",
-			stdin: strings.NewReader(historical),
-			fsys:  testFS(),
-			dir:   "sub",
-			wantFiles: map[string]wantFile{
-				"sub/out.txt": {data: "hello", mode: 0o644},
-			},
+			Name:      "the output is resolved against the working directory",
+			Stdin:     strings.NewReader(historical),
+			FS:        testFS(),
+			Dir:       "sub",
+			WantFiles: map[string]string{"sub/out.txt": "hello"},
+			WantMode:  map[string]fs.FileMode{"sub/out.txt": 0o644},
 		},
 		{
-			name:  "an existing file is overwritten",
-			fsys:  fsx.MemFS{"out.txt": {Data: []byte("old"), Mode: 0o755}},
-			stdin: strings.NewReader(historical),
-			wantFiles: map[string]wantFile{
-				"out.txt": {data: "hello", mode: 0o644},
-			},
+			Name:      "an existing file is overwritten",
+			FS:        fsx.MemFS{"out.txt": {Data: []byte("old"), Mode: 0o755}},
+			Stdin:     strings.NewReader(historical),
+			WantFiles: map[string]string{"out.txt": "hello"},
+			WantMode:  map[string]fs.FileMode{"out.txt": 0o644},
 		},
 	}
 
-	for _, test := range tests {
-		t.Run(test.name, func(t *testing.T) {
-			runCase(t, test)
-		})
-	}
+	testutil.Run(t, New, tests)
 }
 
 func TestRunOutput(t *testing.T) {
-	tests := []testCase{
+	tests := []testutil.Case{
 		{
-			name:  "a header name of dash writes the standard output",
-			stdin: strings.NewReader("begin 644 -\n%:&5L;&\\`\n`\nend\n"),
-			want:  "hello",
+			Name:  "a header name of dash writes the standard output",
+			Stdin: strings.NewReader("begin 644 -\n%:&5L;&\\`\n`\nend\n"),
+			Want:  "hello",
 		},
 		{
-			name:  "a header name of /dev/stdout writes the standard output",
-			stdin: strings.NewReader("begin 644 /dev/stdout\n%:&5L;&\\`\n`\nend\n"),
-			want:  "hello",
+			Name:  "a header name of /dev/stdout writes the standard output",
+			Stdin: strings.NewReader("begin 644 /dev/stdout\n%:&5L;&\\`\n`\nend\n"),
+			Want:  "hello",
 		},
 		{
-			name:  "-o overrides the header name",
-			stdin: strings.NewReader(historical),
-			fsys:  fsx.MemFS{},
-			args:  []string{"-o", "mine.txt"},
-			wantFiles: map[string]wantFile{
-				"mine.txt": {data: "hello", mode: 0o644},
-			},
+			Name:      "-o overrides the header name",
+			Stdin:     strings.NewReader(historical),
+			FS:        fsx.MemFS{},
+			Args:      []string{"-o", "mine.txt"},
+			WantFiles: map[string]string{"mine.txt": "hello"},
+			WantMode:  map[string]fs.FileMode{"mine.txt": 0o644},
 		},
 		{
-			name:  "-o with dash writes the standard output",
-			stdin: strings.NewReader(historical),
-			args:  []string{"-o", "-"},
-			want:  "hello",
+			Name:  "-o with dash writes the standard output",
+			Stdin: strings.NewReader(historical),
+			Args:  []string{"-o", "-"},
+			Want:  "hello",
 		},
 		{
-			name:  "-o attached to the option",
-			stdin: strings.NewReader(historical),
-			fsys:  fsx.MemFS{},
-			args:  []string{"-omine.txt"},
-			wantFiles: map[string]wantFile{
-				"mine.txt": {data: "hello", mode: 0o644},
-			},
+			Name:      "-o attached to the option",
+			Stdin:     strings.NewReader(historical),
+			FS:        fsx.MemFS{},
+			Args:      []string{"-omine.txt"},
+			WantFiles: map[string]string{"mine.txt": "hello"},
+			WantMode:  map[string]fs.FileMode{"mine.txt": 0o644},
 		},
 		{
-			name:  "the long output-file option",
-			stdin: strings.NewReader(historical),
-			fsys:  fsx.MemFS{},
-			args:  []string{"--output-file", "mine.txt"},
-			wantFiles: map[string]wantFile{
-				"mine.txt": {data: "hello", mode: 0o644},
-			},
+			Name:      "the long output-file option",
+			Stdin:     strings.NewReader(historical),
+			FS:        fsx.MemFS{},
+			Args:      []string{"--output-file", "mine.txt"},
+			WantFiles: map[string]string{"mine.txt": "hello"},
+			WantMode:  map[string]fs.FileMode{"mine.txt": 0o644},
 		},
 	}
 
-	for _, test := range tests {
-		t.Run(test.name, func(t *testing.T) {
-			runCase(t, test)
-		})
-	}
+	testutil.Run(t, New, tests)
 }
 
 func TestRunErrors(t *testing.T) {
-	tests := []testCase{
+	tests := []testutil.Case{
 		{
-			name:     "no begin line",
-			stdin:    strings.NewReader("just junk\n"),
-			wantErr:  "uudecode: standard input: no 'begin' line\n",
-			wantExit: 1,
+			Name:     "no begin line",
+			Stdin:    strings.NewReader("just junk\n"),
+			WantErr:  "uudecode: standard input: no 'begin' line\n",
+			WantExit: 1,
 		},
 		{
-			name:     "an empty input",
-			stdin:    strings.NewReader(""),
-			wantErr:  "uudecode: standard input: no 'begin' line\n",
-			wantExit: 1,
+			Name:     "an empty input",
+			Stdin:    strings.NewReader(""),
+			WantErr:  "uudecode: standard input: no 'begin' line\n",
+			WantExit: 1,
 		},
 		{
-			name:     "an invalid mode",
-			stdin:    strings.NewReader("begin xyz out.txt\n"),
-			wantErr:  "uudecode: standard input: invalid mode: \"xyz\"\n",
-			wantExit: 1,
+			Name:     "an invalid mode",
+			Stdin:    strings.NewReader("begin xyz out.txt\n"),
+			WantErr:  "uudecode: standard input: invalid mode: \"xyz\"\n",
+			WantExit: 1,
 		},
 		{
-			name:     "a short body line",
-			stdin:    strings.NewReader("begin 644 out.txt\nMab\nend\n"),
-			fsys:     fsx.MemFS{},
-			wantErr:  "uudecode: standard input: invalid input\n",
-			wantExit: 1,
+			Name:     "a short body line",
+			Stdin:    strings.NewReader("begin 644 out.txt\nMab\nend\n"),
+			FS:       fsx.MemFS{},
+			WantErr:  "uudecode: standard input: invalid input\n",
+			WantExit: 1,
 		},
 		{
-			name:     "an end line without the terminator",
-			stdin:    strings.NewReader("begin 644 out.txt\n%:&5L;&\\`\nend\n"),
-			fsys:     fsx.MemFS{},
-			wantErr:  "uudecode: standard input: invalid input\n",
-			wantExit: 1,
+			Name:     "an end line without the terminator",
+			Stdin:    strings.NewReader("begin 644 out.txt\n%:&5L;&\\`\nend\n"),
+			FS:       fsx.MemFS{},
+			WantErr:  "uudecode: standard input: invalid input\n",
+			WantExit: 1,
 		},
 		{
-			name:     "an empty body line",
-			stdin:    strings.NewReader("begin 644 out.txt\n%:&5L;&\\`\n\n`\nend\n"),
-			fsys:     fsx.MemFS{},
-			wantErr:  "uudecode: standard input: invalid input\n",
-			wantExit: 1,
+			Name:     "an empty body line",
+			Stdin:    strings.NewReader("begin 644 out.txt\n%:&5L;&\\`\n\n`\nend\n"),
+			FS:       fsx.MemFS{},
+			WantErr:  "uudecode: standard input: invalid input\n",
+			WantExit: 1,
 		},
 		{
-			name:     "a character outside of the alphabet",
-			stdin:    strings.NewReader("begin 644 out.txt\n%:&5L;&~\n`\nend\n"),
-			fsys:     fsx.MemFS{},
-			wantErr:  "uudecode: standard input: invalid input\n",
-			wantExit: 1,
+			Name:     "a character outside of the alphabet",
+			Stdin:    strings.NewReader("begin 644 out.txt\n%:&5L;&~\n`\nend\n"),
+			FS:       fsx.MemFS{},
+			WantErr:  "uudecode: standard input: invalid input\n",
+			WantExit: 1,
 		},
 		{
-			name:     "a line with trailing characters",
-			stdin:    strings.NewReader("begin 644 out.txt\n%:&5L;&\\`QQ\n`\nend\n"),
-			fsys:     fsx.MemFS{},
-			wantErr:  "uudecode: standard input: invalid input\n",
-			wantExit: 1,
+			Name:     "a line with trailing characters",
+			Stdin:    strings.NewReader("begin 644 out.txt\n%:&5L;&\\`QQ\n`\nend\n"),
+			FS:       fsx.MemFS{},
+			WantErr:  "uudecode: standard input: invalid input\n",
+			WantExit: 1,
 		},
 		{
-			name:     "a terminator with trailing characters",
-			stdin:    strings.NewReader("begin 644 out.txt\n%:&5L;&\\`\n`abc\nend\n"),
-			fsys:     fsx.MemFS{},
-			wantErr:  "uudecode: standard input: invalid input\n",
-			wantExit: 1,
+			Name:     "a terminator with trailing characters",
+			Stdin:    strings.NewReader("begin 644 out.txt\n%:&5L;&\\`\n`abc\nend\n"),
+			FS:       fsx.MemFS{},
+			WantErr:  "uudecode: standard input: invalid input\n",
+			WantExit: 1,
 		},
 		{
-			name:     "a truncated historical body",
-			stdin:    strings.NewReader("begin 644 out.txt\n%:&5L;&\\`\n"),
-			fsys:     fsx.MemFS{},
-			wantErr:  "uudecode: standard input: invalid input\n",
-			wantExit: 1,
+			Name:     "a truncated historical body",
+			Stdin:    strings.NewReader("begin 644 out.txt\n%:&5L;&\\`\n"),
+			FS:       fsx.MemFS{},
+			WantErr:  "uudecode: standard input: invalid input\n",
+			WantExit: 1,
 		},
 		{
-			name:     "a body of no lines",
-			stdin:    strings.NewReader("begin 644 out.txt\n"),
-			fsys:     fsx.MemFS{},
-			wantErr:  "uudecode: standard input: invalid input\n",
-			wantExit: 1,
+			Name:     "a body of no lines",
+			Stdin:    strings.NewReader("begin 644 out.txt\n"),
+			FS:       fsx.MemFS{},
+			WantErr:  "uudecode: standard input: invalid input\n",
+			WantExit: 1,
 		},
 		{
-			name:     "base64 without its terminator",
-			stdin:    strings.NewReader("begin-base64 644 out.txt\naGVsbG8=\n"),
-			fsys:     fsx.MemFS{},
-			wantErr:  "uudecode: standard input: invalid input\n",
-			wantExit: 1,
+			Name:     "base64 without its terminator",
+			Stdin:    strings.NewReader("begin-base64 644 out.txt\naGVsbG8=\n"),
+			FS:       fsx.MemFS{},
+			WantErr:  "uudecode: standard input: invalid input\n",
+			WantExit: 1,
 		},
 		{
-			name:     "non-canonical base64",
-			stdin:    strings.NewReader("begin-base64 644 out.txt\naGVsbG9=\n====\n"),
-			fsys:     fsx.MemFS{},
-			wantErr:  "uudecode: standard input: invalid input\n",
-			wantExit: 1,
+			Name:     "non-canonical base64",
+			Stdin:    strings.NewReader("begin-base64 644 out.txt\naGVsbG9=\n====\n"),
+			FS:       fsx.MemFS{},
+			WantErr:  "uudecode: standard input: invalid input\n",
+			WantExit: 1,
 		},
 		{
-			name:     "at most one operand",
-			fsys:     testFS(),
-			args:     []string{"encoded.uue", "extra.uue"},
-			wantErr:  "uudecode: extra operand 'extra.uue'\nTry 'uudecode --help' for more information.\n",
-			wantExit: 2,
+			Name:     "at most one operand",
+			FS:       testFS(),
+			Args:     []string{"encoded.uue", "extra.uue"},
+			WantErr:  "uudecode: extra operand 'extra.uue'\nTry 'uudecode --help' for more information.\n",
+			WantExit: 2,
 		},
 		{
-			name:     "an unknown option",
-			args:     []string{"-x"},
-			wantErr:  "uudecode: invalid option -- 'x'\nTry 'uudecode --help' for more information.\n",
-			wantExit: 2,
+			Name:     "an unknown option",
+			Args:     []string{"-x"},
+			WantErr:  "uudecode: invalid option -- 'x'\nTry 'uudecode --help' for more information.\n",
+			WantExit: 2,
 		},
 		{
-			name:     "an unknown long option",
-			args:     []string{"--nope"},
-			wantErr:  "uudecode: unrecognized option '--nope'\nTry 'uudecode --help' for more information.\n",
-			wantExit: 2,
+			Name:     "an unknown long option",
+			Args:     []string{"--nope"},
+			WantErr:  "uudecode: unrecognized option '--nope'\nTry 'uudecode --help' for more information.\n",
+			WantExit: 2,
 		},
 		{
-			name:     "-o requires an argument",
-			args:     []string{"-o"},
-			wantErr:  "uudecode: option requires an argument -- 'o'\nTry 'uudecode --help' for more information.\n",
-			wantExit: 2,
+			Name:     "-o requires an argument",
+			Args:     []string{"-o"},
+			WantErr:  "uudecode: option requires an argument -- 'o'\nTry 'uudecode --help' for more information.\n",
+			WantExit: 2,
 		},
 		{
-			name:     "an empty -o argument",
-			stdin:    strings.NewReader(historical),
-			fsys:     fsx.MemFS{},
-			args:     []string{"-o", ""},
-			wantErr:  "uudecode: invalid zero-length file name\n",
-			wantExit: 1,
+			Name:     "an empty -o argument",
+			Stdin:    strings.NewReader(historical),
+			FS:       fsx.MemFS{},
+			Args:     []string{"-o", ""},
+			WantErr:  "uudecode: invalid zero-length file name\n",
+			WantExit: 1,
 		},
 		{
-			name:     "an empty --output-file value",
-			stdin:    strings.NewReader(historical),
-			fsys:     fsx.MemFS{},
-			args:     []string{"--output-file="},
-			wantErr:  "uudecode: invalid zero-length file name\n",
-			wantExit: 1,
+			Name:     "an empty --output-file value",
+			Stdin:    strings.NewReader(historical),
+			FS:       fsx.MemFS{},
+			Args:     []string{"--output-file="},
+			WantErr:  "uudecode: invalid zero-length file name\n",
+			WantExit: 1,
 		},
 		{
-			name:     "an empty input name",
-			args:     []string{""},
-			wantErr:  "uudecode: invalid zero-length file name\n",
-			wantExit: 1,
+			Name:     "an empty input name",
+			Args:     []string{""},
+			WantErr:  "uudecode: invalid zero-length file name\n",
+			WantExit: 1,
 		},
 		{
-			name:     "no standard input",
-			wantErr:  "uudecode: standard input: no standard input available\n",
-			wantExit: 1,
+			Name:     "no standard input",
+			WantErr:  "uudecode: standard input: no standard input available\n",
+			WantExit: 1,
 		},
 		{
-			name:     "a missing input file",
-			fsys:     testFS(),
-			args:     []string{"nope.uue"},
-			wantErr:  "uudecode: nope.uue: file does not exist\n",
-			wantExit: 1,
+			Name:     "a missing input file",
+			FS:       testFS(),
+			Args:     []string{"nope.uue"},
+			WantErr:  "uudecode: nope.uue: file does not exist\n",
+			WantExit: 1,
 		},
 		{
-			name:     "a read error",
-			stdin:    errorReader{},
-			wantErr:  "uudecode: standard input: boom\n",
-			wantExit: 1,
+			Name:     "a read error",
+			Stdin:    testutil.ErrorReader{},
+			WantErr:  "uudecode: standard input: boom\n",
+			WantExit: 1,
 		},
 	}
 
-	for _, test := range tests {
-		t.Run(test.name, func(t *testing.T) {
-			runCase(t, test)
-		})
-	}
+	testutil.Run(t, New, tests)
 }
 
 func TestRunWriteError(t *testing.T) {
@@ -472,7 +347,7 @@ func TestRunWriteError(t *testing.T) {
 			stderr := new(bytes.Buffer)
 			rt := &coreutils.Runtime{
 				Stdin:  strings.NewReader(test.stdin),
-				Stdout: errorWriter{},
+				Stdout: testutil.ErrorWriter{},
 				Stderr: stderr,
 				FS:     fsx.MemFS{},
 			}
@@ -498,7 +373,7 @@ func TestRunContext(t *testing.T) {
 
 	t.Run("cancelled while scanning", func(t *testing.T) {
 		ctx, cancel := context.WithCancel(t.Context())
-		runCancelled(t, ctx, &cancelReader{cancel: cancel})
+		runCancelled(t, ctx, &testutil.CancelReader{Cancel: cancel, Data: []byte("hello")})
 	})
 }
 
@@ -589,7 +464,7 @@ func TestHelpVersion(t *testing.T) {
 	}
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			runCase(t, testCase{name: test.name, args: test.args, want: test.want})
+			testutil.Once(t, New, testutil.Case{Name: test.name, Args: test.args, Want: test.want})
 		})
 	}
 }

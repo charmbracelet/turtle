@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"charm.land/snail/coreutils"
+	"charm.land/snail/coreutils/internal/testutil"
 	"charm.land/snail/fsx"
 )
 
@@ -63,7 +64,7 @@ func runCase(t *testing.T, test testCase) {
 	err := New(rt).Run(t.Context(), test.args...)
 	after := time.Now()
 
-	if code := exitCode(t, err); code != test.wantExit {
+	if code := testutil.ExitCode(t, err); code != test.wantExit {
 		t.Errorf("Run() exit code = %d, want %d (error = %v)", code, test.wantExit, err)
 	}
 	if got := stderr.String(); got != test.wantErr {
@@ -101,19 +102,6 @@ func assertTime(t *testing.T, name, label string, got, want, before, after time.
 	if !got.Equal(want) {
 		t.Errorf("%s %s = %v, want %v", name, label, got, want)
 	}
-}
-
-func exitCode(t *testing.T, err error) int {
-	t.Helper()
-
-	if err == nil {
-		return 0
-	}
-	var exitErr *coreutils.ExitError
-	if !errors.As(err, &exitErr) {
-		t.Fatalf("Run() error = %v, want *coreutils.ExitError", err)
-	}
-	return exitErr.Code
 }
 
 var (
@@ -739,7 +727,7 @@ func TestRunNoFilesystem(t *testing.T) {
 	}
 	err := New(rt).Run(t.Context(), "file.txt")
 
-	if code := exitCode(t, err); code != 1 {
+	if code := testutil.ExitCode(t, err); code != 1 {
 		t.Errorf("Run() exit code = %d, want 1", code)
 	}
 	if got, want := stderr.String(), "touch: no file system available\n"; got != want {
@@ -896,7 +884,7 @@ func TestRunNoDereference(t *testing.T) {
 			}
 			err := New(rt).Run(t.Context(), test.args...)
 
-			if code := exitCode(t, err); code != test.wantExit {
+			if code := testutil.ExitCode(t, err); code != test.wantExit {
 				t.Errorf("Run() exit code = %d, want %d (error = %v)", code, test.wantExit, err)
 			}
 			if got := stderr.String(); got != test.wantErr {
@@ -933,7 +921,7 @@ func TestRunNoDereferenceOS(t *testing.T) {
 	}
 	err := New(rt).Run(t.Context(), "-h", "sym.txt")
 
-	if code := exitCode(t, err); code != 0 {
+	if code := testutil.ExitCode(t, err); code != 0 {
 		t.Errorf("Run() exit code = %d, want 0 (stderr %q)", code, stderr.String())
 	}
 }
@@ -1132,26 +1120,5 @@ func TestParseFlags(t *testing.T) {
 }
 
 func TestHelpVersion(t *testing.T) {
-	t.Run("help", func(t *testing.T) {
-		stdout := new(bytes.Buffer)
-		rt := &coreutils.Runtime{Stdout: stdout, Stderr: new(bytes.Buffer)}
-		if err := New(rt).Run(t.Context(), "--help"); err != nil {
-			t.Fatalf("Run() error = %v, want nil (exit status 0)", err)
-		}
-		if got, want := stdout.String(), usage; got != want {
-			t.Errorf("Run() stdout = %q, want %q", got, want)
-		}
-	})
-
-	t.Run("version", func(t *testing.T) {
-		stdout := new(bytes.Buffer)
-		rt := &coreutils.Runtime{Stdout: stdout, Stderr: new(bytes.Buffer)}
-		if err := New(rt).Run(t.Context(), "--version"); err != nil {
-			t.Fatalf("Run() error = %v, want nil (exit status 0)", err)
-		}
-		want := "touch (charm.land/snail/coreutils) " + coreutils.Version + "\nhttps://charm.land/snail\n"
-		if got := stdout.String(); got != want {
-			t.Errorf("Run() stdout = %q, want %q", got, want)
-		}
-	})
+	testutil.HelpVersion(t, New, "touch", usage)
 }

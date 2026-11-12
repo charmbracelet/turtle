@@ -2,7 +2,6 @@ package sed
 
 import (
 	"bytes"
-	"errors"
 	"io"
 	"io/fs"
 	"os"
@@ -11,91 +10,9 @@ import (
 	"testing"
 
 	"charm.land/snail/coreutils"
+	"charm.land/snail/coreutils/internal/testutil"
 	"charm.land/snail/fsx"
 )
-
-func exitCode(t *testing.T, err error) int {
-	t.Helper()
-
-	if err == nil {
-		return 0
-	}
-	var exitErr *coreutils.ExitError
-	if !errors.As(err, &exitErr) {
-		t.Fatalf("Run() error = %v, want *coreutils.ExitError", err)
-	}
-	return exitErr.Code
-}
-
-type testCase struct {
-	name string
-	// stdin is the standard input, used when no files are given.
-	stdin io.Reader
-	// fsys holds the input files, and receives the files the script writes.
-	fsys     fsx.MemFS
-	dir      string
-	args     []string
-	want     string
-	wantErr  string
-	wantExit int
-	// umask is the file mode creation mask of the runtime.
-	umask fs.FileMode
-	// wantFiles checks the files written by the w commands and the w flag of
-	// the s command.
-	wantFiles map[string]string
-	// wantModes checks the modes of the files the script creates.
-	wantModes map[string]fs.FileMode
-}
-
-func runCase(t *testing.T, test testCase) {
-	t.Helper()
-
-	stdout := new(bytes.Buffer)
-	stderr := new(bytes.Buffer)
-	fsys := test.fsys
-	if fsys == nil {
-		fsys = fsx.MemFS{}
-	}
-	rt := &coreutils.Runtime{
-		Stdin:      test.stdin,
-		Stdout:     stdout,
-		Stderr:     stderr,
-		FS:         fsys,
-		WorkingDir: test.dir,
-		Umask:      test.umask,
-	}
-	err := New(rt).Run(t.Context(), test.args...)
-
-	if code := exitCode(t, err); code != test.wantExit {
-		t.Errorf("Run() exit code = %d, want %d (error = %v)", code, test.wantExit, err)
-	}
-	if got := stdout.String(); got != test.want {
-		t.Errorf("Run() stdout = %q, want %q", got, test.want)
-	}
-	if got := stderr.String(); got != test.wantErr {
-		t.Errorf("Run() stderr = %q, want %q", got, test.wantErr)
-	}
-	for name, want := range test.wantFiles {
-		file, ok := fsys[name]
-		if !ok {
-			t.Errorf("Run() didn't create %s", name)
-			continue
-		}
-		if got := string(file.Data); got != want {
-			t.Errorf("Run() file %s = %q, want %q", name, got, want)
-		}
-	}
-	for name, want := range test.wantModes {
-		fi, err := fs.Stat(fsys, name)
-		if err != nil {
-			t.Errorf("Run() Stat(%s) error = %v", name, err)
-			continue
-		}
-		if got := fi.Mode().Perm(); got != want {
-			t.Errorf("Run() file %s mode = %v, want %v", name, got, want)
-		}
-	}
-}
 
 func stringsFS(files map[string]string) fsx.MemFS {
 	fsys := fsx.MemFS{}
@@ -105,1004 +22,998 @@ func stringsFS(files map[string]string) fsx.MemFS {
 	return fsys
 }
 
+// runCases runs the cases like testutil.Run, giving an empty file system to
+// the ones which set none, as sed needs one for its file operands and for
+// the files the w commands create.
+func runCases(t *testing.T, tests []testutil.Case) {
+	t.Helper()
+
+	for i := range tests {
+		if tests[i].FS == nil {
+			tests[i].FS = fsx.MemFS{}
+		}
+	}
+	testutil.Run(t, New, tests)
+}
+
 func TestRunSubstitute(t *testing.T) {
-	tests := []testCase{
+	tests := []testutil.Case{
 		{
-			name:  "the first occurrence is replaced",
-			stdin: strings.NewReader("banana\n"),
-			args:  []string{"s/an/-/"},
-			want:  "b-ana\n",
+			Name:  "the first occurrence is replaced",
+			Stdin: strings.NewReader("banana\n"),
+			Args:  []string{"s/an/-/"},
+			Want:  "b-ana\n",
 		},
 		{
-			name:  "the g flag replaces every occurrence",
-			stdin: strings.NewReader("banana\n"),
-			args:  []string{"s/an/-/g"},
-			want:  "b--a\n",
+			Name:  "the g flag replaces every occurrence",
+			Stdin: strings.NewReader("banana\n"),
+			Args:  []string{"s/an/-/g"},
+			Want:  "b--a\n",
 		},
 		{
-			name:  "a number flag replaces the nth occurrence",
-			stdin: strings.NewReader("banana\n"),
-			args:  []string{"s/an/-/2"},
-			want:  "ban-a\n",
+			Name:  "a number flag replaces the nth occurrence",
+			Stdin: strings.NewReader("banana\n"),
+			Args:  []string{"s/an/-/2"},
+			Want:  "ban-a\n",
 		},
 		{
-			name:  "the p flag writes the pattern space after a change",
-			stdin: strings.NewReader("a\nb\n"),
-			args:  []string{"s/a/X/p"},
-			want:  "X\nX\nb\n",
+			Name:  "the p flag writes the pattern space after a change",
+			Stdin: strings.NewReader("a\nb\n"),
+			Args:  []string{"s/a/X/p"},
+			Want:  "X\nX\nb\n",
 		},
 		{
-			name:  "the p flag writes nothing when nothing changed",
-			stdin: strings.NewReader("a\nb\n"),
-			args:  []string{"s/z/X/p"},
-			want:  "a\nb\n",
+			Name:  "the p flag writes nothing when nothing changed",
+			Stdin: strings.NewReader("a\nb\n"),
+			Args:  []string{"s/z/X/p"},
+			Want:  "a\nb\n",
 		},
 		{
-			name:  "the p flag writes with -n too",
-			stdin: strings.NewReader("a\nb\n"),
-			args:  []string{"-n", "s/a/X/p"},
-			want:  "X\n",
+			Name:  "the p flag writes with -n too",
+			Stdin: strings.NewReader("a\nb\n"),
+			Args:  []string{"-n", "s/a/X/p"},
+			Want:  "X\n",
 		},
 		{
-			name:  "the i flag matches case insensitively",
-			stdin: strings.NewReader("Aa\n"),
-			args:  []string{"s/a/X/gi"},
-			want:  "XX\n",
+			Name:  "the i flag matches case insensitively",
+			Stdin: strings.NewReader("Aa\n"),
+			Args:  []string{"s/a/X/gi"},
+			Want:  "XX\n",
 		},
 		{
-			name:  "the w flag appends changed lines to a file",
-			stdin: strings.NewReader("a\nb\n"),
-			args:  []string{"s/a/X/w out"},
-			want:  "X\nb\n",
-			wantFiles: map[string]string{
+			Name:  "the w flag appends changed lines to a file",
+			Stdin: strings.NewReader("a\nb\n"),
+			Args:  []string{"s/a/X/w out"},
+			Want:  "X\nb\n",
+			WantFiles: map[string]string{
 				"out": "X\n",
 			},
 		},
 		{
-			name:  "the w flag writes nothing when nothing changed",
-			stdin: strings.NewReader("a\n"),
-			args:  []string{"s/z/X/w out"},
-			want:  "a\n",
-			wantFiles: map[string]string{
+			Name:  "the w flag writes nothing when nothing changed",
+			Stdin: strings.NewReader("a\n"),
+			Args:  []string{"s/z/X/w out"},
+			Want:  "a\n",
+			WantFiles: map[string]string{
 				"out": "",
 			},
 		},
 		{
-			name:  "an ampersand holds the whole match",
-			stdin: strings.NewReader("abc\n"),
-			args:  []string{"s/b/[&]/g"},
-			want:  "a[b]c\n",
+			Name:  "an ampersand holds the whole match",
+			Stdin: strings.NewReader("abc\n"),
+			Args:  []string{"s/b/[&]/g"},
+			Want:  "a[b]c\n",
 		},
 		{
-			name:  "an escaped ampersand is literal",
-			stdin: strings.NewReader("abc\n"),
-			args:  []string{"s/b/\\&/g"},
-			want:  "a&c\n",
+			Name:  "an escaped ampersand is literal",
+			Stdin: strings.NewReader("abc\n"),
+			Args:  []string{"s/b/\\&/g"},
+			Want:  "a&c\n",
 		},
 		{
-			name:  "backreferences hold the groups",
-			stdin: strings.NewReader("abc\n"),
-			args:  []string{`s/\(a\)\(b\)\(c\)/\3\2\1/`},
-			want:  "cba\n",
+			Name:  "backreferences hold the groups",
+			Stdin: strings.NewReader("abc\n"),
+			Args:  []string{`s/\(a\)\(b\)\(c\)/\3\2\1/`},
+			Want:  "cba\n",
 		},
 		{
-			name:  "a missing group is empty",
-			stdin: strings.NewReader("ab\n"),
-			args:  []string{`s/b/\1x/`},
-			want:  "ax\n",
+			Name:  "a missing group is empty",
+			Stdin: strings.NewReader("ab\n"),
+			Args:  []string{`s/b/\1x/`},
+			Want:  "ax\n",
 		},
 		{
-			name:  "an escaped backreference is literal",
-			stdin: strings.NewReader("abc\n"),
-			args:  []string{`s/\(a\)/\\\1/`},
-			want:  `\a` + "bc\n",
+			Name:  "an escaped backreference is literal",
+			Stdin: strings.NewReader("abc\n"),
+			Args:  []string{`s/\(a\)/\\\1/`},
+			Want:  `\a` + "bc\n",
 		},
 		{
-			name:  "an escaped newline splits the line",
-			stdin: strings.NewReader("ab\n"),
-			args:  []string{`s/b/\` + "\n" + `x/`},
-			want:  "a\nx\n",
+			Name:  "an escaped newline splits the line",
+			Stdin: strings.NewReader("ab\n"),
+			Args:  []string{`s/b/\` + "\n" + `x/`},
+			Want:  "a\nx\n",
 		},
 		{
-			name:  "a backslash before a plain character is dropped",
-			stdin: strings.NewReader("ab\n"),
-			args:  []string{`s/a/\x/`},
-			want:  "xb\n",
+			Name:  "a backslash before a plain character is dropped",
+			Stdin: strings.NewReader("ab\n"),
+			Args:  []string{`s/a/\x/`},
+			Want:  "xb\n",
 		},
 		{
-			name:  "any character delimits the command",
-			stdin: strings.NewReader("a.b\n"),
-			args:  []string{"s,[.],X,"},
-			want:  "aXb\n",
+			Name:  "any character delimits the command",
+			Stdin: strings.NewReader("a.b\n"),
+			Args:  []string{"s,[.],X,"},
+			Want:  "aXb\n",
 		},
 		{
-			name:  "the delimiter is escaped in the regular expression",
-			stdin: strings.NewReader("a/b\n"),
-			args:  []string{`s/a\/b/X/`},
-			want:  "X\n",
+			Name:  "the delimiter is escaped in the regular expression",
+			Stdin: strings.NewReader("a/b\n"),
+			Args:  []string{`s/a\/b/X/`},
+			Want:  "X\n",
 		},
 		{
-			name:  "the delimiter is escaped in the replacement",
-			stdin: strings.NewReader("ab\n"),
-			args:  []string{`s/a/\/X/`},
-			want:  "/Xb\n",
+			Name:  "the delimiter is escaped in the replacement",
+			Stdin: strings.NewReader("ab\n"),
+			Args:  []string{`s/a/\/X/`},
+			Want:  "/Xb\n",
 		},
 		{
-			name:  "an empty regular expression uses the last one",
-			stdin: strings.NewReader("abc\n"),
-			args:  []string{"/b/s//X/"},
-			want:  "aXc\n",
+			Name:  "an empty regular expression uses the last one",
+			Stdin: strings.NewReader("abc\n"),
+			Args:  []string{"/b/s//X/"},
+			Want:  "aXc\n",
 		},
 		{
-			name:  "an empty regular expression falls back to the last s command",
-			stdin: strings.NewReader("abc\n"),
-			args:  []string{"s/c/Y/;s//Z/"},
-			want:  "abY\n",
+			Name:  "an empty regular expression falls back to the last s command",
+			Stdin: strings.NewReader("abc\n"),
+			Args:  []string{"s/c/Y/;s//Z/"},
+			Want:  "abY\n",
 		},
 		{
-			name:  "an empty regular expression in an address is reused",
-			stdin: strings.NewReader("a\nb\n"),
-			args:  []string{"/b/s/b/X/;//d"},
-			want:  "a\nX\n",
+			Name:  "an empty regular expression in an address is reused",
+			Stdin: strings.NewReader("a\nb\n"),
+			Args:  []string{"/b/s/b/X/;//d"},
+			Want:  "a\nX\n",
 		},
 		{
-			name:  "a substitution which changes nothing still counts",
-			stdin: strings.NewReader("a\n"),
-			args:  []string{"s/a/a/\ntX\n:X\ns/a/Y/"},
-			want:  "Y\n",
+			Name:  "a substitution which changes nothing still counts",
+			Stdin: strings.NewReader("a\n"),
+			Args:  []string{"s/a/a/\ntX\n:X\ns/a/Y/"},
+			Want:  "Y\n",
 		},
 		{
-			name:  "a pattern space may hold newlines",
-			stdin: strings.NewReader("a\nb\n"),
-			args:  []string{"N;s/a/[/"},
-			want:  "[\nb\n",
+			Name:  "a pattern space may hold newlines",
+			Stdin: strings.NewReader("a\nb\n"),
+			Args:  []string{"N;s/a/[/"},
+			Want:  "[\nb\n",
 		},
 		{
-			name:  "the period doesn't match the newlines of the pattern space",
-			stdin: strings.NewReader("a\nb\n"),
-			args:  []string{"N;s/a.*/X/"},
-			want:  "X\nb\n",
+			Name:  "the period doesn't match the newlines of the pattern space",
+			Stdin: strings.NewReader("a\nb\n"),
+			Args:  []string{"N;s/a.*/X/"},
+			Want:  "X\nb\n",
 		},
 		{
-			name:  "an escaped newline matches across the pattern space",
-			stdin: strings.NewReader("a\nb\n"),
-			args:  []string{`N;s/a\nb/X/`},
-			want:  "X\n",
+			Name:  "an escaped newline matches across the pattern space",
+			Stdin: strings.NewReader("a\nb\n"),
+			Args:  []string{`N;s/a\nb/X/`},
+			Want:  "X\n",
 		},
 		{
-			name:  "the period doesn't match a joined newline",
-			stdin: strings.NewReader("a\nb\n"),
-			args:  []string{`N;s/^a.b/X/`},
-			want:  "a\nb\n",
+			Name:  "the period doesn't match a joined newline",
+			Stdin: strings.NewReader("a\nb\n"),
+			Args:  []string{`N;s/^a.b/X/`},
+			Want:  "a\nb\n",
 		},
 		{
-			name:  "no match keeps the pattern space",
-			stdin: strings.NewReader("abc\n"),
-			args:  []string{"s/z/X/g"},
-			want:  "abc\n",
+			Name:  "no match keeps the pattern space",
+			Stdin: strings.NewReader("abc\n"),
+			Args:  []string{"s/z/X/g"},
+			Want:  "abc\n",
 		},
 		{
-			name:  "a character class in a bracket expression matches",
-			stdin: strings.NewReader("a1b22\n"),
-			args:  []string{"s/[[:digit:]]/X/g"},
-			want:  "aXbXX\n",
+			Name:  "a character class in a bracket expression matches",
+			Stdin: strings.NewReader("a1b22\n"),
+			Args:  []string{"s/[[:digit:]]/X/g"},
+			Want:  "aXbXX\n",
 		},
 		{
-			name:  "a character class in a bracket expression matches with -E",
-			stdin: strings.NewReader("a1b22\n"),
-			args:  []string{"-E", "s/[[:digit:]]/X/g"},
-			want:  "aXbXX\n",
+			Name:  "a character class in a bracket expression matches with -E",
+			Stdin: strings.NewReader("a1b22\n"),
+			Args:  []string{"-E", "s/[[:digit:]]/X/g"},
+			Want:  "aXbXX\n",
 		},
 		{
 			// The members after the [:digit:] subexpression belong to the
 			// bracket expression, so the delimiter inside it doesn't end
 			// the regular expression.
-			name:  "a bracket expression may follow a class with members",
-			stdin: strings.NewReader("a1,b\n"),
-			args:  []string{"s,[[:digit:],],X,g"},
-			want:  "aXXb\n",
+			Name:  "a bracket expression may follow a class with members",
+			Stdin: strings.NewReader("a1,b\n"),
+			Args:  []string{"s,[[:digit:],],X,g"},
+			Want:  "aXXb\n",
 		},
 		{
-			name:  "a close bracket first is a member",
-			stdin: strings.NewReader("a]b\n"),
-			args:  []string{"s/[]]/X/g"},
-			want:  "aXb\n",
+			Name:  "a close bracket first is a member",
+			Stdin: strings.NewReader("a]b\n"),
+			Args:  []string{"s/[]]/X/g"},
+			Want:  "aXb\n",
 		},
 		{
-			name:  "a close bracket first is a member with -E",
-			stdin: strings.NewReader("a]b\n"),
-			args:  []string{"-E", "s/[]]/X/g"},
-			want:  "aXb\n",
+			Name:  "a close bracket first is a member with -E",
+			Stdin: strings.NewReader("a]b\n"),
+			Args:  []string{"-E", "s/[]]/X/g"},
+			Want:  "aXb\n",
 		},
 		{
 			// The whole [[.a.]] is one bracket expression, matching the
 			// collating element a.
-			name:  "a collating symbol scans as one bracket expression",
-			stdin: strings.NewReader("a\n"),
-			args:  []string{"s/[[.a.]]/X/"},
-			want:  "X\n",
+			Name:  "a collating symbol scans as one bracket expression",
+			Stdin: strings.NewReader("a\n"),
+			Args:  []string{"s/[[.a.]]/X/"},
+			Want:  "X\n",
 		},
 		{
-			name:  "the I flag matches case insensitively",
-			stdin: strings.NewReader("Aa\n"),
-			args:  []string{"s/a/X/gI"},
-			want:  "XX\n",
+			Name:  "the I flag matches case insensitively",
+			Stdin: strings.NewReader("Aa\n"),
+			Args:  []string{"s/a/X/gI"},
+			Want:  "XX\n",
 		},
 		{
 			// The M flag makes ^ match at the newlines the N command
 			// joined the lines with.
-			name:  "the M flag matches at the newlines of the pattern space",
-			stdin: strings.NewReader("a\nb\nc\nd\n"),
-			args:  []string{"N;s/^b/X/M"},
-			want:  "a\nX\nc\nd\n",
+			Name:  "the M flag matches at the newlines of the pattern space",
+			Stdin: strings.NewReader("a\nb\nc\nd\n"),
+			Args:  []string{"N;s/^b/X/M"},
+			Want:  "a\nX\nc\nd\n",
 		},
 		{
-			name:  "the m flag matches at the newlines of the pattern space",
-			stdin: strings.NewReader("a\nb\n"),
-			args:  []string{"N;s/^b/X/m"},
-			want:  "a\nX\n",
+			Name:  "the m flag matches at the newlines of the pattern space",
+			Stdin: strings.NewReader("a\nb\n"),
+			Args:  []string{"N;s/^b/X/m"},
+			Want:  "a\nX\n",
 		},
 		{
-			name:  "a number with the g flag replaces from the nth match on",
-			stdin: strings.NewReader("banana\n"),
-			args:  []string{"s/a/-/2g"},
-			want:  "ban-n-\n",
+			Name:  "a number with the g flag replaces from the nth match on",
+			Stdin: strings.NewReader("banana\n"),
+			Args:  []string{"s/a/-/2g"},
+			Want:  "ban-n-\n",
 		},
 		{
-			name:  "a number with the g flag beyond the matches changes nothing",
-			stdin: strings.NewReader("banana\n"),
-			args:  []string{"s/a/-/4g"},
-			want:  "banana\n",
+			Name:  "a number with the g flag beyond the matches changes nothing",
+			Stdin: strings.NewReader("banana\n"),
+			Args:  []string{"s/a/-/4g"},
+			Want:  "banana\n",
 		},
 		{
-			name:  "\\U writes the rest of the replacement in upper case",
-			stdin: strings.NewReader("x\n"),
-			args:  []string{`s/x/\Uhe llo/`},
-			want:  "HE LLO\n",
+			Name:  "\\U writes the rest of the replacement in upper case",
+			Stdin: strings.NewReader("x\n"),
+			Args:  []string{`s/x/\Uhe llo/`},
+			Want:  "HE LLO\n",
 		},
 		{
-			name:  "\\L writes the rest of the replacement in lower case",
-			stdin: strings.NewReader("x\n"),
-			args:  []string{`s/x/\LHE LLO/`},
-			want:  "he llo\n",
+			Name:  "\\L writes the rest of the replacement in lower case",
+			Stdin: strings.NewReader("x\n"),
+			Args:  []string{`s/x/\LHE LLO/`},
+			Want:  "he llo\n",
 		},
 		{
-			name:  "\\E ends the case conversion",
-			stdin: strings.NewReader("x\n"),
-			args:  []string{`s/x/\Uhe\Ello/`},
-			want:  "HEllo\n",
+			Name:  "\\E ends the case conversion",
+			Stdin: strings.NewReader("x\n"),
+			Args:  []string{`s/x/\Uhe\Ello/`},
+			Want:  "HEllo\n",
 		},
 		{
-			name:  "\\u writes the next character in upper case",
-			stdin: strings.NewReader("x\n"),
-			args:  []string{`s/x/\uhello/`},
-			want:  "Hello\n",
+			Name:  "\\u writes the next character in upper case",
+			Stdin: strings.NewReader("x\n"),
+			Args:  []string{`s/x/\uhello/`},
+			Want:  "Hello\n",
 		},
 		{
-			name:  "\\l writes the next character in lower case",
-			stdin: strings.NewReader("x\n"),
-			args:  []string{`s/x/\lHELLO/`},
-			want:  "hELLO\n",
+			Name:  "\\l writes the next character in lower case",
+			Stdin: strings.NewReader("x\n"),
+			Args:  []string{`s/x/\lHELLO/`},
+			Want:  "hELLO\n",
 		},
 		{
-			name:  "the case conversion applies to the whole match",
-			stdin: strings.NewReader("ab\n"),
-			args:  []string{`s/a./\U&/`},
-			want:  "AB\n",
+			Name:  "the case conversion applies to the whole match",
+			Stdin: strings.NewReader("ab\n"),
+			Args:  []string{`s/a./\U&/`},
+			Want:  "AB\n",
 		},
 		{
-			name:  "the case conversion applies to a backreference",
-			stdin: strings.NewReader("ab\n"),
-			args:  []string{`s/\(a\)\(b\)/\U\2\l\1/`},
-			want:  "Ba\n",
+			Name:  "the case conversion applies to a backreference",
+			Stdin: strings.NewReader("ab\n"),
+			Args:  []string{`s/\(a\)\(b\)/\U\2\l\1/`},
+			Want:  "Ba\n",
 		},
 		{
-			name:     "the case conversion escapes are rejected with --posix",
-			stdin:    strings.NewReader("x\n"),
-			args:     []string{"--posix", `s/x/\Ux/`},
-			wantErr:  "sed: the \\U escape of a replacement is a GNU extension, not allowed with --posix\n",
-			wantExit: 2,
+			Name:     "the case conversion escapes are rejected with --posix",
+			Stdin:    strings.NewReader("x\n"),
+			Args:     []string{"--posix", `s/x/\Ux/`},
+			WantErr:  "sed: the \\U escape of a replacement is a GNU extension, not allowed with --posix\n",
+			WantExit: 2,
 		},
 	}
-	for _, test := range tests {
-		t.Run(test.name, func(t *testing.T) {
-			runCase(t, test)
-		})
-	}
+	runCases(t, tests)
 }
 
 func TestRunEscapedDelimiters(t *testing.T) {
-	tests := []testCase{
+	tests := []testutil.Case{
 		{
-			name:  "an escaped non-special delimiter matches itself",
-			stdin: strings.NewReader("a%b\n"),
-			args:  []string{`s%a\%b%X%`},
-			want:  "X\n",
+			Name:  "an escaped non-special delimiter matches itself",
+			Stdin: strings.NewReader("a%b\n"),
+			Args:  []string{`s%a\%b%X%`},
+			Want:  "X\n",
 		},
 		{
-			name:  "an escaped non-special delimiter matches itself in an ERE",
-			stdin: strings.NewReader("a%b\n"),
-			args:  []string{"-E", `s%a\%b%X%`},
-			want:  "X\n",
+			Name:  "an escaped non-special delimiter matches itself in an ERE",
+			Stdin: strings.NewReader("a%b\n"),
+			Args:  []string{"-E", `s%a\%b%X%`},
+			Want:  "X\n",
 		},
 		{
-			name:  "an escaped punctuation delimiter is unescaped",
-			stdin: strings.NewReader("a_b\n"),
-			args:  []string{`s_a\_b_X_`},
-			want:  "X\n",
+			Name:  "an escaped punctuation delimiter is unescaped",
+			Stdin: strings.NewReader("a_b\n"),
+			Args:  []string{`s_a\_b_X_`},
+			Want:  "X\n",
 		},
 		{
 			// A backslash before a delimiter that isn't a special BRE
 			// character must stand for the delimiter itself, so the pattern
 			// is "a(b" and has no opened group.
-			name:  "an escaped parenthesis delimiter is literal in a BRE",
-			stdin: strings.NewReader("a(b\n"),
-			args:  []string{`s(a\(b(X(`},
-			want:  "X\n",
+			Name:  "an escaped parenthesis delimiter is literal in a BRE",
+			Stdin: strings.NewReader("a(b\n"),
+			Args:  []string{`s(a\(b(X(`},
+			Want:  "X\n",
 		},
 		{
-			name:  "an escaped closing parenthesis delimiter is literal in a BRE",
-			stdin: strings.NewReader("a)b\n"),
-			args:  []string{`s)a\)b)X)`},
-			want:  "X\n",
+			Name:  "an escaped closing parenthesis delimiter is literal in a BRE",
+			Stdin: strings.NewReader("a)b\n"),
+			Args:  []string{`s)a\)b)X)`},
+			Want:  "X\n",
 		},
 		{
-			name:  "an escaped non-special delimiter in an address matches itself",
-			stdin: strings.NewReader("a%b\nz\n"),
-			args:  []string{`\%a\%b%d`},
-			want:  "z\n",
+			Name:  "an escaped non-special delimiter in an address matches itself",
+			Stdin: strings.NewReader("a%b\nz\n"),
+			Args:  []string{`\%a\%b%d`},
+			Want:  "z\n",
 		},
 		{
-			name:  "an escaped dot delimiter keeps its escape",
-			stdin: strings.NewReader("x.y\n"),
-			args:  []string{`s.x\.y.X.`},
-			want:  "X\n",
+			Name:  "an escaped dot delimiter keeps its escape",
+			Stdin: strings.NewReader("x.y\n"),
+			Args:  []string{`s.x\.y.X.`},
+			Want:  "X\n",
 		},
 		{
-			name:  "an escaped dot delimiter keeps its escape in an ERE",
-			stdin: strings.NewReader("x.y\n"),
-			args:  []string{"-E", `s.x\.y.X.`},
-			want:  "X\n",
+			Name:  "an escaped dot delimiter keeps its escape in an ERE",
+			Stdin: strings.NewReader("x.y\n"),
+			Args:  []string{"-E", `s.x\.y.X.`},
+			Want:  "X\n",
 		},
 		{
-			name:  "an escaped star delimiter keeps its escape",
-			stdin: strings.NewReader("a*b\n"),
-			args:  []string{`s*a\*b*X*`},
-			want:  "X\n",
+			Name:  "an escaped star delimiter keeps its escape",
+			Stdin: strings.NewReader("a*b\n"),
+			Args:  []string{`s*a\*b*X*`},
+			Want:  "X\n",
 		},
 		{
-			name:  "an escaped caret delimiter keeps its escape",
-			stdin: strings.NewReader("a^b\n"),
-			args:  []string{`s^a\^b^X^`},
-			want:  "X\n",
+			Name:  "an escaped caret delimiter keeps its escape",
+			Stdin: strings.NewReader("a^b\n"),
+			Args:  []string{`s^a\^b^X^`},
+			Want:  "X\n",
 		},
 		{
-			name:  "an escaped plus delimiter keeps its escape in an ERE",
-			stdin: strings.NewReader("a+b\n"),
-			args:  []string{"-E", `s+a\+b+X+`},
-			want:  "X\n",
+			Name:  "an escaped plus delimiter keeps its escape in an ERE",
+			Stdin: strings.NewReader("a+b\n"),
+			Args:  []string{"-E", `s+a\+b+X+`},
+			Want:  "X\n",
 		},
 		{
-			name:  "an escaped pound delimiter in an address keeps its escape",
-			stdin: strings.NewReader("a#b\nz\n"),
-			args:  []string{`\#a\#b#d`},
-			want:  "z\n",
+			Name:  "an escaped pound delimiter in an address keeps its escape",
+			Stdin: strings.NewReader("a#b\nz\n"),
+			Args:  []string{`\#a\#b#d`},
+			Want:  "z\n",
 		},
 		{
 			// The portable form of the context address /\.[0-9]/ with '.' as
 			// the delimiter, from the APPLICATION USAGE of POSIX.
-			name:  "the portable dot-delimited address form works",
-			stdin: strings.NewReader("a.5\nfoo\n"),
-			args:  []string{`\.[.][0-9].d`},
-			want:  "foo\n",
+			Name:  "the portable dot-delimited address form works",
+			Stdin: strings.NewReader("a.5\nfoo\n"),
+			Args:  []string{`\.[.][0-9].d`},
+			Want:  "foo\n",
 		},
 		{
-			name:  "the delimiter is literal inside a bracket expression",
-			stdin: strings.NewReader("a.b\n"),
-			args:  []string{`s.[.].X.`},
-			want:  "aXb\n",
+			Name:  "the delimiter is literal inside a bracket expression",
+			Stdin: strings.NewReader("a.b\n"),
+			Args:  []string{`s.[.].X.`},
+			Want:  "aXb\n",
 		},
 	}
-	for _, test := range tests {
-		t.Run(test.name, func(t *testing.T) {
-			runCase(t, test)
-		})
-	}
+	runCases(t, tests)
 }
 
 func TestRunSubstituteErrors(t *testing.T) {
-	tests := []testCase{
+	tests := []testutil.Case{
 		{
-			name:     "a missing delimiter is an error",
-			stdin:    strings.NewReader("a\n"),
-			args:     []string{"s/a"},
-			wantErr:  "sed: unterminated regular expression in s command: unterminated text\n",
-			wantExit: 2,
+			Name:     "a missing delimiter is an error",
+			Stdin:    strings.NewReader("a\n"),
+			Args:     []string{"s/a"},
+			WantErr:  "sed: unterminated regular expression in s command: unterminated text\n",
+			WantExit: 2,
 		},
 		{
-			name:     "an unknown flag is an error",
-			stdin:    strings.NewReader("a\n"),
-			args:     []string{"s/a/X/q"},
-			wantErr:  "sed: unknown flag in s command: q\n",
-			wantExit: 2,
+			Name:     "an unknown flag is an error",
+			Stdin:    strings.NewReader("a\n"),
+			Args:     []string{"s/a/X/q"},
+			WantErr:  "sed: unknown flag in s command: q\n",
+			WantExit: 2,
 		},
 		{
-			name:     "a missing delimiter is an error",
-			stdin:    strings.NewReader("a\n"),
-			args:     []string{"s"},
-			wantErr:  "sed: missing delimiter for s command\n",
-			wantExit: 2,
+			Name:     "a missing delimiter is an error",
+			Stdin:    strings.NewReader("a\n"),
+			Args:     []string{"s"},
+			WantErr:  "sed: missing delimiter for s command\n",
+			WantExit: 2,
 		},
 		{
-			name:     "an empty regular expression without a previous one is an error",
-			stdin:    strings.NewReader("a\n"),
-			args:     []string{"s//X/"},
-			wantErr:  "sed: no previous regular expression\n",
-			wantExit: 2,
+			Name:     "an empty regular expression without a previous one is an error",
+			Stdin:    strings.NewReader("a\n"),
+			Args:     []string{"s//X/"},
+			WantErr:  "sed: no previous regular expression\n",
+			WantExit: 2,
 		},
 		{
-			name:     "an invalid regular expression is an error",
-			stdin:    strings.NewReader("a\n"),
-			args:     []string{"s/[/X/"},
-			wantErr:  "sed: unterminated regular expression in s command: unmatched [\n",
-			wantExit: 2,
+			Name:     "an invalid regular expression is an error",
+			Stdin:    strings.NewReader("a\n"),
+			Args:     []string{"s/[/X/"},
+			WantErr:  "sed: unterminated regular expression in s command: unmatched [\n",
+			WantExit: 2,
 		},
 	}
-	for _, test := range tests {
-		t.Run(test.name, func(t *testing.T) {
-			runCase(t, test)
-		})
-	}
+	runCases(t, tests)
 }
 
 func TestRunAddresses(t *testing.T) {
-	tests := []testCase{
+	tests := []testutil.Case{
 		{
-			name:  "no address selects every line",
-			stdin: strings.NewReader("a\nb\n"),
-			args:  []string{"d"},
-			want:  "",
+			Name:  "no address selects every line",
+			Stdin: strings.NewReader("a\nb\n"),
+			Args:  []string{"d"},
+			Want:  "",
 		},
 		{
-			name:  "a line number selects one line",
-			stdin: strings.NewReader("a\nb\nc\n"),
-			args:  []string{"2d"},
-			want:  "a\nc\n",
+			Name:  "a line number selects one line",
+			Stdin: strings.NewReader("a\nb\nc\n"),
+			Args:  []string{"2d"},
+			Want:  "a\nc\n",
 		},
 		{
-			name:  "a line number selects nothing past the input",
-			stdin: strings.NewReader("a\nb\nc\n"),
-			args:  []string{"9d"},
-			want:  "a\nb\nc\n",
+			Name:  "a line number selects nothing past the input",
+			Stdin: strings.NewReader("a\nb\nc\n"),
+			Args:  []string{"9d"},
+			Want:  "a\nb\nc\n",
 		},
 		{
-			name:  "the dollar selects the last line",
-			stdin: strings.NewReader("a\nb\nc\n"),
-			args:  []string{"$d"},
-			want:  "a\nb\n",
+			Name:  "the dollar selects the last line",
+			Stdin: strings.NewReader("a\nb\nc\n"),
+			Args:  []string{"$d"},
+			Want:  "a\nb\n",
 		},
 		{
-			name:  "a regular expression selects the matching lines",
-			stdin: strings.NewReader("ab\nba\ncc\n"),
-			args:  []string{"/a/d"},
-			want:  "cc\n",
+			Name:  "a regular expression selects the matching lines",
+			Stdin: strings.NewReader("ab\nba\ncc\n"),
+			Args:  []string{"/a/d"},
+			Want:  "cc\n",
 		},
 		{
-			name:  "a character class address selects the matching lines",
-			stdin: strings.NewReader("a\n1\nb\n2\n"),
-			args:  []string{"/[[:digit:]]/d"},
-			want:  "a\nb\n",
+			Name:  "a character class address selects the matching lines",
+			Stdin: strings.NewReader("a\n1\nb\n2\n"),
+			Args:  []string{"/[[:digit:]]/d"},
+			Want:  "a\nb\n",
 		},
 		{
-			name:  "a character class address selects with -E",
-			stdin: strings.NewReader("a\n1\nb\n2\n"),
-			args:  []string{"-E", "/[[:digit:]]/d"},
-			want:  "a\nb\n",
+			Name:  "a character class address selects with -E",
+			Stdin: strings.NewReader("a\n1\nb\n2\n"),
+			Args:  []string{"-E", "/[[:digit:]]/d"},
+			Want:  "a\nb\n",
 		},
 		{
-			name:  "a regular expression matches any part of the line",
-			stdin: strings.NewReader("xy\nyz\n"),
-			args:  []string{"/y/d"},
-			want:  "",
+			Name:  "a regular expression matches any part of the line",
+			Stdin: strings.NewReader("xy\nyz\n"),
+			Args:  []string{"/y/d"},
+			Want:  "",
 		},
 		{
-			name:  "an anchored regular expression selects whole lines",
-			stdin: strings.NewReader("xy\nyz\n"),
-			args:  []string{"/^y/d"},
-			want:  "xy\n",
+			Name:  "an anchored regular expression selects whole lines",
+			Stdin: strings.NewReader("xy\nyz\n"),
+			Args:  []string{"/^y/d"},
+			Want:  "xy\n",
 		},
 		{
-			name:  "a custom delimiter is accepted",
-			stdin: strings.NewReader("a%b\nab\n"),
-			args:  []string{`\%[%]%d`},
-			want:  "ab\n",
+			Name:  "a custom delimiter is accepted",
+			Stdin: strings.NewReader("a%b\nab\n"),
+			Args:  []string{`\%[%]%d`},
+			Want:  "ab\n",
 		},
 		{
-			name:  "an escaped delimiter stands for itself",
-			stdin: strings.NewReader("a/b\nb\n"),
-			args:  []string{`/a\/b/d`},
-			want:  "b\n",
+			Name:  "an escaped delimiter stands for itself",
+			Stdin: strings.NewReader("a/b\nb\n"),
+			Args:  []string{`/a\/b/d`},
+			Want:  "b\n",
 		},
 		{
-			name:  "a range selects from the first match to the second",
-			stdin: strings.NewReader("a\nb\nc\nd\n"),
-			args:  []string{"/b/,/c/d"},
-			want:  "a\nd\n",
+			Name:  "a range selects from the first match to the second",
+			Stdin: strings.NewReader("a\nb\nc\nd\n"),
+			Args:  []string{"/b/,/c/d"},
+			Want:  "a\nd\n",
 		},
 		{
-			name:  "a range restarts after it closes",
-			stdin: strings.NewReader("a\nb\nc\nb\nc\nd\n"),
-			args:  []string{"/b/,/c/d"},
-			want:  "a\nd\n",
+			Name:  "a range restarts after it closes",
+			Stdin: strings.NewReader("a\nb\nc\nb\nc\nd\n"),
+			Args:  []string{"/b/,/c/d"},
+			Want:  "a\nd\n",
 		},
 		{
-			name:  "a range of line numbers is inclusive",
-			stdin: strings.NewReader("1\n2\n3\n4\n"),
-			args:  []string{"2,3d"},
-			want:  "1\n4\n",
+			Name:  "a range of line numbers is inclusive",
+			Stdin: strings.NewReader("1\n2\n3\n4\n"),
+			Args:  []string{"2,3d"},
+			Want:  "1\n4\n",
 		},
 		{
-			name:  "a range may mix numbers and regular expressions",
-			stdin: strings.NewReader("1\n2\n3\n4\n"),
-			args:  []string{"2,/^3$/d"},
-			want:  "1\n4\n",
+			Name:  "a range may mix numbers and regular expressions",
+			Stdin: strings.NewReader("1\n2\n3\n4\n"),
+			Args:  []string{"2,/^3$/d"},
+			Want:  "1\n4\n",
 		},
 		{
-			name:  "a second number before the first selects one line",
-			stdin: strings.NewReader("1\n2\n3\n4\n"),
-			args:  []string{"3,2d"},
-			want:  "1\n2\n4\n",
+			Name:  "a second number before the first selects one line",
+			Stdin: strings.NewReader("1\n2\n3\n4\n"),
+			Args:  []string{"3,2d"},
+			Want:  "1\n2\n4\n",
 		},
 		{
-			name:  "a second number at the first line selects one line",
-			stdin: strings.NewReader("1\n2\n3\n4\n"),
-			args:  []string{"2,2d"},
-			want:  "1\n3\n4\n",
+			Name:  "a second number at the first line selects one line",
+			Stdin: strings.NewReader("1\n2\n3\n4\n"),
+			Args:  []string{"2,2d"},
+			Want:  "1\n3\n4\n",
 		},
 		{
-			name:  "a second number below the first line selects one line",
-			stdin: strings.NewReader("1\n2\n3\n4\n"),
-			args:  []string{"2,0d"},
-			want:  "1\n3\n4\n",
+			Name:  "a second number below the first line selects one line",
+			Stdin: strings.NewReader("1\n2\n3\n4\n"),
+			Args:  []string{"2,0d"},
+			Want:  "1\n3\n4\n",
 		},
 		{
-			name:  "a second pattern doesn't close on the opening line",
-			stdin: strings.NewReader("x\ny\nx\nz\n"),
-			args:  []string{"/x/,/x/d"},
-			want:  "z\n",
+			Name:  "a second pattern doesn't close on the opening line",
+			Stdin: strings.NewReader("x\ny\nx\nz\n"),
+			Args:  []string{"/x/,/x/d"},
+			Want:  "z\n",
 		},
 		{
-			name: "a range without a later second match runs to the end",
+			Name: "a range without a later second match runs to the end",
 			// With a single /x/ line, the range waits for a later match and
 			// so selects through the end of the input.
-			stdin: strings.NewReader("a\nx\nb\n"),
-			args:  []string{"/x/,/x/d"},
-			want:  "a\n",
+			Stdin: strings.NewReader("a\nx\nb\n"),
+			Args:  []string{"/x/,/x/d"},
+			Want:  "a\n",
 		},
 		{
-			name: "a range restarts after a later second match",
+			Name: "a range restarts after a later second match",
 			// After the range closes on the second /x/, sed looks again for
 			// the first address, and doesn't find it on the last line.
-			stdin: strings.NewReader("a\nx\nb\nx\nc\n"),
-			args:  []string{"/x/,/x/d"},
-			want:  "a\nc\n",
+			Stdin: strings.NewReader("a\nx\nb\nx\nc\n"),
+			Args:  []string{"/x/,/x/d"},
+			Want:  "a\nc\n",
 		},
 		{
-			name:  "a second number at or before the first selects one line",
-			stdin: strings.NewReader("1\n2\n3\n"),
-			args:  []string{"2,1d"},
-			want:  "1\n3\n",
+			Name:  "a second number at or before the first selects one line",
+			Stdin: strings.NewReader("1\n2\n3\n"),
+			Args:  []string{"2,1d"},
+			Want:  "1\n3\n",
 		},
 		{
-			name:  "a second number before the opening pattern line selects one line",
-			stdin: strings.NewReader("1\n2\n3\n4\n5\n"),
-			args:  []string{"/4/,3d"},
-			want:  "1\n2\n3\n5\n",
+			Name:  "a second number before the opening pattern line selects one line",
+			Stdin: strings.NewReader("1\n2\n3\n4\n5\n"),
+			Args:  []string{"/4/,3d"},
+			Want:  "1\n2\n3\n5\n",
 		},
 		{
-			name:  "a range from a pattern to a later number is inclusive",
-			stdin: strings.NewReader("1\n2\n3\n4\n"),
-			args:  []string{"/2/,3d"},
-			want:  "1\n4\n",
+			Name:  "a range from a pattern to a later number is inclusive",
+			Stdin: strings.NewReader("1\n2\n3\n4\n"),
+			Args:  []string{"/2/,3d"},
+			Want:  "1\n4\n",
 		},
 		{
-			name:  "a range without a second match runs to the end",
-			stdin: strings.NewReader("a\nb\nc\n"),
-			args:  []string{"/b/,$d"},
-			want:  "a\n",
+			Name:  "a range without a second match runs to the end",
+			Stdin: strings.NewReader("a\nb\nc\n"),
+			Args:  []string{"/b/,$d"},
+			Want:  "a\n",
 		},
 		{
-			name:  "the negation applies to a range",
-			stdin: strings.NewReader("a\nb\nc\n"),
-			args:  []string{"/b/,/c/!d"},
-			want:  "b\nc\n",
+			Name:  "the negation applies to a range",
+			Stdin: strings.NewReader("a\nb\nc\n"),
+			Args:  []string{"/b/,/c/!d"},
+			Want:  "b\nc\n",
 		},
 		{
-			name:  "the negation applies to a single address",
-			stdin: strings.NewReader("a\nb\n"),
-			args:  []string{"1!d"},
-			want:  "a\n",
+			Name:  "the negation applies to a single address",
+			Stdin: strings.NewReader("a\nb\n"),
+			Args:  []string{"1!d"},
+			Want:  "a\n",
 		},
 		{
-			name:  "blanks may precede the address and the command",
-			stdin: strings.NewReader("a\nb\n"),
-			args:  []string{" 2d"},
-			want:  "a\n",
+			Name:  "blanks may precede the address and the command",
+			Stdin: strings.NewReader("a\nb\n"),
+			Args:  []string{" 2d"},
+			Want:  "a\n",
 		},
 		{
-			name:  "blank lines count as lines",
-			stdin: strings.NewReader("\n\n"),
-			args:  []string{"2d"},
-			want:  "\n",
+			Name:  "blank lines count as lines",
+			Stdin: strings.NewReader("\n\n"),
+			Args:  []string{"2d"},
+			Want:  "\n",
 		},
 		// The GNU address extensions: first~step, +N, ~N and 0,/re/.
 		{
-			name:  "a step address selects every step-th line",
-			stdin: strings.NewReader("1\n2\n3\n4\n5\n"),
-			args:  []string{"1~2d"},
-			want:  "2\n4\n",
+			Name:  "a step address selects every step-th line",
+			Stdin: strings.NewReader("1\n2\n3\n4\n5\n"),
+			Args:  []string{"1~2d"},
+			Want:  "2\n4\n",
 		},
 		{
-			name:  "a step address may start at zero",
-			stdin: strings.NewReader("1\n2\n3\n4\n5\n"),
-			args:  []string{"0~3d"},
-			want:  "1\n2\n4\n5\n",
+			Name:  "a step address may start at zero",
+			Stdin: strings.NewReader("1\n2\n3\n4\n5\n"),
+			Args:  []string{"0~3d"},
+			Want:  "1\n2\n4\n5\n",
 		},
 		{
-			name:  "a step address runs from the first line it names",
-			stdin: strings.NewReader("1\n2\n3\n4\n5\n"),
-			args:  []string{"3~3d"},
-			want:  "1\n2\n4\n5\n",
+			Name:  "a step address runs from the first line it names",
+			Stdin: strings.NewReader("1\n2\n3\n4\n5\n"),
+			Args:  []string{"3~3d"},
+			Want:  "1\n2\n4\n5\n",
 		},
 		{
-			name:  "a range ends N lines after its first line",
-			stdin: strings.NewReader("1\n2\n3\n4\n5\n"),
-			args:  []string{"2,+2d"},
-			want:  "1\n5\n",
+			Name:  "a range ends N lines after its first line",
+			Stdin: strings.NewReader("1\n2\n3\n4\n5\n"),
+			Args:  []string{"2,+2d"},
+			Want:  "1\n5\n",
 		},
 		{
-			name:  "a range ends at a line N lines after a pattern",
-			stdin: strings.NewReader("a\nb\nc\nd\ne\n"),
-			args:  []string{"/c/,+1d"},
-			want:  "a\nb\ne\n",
+			Name:  "a range ends at a line N lines after a pattern",
+			Stdin: strings.NewReader("a\nb\nc\nd\ne\n"),
+			Args:  []string{"/c/,+1d"},
+			Want:  "a\nb\ne\n",
 		},
 		{
-			name:  "a range ends at the next multiple of N",
-			stdin: strings.NewReader("1\n2\n3\n4\n5\n6\n"),
-			args:  []string{"2,~3d"},
-			want:  "1\n4\n5\n6\n",
+			Name:  "a range ends at the next multiple of N",
+			Stdin: strings.NewReader("1\n2\n3\n4\n5\n6\n"),
+			Args:  []string{"2,~3d"},
+			Want:  "1\n4\n5\n6\n",
 		},
 		{
-			name:  "a range ends at the next multiple past a multiple start",
-			stdin: strings.NewReader("1\n2\n3\n4\n5\n6\n"),
-			args:  []string{"3,~3d"},
-			want:  "1\n2\n",
+			Name:  "a range ends at the next multiple past a multiple start",
+			Stdin: strings.NewReader("1\n2\n3\n4\n5\n6\n"),
+			Args:  []string{"3,~3d"},
+			Want:  "1\n2\n",
 		},
 		{
-			name:  "a zero range ends on its first line when it matches",
-			stdin: strings.NewReader("x\ny\nx\n"),
-			args:  []string{"0,/x/d"},
-			want:  "y\nx\n",
+			Name:  "a zero range ends on its first line when it matches",
+			Stdin: strings.NewReader("x\ny\nx\n"),
+			Args:  []string{"0,/x/d"},
+			Want:  "y\nx\n",
 		},
 		{
-			name:  "a zero range ends at the first match after the first line",
-			stdin: strings.NewReader("a\nx\nb\n"),
-			args:  []string{"0,/x/d"},
-			want:  "b\n",
+			Name:  "a zero range ends at the first match after the first line",
+			Stdin: strings.NewReader("a\nx\nb\n"),
+			Args:  []string{"0,/x/d"},
+			Want:  "b\n",
 		},
 		{
 			// Unlike 0,/x/, the plain 1,/x/ range starts its search for
 			// the end on the second line.
-			name:  "a one range runs past a match on its first line",
-			stdin: strings.NewReader("x\ny\nx\n"),
-			args:  []string{"1,/x/d"},
-			want:  "",
+			Name:  "a one range runs past a match on its first line",
+			Stdin: strings.NewReader("x\ny\nx\n"),
+			Args:  []string{"1,/x/d"},
+			Want:  "",
 		},
 		// The I and M modifiers of a regular expression address.
 		{
-			name:  "the I modifier matches case insensitively",
-			stdin: strings.NewReader("a\nb\n"),
-			args:  []string{"/A/Id"},
-			want:  "b\n",
+			Name:  "the I modifier matches case insensitively",
+			Stdin: strings.NewReader("a\nb\n"),
+			Args:  []string{"/A/Id"},
+			Want:  "b\n",
 		},
 		{
-			name:  "the M modifier matches at the newlines of the pattern space",
-			stdin: strings.NewReader("a\nb\nc\nd\n"),
-			args:  []string{"N;/^b/Md"},
-			want:  "c\nd\n",
+			Name:  "the M modifier matches at the newlines of the pattern space",
+			Stdin: strings.NewReader("a\nb\nc\nd\n"),
+			Args:  []string{"N;/^b/Md"},
+			Want:  "c\nd\n",
 		},
 		{
-			name:     "a missing address after a comma is an error",
-			stdin:    strings.NewReader("a\n"),
-			args:     []string{"2,d"},
-			wantErr:  "sed: missing address after ,\n",
-			wantExit: 2,
+			Name:     "a missing address after a comma is an error",
+			Stdin:    strings.NewReader("a\n"),
+			Args:     []string{"2,d"},
+			WantErr:  "sed: missing address after ,\n",
+			WantExit: 2,
 		},
 		{
-			name:     "an unterminated regular expression address is an error",
-			stdin:    strings.NewReader("a\n"),
-			args:     []string{"/a,"},
-			wantErr:  "sed: unterminated regular expression\n",
-			wantExit: 2,
+			Name:     "an unterminated regular expression address is an error",
+			Stdin:    strings.NewReader("a\n"),
+			Args:     []string{"/a,"},
+			WantErr:  "sed: unterminated regular expression\n",
+			WantExit: 2,
 		},
 		{
-			name:     "a step of zero is an error",
-			stdin:    strings.NewReader("a\n"),
-			args:     []string{"1~0d"},
-			wantErr:  "sed: step can't be 0\n",
-			wantExit: 2,
+			Name:     "a step of zero is an error",
+			Stdin:    strings.NewReader("a\n"),
+			Args:     []string{"1~0d"},
+			WantErr:  "sed: step can't be 0\n",
+			WantExit: 2,
 		},
 		{
-			name:     "a missing step after a tilde is an error",
-			stdin:    strings.NewReader("a\n"),
-			args:     []string{"1~d"},
-			wantErr:  "sed: missing step after ~\n",
-			wantExit: 2,
+			Name:     "a missing step after a tilde is an error",
+			Stdin:    strings.NewReader("a\n"),
+			Args:     []string{"1~d"},
+			WantErr:  "sed: missing step after ~\n",
+			WantExit: 2,
 		},
 		{
-			name:     "a missing number after a plus is an error",
-			stdin:    strings.NewReader("a\n"),
-			args:     []string{"1,+d"},
-			wantErr:  "sed: missing number after +\n",
-			wantExit: 2,
+			Name:     "a missing number after a plus is an error",
+			Stdin:    strings.NewReader("a\n"),
+			Args:     []string{"1,+d"},
+			WantErr:  "sed: missing number after +\n",
+			WantExit: 2,
 		},
 		{
-			name:     "a missing number after a tilde is an error",
-			stdin:    strings.NewReader("a\n"),
-			args:     []string{"1,~d"},
-			wantErr:  "sed: missing number after ~\n",
-			wantExit: 2,
+			Name:     "a missing number after a tilde is an error",
+			Stdin:    strings.NewReader("a\n"),
+			Args:     []string{"1,~d"},
+			WantErr:  "sed: missing number after ~\n",
+			WantExit: 2,
 		},
 		{
-			name:     "a zero number after a tilde is an error",
-			stdin:    strings.NewReader("a\n"),
-			args:     []string{"1,~0d"},
-			wantErr:  "sed: the number after ~ must be positive\n",
-			wantExit: 2,
+			Name:     "a zero number after a tilde is an error",
+			Stdin:    strings.NewReader("a\n"),
+			Args:     []string{"1,~0d"},
+			WantErr:  "sed: the number after ~ must be positive\n",
+			WantExit: 2,
 		},
 		{
-			name:     "a step address can't close a range",
-			stdin:    strings.NewReader("a\n"),
-			args:     []string{"1,2~3d"},
-			wantErr:  "sed: a step address can't close a range\n",
-			wantExit: 2,
+			Name:     "a step address can't close a range",
+			Stdin:    strings.NewReader("a\n"),
+			Args:     []string{"1,2~3d"},
+			WantErr:  "sed: a step address can't close a range\n",
+			WantExit: 2,
 		},
 		{
-			name:     "a zero address alone is an error",
-			stdin:    strings.NewReader("a\n"),
-			args:     []string{"0d"},
-			wantErr:  "sed: 0 address can only be the first of a range\n",
-			wantExit: 2,
+			Name:     "a zero address alone is an error",
+			Stdin:    strings.NewReader("a\n"),
+			Args:     []string{"0d"},
+			WantErr:  "sed: 0 address can only be the first of a range\n",
+			WantExit: 2,
 		},
 		{
-			name:     "the step address is rejected with --posix",
-			stdin:    strings.NewReader("a\n"),
-			args:     []string{"--posix", "1~2d"},
-			wantErr:  "sed: the first~step address is a GNU extension, not allowed with --posix\n",
-			wantExit: 2,
+			Name:     "the step address is rejected with --posix",
+			Stdin:    strings.NewReader("a\n"),
+			Args:     []string{"--posix", "1~2d"},
+			WantErr:  "sed: the first~step address is a GNU extension, not allowed with --posix\n",
+			WantExit: 2,
 		},
 		{
-			name:     "the +N address is rejected with --posix",
-			stdin:    strings.NewReader("a\n"),
-			args:     []string{"--posix", "1,+2d"},
-			wantErr:  "sed: the addr1,+N address is a GNU extension, not allowed with --posix\n",
-			wantExit: 2,
+			Name:     "the +N address is rejected with --posix",
+			Stdin:    strings.NewReader("a\n"),
+			Args:     []string{"--posix", "1,+2d"},
+			WantErr:  "sed: the addr1,+N address is a GNU extension, not allowed with --posix\n",
+			WantExit: 2,
 		},
 		{
-			name:     "the ~N address is rejected with --posix",
-			stdin:    strings.NewReader("a\n"),
-			args:     []string{"--posix", "1,~2d"},
-			wantErr:  "sed: the addr1,~N address is a GNU extension, not allowed with --posix\n",
-			wantExit: 2,
+			Name:     "the ~N address is rejected with --posix",
+			Stdin:    strings.NewReader("a\n"),
+			Args:     []string{"--posix", "1,~2d"},
+			WantErr:  "sed: the addr1,~N address is a GNU extension, not allowed with --posix\n",
+			WantExit: 2,
 		},
 		{
-			name:     "the zero address is rejected with --posix",
-			stdin:    strings.NewReader("a\n"),
-			args:     []string{"--posix", "0,/x/d"},
-			wantErr:  "sed: the 0 address is a GNU extension, not allowed with --posix\n",
-			wantExit: 2,
+			Name:     "the zero address is rejected with --posix",
+			Stdin:    strings.NewReader("a\n"),
+			Args:     []string{"--posix", "0,/x/d"},
+			WantErr:  "sed: the 0 address is a GNU extension, not allowed with --posix\n",
+			WantExit: 2,
 		},
 		{
-			name:     "the I address modifier is rejected with --posix",
-			stdin:    strings.NewReader("a\n"),
-			args:     []string{"--posix", "/A/Id"},
-			wantErr:  "sed: the I modifier of an address is a GNU extension, not allowed with --posix\n",
-			wantExit: 2,
+			Name:     "the I address modifier is rejected with --posix",
+			Stdin:    strings.NewReader("a\n"),
+			Args:     []string{"--posix", "/A/Id"},
+			WantErr:  "sed: the I modifier of an address is a GNU extension, not allowed with --posix\n",
+			WantExit: 2,
 		},
 	}
-	for _, test := range tests {
-		t.Run(test.name, func(t *testing.T) {
-			runCase(t, test)
-		})
-	}
+	runCases(t, tests)
 }
 
 func TestRunAddressLimits(t *testing.T) {
-	tests := []testCase{
+	tests := []testutil.Case{
 		// Valid boundaries: the commands taking up to two addresses accept
 		// none, one, or two.
 		{
-			name:  "a 2addr command accepts two addresses",
-			stdin: strings.NewReader("a\nb\nc\n"),
-			args:  []string{"1,2d"},
-			want:  "c\n",
+			Name:  "a 2addr command accepts two addresses",
+			Stdin: strings.NewReader("a\nb\nc\n"),
+			Args:  []string{"1,2d"},
+			Want:  "c\n",
 		},
 		{
-			name:  "a 2addr command accepts one address",
-			stdin: strings.NewReader("a\nb\n"),
-			args:  []string{"1d"},
-			want:  "b\n",
+			Name:  "a 2addr command accepts one address",
+			Stdin: strings.NewReader("a\nb\n"),
+			Args:  []string{"1d"},
+			Want:  "b\n",
 		},
 		{
-			name:  "a 2addr command accepts no address",
-			stdin: strings.NewReader("a\n"),
-			args:  []string{"d"},
-			want:  "",
+			Name:  "a 2addr command accepts no address",
+			Stdin: strings.NewReader("a\n"),
+			Args:  []string{"d"},
+			Want:  "",
 		},
 		{
-			name:  "a 2addr s command accepts two addresses",
-			stdin: strings.NewReader("a\nba\n"),
-			args:  []string{"1,2s/a/X/"},
-			want:  "X\nbX\n",
+			Name:  "a 2addr s command accepts two addresses",
+			Stdin: strings.NewReader("a\nba\n"),
+			Args:  []string{"1,2s/a/X/"},
+			Want:  "X\nbX\n",
 		},
 		{
-			name:  "a 2addr y command accepts two addresses",
-			stdin: strings.NewReader("a\nb\n"),
-			args:  []string{"1,2y/a/X/"},
-			want:  "X\nb\n",
+			Name:  "a 2addr y command accepts two addresses",
+			Stdin: strings.NewReader("a\nb\n"),
+			Args:  []string{"1,2y/a/X/"},
+			Want:  "X\nb\n",
 		},
 		{
-			name:  "a 2addr { command accepts two addresses",
-			stdin: strings.NewReader("a\nb\n"),
-			args:  []string{"1,2{p;}"},
-			want:  "a\na\nb\nb\n",
+			Name:  "a 2addr { command accepts two addresses",
+			Stdin: strings.NewReader("a\nb\n"),
+			Args:  []string{"1,2{p;}"},
+			Want:  "a\na\nb\nb\n",
 		},
 		{
-			name:     "a 2addr { command requires a separator before }",
-			stdin:    strings.NewReader("a\nb\n"),
-			args:     []string{"1,2{p}"},
-			wantErr:  "sed: unexpected }\n",
-			wantExit: 2,
+			Name:     "a 2addr { command requires a separator before }",
+			Stdin:    strings.NewReader("a\nb\n"),
+			Args:     []string{"1,2{p}"},
+			WantErr:  "sed: unexpected }\n",
+			WantExit: 2,
 		},
 		{
-			name:  "a 2addr b command accepts two addresses",
-			stdin: strings.NewReader("a\nb\n"),
-			args:  []string{"1,2b\np"},
-			want:  "a\nb\n",
+			Name:  "a 2addr b command accepts two addresses",
+			Stdin: strings.NewReader("a\nb\n"),
+			Args:  []string{"1,2b\np"},
+			Want:  "a\nb\n",
 		},
 		{
-			name:  "a 2addr c command accepts two addresses",
-			stdin: strings.NewReader("1\n2\n3\n"),
-			args:  []string{`1,2c\X`},
-			want:  "X\n3\n",
+			Name:  "a 2addr c command accepts two addresses",
+			Stdin: strings.NewReader("1\n2\n3\n"),
+			Args:  []string{`1,2c\X`},
+			Want:  "X\n3\n",
 		},
 		// Valid boundaries: the commands taking at most one address.
 		{
-			name:  "a 1addr command accepts one address",
-			stdin: strings.NewReader("a\nb\n"),
-			args:  []string{"1q"},
-			want:  "a\n",
+			Name:  "a 1addr command accepts one address",
+			Stdin: strings.NewReader("a\nb\n"),
+			Args:  []string{"1q"},
+			Want:  "a\n",
 		},
 		{
-			name:  "a 1addr command accepts no address",
-			stdin: strings.NewReader("a\nb\n"),
-			args:  []string{"q"},
-			want:  "a\n",
+			Name:  "a 1addr command accepts no address",
+			Stdin: strings.NewReader("a\nb\n"),
+			Args:  []string{"q"},
+			Want:  "a\n",
 		},
 		{
-			name:  "a 1addr a command accepts one address",
-			stdin: strings.NewReader("a\nb\n"),
-			args:  []string{`1a\text`},
-			want:  "a\ntext\nb\n",
+			Name:  "a 1addr a command accepts one address",
+			Stdin: strings.NewReader("a\nb\n"),
+			Args:  []string{`1a\text`},
+			Want:  "a\ntext\nb\n",
 		},
 		{
-			name:  "a 1addr i command accepts one address",
-			stdin: strings.NewReader("a\nb\n"),
-			args:  []string{`1i\text`},
-			want:  "text\na\nb\n",
+			Name:  "a 1addr i command accepts one address",
+			Stdin: strings.NewReader("a\nb\n"),
+			Args:  []string{`1i\text`},
+			Want:  "text\na\nb\n",
 		},
 		{
-			name:  "a 1addr = command accepts one address",
-			stdin: strings.NewReader("a\nb\n"),
-			args:  []string{"1="},
-			want:  "1\na\nb\n",
+			Name:  "a 1addr = command accepts one address",
+			Stdin: strings.NewReader("a\nb\n"),
+			Args:  []string{"1="},
+			Want:  "1\na\nb\n",
 		},
 		{
-			name:  "a 1addr r command accepts one address",
-			fsys:  stringsFS(map[string]string{"r.txt": "FILE\n"}),
-			stdin: strings.NewReader("a\nb\n"),
-			args:  []string{"1r r.txt"},
-			want:  "a\nFILE\nb\n",
+			Name:  "a 1addr r command accepts one address",
+			FS:    stringsFS(map[string]string{"r.txt": "FILE\n"}),
+			Stdin: strings.NewReader("a\nb\n"),
+			Args:  []string{"1r r.txt"},
+			Want:  "a\nFILE\nb\n",
 		},
 		// Valid boundaries: the commands taking no address at all.
 		{
-			name:  "a 0addr : command accepts no address",
-			stdin: strings.NewReader("a\n"),
-			args:  []string{":l\np"},
-			want:  "a\na\n",
+			Name:  "a 0addr : command accepts no address",
+			Stdin: strings.NewReader("a\n"),
+			Args:  []string{":l\np"},
+			Want:  "a\na\n",
 		},
 		{
-			name:  "a 0addr # command accepts no address",
-			stdin: strings.NewReader("a\n"),
-			args:  []string{"#comment\np"},
-			want:  "a\na\n",
+			Name:  "a 0addr # command accepts no address",
+			Stdin: strings.NewReader("a\n"),
+			Args:  []string{"#comment\np"},
+			Want:  "a\na\n",
 		},
 		// Violations of the limits, rejected like other script errors.
 		{
-			name:     "a 1addr q command rejects two addresses",
-			stdin:    strings.NewReader("a\n"),
-			args:     []string{"1,2q"},
-			wantErr:  "sed: too many addresses for command: q\n",
-			wantExit: 2,
+			Name:     "a 1addr q command rejects two addresses",
+			Stdin:    strings.NewReader("a\n"),
+			Args:     []string{"1,2q"},
+			WantErr:  "sed: too many addresses for command: q\n",
+			WantExit: 2,
 		},
 		// Valid boundaries: the GNU extensions letting a, i, r and = take
 		// a range. The text and files go out at the ends of the range.
 		{
-			name:  "a 2addr a command appends after the range",
-			stdin: strings.NewReader("a\nb\nc\n"),
-			args:  []string{`1,2a\text`},
-			want:  "a\nb\ntext\nc\n",
+			Name:  "a 2addr a command appends after the range",
+			Stdin: strings.NewReader("a\nb\nc\n"),
+			Args:  []string{`1,2a\text`},
+			Want:  "a\nb\ntext\nc\n",
 		},
 		{
-			name:  "a 2addr i command inserts before the range",
-			stdin: strings.NewReader("a\nb\nc\n"),
-			args:  []string{`1,2i\text`},
-			want:  "text\na\nb\nc\n",
+			Name:  "a 2addr i command inserts before the range",
+			Stdin: strings.NewReader("a\nb\nc\n"),
+			Args:  []string{`1,2i\text`},
+			Want:  "text\na\nb\nc\n",
 		},
 		{
-			name:  "a 2addr r command appends after the range",
-			fsys:  stringsFS(map[string]string{"r.txt": "FILE\n"}),
-			stdin: strings.NewReader("a\nb\nc\n"),
-			args:  []string{"1,2r r.txt"},
-			want:  "a\nb\nFILE\nc\n",
+			Name:  "a 2addr r command appends after the range",
+			FS:    stringsFS(map[string]string{"r.txt": "FILE\n"}),
+			Stdin: strings.NewReader("a\nb\nc\n"),
+			Args:  []string{"1,2r r.txt"},
+			Want:  "a\nb\nFILE\nc\n",
 		},
 		{
-			name:  "a 2addr = command prints each line number",
-			stdin: strings.NewReader("a\nb\nc\n"),
-			args:  []string{"1,2="},
-			want:  "1\na\n2\nb\nc\n",
+			Name:  "a 2addr = command prints each line number",
+			Stdin: strings.NewReader("a\nb\nc\n"),
+			Args:  []string{"1,2="},
+			Want:  "1\na\n2\nb\nc\n",
 		},
 		{
-			name:     "a 2addr a command is rejected with --posix",
-			stdin:    strings.NewReader("a\n"),
-			args:     []string{"--posix", `1,2a\text`},
-			wantErr:  "sed: too many addresses for command: a\n",
-			wantExit: 2,
+			Name:     "a 2addr a command is rejected with --posix",
+			Stdin:    strings.NewReader("a\n"),
+			Args:     []string{"--posix", `1,2a\text`},
+			WantErr:  "sed: too many addresses for command: a\n",
+			WantExit: 2,
 		},
 		{
-			name:     "a 0addr : command rejects one address",
-			stdin:    strings.NewReader("a\n"),
-			args:     []string{"1:l\np"},
-			wantErr:  "sed: too many addresses for command: :\n",
-			wantExit: 2,
+			Name:     "a 0addr : command rejects one address",
+			Stdin:    strings.NewReader("a\n"),
+			Args:     []string{"1:l\np"},
+			WantErr:  "sed: too many addresses for command: :\n",
+			WantExit: 2,
 		},
 		{
-			name:     "a 0addr # command rejects one address",
-			stdin:    strings.NewReader("a\n"),
-			args:     []string{"1#comment"},
-			wantErr:  "sed: too many addresses for command: #\n",
-			wantExit: 2,
+			Name:     "a 0addr # command rejects one address",
+			Stdin:    strings.NewReader("a\n"),
+			Args:     []string{"1#comment"},
+			WantErr:  "sed: too many addresses for command: #\n",
+			WantExit: 2,
 		},
 		{
-			name:     "a 0addr } command rejects one address",
-			stdin:    strings.NewReader("a\n"),
-			args:     []string{"1}"},
-			wantErr:  "sed: too many addresses for command: }\n",
-			wantExit: 2,
+			Name:     "a 0addr } command rejects one address",
+			Stdin:    strings.NewReader("a\n"),
+			Args:     []string{"1}"},
+			WantErr:  "sed: too many addresses for command: }\n",
+			WantExit: 2,
 		},
 		{
-			name:     "a 0addr : command rejects two addresses",
-			stdin:    strings.NewReader("a\n"),
-			args:     []string{"1,2:l\np"},
-			wantErr:  "sed: too many addresses for command: :\n",
-			wantExit: 2,
+			Name:     "a 0addr : command rejects two addresses",
+			Stdin:    strings.NewReader("a\n"),
+			Args:     []string{"1,2:l\np"},
+			WantErr:  "sed: too many addresses for command: :\n",
+			WantExit: 2,
 		},
 	}
-	for _, test := range tests {
-		t.Run(test.name, func(t *testing.T) {
-			runCase(t, test)
-		})
-	}
+	runCases(t, tests)
 }
 
 func testRuntime(stdin io.Reader) *coreutils.Runtime {
@@ -1163,143 +1074,139 @@ func TestRunClosesWritersWhenOpenFails(t *testing.T) {
 }
 
 func TestRunInPlace(t *testing.T) {
-	tests := []testCase{
+	tests := []testutil.Case{
 		{
-			name: "a file is edited in place",
-			fsys: stringsFS(map[string]string{"f.txt": "banana\n"}),
-			args: []string{"-i", "s/an/-/g", "f.txt"},
-			want: "",
-			wantFiles: map[string]string{
+			Name: "a file is edited in place",
+			FS:   stringsFS(map[string]string{"f.txt": "banana\n"}),
+			Args: []string{"-i", "s/an/-/g", "f.txt"},
+			Want: "",
+			WantFiles: map[string]string{
 				"f.txt": "b--a\n",
 			},
 		},
 		{
-			name: "a missing trailing newline is kept",
-			fsys: stringsFS(map[string]string{"f": "a\nb"}),
-			args: []string{"-i", "s/a/X/", "f"},
-			wantFiles: map[string]string{
+			Name: "a missing trailing newline is kept",
+			FS:   stringsFS(map[string]string{"f": "a\nb"}),
+			Args: []string{"-i", "s/a/X/", "f"},
+			WantFiles: map[string]string{
 				"f": "X\nb",
 			},
 		},
 		{
-			name: "a suffix preserves the original contents",
-			fsys: stringsFS(map[string]string{"f.txt": "a\n"}),
-			args: []string{"-i.bak", "s/a/b/", "f.txt"},
-			wantFiles: map[string]string{
+			Name: "a suffix preserves the original contents",
+			FS:   stringsFS(map[string]string{"f.txt": "a\n"}),
+			Args: []string{"-i.bak", "s/a/b/", "f.txt"},
+			WantFiles: map[string]string{
 				"f.txt":     "b\n",
 				"f.txt.bak": "a\n",
 			},
 		},
 		{
-			name: "a suffix attaches to a short option group",
-			fsys: stringsFS(map[string]string{"f": "a\nb\n"}),
-			args: []string{"-nibak", "s/a/X/p", "f"},
-			wantFiles: map[string]string{
+			Name: "a suffix attaches to a short option group",
+			FS:   stringsFS(map[string]string{"f": "a\nb\n"}),
+			Args: []string{"-nibak", "s/a/X/p", "f"},
+			WantFiles: map[string]string{
 				"f":    "X\n",
 				"fbak": "a\nb\n",
 			},
 		},
 		{
-			name: "the long form takes an attached suffix",
-			fsys: stringsFS(map[string]string{"f.txt": "a\n"}),
-			args: []string{"--in-place=.suf", "s/a/b/", "f.txt"},
-			wantFiles: map[string]string{
+			Name: "the long form takes an attached suffix",
+			FS:   stringsFS(map[string]string{"f.txt": "a\n"}),
+			Args: []string{"--in-place=.suf", "s/a/b/", "f.txt"},
+			WantFiles: map[string]string{
 				"f.txt":     "b\n",
 				"f.txt.suf": "a\n",
 			},
 		},
 		{
-			name: "the long form without a value replaces the file",
-			fsys: stringsFS(map[string]string{"f.txt": "a\n"}),
-			args: []string{"--in-place", "s/a/b/", "f.txt"},
-			wantFiles: map[string]string{
+			Name: "the long form without a value replaces the file",
+			FS:   stringsFS(map[string]string{"f.txt": "a\n"}),
+			Args: []string{"--in-place", "s/a/b/", "f.txt"},
+			WantFiles: map[string]string{
 				"f.txt": "b\n",
 			},
 		},
 		{
 			// GNU sed handles each file like a separate invocation, so the
 			// line numbers start over for every one of them.
-			name: "each file starts a fresh script state",
-			fsys: stringsFS(map[string]string{"one": "a\nb\n", "two": "c\nd\n"}),
-			args: []string{"-i", "=", "one", "two"},
-			wantFiles: map[string]string{
+			Name: "each file starts a fresh script state",
+			FS:   stringsFS(map[string]string{"one": "a\nb\n", "two": "c\nd\n"}),
+			Args: []string{"-i", "=", "one", "two"},
+			WantFiles: map[string]string{
 				"one": "1\na\n2\nb\n",
 				"two": "1\nc\n2\nd\n",
 			},
 		},
 		{
-			name: "a file without any output is emptied",
-			fsys: stringsFS(map[string]string{"f": "a\nb\n"}),
-			args: []string{"-i", "d", "f"},
-			wantFiles: map[string]string{
+			Name: "a file without any output is emptied",
+			FS:   stringsFS(map[string]string{"f": "a\nb\n"}),
+			Args: []string{"-i", "d", "f"},
+			WantFiles: map[string]string{
 				"f": "",
 			},
 		},
 		{
-			name: "q quits one file but not the remaining ones",
-			fsys: stringsFS(map[string]string{"one": "1\n2\n", "two": "3\n4\n"}),
-			args: []string{"-i", "1q", "one", "two"},
-			wantFiles: map[string]string{
+			Name: "q quits one file but not the remaining ones",
+			FS:   stringsFS(map[string]string{"one": "1\n2\n", "two": "3\n4\n"}),
+			Args: []string{"-i", "1q", "one", "two"},
+			WantFiles: map[string]string{
 				"one": "1\n",
 				"two": "3\n",
 			},
 		},
 		{
-			name: "-n writes only what the script prints",
-			fsys: stringsFS(map[string]string{"f": "a\nb\n"}),
-			args: []string{"-i", "-n", "s/a/X/p", "f"},
-			wantFiles: map[string]string{
+			Name: "-n writes only what the script prints",
+			FS:   stringsFS(map[string]string{"f": "a\nb\n"}),
+			Args: []string{"-i", "-n", "s/a/X/p", "f"},
+			WantFiles: map[string]string{
 				"f": "X\n",
 			},
 		},
 		{
-			name: "-E takes extended regular expressions",
-			fsys: stringsFS(map[string]string{"f": "abc\n"}),
-			args: []string{"-i", "-E", "s/a+/X/", "f"},
-			wantFiles: map[string]string{
+			Name: "-E takes extended regular expressions",
+			FS:   stringsFS(map[string]string{"f": "abc\n"}),
+			Args: []string{"-i", "-E", "s/a+/X/", "f"},
+			WantFiles: map[string]string{
 				"f": "Xbc\n",
 			},
 		},
 		{
-			name: "-e and -f parts join into the script",
-			fsys: stringsFS(map[string]string{"f": "a\nb\n", "script.sed": "s/a/X/\n"}),
-			args: []string{"-i", "-f", "script.sed", "-e", "s/b/Y/", "f"},
-			wantFiles: map[string]string{
+			Name: "-e and -f parts join into the script",
+			FS:   stringsFS(map[string]string{"f": "a\nb\n", "script.sed": "s/a/X/\n"}),
+			Args: []string{"-i", "-f", "script.sed", "-e", "s/b/Y/", "f"},
+			WantFiles: map[string]string{
 				"f": "X\nY\n",
 			},
 		},
 		{
-			name:     "stdin with -i is a usage error",
-			stdin:    strings.NewReader("a\n"),
-			args:     []string{"-i", "s/a/b/"},
-			wantErr:  "sed: -i may not be used with stdin\nTry 'sed --help' for more information.\n",
-			wantExit: 2,
+			Name:     "stdin with -i is a usage error",
+			Stdin:    strings.NewReader("a\n"),
+			Args:     []string{"-i", "s/a/b/"},
+			WantErr:  "sed: -i may not be used with stdin\nTry 'sed --help' for more information.\n",
+			WantExit: 2,
 		},
 		{
-			name:     "a - operand with -i is a usage error",
-			stdin:    strings.NewReader("a\n"),
-			args:     []string{"-i", "s/a/b/", "-"},
-			wantErr:  "sed: -i may not be used with stdin\nTry 'sed --help' for more information.\n",
-			wantExit: 2,
+			Name:     "a - operand with -i is a usage error",
+			Stdin:    strings.NewReader("a\n"),
+			Args:     []string{"-i", "s/a/b/", "-"},
+			WantErr:  "sed: -i may not be used with stdin\nTry 'sed --help' for more information.\n",
+			WantExit: 2,
 		},
 		{
 			// A file that fails doesn't keep the ones after it from
 			// being edited.
-			name:     "a missing input file fails without touching it",
-			fsys:     stringsFS(map[string]string{"ok": "x\n"}),
-			args:     []string{"-i", "s/x/y/", "missing", "ok"},
-			wantErr:  "sed: can't read missing: file does not exist\n",
-			wantExit: 2,
-			wantFiles: map[string]string{
+			Name:     "a missing input file fails without touching it",
+			FS:       stringsFS(map[string]string{"ok": "x\n"}),
+			Args:     []string{"-i", "s/x/y/", "missing", "ok"},
+			WantErr:  "sed: can't read missing: file does not exist\n",
+			WantExit: 2,
+			WantFiles: map[string]string{
 				"ok": "y\n",
 			},
 		},
 	}
-	for _, test := range tests {
-		t.Run(test.name, func(t *testing.T) {
-			runCase(t, test)
-		})
-	}
+	runCases(t, tests)
 }
 
 func TestRunInPlaceOsFS(t *testing.T) {
@@ -1397,37 +1304,16 @@ func slicesEqual(a, b []string) bool {
 }
 
 func TestHelpVersion(t *testing.T) {
-	t.Run("help", func(t *testing.T) {
-		stdout := new(bytes.Buffer)
-		rt := &coreutils.Runtime{Stdout: stdout, Stderr: new(bytes.Buffer)}
-		if err := New(rt).Run(t.Context(), "--help"); err != nil {
-			t.Fatalf("Run() error = %v, want nil (exit status 0)", err)
-		}
-		if got, want := stdout.String(), usage; got != want {
-			t.Errorf("Run() stdout = %q, want %q", got, want)
-		}
-	})
-
-	t.Run("version", func(t *testing.T) {
-		stdout := new(bytes.Buffer)
-		rt := &coreutils.Runtime{Stdout: stdout, Stderr: new(bytes.Buffer)}
-		if err := New(rt).Run(t.Context(), "--version"); err != nil {
-			t.Fatalf("Run() error = %v, want nil (exit status 0)", err)
-		}
-		want := "sed (charm.land/snail/coreutils) " + coreutils.Version + "\nhttps://charm.land/snail\n"
-		if got := stdout.String(); got != want {
-			t.Errorf("Run() stdout = %q, want %q", got, want)
-		}
-	})
+	testutil.HelpVersion(t, New, "sed", usage)
 }
 
 func TestRunInPlaceSuffixStar(t *testing.T) {
-	tests := []testCase{
+	tests := []testutil.Case{
 		{
-			name: "a star in the suffix is replaced with the file name",
-			fsys: stringsFS(map[string]string{"f.txt": "a\n"}),
-			args: []string{"-i*.bak", "s/a/b/", "f.txt"},
-			wantFiles: map[string]string{
+			Name: "a star in the suffix is replaced with the file name",
+			FS:   stringsFS(map[string]string{"f.txt": "a\n"}),
+			Args: []string{"-i*.bak", "s/a/b/", "f.txt"},
+			WantFiles: map[string]string{
 				"f.txt":     "b\n",
 				"f.txt.bak": "a\n",
 			},
@@ -1435,20 +1321,16 @@ func TestRunInPlaceSuffixStar(t *testing.T) {
 		{
 			// The star makes it easy to put the backup in another
 			// directory, as GNU sed documents.
-			name: "a star in the suffix puts the backup in another directory",
-			fsys: stringsFS(map[string]string{"f.txt": "a\n", "orig/keep": ""}),
-			args: []string{"-iorig/*", "s/a/b/", "f.txt"},
-			wantFiles: map[string]string{
+			Name: "a star in the suffix puts the backup in another directory",
+			FS:   stringsFS(map[string]string{"f.txt": "a\n", "orig/keep": ""}),
+			Args: []string{"-iorig/*", "s/a/b/", "f.txt"},
+			WantFiles: map[string]string{
 				"f.txt":      "b\n",
 				"orig/f.txt": "a\n",
 			},
 		},
 	}
-	for _, test := range tests {
-		t.Run(test.name, func(t *testing.T) {
-			runCase(t, test)
-		})
-	}
+	runCases(t, tests)
 }
 
 func TestRunInPlaceFollowSymlinks(t *testing.T) {
