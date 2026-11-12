@@ -242,6 +242,9 @@ packages already exist:
   takes.
 * `tabutil`: the tab stop handling shared by expand and unexpand.
 * `term`: reports whether file descriptors are terminals.
+* `testutil`: the test scaffolding shared by the `{prog}` package tests: the
+  table-driven case runner with the common Runtime setup and assertions, and
+  the reader, writer and file system fakes.
 * `textutil`: the line handling shared by the text processing utilities,
   like skipping the fields or characters of a line.
 * `uux`: the formats shared by uuencode and uudecode.
