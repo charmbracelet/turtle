@@ -160,6 +160,10 @@ func (p *Prog) newLister(opts options) (*lister, error) {
 		width: p.displayWidth(opts),
 		now:   p.Now(),
 		eol:   "\n",
+
+		// ls falls back to the identifier when a name is empty, unlike
+		// the utilities which show what the lookup produced.
+		names: usernames.Names{EmptyNameMissing: true},
 	}
 	if opts.zero {
 		l.eol = "\x00"

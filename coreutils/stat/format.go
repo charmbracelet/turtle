@@ -11,6 +11,7 @@ import (
 	"charm.land/snail/coreutils/internal/printfmt"
 	"charm.land/snail/coreutils/internal/stdopts"
 	"charm.land/snail/coreutils/internal/strftime"
+	"charm.land/snail/coreutils/internal/usernames"
 )
 
 // The formats of a run: the default ones of the files and the file systems,
@@ -52,13 +53,18 @@ type renderer struct {
 	prog  *Prog
 	loc   *time.Location
 	style quotingStyle
-	names userNames
+	names usernames.Names
 }
 
 // newRenderer builds the renderer of a run, resolving the quoting style the
 // QUOTING_STYLE variable names, which defaults to shell-escape.
 func (p *Prog) newRenderer() *renderer {
-	r := &renderer{prog: p, loc: p.location(), style: quoteShellEscape}
+	r := &renderer{
+		prog:  p,
+		loc:   p.location(),
+		style: quoteShellEscape,
+		names: usernames.Names{Unknown: "UNKNOWN"},
+	}
 	if word, ok := p.LookupEnv("QUOTING_STYLE"); ok {
 		if style, found := quotingStyles[word]; found {
 			r.style = style
@@ -199,7 +205,7 @@ func (r *renderer) fileDirective(c byte, quoted bool, mod byte, spec printfmt.Sp
 	case 'g':
 		return numField(uint64(st.gid), spec, 10), false, true
 	case 'G':
-		return strField(r.names.group(uint64(st.gid)), spec), false, true
+		return strField(r.names.Group(uint64(st.gid)), spec), false, true
 	case 'h':
 		return numField(st.nlink, spec, 10), false, true
 	case 'i':
@@ -239,7 +245,7 @@ func (r *renderer) fileDirective(c byte, quoted bool, mod byte, spec printfmt.Sp
 	case 'u':
 		return numField(uint64(st.uid), spec, 10), false, true
 	case 'U':
-		return strField(r.names.user(uint64(st.uid)), spec), false, true
+		return strField(r.names.User(uint64(st.uid)), spec), false, true
 	case 'w':
 		if !st.hasBtime {
 			return strField("-", spec), false, true

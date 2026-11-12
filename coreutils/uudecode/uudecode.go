@@ -16,8 +16,8 @@ import (
 	"strings"
 
 	"charm.land/snail/coreutils"
-	"charm.land/snail/coreutils/chmod"
 	"charm.land/snail/coreutils/internal/basex"
+	"charm.land/snail/coreutils/internal/filemode"
 	"charm.land/snail/coreutils/internal/getopt"
 	"charm.land/snail/coreutils/internal/input"
 	"charm.land/snail/coreutils/internal/patherr"
@@ -89,7 +89,7 @@ func (p *Prog) decode(ctx context.Context, br *bufio.Reader, in input.Input, out
 		return &coreutils.ExitError{Code: 1, Err: err}
 	}
 
-	spec, err := chmod.ParseMode(header.Mode)
+	spec, err := filemode.Parse(header.Mode)
 	if err != nil {
 		stdopts.Errorf(p.Runtime, "uudecode", "%s: %v", in.Label(), err)
 		return &coreutils.ExitError{Code: 1, Err: err}

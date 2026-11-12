@@ -20,6 +20,19 @@ func Delim(zero bool) byte {
 	return '\n'
 }
 
+// FoldCase lowercases the ASCII letters of s, leaving every other byte as
+// it is, so the result compares as the case-folded s would.
+func FoldCase(s []byte) []byte {
+	folded := make([]byte, len(s))
+	for i, c := range s {
+		if c >= 'A' && c <= 'Z' {
+			c += 'a' - 'A'
+		}
+		folded[i] = c
+	}
+	return folded
+}
+
 // Each reads the records of r, each including its trailing separator when
 // present; the final record may lack one. fn is called once per record, in
 // order, and its first error, like the context done error of ctx, stops the

@@ -35,6 +35,7 @@ import (
 	"charm.land/snail/coreutils"
 
 	"charm.land/snail/coreutils/internal/ctxio"
+	"charm.land/snail/coreutils/internal/filehdr"
 	"charm.land/snail/coreutils/internal/getopt"
 	"charm.land/snail/coreutils/internal/input"
 	"charm.land/snail/coreutils/internal/numparse"
@@ -97,11 +98,10 @@ func (p *Prog) Run(ctx context.Context, args ...string) error {
 // output, in the order the operands were given. A failing input doesn't
 // stop the others.
 func (p *Prog) copyInputs(ctx context.Context, inputs []input.Input, opts options) error {
-	headers := opts.headers == headerAlways ||
-		(opts.headers == headerAuto && len(inputs) > 1)
+	headers := opts.headers.Enabled(len(inputs) > 1)
+	hdr := filehdr.New(p.Stdout)
 
 	ok := true
-	first := true
 	for _, in := range inputs {
 		if err := ctx.Err(); err != nil {
 			return err
@@ -118,8 +118,7 @@ func (p *Prog) copyInputs(ctx context.Context, inputs []input.Input, opts option
 			continue
 		}
 		if headers {
-			p.writeHeader(in, !first)
-			first = false
+			hdr.Write(headerName(in))
 		}
 		err = p.copyPortion(ctxio.NewReader(ctx, rc), f, opts)
 		rc.Close()
@@ -162,12 +161,11 @@ func (p *Prog) runFollow(ctx context.Context, inputs []input.Input, opts options
 		opts.pids = nil
 	}
 
-	headers := opts.headers == headerAlways ||
-		(opts.headers == headerAuto && len(inputs) > 1)
+	headers := opts.headers.Enabled(len(inputs) > 1)
 
 	ok := true
 	following := false
-	out := &output{p: p, headers: headers}
+	out := &output{p: p, headers: headers, hdr: filehdr.New(p.Stdout)}
 	var fls []*follower
 	for _, in := range inputs {
 		if err := ctx.Err(); err != nil {
@@ -663,7 +661,7 @@ type output struct {
 	p       *Prog
 	mu      sync.Mutex
 	headers bool
-	printed bool
+	hdr     filehdr.Writer
 	last    *follower
 }
 
@@ -700,15 +698,7 @@ func (o *output) data(fl *follower, data []byte) error {
 // of each file, with a leading blank line after the first one. The caller
 // must hold mu.
 func (o *output) headerLocked(in input.Input) {
-	if o.printed {
-		fmt.Fprint(o.p.Stdout, "\n")
-	}
-	o.printed = true
-	name := in.Label()
-	if in.Stdin {
-		name = "standard input"
-	}
-	fmt.Fprintf(o.p.Stdout, "==> %s <==\n", name)
+	o.hdr.Write(headerName(in))
 }
 
 // copyPortion copies the part of the input selected by the options.
@@ -728,18 +718,13 @@ func (p *Prog) copyPortion(r io.Reader, f fsx.SeekFile, opts options) error {
 	}
 }
 
-// writeHeader writes the "==> name <==" header which precedes the output of
-// each file. The first one has no leading <newline>; the others are
-// separated from the output of the previous file by a blank line.
-func (p *Prog) writeHeader(in input.Input, leadingNewline bool) {
-	if leadingNewline {
-		fmt.Fprint(p.Stdout, "\n")
-	}
-	name := in.Label()
+// headerName returns the name the header of an input shows: the standard
+// input, even when given as the "-" operand.
+func headerName(in input.Input) string {
 	if in.Stdin {
-		name = "standard input"
+		return "standard input"
 	}
-	fmt.Fprintf(p.Stdout, "==> %s <==\n", name)
+	return in.Label()
 }
 
 // copyLastBytes copies the last count bytes, seeking when the input is
@@ -1024,9 +1009,9 @@ func parseFlags(args []string) (options, []string, error) {
 		case 'r':
 			opts.reverse = true
 		case 'q':
-			opts.headers = headerNever
+			opts.headers = filehdr.Never
 		case 'v':
-			opts.headers = headerAlways
+			opts.headers = filehdr.Always
 		case 'z':
 			opts.zero = true
 		case 's':
@@ -1355,22 +1340,13 @@ type options struct {
 	countSet     bool // -c or -n given
 	fromStart    bool // '+' sign: count from the beginning
 	count        int
-	headers      headerMode    // -q and -v: when the file headers are printed
+	headers      filehdr.Mode  // -q and -v: when the file headers are printed
 	zero         bool          // -z: items end with NUL instead of <newline>
 	pids         []int         // --pid: writers to watch
 	sleep        time.Duration // -s: wait between iterations
 	maxUnchanged int           // --max-unchanged-stats
 	debug        bool          // --debug
 }
-
-// headerMode tells when the file headers are printed.
-type headerMode int
-
-const (
-	headerAuto   headerMode = iota // only with more than one operand
-	headerNever                    // -q: never
-	headerAlways                   // -v: always
-)
 
 // delim returns the byte which ends an item of the input.
 func (opts options) delim() byte {

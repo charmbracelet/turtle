@@ -2,8 +2,6 @@ package stat
 
 import (
 	"io/fs"
-	"os/user"
-	"strconv"
 	"time"
 
 	"charm.land/snail/coreutils/internal/fileinfo"
@@ -91,43 +89,6 @@ func (p *Prog) newFileStat(name, path string, fi fs.FileInfo, opts options) file
 		st.target, st.linkErr = p.FS.ReadLink(path)
 	}
 	return st
-}
-
-// userNames resolves the names of users and groups, remembering what it
-// looked up, and reporting UNKNOWN when there is no name for an identifier.
-type userNames struct {
-	users  map[uint64]string
-	groups map[uint64]string
-}
-
-func (n *userNames) user(id uint64) string {
-	if n.users == nil {
-		n.users = map[uint64]string{}
-	}
-	if s, ok := n.users[id]; ok {
-		return s
-	}
-	name := "UNKNOWN"
-	if u, err := user.LookupId(strconv.FormatUint(id, 10)); err == nil {
-		name = u.Username
-	}
-	n.users[id] = name
-	return name
-}
-
-func (n *userNames) group(id uint64) string {
-	if n.groups == nil {
-		n.groups = map[uint64]string{}
-	}
-	if s, ok := n.groups[id]; ok {
-		return s
-	}
-	name := "UNKNOWN"
-	if g, err := user.LookupGroupId(strconv.FormatUint(id, 10)); err == nil {
-		name = g.Name
-	}
-	n.groups[id] = name
-	return name
 }
 
 // rawMode returns the mode of a file as the raw st_mode of the systems

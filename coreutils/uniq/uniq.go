@@ -190,7 +190,7 @@ func (opts options) key(line []byte) []byte {
 		key = limitChars(key, opts.checkChars)
 	}
 	if opts.ignoreCase {
-		key = foldCase(key)
+		key = textutil.FoldCase(key)
 	}
 	return key
 }
@@ -234,18 +234,6 @@ func limitChars(s []byte, n int) []byte {
 		i += size
 	}
 	return s[:i]
-}
-
-// foldCase lowercases the ASCII letters of s.
-func foldCase(s []byte) []byte {
-	folded := make([]byte, len(s))
-	for i, c := range s {
-		if c >= 'A' && c <= 'Z' {
-			c += 'a' - 'A'
-		}
-		folded[i] = c
-	}
-	return folded
 }
 
 // openOutput returns a writer for the output operand. An empty name or "-"
