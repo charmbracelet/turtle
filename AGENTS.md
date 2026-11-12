@@ -189,11 +189,15 @@ packages already exist:
 * `bre`: compiles POSIX basic regular expressions into Go ones.
 * `charset`: the character set syntax shared by the utilities that translate
   characters, like tr and the y command of sed.
+* `cnum`: the C integer constant scanning (hex and octal prefixes) shared by
+  the byte-offset operands of od and cmp.
 * `cmdutil`: the `Main` helper the `cmd/{prog}` main packages delegate to.
 * `ctxio`: I/O helpers that stop operations once a context is done.
 * `digest`: the behavior shared by the checksum utilities (cksum, md5sum,
   the sha*sum family), which differ only in the algorithm.
 * `diff`: the line diffing and the diff formats shared by diff and patch.
+* `durationparse`: the duration operands with the s/m/h/d suffixes shared by
+  sleep and timeout, which differ only on how they treat infinity.
 * `ere`: compiles POSIX extended regular expressions into Go ones.
 * `fileinfo`: file information beyond `io/fs` (birth time, ownership, link
   counts), read from the `Sys` value of a `FileInfo`, used by find, ls, stat
@@ -202,6 +206,9 @@ packages already exist:
   utilities which match or change permission bits, like chmod, ls, stat and
   find. `install` and `mkdir` should depend on this package for mode
   parsing, not on the `chmod` program package.
+* `fsop`: the file operand plumbing shared by cp, install, ln and mv: the
+  source/destination pairs, the `-t`/`-T` operand split, the symbolic link
+  chase and the interactive confirmation of rm and tar.
 * `getopt`: the POSIX option syntax, described above.
 * `glob`: compiles shell filename expansion patterns into regular
   expressions, as find's pattern primaries and grep's file selection options
@@ -210,6 +217,9 @@ packages already exist:
   and touch.
 * `input`: mapping the input operands to files or the standard input, and
   opening them.
+* `numparse`: the ASCII digit predicates and the plain decimal integer
+  parsing shared by the utilities taking counts, widths, positions and field
+  numbers as operands.
 * `output`: creating or appending the output operands the utilities write.
 * `patherr`: unwraps `*fs.PathError` so diagnostics don't repeat the file
   name.
