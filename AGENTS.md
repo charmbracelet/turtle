@@ -116,6 +116,9 @@ The process to implement a coreutils should be as follow:
   write more code than needed, and keep it clean.
 * Once a core utility is implemented, the table on `coreutils/README.md` should
   be updated.
+* Deviations from the specifications are documented per utility in
+  `coreutils/DEVIATIONS.md`, which the table asterisks link to. New or changed
+  deviations should be recorded there.
 * IMPORTANT: Be careful with Go functions that depend on system ENV, system
   working directory or other program state. You should use the memory state
   passed given from `{package}.New`.
