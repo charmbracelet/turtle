@@ -15,6 +15,7 @@ import (
 
 	"charm.land/snail/coreutils"
 	"charm.land/snail/coreutils/internal/fileinfo"
+	"charm.land/snail/coreutils/internal/testutil"
 	"charm.land/snail/fsx"
 )
 
@@ -40,100 +41,25 @@ var modTime = time.Unix(1700000000, 500000000).UTC()
 // offsets they expect are the ones of the UTC zone.
 func utc() map[string]string { return map[string]string{"TZ": "UTC"} }
 
-// testCase is one run of stat, with the files of the memory file system it
-// works on and the standard streams its output is read from.
-type testCase struct {
-	name     string
-	files    fsx.MemFS
-	sys      fsx.FS
-	wd       string
-	env      map[string]string
-	args     []string
-	wantOut  string
-	wantErr  string
-	wantExit int
-}
-
-func runCase(t *testing.T, test testCase) {
-	t.Helper()
-
-	stdout, stderr := new(bytes.Buffer), new(bytes.Buffer)
-	rt := &coreutils.Runtime{
-		Stdout:     stdout,
-		Stderr:     stderr,
-		WorkingDir: test.wd,
-		Environ:    func() []string { return environ(test.env) },
-	}
-	switch {
-	case test.sys != nil:
-		rt.FS = test.sys
-	case test.files != nil:
-		rt.FS = test.files
-	}
-	err := New(rt).Run(t.Context(), test.args...)
-
-	if code := exitCode(t, err); code != test.wantExit {
-		t.Errorf("Run() exit code = %d, want %d (error = %v)", code, test.wantExit, err)
-	}
-	if got := stdout.String(); got != test.wantOut {
-		t.Errorf("Run() stdout = %q, want %q", got, test.wantOut)
-	}
-	if got := stderr.String(); got != test.wantErr {
-		t.Errorf("Run() stderr = %q, want %q", got, test.wantErr)
-	}
-}
-
-func runCases(t *testing.T, tests []testCase) {
-	t.Helper()
-
-	for _, test := range tests {
-		t.Run(test.name, func(t *testing.T) {
-			runCase(t, test)
-		})
-	}
-}
-
 // withFiles fills the cases without files of their own with the files of
 // the table, so a table shares one file system.
-func withFiles(tests []testCase, files fsx.MemFS) []testCase {
+func withFiles(tests []testutil.Case, files fsx.MemFS) []testutil.Case {
 	for i := range tests {
-		if tests[i].files == nil {
-			tests[i].files = files
+		if tests[i].FS == nil {
+			tests[i].FS = files
 		}
 	}
 	return tests
 }
 
-// environ returns the test environment as a list of KEY=VALUE strings.
-func environ(values map[string]string) []string {
-	entries := make([]string, 0, len(values))
-	for name, value := range values {
-		entries = append(entries, name+"="+value)
-	}
-	return entries
-}
-
-func exitCode(t *testing.T, err error) int {
-	t.Helper()
-
-	if err == nil {
-		return 0
-	}
-	var exitErr *coreutils.ExitError
-	if !errors.As(err, &exitErr) {
-		t.Fatalf("Run() error = %v, want *coreutils.ExitError", err)
-	}
-	return exitErr.Code
-}
-
 func TestRunDefault(t *testing.T) {
-	runCases(t, []testCase{
+	testutil.Run(t, New, []testutil.Case{
 		{
-			name:  "writes the fields of a regular file",
-			files: fsx.MemFS{"file.txt": {Data: []byte("hello"), Mode: 0o644, ModTime: modTime, Uid: ownerID, Gid: groupID}},
-			env:   utc(),
-			args:  []string{"file.txt"},
-			wantOut: "  File: file.txt\n" +
+			Name:    "writes the fields of a regular file",
+			FS:      fsx.MemFS{"file.txt": {Data: []byte("hello"), Mode: 0o644, ModTime: modTime, Uid: ownerID, Gid: groupID}},
+			Environ: testutil.Environ(utc()),
+			Args:    []string{"file.txt"},
+			Want: "  File: file.txt\n" +
 				"  Size: 5         \tBlocks: 1          IO Block: 512    regular file\n" +
 				"Device: 0,0\tInode: 0           Links: 1\n" +
 				"Access: (0644/-rw-r--r--)  Uid: (54321/ UNKNOWN)   Gid: (54322/ UNKNOWN)\n" +
@@ -143,11 +69,11 @@ func TestRunDefault(t *testing.T) {
 				" Birth: -\n",
 		},
 		{
-			name:  "writes the fields of a directory",
-			files: fsx.MemFS{"dir": {Mode: dirMode(0o755), ModTime: modTime, Uid: ownerID, Gid: groupID}},
-			env:   utc(),
-			args:  []string{"dir"},
-			wantOut: "  File: dir\n" +
+			Name:    "writes the fields of a directory",
+			FS:      fsx.MemFS{"dir": {Mode: dirMode(0o755), ModTime: modTime, Uid: ownerID, Gid: groupID}},
+			Environ: testutil.Environ(utc()),
+			Args:    []string{"dir"},
+			Want: "  File: dir\n" +
 				"  Size: 0         \tBlocks: 0          IO Block: 512    directory\n" +
 				"Device: 0,0\tInode: 0           Links: 1\n" +
 				"Access: (0755/drwxr-xr-x)  Uid: (54321/ UNKNOWN)   Gid: (54322/ UNKNOWN)\n" +
@@ -157,14 +83,14 @@ func TestRunDefault(t *testing.T) {
 				" Birth: -\n",
 		},
 		{
-			name: "writes the fields of every operand, a newline each",
-			files: fsx.MemFS{
+			Name: "writes the fields of every operand, a newline each",
+			FS: fsx.MemFS{
 				"a.txt": {Data: []byte("a"), Mode: 0o644, ModTime: modTime, Uid: ownerID, Gid: groupID},
 				"b.txt": {Data: []byte("bb"), Mode: 0o600, ModTime: modTime, Uid: ownerID, Gid: groupID},
 			},
-			env:  utc(),
-			args: []string{"a.txt", "b.txt"},
-			wantOut: "  File: a.txt\n" +
+			Environ: testutil.Environ(utc()),
+			Args:    []string{"a.txt", "b.txt"},
+			Want: "  File: a.txt\n" +
 				"  Size: 1         \tBlocks: 1          IO Block: 512    regular file\n" +
 				"Device: 0,0\tInode: 0           Links: 1\n" +
 				"Access: (0644/-rw-r--r--)  Uid: (54321/ UNKNOWN)   Gid: (54322/ UNKNOWN)\n" +
@@ -182,14 +108,14 @@ func TestRunDefault(t *testing.T) {
 				" Birth: -\n",
 		},
 		{
-			name: "resolves an operand against the working directory",
-			files: fsx.MemFS{
+			Name: "resolves an operand against the working directory",
+			FS: fsx.MemFS{
 				"work/file.txt": {Data: []byte("hello"), Mode: 0o644, ModTime: modTime, Uid: ownerID, Gid: groupID},
 			},
-			wd:   "work",
-			env:  utc(),
-			args: []string{"file.txt"},
-			wantOut: "  File: file.txt\n" +
+			Dir:     "work",
+			Environ: testutil.Environ(utc()),
+			Args:    []string{"file.txt"},
+			Want: "  File: file.txt\n" +
 				"  Size: 5         \tBlocks: 1          IO Block: 512    regular file\n" +
 				"Device: 0,0\tInode: 0           Links: 1\n" +
 				"Access: (0644/-rw-r--r--)  Uid: (54321/ UNKNOWN)   Gid: (54322/ UNKNOWN)\n" +
@@ -199,18 +125,18 @@ func TestRunDefault(t *testing.T) {
 				" Birth: -\n",
 		},
 		{
-			name:    "resolves an operand with dot components",
-			files:   fsx.MemFS{"file.txt": {Data: []byte("hello"), Mode: 0o644, ModTime: modTime}},
-			env:     utc(),
-			args:    []string{"-c", "%n %F", "./file.txt"},
-			wantOut: "./file.txt regular file\n",
+			Name:    "resolves an operand with dot components",
+			FS:      fsx.MemFS{"file.txt": {Data: []byte("hello"), Mode: 0o644, ModTime: modTime}},
+			Environ: testutil.Environ(utc()),
+			Args:    []string{"-c", "%n %F", "./file.txt"},
+			Want:    "./file.txt regular file\n",
 		},
 		{
-			name:    "resolves an operand naming a directory by its trailing separator",
-			files:   fsx.MemFS{"dir": {Mode: dirMode(0o755), ModTime: modTime}},
-			env:     utc(),
-			args:    []string{"-c", "%n %F", "dir/"},
-			wantOut: "dir/ directory\n",
+			Name:    "resolves an operand naming a directory by its trailing separator",
+			FS:      fsx.MemFS{"dir": {Mode: dirMode(0o755), ModTime: modTime}},
+			Environ: testutil.Environ(utc()),
+			Args:    []string{"-c", "%n %F", "dir/"},
+			Want:    "dir/ directory\n",
 		},
 	})
 }
@@ -225,135 +151,135 @@ func TestRunFormatDirectives(t *testing.T) {
 		"big":      {Data: make([]byte, 1500), ModTime: modTime},
 		"ln":       link("file.txt"),
 	}
-	tests := []testCase{
-		{name: "octal permissions", args: []string{"-c", "%a", "file.txt"}, wantOut: "644\n"},
-		{name: "octal permissions with special bits", args: []string{"-c", "%a", "sticky"}, wantOut: "1755\n"},
-		{name: "octal permissions with setuid and setgid", args: []string{"-c", "%a", "setuid"}, wantOut: "6750\n"},
-		{name: "octal permissions zero padded", args: []string{"-c", "%06a", "file.txt"}, wantOut: "000644\n"},
-		{name: "octal permissions with a hash flag", args: []string{"-c", "%#a", "file.txt"}, wantOut: "0644\n"},
-		{name: "octal permissions with a hash flag and a width", args: []string{"-c", "%#07a", "file.txt"}, wantOut: "0000644\n"},
-		{name: "octal permissions left adjusted", args: []string{"-c", "%-6a|", "file.txt"}, wantOut: "644   |\n"},
-		{name: "symbolic permissions", args: []string{"-c", "%A", "file.txt"}, wantOut: "-rw-r--r--\n"},
-		{name: "symbolic permissions of a directory", args: []string{"-c", "%A", "dir"}, wantOut: "drwxr-xr-x\n"},
-		{name: "symbolic permissions within a width", args: []string{"-c", "%12A|", "file.txt"}, wantOut: "  -rw-r--r--|\n"},
-		{name: "symbolic permissions cut to the precision", args: []string{"-c", "%10.10A", "file.txt"}, wantOut: "-rw-r--r--\n"},
-		{name: "block count", args: []string{"-c", "%b", "file.txt"}, wantOut: "1\n"},
-		{name: "block count of a directory", args: []string{"-c", "%b", "dir"}, wantOut: "0\n"},
-		{name: "block count measured by the size", args: []string{"-c", "%b", "big"}, wantOut: "3\n"},
-		{name: "block size", args: []string{"-c", "%B", "file.txt"}, wantOut: "512\n"},
-		{name: "device number in decimal", args: []string{"-c", "%d", "file.txt"}, wantOut: "0\n"},
-		{name: "device number in hex", args: []string{"-c", "%D", "file.txt"}, wantOut: "0\n"},
-		{name: "device major in decimal", args: []string{"-c", "%Hd", "file.txt"}, wantOut: "0\n"},
-		{name: "device minor in decimal", args: []string{"-c", "%Ld", "file.txt"}, wantOut: "0\n"},
-		{name: "raw mode in hex", args: []string{"-c", "%f", "file.txt"}, wantOut: "81a4\n"},
-		{name: "raw mode of a symbolic link", args: []string{"-c", "%f", "ln"}, wantOut: "a1ff\n"},
-		{name: "raw mode in hex with a hash flag", args: []string{"-c", "%#f", "file.txt"}, wantOut: "0x81a4\n"},
-		{name: "file type", args: []string{"-c", "%F", "file.txt"}, wantOut: "regular file\n"},
-		{name: "file type of a directory", args: []string{"-c", "%F", "dir"}, wantOut: "directory\n"},
-		{name: "file type of a symbolic link", args: []string{"-c", "%F", "ln"}, wantOut: "symbolic link\n"},
-		{name: "group id", args: []string{"-c", "%g", "file.txt"}, wantOut: "54322\n"},
-		{name: "hard link count", args: []string{"-c", "%h", "file.txt"}, wantOut: "1\n"},
-		{name: "inode number", args: []string{"-c", "%i", "file.txt"}, wantOut: "0\n"},
-		{name: "file name", args: []string{"-c", "%n", "file.txt"}, wantOut: "file.txt\n"},
-		{name: "quoted file name left alone", args: []string{"-c", "%Qn", "file.txt"}, wantOut: "file.txt\n"},
-		{name: "quoted file name with spaces", args: []string{"-c", "%Qn", "a b"}, files: fsx.MemFS{"a b": {}}, wantOut: "'a b'\n"},
-		{name: "access time hint", args: []string{"-c", "%o", "file.txt"}, wantOut: "512\n"},
-		{name: "size", args: []string{"-c", "%s", "file.txt"}, wantOut: "5\n"},
-		{name: "size of an empty file", args: []string{"-c", "%s", "empty"}, wantOut: "0\n"},
-		{name: "size within a width", args: []string{"-c", "%4s|", "file.txt"}, wantOut: "   5|\n"},
-		{name: "size left adjusted", args: []string{"-c", "%-4s|", "file.txt"}, wantOut: "5   |\n"},
+	tests := []testutil.Case{
+		{Name: "octal permissions", Args: []string{"-c", "%a", "file.txt"}, Want: "644\n"},
+		{Name: "octal permissions with special bits", Args: []string{"-c", "%a", "sticky"}, Want: "1755\n"},
+		{Name: "octal permissions with setuid and setgid", Args: []string{"-c", "%a", "setuid"}, Want: "6750\n"},
+		{Name: "octal permissions zero padded", Args: []string{"-c", "%06a", "file.txt"}, Want: "000644\n"},
+		{Name: "octal permissions with a hash flag", Args: []string{"-c", "%#a", "file.txt"}, Want: "0644\n"},
+		{Name: "octal permissions with a hash flag and a width", Args: []string{"-c", "%#07a", "file.txt"}, Want: "0000644\n"},
+		{Name: "octal permissions left adjusted", Args: []string{"-c", "%-6a|", "file.txt"}, Want: "644   |\n"},
+		{Name: "symbolic permissions", Args: []string{"-c", "%A", "file.txt"}, Want: "-rw-r--r--\n"},
+		{Name: "symbolic permissions of a directory", Args: []string{"-c", "%A", "dir"}, Want: "drwxr-xr-x\n"},
+		{Name: "symbolic permissions within a width", Args: []string{"-c", "%12A|", "file.txt"}, Want: "  -rw-r--r--|\n"},
+		{Name: "symbolic permissions cut to the precision", Args: []string{"-c", "%10.10A", "file.txt"}, Want: "-rw-r--r--\n"},
+		{Name: "block count", Args: []string{"-c", "%b", "file.txt"}, Want: "1\n"},
+		{Name: "block count of a directory", Args: []string{"-c", "%b", "dir"}, Want: "0\n"},
+		{Name: "block count measured by the size", Args: []string{"-c", "%b", "big"}, Want: "3\n"},
+		{Name: "block size", Args: []string{"-c", "%B", "file.txt"}, Want: "512\n"},
+		{Name: "device number in decimal", Args: []string{"-c", "%d", "file.txt"}, Want: "0\n"},
+		{Name: "device number in hex", Args: []string{"-c", "%D", "file.txt"}, Want: "0\n"},
+		{Name: "device major in decimal", Args: []string{"-c", "%Hd", "file.txt"}, Want: "0\n"},
+		{Name: "device minor in decimal", Args: []string{"-c", "%Ld", "file.txt"}, Want: "0\n"},
+		{Name: "raw mode in hex", Args: []string{"-c", "%f", "file.txt"}, Want: "81a4\n"},
+		{Name: "raw mode of a symbolic link", Args: []string{"-c", "%f", "ln"}, Want: "a1ff\n"},
+		{Name: "raw mode in hex with a hash flag", Args: []string{"-c", "%#f", "file.txt"}, Want: "0x81a4\n"},
+		{Name: "file type", Args: []string{"-c", "%F", "file.txt"}, Want: "regular file\n"},
+		{Name: "file type of a directory", Args: []string{"-c", "%F", "dir"}, Want: "directory\n"},
+		{Name: "file type of a symbolic link", Args: []string{"-c", "%F", "ln"}, Want: "symbolic link\n"},
+		{Name: "group id", Args: []string{"-c", "%g", "file.txt"}, Want: "54322\n"},
+		{Name: "hard link count", Args: []string{"-c", "%h", "file.txt"}, Want: "1\n"},
+		{Name: "inode number", Args: []string{"-c", "%i", "file.txt"}, Want: "0\n"},
+		{Name: "file name", Args: []string{"-c", "%n", "file.txt"}, Want: "file.txt\n"},
+		{Name: "quoted file name left alone", Args: []string{"-c", "%Qn", "file.txt"}, Want: "file.txt\n"},
+		{Name: "quoted file name with spaces", Args: []string{"-c", "%Qn", "a b"}, FS: fsx.MemFS{"a b": {}}, Want: "'a b'\n"},
+		{Name: "access time hint", Args: []string{"-c", "%o", "file.txt"}, Want: "512\n"},
+		{Name: "size", Args: []string{"-c", "%s", "file.txt"}, Want: "5\n"},
+		{Name: "size of an empty file", Args: []string{"-c", "%s", "empty"}, Want: "0\n"},
+		{Name: "size within a width", Args: []string{"-c", "%4s|", "file.txt"}, Want: "   5|\n"},
+		{Name: "size left adjusted", Args: []string{"-c", "%-4s|", "file.txt"}, Want: "5   |\n"},
 		{
-			name: "access time", args: []string{"-c", "%x", "file.txt"}, env: utc(),
-			wantOut: "2023-11-14 22:13:20.500000000 +0000\n",
+			Name: "access time", Args: []string{"-c", "%x", "file.txt"}, Environ: testutil.Environ(utc()),
+			Want: "2023-11-14 22:13:20.500000000 +0000\n",
 		},
 		{
-			name: "access time in seconds", args: []string{"-c", "%X", "file.txt"},
-			wantOut: "1700000000\n",
+			Name: "access time in seconds", Args: []string{"-c", "%X", "file.txt"},
+			Want: "1700000000\n",
 		},
 		{
-			name: "modification time", args: []string{"-c", "%y", "file.txt"}, env: utc(),
-			wantOut: "2023-11-14 22:13:20.500000000 +0000\n",
+			Name: "modification time", Args: []string{"-c", "%y", "file.txt"}, Environ: testutil.Environ(utc()),
+			Want: "2023-11-14 22:13:20.500000000 +0000\n",
 		},
 		{
-			name: "modification time in seconds", args: []string{"-c", "%Y", "file.txt"},
-			wantOut: "1700000000\n",
+			Name: "modification time in seconds", Args: []string{"-c", "%Y", "file.txt"},
+			Want: "1700000000\n",
 		},
 		{
-			name: "status change time", args: []string{"-c", "%z", "file.txt"}, env: utc(),
-			wantOut: "2023-11-14 22:13:20.500000000 +0000\n",
+			Name: "status change time", Args: []string{"-c", "%z", "file.txt"}, Environ: testutil.Environ(utc()),
+			Want: "2023-11-14 22:13:20.500000000 +0000\n",
 		},
 		{
-			name: "status change time in seconds", args: []string{"-c", "%Z", "file.txt"},
-			wantOut: "1700000000\n",
+			Name: "status change time in seconds", Args: []string{"-c", "%Z", "file.txt"},
+			Want: "1700000000\n",
 		},
-		{name: "birth time unknown", args: []string{"-c", "%w", "file.txt"}, wantOut: "-\n"},
-		{name: "birth time in seconds unknown", args: []string{"-c", "%W", "file.txt"}, wantOut: "0\n"},
-		{name: "seconds zero padded", args: []string{"-c", "%015Y", "file.txt"}, wantOut: "000001700000000\n"},
-		{name: "seconds space aligned", args: []string{"-c", "%15Y|", "file.txt"}, wantOut: "     1700000000|\n"},
-		{name: "seconds left aligned", args: []string{"-c", "%-15Y|", "file.txt"}, wantOut: "1700000000     |\n"},
-		{name: "seconds with a precision", args: []string{"-c", "%.3Y", "file.txt"}, wantOut: "1700000000.500\n"},
-		{name: "seconds with a bare period", args: []string{"-c", "%.Y", "file.txt"}, wantOut: "1700000000.500000000\n"},
+		{Name: "birth time unknown", Args: []string{"-c", "%w", "file.txt"}, Want: "-\n"},
+		{Name: "birth time in seconds unknown", Args: []string{"-c", "%W", "file.txt"}, Want: "0\n"},
+		{Name: "seconds zero padded", Args: []string{"-c", "%015Y", "file.txt"}, Want: "000001700000000\n"},
+		{Name: "seconds space aligned", Args: []string{"-c", "%15Y|", "file.txt"}, Want: "     1700000000|\n"},
+		{Name: "seconds left aligned", Args: []string{"-c", "%-15Y|", "file.txt"}, Want: "1700000000     |\n"},
+		{Name: "seconds with a precision", Args: []string{"-c", "%.3Y", "file.txt"}, Want: "1700000000.500\n"},
+		{Name: "seconds with a bare period", Args: []string{"-c", "%.Y", "file.txt"}, Want: "1700000000.500000000\n"},
 		{
-			name: "seconds before the Epoch", files: fsx.MemFS{"old": {ModTime: time.Unix(-2, 750000000)}},
-			args: []string{"-c", "%.3Y", "old"}, wantOut: "-1.250\n",
-		},
-		{
-			name: "whole seconds before the Epoch", files: fsx.MemFS{"old": {ModTime: time.Unix(-3, 0)}},
-			args: []string{"-c", "%.3Y", "old"}, wantOut: "-3.000\n",
+			Name: "seconds before the Epoch", FS: fsx.MemFS{"old": {ModTime: time.Unix(-2, 750000000)}},
+			Args: []string{"-c", "%.3Y", "old"}, Want: "-1.250\n",
 		},
 		{
-			name: "fractional seconds before the Epoch are floored", files: fsx.MemFS{"old": {ModTime: time.Unix(-2, 748100000)}},
-			args: []string{"-c", "%.1Y", "old"}, wantOut: "-1.3\n",
+			Name: "whole seconds before the Epoch", FS: fsx.MemFS{"old": {ModTime: time.Unix(-3, 0)}},
+			Args: []string{"-c", "%.3Y", "old"}, Want: "-3.000\n",
 		},
 		{
-			name: "a precision beyond the nanoseconds is zero padded", files: fsx.MemFS{"file.txt": {Data: []byte("hello"), Mode: 0o644, ModTime: modTime}},
-			args:    []string{"-c", "%.20Y", "file.txt"},
-			wantOut: "1700000000.50000000000000000000\n",
+			Name: "fractional seconds before the Epoch are floored", FS: fsx.MemFS{"old": {ModTime: time.Unix(-2, 748100000)}},
+			Args: []string{"-c", "%.1Y", "old"}, Want: "-1.3\n",
 		},
 		{
-			name: "a precision beyond the nanoseconds of a second before the Epoch", files: fsx.MemFS{"old": {ModTime: time.Unix(-2, 748100000)}},
-			args: []string{"-c", "%.20Y", "old"}, wantOut: "-1.25190000000000000000\n",
+			Name: "a precision beyond the nanoseconds is zero padded", FS: fsx.MemFS{"file.txt": {Data: []byte("hello"), Mode: 0o644, ModTime: modTime}},
+			Args: []string{"-c", "%.20Y", "file.txt"},
+			Want: "1700000000.50000000000000000000\n",
 		},
 		{
-			name: "a precision beyond the nanoseconds is floored before the Epoch", files: fsx.MemFS{"old": {ModTime: time.Unix(-2, 748100000)}},
-			args: []string{"-c", "%.25Y", "old"}, wantOut: "-1.2519000000000000000000000\n",
+			Name: "a precision beyond the nanoseconds of a second before the Epoch", FS: fsx.MemFS{"old": {ModTime: time.Unix(-2, 748100000)}},
+			Args: []string{"-c", "%.20Y", "old"}, Want: "-1.25190000000000000000\n",
 		},
 		{
-			name: "an exact tenth before the Epoch is kept", files: fsx.MemFS{"old": {ModTime: time.Unix(-2, 800000000)}},
-			args: []string{"-c", "%.1Y", "old"}, wantOut: "-1.2\n",
+			Name: "a precision beyond the nanoseconds is floored before the Epoch", FS: fsx.MemFS{"old": {ModTime: time.Unix(-2, 748100000)}},
+			Args: []string{"-c", "%.25Y", "old"}, Want: "-1.2519000000000000000000000\n",
 		},
 		{
-			name: "a fraction of a second before the Epoch is floored", files: fsx.MemFS{"old": {ModTime: time.Unix(-1, 250000000)}},
-			args: []string{"-c", "%.1Y", "old"}, wantOut: "-0.8\n",
+			Name: "an exact tenth before the Epoch is kept", FS: fsx.MemFS{"old": {ModTime: time.Unix(-2, 800000000)}},
+			Args: []string{"-c", "%.1Y", "old"}, Want: "-1.2\n",
 		},
 		{
-			name: "a second before the Epoch within a hundredth", files: fsx.MemFS{"old": {ModTime: time.Unix(-1, 950000000)}},
-			args: []string{"-c", "%.2Y", "old"}, wantOut: "-0.05\n",
+			Name: "a fraction of a second before the Epoch is floored", FS: fsx.MemFS{"old": {ModTime: time.Unix(-1, 250000000)}},
+			Args: []string{"-c", "%.1Y", "old"}, Want: "-0.8\n",
 		},
 		{
-			name: "seconds with a width and a precision", args: []string{"-c", "[%22.3Y]", "file.txt"},
-			wantOut: "[        1700000000.500]\n",
+			Name: "a second before the Epoch within a hundredth", FS: fsx.MemFS{"old": {ModTime: time.Unix(-1, 950000000)}},
+			Args: []string{"-c", "%.2Y", "old"}, Want: "-0.05\n",
 		},
 		{
-			name: "seconds zero padded with a precision", args: []string{"-c", "[%022.3Y]", "file.txt"},
-			wantOut: "[000000001700000000.500]\n",
+			Name: "seconds with a width and a precision", Args: []string{"-c", "[%22.3Y]", "file.txt"},
+			Want: "[        1700000000.500]\n",
 		},
 		{
-			name: "time with a precision", args: []string{"-c", "%.3x", "file.txt"}, env: utc(),
-			wantOut: "2023-11-14 22:13:20.500 +0000\n",
+			Name: "seconds zero padded with a precision", Args: []string{"-c", "[%022.3Y]", "file.txt"},
+			Want: "[000000001700000000.500]\n",
 		},
 		{
-			name: "time without a fraction", args: []string{"-c", "%.0x", "file.txt"}, env: utc(),
-			wantOut: "2023-11-14 22:13:20 +0000\n",
+			Name: "time with a precision", Args: []string{"-c", "%.3x", "file.txt"}, Environ: testutil.Environ(utc()),
+			Want: "2023-11-14 22:13:20.500 +0000\n",
 		},
-		{name: "unknown directive", args: []string{"-c", "%q|", "file.txt"}, wantOut: "?|\n"},
-		{name: "unknown directive with flags", args: []string{"-c", "%5q|", "file.txt"}, wantOut: "?|\n"},
-		{name: "modifier without a pair", args: []string{"-c", "%H|", "file.txt"}, wantOut: "?|\n"},
-		{name: "percent at the end", args: []string{"-c", "a%", "file.txt"}, wantOut: "a%\n"},
-		{name: "percent signs kept", args: []string{"-c", "a%%b|", "file.txt"}, wantOut: "a%b|\n"},
-		{name: "several fields on a line", args: []string{"-c", "%d:%i", "file.txt", "dir"}, wantOut: "0:0\n0:0\n"},
+		{
+			Name: "time without a fraction", Args: []string{"-c", "%.0x", "file.txt"}, Environ: testutil.Environ(utc()),
+			Want: "2023-11-14 22:13:20 +0000\n",
+		},
+		{Name: "unknown directive", Args: []string{"-c", "%q|", "file.txt"}, Want: "?|\n"},
+		{Name: "unknown directive with flags", Args: []string{"-c", "%5q|", "file.txt"}, Want: "?|\n"},
+		{Name: "modifier without a pair", Args: []string{"-c", "%H|", "file.txt"}, Want: "?|\n"},
+		{Name: "percent at the end", Args: []string{"-c", "a%", "file.txt"}, Want: "a%\n"},
+		{Name: "percent signs kept", Args: []string{"-c", "a%%b|", "file.txt"}, Want: "a%b|\n"},
+		{Name: "several fields on a line", Args: []string{"-c", "%d:%i", "file.txt", "dir"}, Want: "0:0\n0:0\n"},
 	}
-	runCases(t, withFiles(tests, files))
+	testutil.Run(t, New, withFiles(tests, files))
 }
 
 func TestRunFormatDirectivesOfDevices(t *testing.T) {
@@ -414,147 +340,147 @@ func (f *fakeInfo) Sys() any           { return f.sys }
 
 func TestRunPrintf(t *testing.T) {
 	files := fsx.MemFS{"file.txt": {Data: []byte("hello"), Mode: 0o644, ModTime: modTime}}
-	runCases(t, []testCase{
+	testutil.Run(t, New, []testutil.Case{
 		{
-			name:    "writes no trailing newline",
-			files:   files,
-			args:    []string{"--printf", "%n", "file.txt"},
-			wantOut: "file.txt",
+			Name: "writes no trailing newline",
+			FS:   files,
+			Args: []string{"--printf", "%n", "file.txt"},
+			Want: "file.txt",
 		},
 		{
-			name:    "interprets the named escapes",
-			files:   files,
-			args:    []string{"--printf", `%n\a\b\e\f\n\r\t\v\\%n`, "file.txt"},
-			wantOut: "file.txt\a\b\x1b\f\n\r\t\v\\file.txt",
+			Name: "interprets the named escapes",
+			FS:   files,
+			Args: []string{"--printf", `%n\a\b\e\f\n\r\t\v\\%n`, "file.txt"},
+			Want: "file.txt\a\b\x1b\f\n\r\t\v\\file.txt",
 		},
 		{
-			name:    "interprets the octal and hexadecimal escapes",
-			files:   files,
-			args:    []string{"--printf", `A\0101B\x42C%n`, "file.txt"},
-			wantOut: "AABBCfile.txt",
+			Name: "interprets the octal and hexadecimal escapes",
+			FS:   files,
+			Args: []string{"--printf", `A\0101B\x42C%n`, "file.txt"},
+			Want: "AABBCfile.txt",
 		},
 		{
-			name:     "warns about an unrecognized escape",
-			files:    files,
-			args:     []string{"--printf", `\q%n`, "file.txt"},
-			wantOut:  "qfile.txt",
-			wantErr:  "stat: warning: unrecognized escape '\\q'\n",
-			wantExit: 0,
+			Name:     "warns about an unrecognized escape",
+			FS:       files,
+			Args:     []string{"--printf", `\q%n`, "file.txt"},
+			Want:     "qfile.txt",
+			WantErr:  "stat: warning: unrecognized escape '\\q'\n",
+			WantExit: 0,
 		},
 		{
-			name:     "warns about a backslash at the end",
-			files:    files,
-			args:     []string{"--printf", `a\`, "file.txt"},
-			wantOut:  "a\\",
-			wantErr:  "stat: warning: backslash at end of format\n",
-			wantExit: 0,
+			Name:     "warns about a backslash at the end",
+			FS:       files,
+			Args:     []string{"--printf", `a\`, "file.txt"},
+			Want:     "a\\",
+			WantErr:  "stat: warning: backslash at end of format\n",
+			WantExit: 0,
 		},
 		{
-			name:    "keeps the backslashes of --format",
-			files:   files,
-			args:    []string{"-c", `a\nb`, "file.txt"},
-			wantOut: "a\\nb\n",
+			Name: "keeps the backslashes of --format",
+			FS:   files,
+			Args: []string{"-c", `a\nb`, "file.txt"},
+			Want: "a\\nb\n",
 		},
 		{
-			name:    "newline terminates every use of --format",
-			files:   files,
-			args:    []string{"-c", "%n", "file.txt", "file.txt"},
-			wantOut: "file.txt\nfile.txt\n",
+			Name: "newline terminates every use of --format",
+			FS:   files,
+			Args: []string{"-c", "%n", "file.txt", "file.txt"},
+			Want: "file.txt\nfile.txt\n",
 		},
 		{
-			name:    "the format of the last option wins",
-			files:   files,
-			args:    []string{"-c", "%a", "--printf", "%s%n", "file.txt"},
-			wantOut: "5file.txt",
+			Name: "the format of the last option wins",
+			FS:   files,
+			Args: []string{"-c", "%a", "--printf", "%s%n", "file.txt"},
+			Want: "5file.txt",
 		},
 		{
-			name:    "the format of the last option wins the other way",
-			files:   files,
-			args:    []string{"--printf", "%s", "-c", "%a", "file.txt"},
-			wantOut: "644\n",
+			Name: "the format of the last option wins the other way",
+			FS:   files,
+			Args: []string{"--printf", "%s", "-c", "%a", "file.txt"},
+			Want: "644\n",
 		},
 		{
-			name:    "an empty --format writes an empty line",
-			files:   files,
-			args:    []string{"-c", "", "file.txt", "file.txt"},
-			wantOut: "\n\n",
+			Name: "an empty --format writes an empty line",
+			FS:   files,
+			Args: []string{"-c", "", "file.txt", "file.txt"},
+			Want: "\n\n",
 		},
 		{
-			name:    "an empty --printf writes nothing",
-			files:   files,
-			args:    []string{"--printf", "", "file.txt", "file.txt"},
-			wantOut: "",
+			Name: "an empty --printf writes nothing",
+			FS:   files,
+			Args: []string{"--printf", "", "file.txt", "file.txt"},
+			Want: "",
 		},
 		{
-			name:    "an empty --printf keeps the last of the options",
-			files:   files,
-			args:    []string{"-c", "%a", "--printf", "", "file.txt"},
-			wantOut: "",
+			Name: "an empty --printf keeps the last of the options",
+			FS:   files,
+			Args: []string{"-c", "%a", "--printf", "", "file.txt"},
+			Want: "",
 		},
 	})
 }
 
 func TestRunTerse(t *testing.T) {
-	runCases(t, []testCase{
+	testutil.Run(t, New, []testutil.Case{
 		{
-			name:  "writes one line of fields per file",
-			files: fsx.MemFS{"file.txt": {Data: []byte("hello"), Mode: 0o644, ModTime: modTime, Uid: ownerID, Gid: groupID}},
-			args:  []string{"-t", "file.txt"},
-			wantOut: "file.txt 5 1 81a4 54321 54322 0 0 1 0 0 " +
+			Name: "writes one line of fields per file",
+			FS:   fsx.MemFS{"file.txt": {Data: []byte("hello"), Mode: 0o644, ModTime: modTime, Uid: ownerID, Gid: groupID}},
+			Args: []string{"-t", "file.txt"},
+			Want: "file.txt 5 1 81a4 54321 54322 0 0 1 0 0 " +
 				"1700000000 1700000000 1700000000 0 512\n",
 		},
 		{
-			name:  "quotes names that need it",
-			files: fsx.MemFS{"a b": {Mode: 0o644, ModTime: modTime, Uid: ownerID, Gid: groupID}},
-			args:  []string{"-t", "a b"},
-			wantOut: "'a b' 0 0 81a4 54321 54322 0 0 1 0 0 " +
+			Name: "quotes names that need it",
+			FS:   fsx.MemFS{"a b": {Mode: 0o644, ModTime: modTime, Uid: ownerID, Gid: groupID}},
+			Args: []string{"-t", "a b"},
+			Want: "'a b' 0 0 81a4 54321 54322 0 0 1 0 0 " +
 				"1700000000 1700000000 1700000000 0 512\n",
 		},
 		{
-			name:    "gives way to an explicit format",
-			files:   fsx.MemFS{"file.txt": {Mode: 0o644, ModTime: modTime}},
-			args:    []string{"-t", "-c", "%n", "file.txt"},
-			wantOut: "file.txt\n",
+			Name: "gives way to an explicit format",
+			FS:   fsx.MemFS{"file.txt": {Mode: 0o644, ModTime: modTime}},
+			Args: []string{"-t", "-c", "%n", "file.txt"},
+			Want: "file.txt\n",
 		},
 	})
 }
 
 func TestRunFileSystem(t *testing.T) {
-	runCases(t, []testCase{
+	testutil.Run(t, New, []testutil.Case{
 		{
-			name:  "writes the file system fields it doesn't know as marks",
-			files: fsx.MemFS{"file.txt": {Data: []byte("hello"), Mode: 0o644, ModTime: modTime}},
-			args:  []string{"-f", "file.txt"},
-			wantOut: "  File: file.txt\n" +
+			Name: "writes the file system fields it doesn't know as marks",
+			FS:   fsx.MemFS{"file.txt": {Data: []byte("hello"), Mode: 0o644, ModTime: modTime}},
+			Args: []string{"-f", "file.txt"},
+			Want: "  File: file.txt\n" +
 				"    ID: ? Namelen: ? Type: ?\n" +
 				"Block size: ? Fundamental block size: ?\n" +
 				"Blocks: Total: ? Free: ? Available: ?\n" +
 				"Inodes: Total: ? Free: ?\n",
 		},
 		{
-			name:    "writes the terse fields of the file system",
-			files:   fsx.MemFS{"file.txt": {Data: []byte("hello"), Mode: 0o644, ModTime: modTime}},
-			args:    []string{"-f", "-t", "file.txt"},
-			wantOut: "file.txt ? ? ? ? ? ? ? ? ? ?\n",
+			Name: "writes the terse fields of the file system",
+			FS:   fsx.MemFS{"file.txt": {Data: []byte("hello"), Mode: 0o644, ModTime: modTime}},
+			Args: []string{"-f", "-t", "file.txt"},
+			Want: "file.txt ? ? ? ? ? ? ? ? ? ?\n",
 		},
 		{
-			name:    "reports the file name only when asked for",
-			files:   fsx.MemFS{"file.txt": {Data: []byte("hello"), Mode: 0o644, ModTime: modTime}},
-			args:    []string{"-f", "-c", "%n %s", "file.txt"},
-			wantOut: "file.txt ?\n",
+			Name: "reports the file name only when asked for",
+			FS:   fsx.MemFS{"file.txt": {Data: []byte("hello"), Mode: 0o644, ModTime: modTime}},
+			Args: []string{"-f", "-c", "%n %s", "file.txt"},
+			Want: "file.txt ?\n",
 		},
 		{
-			name:    "follows a link to the file system it is on",
-			files:   fsx.MemFS{"file.txt": {Data: []byte("hello"), Mode: 0o644, ModTime: modTime}, "ln": link("file.txt")},
-			args:    []string{"-f", "-c", "%n", "ln"},
-			wantOut: "ln\n",
+			Name: "follows a link to the file system it is on",
+			FS:   fsx.MemFS{"file.txt": {Data: []byte("hello"), Mode: 0o644, ModTime: modTime}, "ln": link("file.txt")},
+			Args: []string{"-f", "-c", "%n", "ln"},
+			Want: "ln\n",
 		},
 		{
-			name:     "diagnoses a missing file",
-			files:    fsx.MemFS{},
-			args:     []string{"-f", "gone"},
-			wantErr:  "stat: cannot read file system information for 'gone': file does not exist\n",
-			wantExit: 1,
+			Name:     "diagnoses a missing file",
+			FS:       fsx.MemFS{},
+			Args:     []string{"-f", "gone"},
+			WantErr:  "stat: cannot read file system information for 'gone': file does not exist\n",
+			WantExit: 1,
 		},
 	})
 }
@@ -568,55 +494,55 @@ func TestRunSymlinks(t *testing.T) {
 		"broken":   link("gone"),
 		"chain":    link("tofile"),
 	}
-	runCases(t, []testCase{
+	testutil.Run(t, New, []testutil.Case{
 		{
-			name:    "reports the link itself by default",
-			files:   files,
-			args:    []string{"-c", "%F %s %N", "tofile"},
-			wantOut: "symbolic link 8 tofile -> file.txt\n",
+			Name: "reports the link itself by default",
+			FS:   files,
+			Args: []string{"-c", "%F %s %N", "tofile"},
+			Want: "symbolic link 8 tofile -> file.txt\n",
 		},
 		{
-			name:    "reports the file a link refers to with -L",
-			files:   files,
-			args:    []string{"-L", "-c", "%F %s %N", "tofile"},
-			wantOut: "regular file 5 tofile\n",
+			Name: "reports the file a link refers to with -L",
+			FS:   files,
+			Args: []string{"-L", "-c", "%F %s %N", "tofile"},
+			Want: "regular file 5 tofile\n",
 		},
 		{
-			name:    "reports a link to a directory with -L",
-			files:   files,
-			args:    []string{"-L", "-c", "%F", "todir"},
-			wantOut: "directory\n",
+			Name: "reports a link to a directory with -L",
+			FS:   files,
+			Args: []string{"-L", "-c", "%F", "todir"},
+			Want: "directory\n",
 		},
 		{
-			name:    "reports the file a chain of links names with -L",
-			files:   files,
-			args:    []string{"-L", "-c", "%F", "chain"},
-			wantOut: "regular file\n",
+			Name: "reports the file a chain of links names with -L",
+			FS:   files,
+			Args: []string{"-L", "-c", "%F", "chain"},
+			Want: "regular file\n",
 		},
 		{
-			name:     "diagnoses a broken link with -L",
-			files:    files,
-			args:     []string{"-L", "broken"},
-			wantErr:  "stat: cannot stat 'broken': file does not exist\n",
-			wantExit: 1,
+			Name:     "diagnoses a broken link with -L",
+			FS:       files,
+			Args:     []string{"-L", "broken"},
+			WantErr:  "stat: cannot stat 'broken': file does not exist\n",
+			WantExit: 1,
 		},
 		{
-			name:    "reports a broken link without -L",
-			files:   files,
-			args:    []string{"-c", "%F %N", "broken"},
-			wantOut: "symbolic link broken -> gone\n",
+			Name: "reports a broken link without -L",
+			FS:   files,
+			Args: []string{"-c", "%F %N", "broken"},
+			Want: "symbolic link broken -> gone\n",
 		},
 		{
-			name:    "quotes the link and its target",
-			files:   fsx.MemFS{"a b": link("c d")},
-			args:    []string{"-c", "%N", "a b"},
-			wantOut: "'a b' -> 'c d'\n",
+			Name: "quotes the link and its target",
+			FS:   fsx.MemFS{"a b": link("c d")},
+			Args: []string{"-c", "%N", "a b"},
+			Want: "'a b' -> 'c d'\n",
 		},
 		{
-			name:    "long option form of the dereference",
-			files:   files,
-			args:    []string{"--dereference", "-c", "%F", "tofile"},
-			wantOut: "regular file\n",
+			Name: "long option form of the dereference",
+			FS:   files,
+			Args: []string{"--dereference", "-c", "%F", "tofile"},
+			Want: "regular file\n",
 		},
 	})
 }
@@ -650,33 +576,33 @@ func TestRunQuoting(t *testing.T) {
 	}
 	for _, test := range tests {
 		t.Run(test.want, func(t *testing.T) {
-			runCase(t, testCase{
-				name:    test.name,
-				files:   test.files,
-				env:     map[string]string{"TZ": "UTC", "QUOTING_STYLE": test.style},
-				args:    test.args,
-				wantOut: test.want,
+			testutil.Once(t, New, testutil.Case{
+				Name:    test.name,
+				FS:      test.files,
+				Environ: testutil.Environ(map[string]string{"TZ": "UTC", "QUOTING_STYLE": test.style}),
+				Args:    test.args,
+				Want:    test.want,
 			})
 		})
 	}
 }
 
 func TestRunQuotingDefault(t *testing.T) {
-	runCases(t, []testCase{
+	testutil.Run(t, New, []testutil.Case{
 		{
-			name:    "quotes a control character by default",
-			files:   fsx.MemFS{"a\tb": {}},
-			args:    []string{"-c", "%Qn", "a\tb"},
-			wantOut: "$'a\\tb'\n",
+			Name: "quotes a control character by default",
+			FS:   fsx.MemFS{"a\tb": {}},
+			Args: []string{"-c", "%Qn", "a\tb"},
+			Want: "$'a\\tb'\n",
 		},
 		{
-			name:     "warns about an invalid style and keeps the default",
-			files:    fsx.MemFS{"a b": {}},
-			env:      map[string]string{"QUOTING_STYLE": "weird"},
-			args:     []string{"-c", "%Qn", "a b"},
-			wantOut:  "'a b'\n",
-			wantErr:  "stat: ignoring invalid value of environment variable QUOTING_STYLE: weird\n",
-			wantExit: 0,
+			Name:     "warns about an invalid style and keeps the default",
+			FS:       fsx.MemFS{"a b": {}},
+			Environ:  testutil.Environ(map[string]string{"QUOTING_STYLE": "weird"}),
+			Args:     []string{"-c", "%Qn", "a b"},
+			Want:     "'a b'\n",
+			WantErr:  "stat: ignoring invalid value of environment variable QUOTING_STYLE: weird\n",
+			WantExit: 0,
 		},
 	})
 }
@@ -707,145 +633,145 @@ func TestQuoteName(t *testing.T) {
 }
 
 func TestRunErrors(t *testing.T) {
-	runCases(t, []testCase{
+	testutil.Run(t, New, []testutil.Case{
 		{
-			name:     "needs an operand",
-			files:    fsx.MemFS{"file.txt": {}},
-			wantErr:  "stat: missing operand\nTry 'stat --help' for more information.\n",
-			wantExit: 2,
+			Name:     "needs an operand",
+			FS:       fsx.MemFS{"file.txt": {}},
+			WantErr:  "stat: missing operand\nTry 'stat --help' for more information.\n",
+			WantExit: 2,
 		},
 		{
-			name:     "rejects an unknown short option",
-			files:    fsx.MemFS{"file.txt": {}},
-			args:     []string{"-x", "file.txt"},
-			wantErr:  "stat: invalid option -- 'x'\nTry 'stat --help' for more information.\n",
-			wantExit: 2,
+			Name:     "rejects an unknown short option",
+			FS:       fsx.MemFS{"file.txt": {}},
+			Args:     []string{"-x", "file.txt"},
+			WantErr:  "stat: invalid option -- 'x'\nTry 'stat --help' for more information.\n",
+			WantExit: 2,
 		},
 		{
-			name:     "rejects an unknown option in a group",
-			files:    fsx.MemFS{"file.txt": {}},
-			args:     []string{"-tx", "file.txt"},
-			wantErr:  "stat: invalid option -- 'x'\nTry 'stat --help' for more information.\n",
-			wantExit: 2,
+			Name:     "rejects an unknown option in a group",
+			FS:       fsx.MemFS{"file.txt": {}},
+			Args:     []string{"-tx", "file.txt"},
+			WantErr:  "stat: invalid option -- 'x'\nTry 'stat --help' for more information.\n",
+			WantExit: 2,
 		},
 		{
-			name:     "rejects an unknown long option",
-			files:    fsx.MemFS{"file.txt": {}},
-			args:     []string{"--frobnicate", "file.txt"},
-			wantErr:  "stat: unrecognized option '--frobnicate'\nTry 'stat --help' for more information.\n",
-			wantExit: 2,
+			Name:     "rejects an unknown long option",
+			FS:       fsx.MemFS{"file.txt": {}},
+			Args:     []string{"--frobnicate", "file.txt"},
+			WantErr:  "stat: unrecognized option '--frobnicate'\nTry 'stat --help' for more information.\n",
+			WantExit: 2,
 		},
 		{
-			name:     "needs the argument of --format",
-			files:    fsx.MemFS{"file.txt": {}},
-			args:     []string{"--format"},
-			wantErr:  "stat: option '--format' requires an argument\nTry 'stat --help' for more information.\n",
-			wantExit: 2,
+			Name:     "needs the argument of --format",
+			FS:       fsx.MemFS{"file.txt": {}},
+			Args:     []string{"--format"},
+			WantErr:  "stat: option '--format' requires an argument\nTry 'stat --help' for more information.\n",
+			WantExit: 2,
 		},
 		{
-			name:     "needs the argument of -c",
-			files:    fsx.MemFS{"file.txt": {}},
-			args:     []string{"-c"},
-			wantErr:  "stat: option requires an argument -- 'c'\nTry 'stat --help' for more information.\n",
-			wantExit: 2,
+			Name:     "needs the argument of -c",
+			FS:       fsx.MemFS{"file.txt": {}},
+			Args:     []string{"-c"},
+			WantErr:  "stat: option requires an argument -- 'c'\nTry 'stat --help' for more information.\n",
+			WantExit: 2,
 		},
 		{
-			name:     "rejects an invalid --cached value",
-			files:    fsx.MemFS{"file.txt": {}},
-			args:     []string{"--cached=sometimes", "file.txt"},
-			wantErr:  "stat: invalid argument 'sometimes' for '--cached'\nTry 'stat --help' for more information.\n",
-			wantExit: 2,
+			Name:     "rejects an invalid --cached value",
+			FS:       fsx.MemFS{"file.txt": {}},
+			Args:     []string{"--cached=sometimes", "file.txt"},
+			WantErr:  "stat: invalid argument 'sometimes' for '--cached'\nTry 'stat --help' for more information.\n",
+			WantExit: 2,
 		},
 		{
-			name:     "takes a fatal invalid directive with flags",
-			files:    fsx.MemFS{"file.txt": {}},
-			args:     []string{"-c", "%5%", "file.txt"},
-			wantErr:  "stat: '%5%': invalid directive\n",
-			wantExit: 1,
+			Name:     "takes a fatal invalid directive with flags",
+			FS:       fsx.MemFS{"file.txt": {}},
+			Args:     []string{"-c", "%5%", "file.txt"},
+			WantErr:  "stat: '%5%': invalid directive\n",
+			WantExit: 1,
 		},
 		{
-			name:     "writes the text before an invalid directive",
-			files:    fsx.MemFS{"file.txt": {}},
-			args:     []string{"-c", "abc%5%", "file.txt"},
-			wantOut:  "abc",
-			wantErr:  "stat: '%5%': invalid directive\n",
-			wantExit: 1,
+			Name:     "writes the text before an invalid directive",
+			FS:       fsx.MemFS{"file.txt": {}},
+			Args:     []string{"-c", "abc%5%", "file.txt"},
+			Want:     "abc",
+			WantErr:  "stat: '%5%': invalid directive\n",
+			WantExit: 1,
 		},
 		{
-			name:     "diagnoses a directive the format ends within",
-			files:    fsx.MemFS{"file.txt": {}},
-			args:     []string{"-c", "%5", "file.txt"},
-			wantErr:  "stat: '%5': invalid directive\n",
-			wantExit: 1,
+			Name:     "diagnoses a directive the format ends within",
+			FS:       fsx.MemFS{"file.txt": {}},
+			Args:     []string{"-c", "%5", "file.txt"},
+			WantErr:  "stat: '%5': invalid directive\n",
+			WantExit: 1,
 		},
 		{
-			name:     "rejects an argument given to a flag option",
-			files:    fsx.MemFS{"file.txt": {}},
-			args:     []string{"--terse=1", "file.txt"},
-			wantErr:  "stat: option '--terse=1' doesn't allow an argument\nTry 'stat --help' for more information.\n",
-			wantExit: 2,
+			Name:     "rejects an argument given to a flag option",
+			FS:       fsx.MemFS{"file.txt": {}},
+			Args:     []string{"--terse=1", "file.txt"},
+			WantErr:  "stat: option '--terse=1' doesn't allow an argument\nTry 'stat --help' for more information.\n",
+			WantExit: 2,
 		},
 		{
-			name:     "diagnoses a missing file and goes on",
-			files:    fsx.MemFS{"file.txt": {Data: []byte("hello"), Mode: 0o644, ModTime: modTime}},
-			args:     []string{"-c", "%n", "gone", "file.txt"},
-			wantOut:  "file.txt\n",
-			wantErr:  "stat: cannot stat 'gone': file does not exist\n",
-			wantExit: 1,
+			Name:     "diagnoses a missing file and goes on",
+			FS:       fsx.MemFS{"file.txt": {Data: []byte("hello"), Mode: 0o644, ModTime: modTime}},
+			Args:     []string{"-c", "%n", "gone", "file.txt"},
+			Want:     "file.txt\n",
+			WantErr:  "stat: cannot stat 'gone': file does not exist\n",
+			WantExit: 1,
 		},
 		{
-			name:     "reports an invalid zero-length file name",
-			files:    fsx.MemFS{"file.txt": {}},
-			args:     []string{""},
-			wantErr:  "stat: invalid zero-length file name\n",
-			wantExit: 1,
+			Name:     "reports an invalid zero-length file name",
+			FS:       fsx.MemFS{"file.txt": {}},
+			Args:     []string{""},
+			WantErr:  "stat: invalid zero-length file name\n",
+			WantExit: 1,
 		},
 		{
-			name:     "reports no file system available",
-			args:     []string{"file.txt"},
-			wantErr:  "stat: no file system available\n",
-			wantExit: 1,
+			Name:     "reports no file system available",
+			Args:     []string{"file.txt"},
+			WantErr:  "stat: no file system available\n",
+			WantExit: 1,
 		},
 	})
 }
 
 func TestRunCachedOption(t *testing.T) {
 	files := fsx.MemFS{"file.txt": {Data: []byte("hello"), Mode: 0o644, ModTime: modTime}}
-	runCases(t, []testCase{
+	testutil.Run(t, New, []testutil.Case{
 		{
-			name:    "accepts the modes of --cached",
-			files:   files,
-			args:    []string{"--cached=always", "--cached=never", "--cached=default", "-c", "%n", "file.txt"},
-			wantOut: "file.txt\n",
+			Name: "accepts the modes of --cached",
+			FS:   files,
+			Args: []string{"--cached=always", "--cached=never", "--cached=default", "-c", "%n", "file.txt"},
+			Want: "file.txt\n",
 		},
 		{
-			name:    "ends the options at --",
-			files:   fsx.MemFS{"-weird": {Data: []byte("hello"), Mode: 0o644, ModTime: modTime}},
-			args:    []string{"-c", "%n", "--", "-weird"},
-			wantOut: "-weird\n",
+			Name: "ends the options at --",
+			FS:   fsx.MemFS{"-weird": {Data: []byte("hello"), Mode: 0o644, ModTime: modTime}},
+			Args: []string{"-c", "%n", "--", "-weird"},
+			Want: "-weird\n",
 		},
 	})
 }
 
 func TestRunStdOptions(t *testing.T) {
-	runCases(t, []testCase{
+	testutil.Run(t, New, []testutil.Case{
 		{
-			name:     "writes the usage for --help",
-			args:     []string{"--help"},
-			wantOut:  usage,
-			wantExit: 0,
+			Name:     "writes the usage for --help",
+			Args:     []string{"--help"},
+			Want:     usage,
+			WantExit: 0,
 		},
 		{
-			name:     "writes the usage for the short form of --help",
-			args:     []string{"-L", "--help"},
-			wantOut:  usage,
-			wantExit: 0,
+			Name:     "writes the usage for the short form of --help",
+			Args:     []string{"-L", "--help"},
+			Want:     usage,
+			WantExit: 0,
 		},
 		{
-			name:     "writes the version for --version",
-			args:     []string{"--version"},
-			wantOut:  "stat (charm.land/snail/coreutils) " + coreutils.Version + "\nhttps://charm.land/snail\n",
-			wantExit: 0,
+			Name:     "writes the version for --version",
+			Args:     []string{"--version"},
+			Want:     "stat (charm.land/snail/coreutils) " + coreutils.Version + "\nhttps://charm.land/snail\n",
+			WantExit: 0,
 		},
 	})
 }
@@ -867,39 +793,39 @@ func TestRunTimezone(t *testing.T) {
 	if _, err := time.LoadLocation("America/New_York"); err != nil {
 		t.Skip("the system doesn't have a time zone database")
 	}
-	runCases(t, []testCase{
+	testutil.Run(t, New, []testutil.Case{
 		{
-			name:    "writes the timestamps in the zone TZ names",
-			files:   fsx.MemFS{"file.txt": {Data: []byte("hello"), Mode: 0o644, ModTime: modTime}},
-			env:     map[string]string{"TZ": "America/New_York"},
-			args:    []string{"-c", "%x", "file.txt"},
-			wantOut: "2023-11-14 17:13:20.500000000 -0500\n",
+			Name:    "writes the timestamps in the zone TZ names",
+			FS:      fsx.MemFS{"file.txt": {Data: []byte("hello"), Mode: 0o644, ModTime: modTime}},
+			Environ: testutil.Environ(map[string]string{"TZ": "America/New_York"}),
+			Args:    []string{"-c", "%x", "file.txt"},
+			Want:    "2023-11-14 17:13:20.500000000 -0500\n",
 		},
 		{
-			name:    "falls back to the local zone for an unknown TZ",
-			files:   fsx.MemFS{"file.txt": {Data: []byte("hello"), Mode: 0o644, ModTime: modTime}},
-			env:     map[string]string{"TZ": "Nowhere/Bad"},
-			args:    []string{"-c", "%Y", "file.txt"},
-			wantOut: "1700000000\n",
+			Name:    "falls back to the local zone for an unknown TZ",
+			FS:      fsx.MemFS{"file.txt": {Data: []byte("hello"), Mode: 0o644, ModTime: modTime}},
+			Environ: testutil.Environ(map[string]string{"TZ": "Nowhere/Bad"}),
+			Args:    []string{"-c", "%Y", "file.txt"},
+			Want:    "1700000000\n",
 		},
 	})
 }
 
 func TestRunUsersAndGroups(t *testing.T) {
-	runCases(t, []testCase{
+	testutil.Run(t, New, []testutil.Case{
 		{
-			name:    "reports UNKNOWN for an owner without a name",
-			files:   fsx.MemFS{"file.txt": {Data: []byte("hello"), Mode: 0o644, ModTime: modTime, Uid: ownerID, Gid: groupID}},
-			args:    []string{"-c", "%U %G", "file.txt"},
-			wantOut: "UNKNOWN UNKNOWN\n",
+			Name: "reports UNKNOWN for an owner without a name",
+			FS:   fsx.MemFS{"file.txt": {Data: []byte("hello"), Mode: 0o644, ModTime: modTime, Uid: ownerID, Gid: groupID}},
+			Args: []string{"-c", "%U %G", "file.txt"},
+			Want: "UNKNOWN UNKNOWN\n",
 		},
 		{
-			name:  "reports the owner a system names",
-			files: fsx.MemFS{"file.txt": {Data: []byte("hello"), Mode: 0o644, ModTime: modTime, Uid: 0}},
-			args: func() []string {
+			Name: "reports the owner a system names",
+			FS:   fsx.MemFS{"file.txt": {Data: []byte("hello"), Mode: 0o644, ModTime: modTime, Uid: 0}},
+			Args: func() []string {
 				return []string{"-c", "%u %U", "file.txt"}
 			}(),
-			wantOut: func() string {
+			Want: func() string {
 				if runtime.GOOS == "windows" {
 					return "0 UNKNOWN\n"
 				}
@@ -907,10 +833,10 @@ func TestRunUsersAndGroups(t *testing.T) {
 			}(),
 		},
 		{
-			name:    "reports the owners of a file without owner information as zero",
-			files:   fsx.MemFS{"file.txt": {Data: []byte("hello"), Mode: 0o644, ModTime: modTime}},
-			args:    []string{"-c", "%u %g", "file.txt"},
-			wantOut: "0 0\n",
+			Name: "reports the owners of a file without owner information as zero",
+			FS:   fsx.MemFS{"file.txt": {Data: []byte("hello"), Mode: 0o644, ModTime: modTime}},
+			Args: []string{"-c", "%u %g", "file.txt"},
+			Want: "0 0\n",
 		},
 	})
 }
@@ -921,25 +847,25 @@ func TestRunRealFiles(t *testing.T) {
 	if err := os.WriteFile(path, []byte("hello"), 0o644); err != nil {
 		t.Fatal(err)
 	}
-	runCases(t, []testCase{
+	testutil.Run(t, New, []testutil.Case{
 		{
-			name:    "reports the size and type of a real file",
-			sys:     fsx.OsFS(""),
-			wd:      dir,
-			env:     utc(),
-			args:    []string{"-c", "%n %s %F", "file.txt"},
-			wantOut: "file.txt 5 regular file\n",
+			Name:    "reports the size and type of a real file",
+			FS:      fsx.OsFS(""),
+			Dir:     dir,
+			Environ: testutil.Environ(utc()),
+			Args:    []string{"-c", "%n %s %F", "file.txt"},
+			Want:    "file.txt 5 regular file\n",
 		},
 	})
 	if runtime.GOOS != "windows" {
-		runCases(t, []testCase{
+		testutil.Run(t, New, []testutil.Case{
 			{
-				name: "reports the inode and device of a real file",
-				sys:  fsx.OsFS(""),
-				wd:   dir,
-				env:  utc(),
-				args: []string{"-c", "%i %D %d", "file.txt"},
-				wantOut: func() string {
+				Name:    "reports the inode and device of a real file",
+				FS:      fsx.OsFS(""),
+				Dir:     dir,
+				Environ: testutil.Environ(utc()),
+				Args:    []string{"-c", "%i %D %d", "file.txt"},
+				Want: func() string {
 					st, err := os.Stat(path)
 					if err != nil {
 						t.Fatal(err)
@@ -961,13 +887,13 @@ func TestRunWindowsOperands(t *testing.T) {
 	if runtime.GOOS != "windows" {
 		t.Skip("the tests of the Windows operands run on Windows alone")
 	}
-	runCases(t, []testCase{
+	testutil.Run(t, New, []testutil.Case{
 		{
-			name:    "takes the operands with Windows separators",
-			files:   fsx.MemFS{"dir/file.txt": {Data: []byte("hello"), Mode: 0o644, ModTime: modTime}},
-			env:     utc(),
-			args:    []string{"-c", "%n %s", `dir\file.txt`},
-			wantOut: `dir\file.txt 5` + "\n",
+			Name:    "takes the operands with Windows separators",
+			FS:      fsx.MemFS{"dir/file.txt": {Data: []byte("hello"), Mode: 0o644, ModTime: modTime}},
+			Environ: testutil.Environ(utc()),
+			Args:    []string{"-c", "%n %s", `dir\file.txt`},
+			Want:    `dir\file.txt 5` + "\n",
 		},
 	})
 }

@@ -11,474 +11,393 @@ import (
 	"testing"
 
 	"charm.land/snail/coreutils"
+	"charm.land/snail/coreutils/internal/testutil"
 	"charm.land/snail/fsx"
 )
 
-type testCase struct {
-	name     string
-	files    fsx.MemFS
-	wd       string
-	stdin    string
-	args     []string
-	wantOut  string
-	present  []string
-	absent   []string
-	wantErr  string
-	wantExit int
-}
-
-func runCase(t *testing.T, test testCase) {
-	t.Helper()
-
-	stdout, stderr := new(bytes.Buffer), new(bytes.Buffer)
-	rt := &coreutils.Runtime{
-		Stdin:      strings.NewReader(test.stdin),
-		Stdout:     stdout,
-		Stderr:     stderr,
-		FS:         test.files,
-		WorkingDir: test.wd,
-	}
-
-	err := New(rt).Run(t.Context(), test.args...)
-
-	if code := exitCode(t, err); code != test.wantExit {
-		t.Errorf("Run() exit code = %d, want %d (error = %v)", code, test.wantExit, err)
-	}
-	if got := stderr.String(); got != test.wantErr {
-		t.Errorf("Run() stderr = %q, want %q", got, test.wantErr)
-	}
-	if got := stdout.String(); got != test.wantOut {
-		t.Errorf("Run() stdout = %q, want %q", got, test.wantOut)
-	}
-
-	for _, name := range test.present {
-		if _, err := fs.Stat(test.files, name); err != nil {
-			t.Errorf("Stat(%q) error = %v, want it to still exist", name, err)
-		}
-	}
-	for _, name := range test.absent {
-		if _, err := fs.Stat(test.files, name); !errors.Is(err, fs.ErrNotExist) {
-			t.Errorf("Stat(%q) error = %v, want fs.ErrNotExist", name, err)
-		}
-	}
-}
-
-func exitCode(t *testing.T, err error) int {
-	t.Helper()
-
-	if err == nil {
-		return 0
-	}
-	var exitErr *coreutils.ExitError
-	if !errors.As(err, &exitErr) {
-		t.Fatalf("Run() error = %v, want *coreutils.ExitError", err)
-	}
-	return exitErr.Code
-}
-
 func TestRunDefaults(t *testing.T) {
-	tests := []testCase{
+	tests := []testutil.Case{
 		{
-			name:   "removes a file",
-			files:  fsx.MemFS{"a.txt": {Data: []byte("hello")}},
-			args:   []string{"a.txt"},
-			absent: []string{"a.txt"},
+			Name:   "removes a file",
+			FS:     fsx.MemFS{"a.txt": {Data: []byte("hello")}},
+			Args:   []string{"a.txt"},
+			Absent: []string{"a.txt"},
 		},
 		{
-			name:   "removes every file in order",
-			files:  fsx.MemFS{"one": {Data: []byte("1")}, "two": {Data: []byte("2")}},
-			args:   []string{"one", "two"},
-			absent: []string{"one", "two"},
+			Name:   "removes every file in order",
+			FS:     fsx.MemFS{"one": {Data: []byte("1")}, "two": {Data: []byte("2")}},
+			Args:   []string{"one", "two"},
+			Absent: []string{"one", "two"},
 		},
 		{
-			name:     "a missing file is an error",
-			files:    fsx.MemFS{},
-			args:     []string{"missing"},
-			wantErr:  "rm: missing: file does not exist\n",
-			wantExit: 1,
+			Name:     "a missing file is an error",
+			FS:       fsx.MemFS{},
+			Args:     []string{"missing"},
+			WantErr:  "rm: missing: file does not exist\n",
+			WantExit: 1,
 		},
 		{
-			name:     "keeps removing the others after an error",
-			files:    fsx.MemFS{"b.txt": {Data: []byte("b")}},
-			args:     []string{"missing", "b.txt"},
-			absent:   []string{"b.txt"},
-			wantErr:  "rm: missing: file does not exist\n",
-			wantExit: 1,
+			Name:     "keeps removing the others after an error",
+			FS:       fsx.MemFS{"b.txt": {Data: []byte("b")}},
+			Args:     []string{"missing", "b.txt"},
+			Absent:   []string{"b.txt"},
+			WantErr:  "rm: missing: file does not exist\n",
+			WantExit: 1,
 		},
 		{
-			name:     "a directory without -r or -d is an error",
-			files:    fsx.MemFS{"d/f.txt": {Data: []byte("f")}},
-			args:     []string{"d"},
-			present:  []string{"d/f.txt"},
-			wantErr:  "rm: d: is a directory\n",
-			wantExit: 1,
+			Name:     "a directory without -r or -d is an error",
+			FS:       fsx.MemFS{"d/f.txt": {Data: []byte("f")}},
+			Args:     []string{"d"},
+			Present:  []string{"d/f.txt"},
+			WantErr:  "rm: d: is a directory\n",
+			WantExit: 1,
 		},
 		{
-			name:   "a trailing slash is dropped",
-			files:  fsx.MemFS{"f.txt": {Data: []byte("f")}},
-			args:   []string{"f.txt/"},
-			absent: []string{"f.txt"},
+			Name:   "a trailing slash is dropped",
+			FS:     fsx.MemFS{"f.txt": {Data: []byte("f")}},
+			Args:   []string{"f.txt/"},
+			Absent: []string{"f.txt"},
 		},
 		{
-			name:   "redundant separators are dropped",
-			files:  fsx.MemFS{"a/f.txt": {Data: []byte("f")}},
-			args:   []string{"a//f.txt"},
-			absent: []string{"a/f.txt"},
+			Name:   "redundant separators are dropped",
+			FS:     fsx.MemFS{"a/f.txt": {Data: []byte("f")}},
+			Args:   []string{"a//f.txt"},
+			Absent: []string{"a/f.txt"},
 		},
 		{
-			name:   "a file named like an option after a double dash",
-			files:  fsx.MemFS{"-f": {Data: []byte("f")}},
-			args:   []string{"--", "-f"},
-			absent: []string{"-f"},
+			Name:   "a file named like an option after a double dash",
+			FS:     fsx.MemFS{"-f": {Data: []byte("f")}},
+			Args:   []string{"--", "-f"},
+			Absent: []string{"-f"},
 		},
 		{
-			name:   "a file named with a dash",
-			files:  fsx.MemFS{"-": {Data: []byte("f")}},
-			args:   []string{"-"},
-			absent: []string{"-"},
+			Name:   "a file named with a dash",
+			FS:     fsx.MemFS{"-": {Data: []byte("f")}},
+			Args:   []string{"-"},
+			Absent: []string{"-"},
 		},
 		{
-			name:     "the current directory is refused",
-			files:    fsx.MemFS{},
-			args:     []string{"."},
-			wantErr:  "rm: .: refusing to remove '.' or '..' directory\n",
-			wantExit: 1,
+			Name:     "the current directory is refused",
+			FS:       fsx.MemFS{},
+			Args:     []string{"."},
+			WantErr:  "rm: .: refusing to remove '.' or '..' directory\n",
+			WantExit: 1,
 		},
 		{
-			name:     "the parent directory is refused",
-			files:    fsx.MemFS{},
-			args:     []string{".."},
-			wantErr:  "rm: ..: refusing to remove '.' or '..' directory\n",
-			wantExit: 1,
+			Name:     "the parent directory is refused",
+			FS:       fsx.MemFS{},
+			Args:     []string{".."},
+			WantErr:  "rm: ..: refusing to remove '.' or '..' directory\n",
+			WantExit: 1,
 		},
 		{
-			name:     "a path ending in dot is refused",
-			files:    fsx.MemFS{"d": {Mode: fs.ModeDir}},
-			args:     []string{"d/."},
-			present:  []string{"d"},
-			wantErr:  "rm: d/.: refusing to remove '.' or '..' directory\n",
-			wantExit: 1,
+			Name:     "a path ending in dot is refused",
+			FS:       fsx.MemFS{"d": {Mode: fs.ModeDir}},
+			Args:     []string{"d/."},
+			Present:  []string{"d"},
+			WantErr:  "rm: d/.: refusing to remove '.' or '..' directory\n",
+			WantExit: 1,
 		},
 		{
-			name:     "a path ending in dot-dot is refused",
-			files:    fsx.MemFS{"d": {Mode: fs.ModeDir}},
-			args:     []string{"d/.."},
-			present:  []string{"d"},
-			wantErr:  "rm: d/..: refusing to remove '.' or '..' directory\n",
-			wantExit: 1,
+			Name:     "a path ending in dot-dot is refused",
+			FS:       fsx.MemFS{"d": {Mode: fs.ModeDir}},
+			Args:     []string{"d/.."},
+			Present:  []string{"d"},
+			WantErr:  "rm: d/..: refusing to remove '.' or '..' directory\n",
+			WantExit: 1,
 		},
 		{
-			name:     "the root directory is refused",
-			files:    fsx.MemFS{},
-			args:     []string{"/"},
-			wantErr:  "rm: /: refusing to remove root directory\n",
-			wantExit: 1,
+			Name:     "the root directory is refused",
+			FS:       fsx.MemFS{},
+			Args:     []string{"/"},
+			WantErr:  "rm: /: refusing to remove root directory\n",
+			WantExit: 1,
 		},
 		{
-			name:     "the root directory with slashes is refused",
-			files:    fsx.MemFS{},
-			args:     []string{"//"},
-			wantErr:  "rm: //: refusing to remove root directory\n",
-			wantExit: 1,
+			Name:     "the root directory with slashes is refused",
+			FS:       fsx.MemFS{},
+			Args:     []string{"//"},
+			WantErr:  "rm: //: refusing to remove root directory\n",
+			WantExit: 1,
 		},
 	}
 
-	for _, test := range tests {
-		t.Run(test.name, func(t *testing.T) {
-			runCase(t, test)
-		})
-	}
+	testutil.Run(t, New, tests)
 }
 
 func TestRunForce(t *testing.T) {
-	tests := []testCase{
+	tests := []testutil.Case{
 		{
-			name:  "a missing file is silent",
-			files: fsx.MemFS{},
-			args:  []string{"-f", "missing"},
+			Name: "a missing file is silent",
+			FS:   fsx.MemFS{},
+			Args: []string{"-f", "missing"},
 		},
 		{
-			name:  "no operands is silent",
-			files: fsx.MemFS{},
-			args:  []string{"-f"},
+			Name: "no operands is silent",
+			FS:   fsx.MemFS{},
+			Args: []string{"-f"},
 		},
 		{
-			name:   "missing files don't stop the others",
-			files:  fsx.MemFS{"b.txt": {Data: []byte("b")}},
-			args:   []string{"-f", "missing", "b.txt"},
-			absent: []string{"b.txt"},
+			Name:   "missing files don't stop the others",
+			FS:     fsx.MemFS{"b.txt": {Data: []byte("b")}},
+			Args:   []string{"-f", "missing", "b.txt"},
+			Absent: []string{"b.txt"},
 		},
 		{
-			name:     "a directory is still an error",
-			files:    fsx.MemFS{"d": {Mode: fs.ModeDir}},
-			args:     []string{"-f", "d"},
-			present:  []string{"d"},
-			wantErr:  "rm: d: is a directory\n",
-			wantExit: 1,
+			Name:     "a directory is still an error",
+			FS:       fsx.MemFS{"d": {Mode: fs.ModeDir}},
+			Args:     []string{"-f", "d"},
+			Present:  []string{"d"},
+			WantErr:  "rm: d: is a directory\n",
+			WantExit: 1,
 		},
 		{
-			name:   "f cancels an earlier i",
-			files:  fsx.MemFS{"a.txt": {Data: []byte("a")}},
-			args:   []string{"-if", "a.txt"},
-			absent: []string{"a.txt"},
+			Name:   "f cancels an earlier i",
+			FS:     fsx.MemFS{"a.txt": {Data: []byte("a")}},
+			Args:   []string{"-if", "a.txt"},
+			Absent: []string{"a.txt"},
 		},
 		{
-			name:    "i cancels an earlier f",
-			files:   fsx.MemFS{"a.txt": {Data: []byte("a")}},
-			stdin:   "n\n",
-			args:    []string{"-fi", "a.txt"},
-			present: []string{"a.txt"},
-			wantErr: "rm: remove 'a.txt'? ",
+			Name:    "i cancels an earlier f",
+			FS:      fsx.MemFS{"a.txt": {Data: []byte("a")}},
+			Stdin:   strings.NewReader("n\n"),
+			Args:    []string{"-fi", "a.txt"},
+			Present: []string{"a.txt"},
+			WantErr: "rm: remove 'a.txt'? ",
 		},
 		{
-			name:   "the last of f and i wins",
-			files:  fsx.MemFS{"a.txt": {Data: []byte("a")}},
-			stdin:  "n\n",
-			args:   []string{"-i", "-f", "a.txt"},
-			absent: []string{"a.txt"},
+			Name:   "the last of f and i wins",
+			FS:     fsx.MemFS{"a.txt": {Data: []byte("a")}},
+			Stdin:  strings.NewReader("n\n"),
+			Args:   []string{"-i", "-f", "a.txt"},
+			Absent: []string{"a.txt"},
 		},
 	}
 
-	for _, test := range tests {
-		t.Run(test.name, func(t *testing.T) {
-			runCase(t, test)
-		})
-	}
+	testutil.Run(t, New, tests)
 }
 
 func TestRunDirectories(t *testing.T) {
-	tests := []testCase{
+	tests := []testutil.Case{
 		{
-			name:   "removes an empty directory",
-			files:  fsx.MemFS{"d": {Mode: fs.ModeDir}},
-			args:   []string{"-d", "d"},
-			absent: []string{"d"},
+			Name:   "removes an empty directory",
+			FS:     fsx.MemFS{"d": {Mode: fs.ModeDir}},
+			Args:   []string{"-d", "d"},
+			Absent: []string{"d"},
 		},
 		{
-			name:     "a non-empty directory is an error",
-			files:    fsx.MemFS{"d/f.txt": {Data: []byte("f")}},
-			args:     []string{"-d", "d"},
-			present:  []string{"d/f.txt"},
-			wantErr:  "rm: d: directory not empty\n",
-			wantExit: 1,
+			Name:     "a non-empty directory is an error",
+			FS:       fsx.MemFS{"d/f.txt": {Data: []byte("f")}},
+			Args:     []string{"-d", "d"},
+			Present:  []string{"d/f.txt"},
+			WantErr:  "rm: d: directory not empty\n",
+			WantExit: 1,
 		},
 		{
-			name:   "a file is removed like without -d",
-			files:  fsx.MemFS{"f.txt": {Data: []byte("f")}},
-			args:   []string{"-d", "f.txt"},
-			absent: []string{"f.txt"},
+			Name:   "a file is removed like without -d",
+			FS:     fsx.MemFS{"f.txt": {Data: []byte("f")}},
+			Args:   []string{"-d", "f.txt"},
+			Absent: []string{"f.txt"},
 		},
 		{
-			name:     "a missing directory is an error",
-			files:    fsx.MemFS{},
-			args:     []string{"-d", "missing"},
-			wantErr:  "rm: missing: file does not exist\n",
-			wantExit: 1,
+			Name:     "a missing directory is an error",
+			FS:       fsx.MemFS{},
+			Args:     []string{"-d", "missing"},
+			WantErr:  "rm: missing: file does not exist\n",
+			WantExit: 1,
 		},
 		{
-			name:   "r takes precedence over d",
-			files:  fsx.MemFS{"d/f.txt": {Data: []byte("f")}},
-			args:   []string{"-rd", "d"},
-			absent: []string{"d", "d/f.txt"},
+			Name:   "r takes precedence over d",
+			FS:     fsx.MemFS{"d/f.txt": {Data: []byte("f")}},
+			Args:   []string{"-rd", "d"},
+			Absent: []string{"d", "d/f.txt"},
 		},
 	}
 
-	for _, test := range tests {
-		t.Run(test.name, func(t *testing.T) {
-			runCase(t, test)
-		})
-	}
+	testutil.Run(t, New, tests)
 }
 
 func TestRunRecursive(t *testing.T) {
-	tests := []testCase{
+	tests := []testutil.Case{
 		{
-			name:   "removes a hierarchy with an implicit directory",
-			files:  fsx.MemFS{"d/f.txt": {Data: []byte("f")}, "d/sub/g.txt": {Data: []byte("g")}},
-			args:   []string{"-r", "d"},
-			absent: []string{"d", "d/f.txt", "d/sub", "d/sub/g.txt"},
+			Name:   "removes a hierarchy with an implicit directory",
+			FS:     fsx.MemFS{"d/f.txt": {Data: []byte("f")}, "d/sub/g.txt": {Data: []byte("g")}},
+			Args:   []string{"-r", "d"},
+			Absent: []string{"d", "d/f.txt", "d/sub", "d/sub/g.txt"},
 		},
 		{
-			name:   "removes a hierarchy with an explicit directory",
-			files:  fsx.MemFS{"d": {Mode: fs.ModeDir}, "d/f.txt": {Data: []byte("f")}},
-			args:   []string{"-r", "d"},
-			absent: []string{"d", "d/f.txt"},
+			Name:   "removes a hierarchy with an explicit directory",
+			FS:     fsx.MemFS{"d": {Mode: fs.ModeDir}, "d/f.txt": {Data: []byte("f")}},
+			Args:   []string{"-r", "d"},
+			Absent: []string{"d", "d/f.txt"},
 		},
 		{
-			name:   "removes an explicit empty directory",
-			files:  fsx.MemFS{"d": {Mode: fs.ModeDir}},
-			args:   []string{"-r", "d"},
-			absent: []string{"d"},
+			Name:   "removes an explicit empty directory",
+			FS:     fsx.MemFS{"d": {Mode: fs.ModeDir}},
+			Args:   []string{"-r", "d"},
+			Absent: []string{"d"},
 		},
 		{
-			name:   "removes every operand",
-			files:  fsx.MemFS{"a/x.txt": {Data: []byte("x")}, "b/y.txt": {Data: []byte("y")}},
-			args:   []string{"-r", "a", "b"},
-			absent: []string{"a", "a/x.txt", "b", "b/y.txt"},
+			Name:   "removes every operand",
+			FS:     fsx.MemFS{"a/x.txt": {Data: []byte("x")}, "b/y.txt": {Data: []byte("y")}},
+			Args:   []string{"-r", "a", "b"},
+			Absent: []string{"a", "a/x.txt", "b", "b/y.txt"},
 		},
 		{
-			name:   "removes a file operand",
-			files:  fsx.MemFS{"f.txt": {Data: []byte("f")}},
-			args:   []string{"-r", "f.txt"},
-			absent: []string{"f.txt"},
+			Name:   "removes a file operand",
+			FS:     fsx.MemFS{"f.txt": {Data: []byte("f")}},
+			Args:   []string{"-r", "f.txt"},
+			Absent: []string{"f.txt"},
 		},
 		{
-			name:   "R is equivalent to r",
-			files:  fsx.MemFS{"d/f.txt": {Data: []byte("f")}},
-			args:   []string{"-R", "d"},
-			absent: []string{"d", "d/f.txt"},
+			Name:   "R is equivalent to r",
+			FS:     fsx.MemFS{"d/f.txt": {Data: []byte("f")}},
+			Args:   []string{"-R", "d"},
+			Absent: []string{"d", "d/f.txt"},
 		},
 		{
-			name:     "a missing operand is an error",
-			files:    fsx.MemFS{},
-			args:     []string{"-r", "missing"},
-			wantErr:  "rm: missing: file does not exist\n",
-			wantExit: 1,
+			Name:     "a missing operand is an error",
+			FS:       fsx.MemFS{},
+			Args:     []string{"-r", "missing"},
+			WantErr:  "rm: missing: file does not exist\n",
+			WantExit: 1,
 		},
 		{
-			name:     "keeps removing the others after an error",
-			files:    fsx.MemFS{"a/f.txt": {Data: []byte("f")}},
-			args:     []string{"-r", "missing", "a"},
-			absent:   []string{"a", "a/f.txt"},
-			wantErr:  "rm: missing: file does not exist\n",
-			wantExit: 1,
+			Name:     "keeps removing the others after an error",
+			FS:       fsx.MemFS{"a/f.txt": {Data: []byte("f")}},
+			Args:     []string{"-r", "missing", "a"},
+			Absent:   []string{"a", "a/f.txt"},
+			WantErr:  "rm: missing: file does not exist\n",
+			WantExit: 1,
 		},
 		{
-			name:   "removes a deep hierarchy",
-			files:  fsx.MemFS{"a/b/c/d/e.txt": {Data: []byte("e")}},
-			args:   []string{"-r", "a"},
-			absent: []string{"a", "a/b", "a/b/c", "a/b/c/d", "a/b/c/d/e.txt"},
+			Name:   "removes a deep hierarchy",
+			FS:     fsx.MemFS{"a/b/c/d/e.txt": {Data: []byte("e")}},
+			Args:   []string{"-r", "a"},
+			Absent: []string{"a", "a/b", "a/b/c", "a/b/c/d", "a/b/c/d/e.txt"},
 		},
 		{
-			name:   "a trailing slash is dropped",
-			files:  fsx.MemFS{"d/f.txt": {Data: []byte("f")}},
-			args:   []string{"-r", "d/"},
-			absent: []string{"d", "d/f.txt"},
+			Name:   "a trailing slash is dropped",
+			FS:     fsx.MemFS{"d/f.txt": {Data: []byte("f")}},
+			Args:   []string{"-r", "d/"},
+			Absent: []string{"d", "d/f.txt"},
 		},
 	}
 
-	for _, test := range tests {
-		t.Run(test.name, func(t *testing.T) {
-			runCase(t, test)
-		})
-	}
+	testutil.Run(t, New, tests)
 }
 
 func TestRunInteractive(t *testing.T) {
-	tests := []testCase{
+	tests := []testutil.Case{
 		{
-			name:    "prompts and removes when affirmative",
-			files:   fsx.MemFS{"a.txt": {Data: []byte("a")}},
-			stdin:   "y\n",
-			args:    []string{"-i", "a.txt"},
-			absent:  []string{"a.txt"},
-			wantErr: "rm: remove 'a.txt'? ",
+			Name:    "prompts and removes when affirmative",
+			FS:      fsx.MemFS{"a.txt": {Data: []byte("a")}},
+			Stdin:   strings.NewReader("y\n"),
+			Args:    []string{"-i", "a.txt"},
+			Absent:  []string{"a.txt"},
+			WantErr: "rm: remove 'a.txt'? ",
 		},
 		{
-			name:    "a capital answer is affirmative too",
-			files:   fsx.MemFS{"a.txt": {Data: []byte("a")}},
-			stdin:   "Y\n",
-			args:    []string{"-i", "a.txt"},
-			absent:  []string{"a.txt"},
-			wantErr: "rm: remove 'a.txt'? ",
+			Name:    "a capital answer is affirmative too",
+			FS:      fsx.MemFS{"a.txt": {Data: []byte("a")}},
+			Stdin:   strings.NewReader("Y\n"),
+			Args:    []string{"-i", "a.txt"},
+			Absent:  []string{"a.txt"},
+			WantErr: "rm: remove 'a.txt'? ",
 		},
 		{
-			name:    "declines on a negative answer",
-			files:   fsx.MemFS{"a.txt": {Data: []byte("a")}},
-			stdin:   "n\n",
-			args:    []string{"-i", "a.txt"},
-			present: []string{"a.txt"},
-			wantErr: "rm: remove 'a.txt'? ",
+			Name:    "declines on a negative answer",
+			FS:      fsx.MemFS{"a.txt": {Data: []byte("a")}},
+			Stdin:   strings.NewReader("n\n"),
+			Args:    []string{"-i", "a.txt"},
+			Present: []string{"a.txt"},
+			WantErr: "rm: remove 'a.txt'? ",
 		},
 		{
-			name:    "declines on any other answer",
-			files:   fsx.MemFS{"a.txt": {Data: []byte("a")}},
-			stdin:   "maybe\n",
-			args:    []string{"-i", "a.txt"},
-			present: []string{"a.txt"},
-			wantErr: "rm: remove 'a.txt'? ",
+			Name:    "declines on any other answer",
+			FS:      fsx.MemFS{"a.txt": {Data: []byte("a")}},
+			Stdin:   strings.NewReader("maybe\n"),
+			Args:    []string{"-i", "a.txt"},
+			Present: []string{"a.txt"},
+			WantErr: "rm: remove 'a.txt'? ",
 		},
 		{
-			name:    "declines at the end of the input",
-			files:   fsx.MemFS{"a.txt": {Data: []byte("a")}},
-			args:    []string{"-i", "a.txt"},
-			present: []string{"a.txt"},
-			wantErr: "rm: remove 'a.txt'? ",
+			Name:    "declines at the end of the input",
+			FS:      fsx.MemFS{"a.txt": {Data: []byte("a")}},
+			Args:    []string{"-i", "a.txt"},
+			Present: []string{"a.txt"},
+			WantErr: "rm: remove 'a.txt'? ",
 		},
 		{
-			name:    "prompts for every operand",
-			files:   fsx.MemFS{"a.txt": {Data: []byte("a")}, "b.txt": {Data: []byte("b")}},
-			stdin:   "y\nn\n",
-			args:    []string{"-i", "a.txt", "b.txt"},
-			absent:  []string{"a.txt"},
-			present: []string{"b.txt"},
-			wantErr: "rm: remove 'a.txt'? rm: remove 'b.txt'? ",
+			Name:    "prompts for every operand",
+			FS:      fsx.MemFS{"a.txt": {Data: []byte("a")}, "b.txt": {Data: []byte("b")}},
+			Stdin:   strings.NewReader("y\nn\n"),
+			Args:    []string{"-i", "a.txt", "b.txt"},
+			Absent:  []string{"a.txt"},
+			Present: []string{"b.txt"},
+			WantErr: "rm: remove 'a.txt'? rm: remove 'b.txt'? ",
 		},
 		{
-			name:    "a file with r only prompts to remove it",
-			files:   fsx.MemFS{"a.txt": {Data: []byte("a")}},
-			stdin:   "y\n",
-			args:    []string{"-ri", "a.txt"},
-			absent:  []string{"a.txt"},
-			wantErr: "rm: remove 'a.txt'? ",
+			Name:    "a file with r only prompts to remove it",
+			FS:      fsx.MemFS{"a.txt": {Data: []byte("a")}},
+			Stdin:   strings.NewReader("y\n"),
+			Args:    []string{"-ri", "a.txt"},
+			Absent:  []string{"a.txt"},
+			WantErr: "rm: remove 'a.txt'? ",
 		},
 		{
-			name:    "an empty directory with r only prompts to remove it",
-			files:   fsx.MemFS{"d": {Mode: fs.ModeDir}},
-			stdin:   "y\n",
-			args:    []string{"-ri", "d"},
-			absent:  []string{"d"},
-			wantErr: "rm: remove 'd'? ",
+			Name:    "an empty directory with r only prompts to remove it",
+			FS:      fsx.MemFS{"d": {Mode: fs.ModeDir}},
+			Stdin:   strings.NewReader("y\n"),
+			Args:    []string{"-ri", "d"},
+			Absent:  []string{"d"},
+			WantErr: "rm: remove 'd'? ",
 		},
 		{
-			name:    "a hierarchy prompts to descend, for each entry, and to remove the directory",
-			files:   fsx.MemFS{"d/f.txt": {Data: []byte("f")}},
-			stdin:   "y\ny\ny\n",
-			args:    []string{"-ri", "d"},
-			absent:  []string{"d", "d/f.txt"},
-			wantErr: "rm: descend into directory 'd'? rm: remove 'd/f.txt'? rm: remove 'd'? ",
+			Name:    "a hierarchy prompts to descend, for each entry, and to remove the directory",
+			FS:      fsx.MemFS{"d/f.txt": {Data: []byte("f")}},
+			Stdin:   strings.NewReader("y\ny\ny\n"),
+			Args:    []string{"-ri", "d"},
+			Absent:  []string{"d", "d/f.txt"},
+			WantErr: "rm: descend into directory 'd'? rm: remove 'd/f.txt'? rm: remove 'd'? ",
 		},
 		{
-			name:    "declining the descend prompt skips the whole hierarchy",
-			files:   fsx.MemFS{"d/f.txt": {Data: []byte("f")}},
-			stdin:   "n\n",
-			args:    []string{"-ri", "d"},
-			present: []string{"d", "d/f.txt"},
-			wantErr: "rm: descend into directory 'd'? ",
+			Name:    "declining the descend prompt skips the whole hierarchy",
+			FS:      fsx.MemFS{"d/f.txt": {Data: []byte("f")}},
+			Stdin:   strings.NewReader("n\n"),
+			Args:    []string{"-ri", "d"},
+			Present: []string{"d", "d/f.txt"},
+			WantErr: "rm: descend into directory 'd'? ",
 		},
 		{
-			name:    "declining the last prompt leaves an emptied directory",
-			files:   fsx.MemFS{"d": {Mode: fs.ModeDir}, "d/f.txt": {Data: []byte("f")}},
-			stdin:   "y\ny\nn\n",
-			args:    []string{"-ri", "d"},
-			present: []string{"d"},
-			absent:  []string{"d/f.txt"},
-			wantErr: "rm: descend into directory 'd'? rm: remove 'd/f.txt'? rm: remove 'd'? ",
+			Name:    "declining the last prompt leaves an emptied directory",
+			FS:      fsx.MemFS{"d": {Mode: fs.ModeDir}, "d/f.txt": {Data: []byte("f")}},
+			Stdin:   strings.NewReader("y\ny\nn\n"),
+			Args:    []string{"-ri", "d"},
+			Present: []string{"d"},
+			Absent:  []string{"d/f.txt"},
+			WantErr: "rm: descend into directory 'd'? rm: remove 'd/f.txt'? rm: remove 'd'? ",
 		},
 		{
-			name:     "a directory left non-empty by a declined entry fails to be removed",
-			files:    fsx.MemFS{"d/f.txt": {Data: []byte("f")}},
-			stdin:    "y\nn\ny\n",
-			args:     []string{"-ri", "d"},
-			present:  []string{"d", "d/f.txt"},
-			wantErr:  "rm: descend into directory 'd'? rm: remove 'd/f.txt'? rm: remove 'd'? rm: d: directory not empty\n",
-			wantExit: 1,
+			Name:     "a directory left non-empty by a declined entry fails to be removed",
+			FS:       fsx.MemFS{"d/f.txt": {Data: []byte("f")}},
+			Stdin:    strings.NewReader("y\nn\ny\n"),
+			Args:     []string{"-ri", "d"},
+			Present:  []string{"d", "d/f.txt"},
+			WantErr:  "rm: descend into directory 'd'? rm: remove 'd/f.txt'? rm: remove 'd'? rm: d: directory not empty\n",
+			WantExit: 1,
 		},
 		{
-			name:    "a directory with d prompts to remove it",
-			files:   fsx.MemFS{"d": {Mode: fs.ModeDir}},
-			stdin:   "n\n",
-			args:    []string{"-di", "d"},
-			present: []string{"d"},
-			wantErr: "rm: remove 'd'? ",
+			Name:    "a directory with d prompts to remove it",
+			FS:      fsx.MemFS{"d": {Mode: fs.ModeDir}},
+			Stdin:   strings.NewReader("n\n"),
+			Args:    []string{"-di", "d"},
+			Present: []string{"d"},
+			WantErr: "rm: remove 'd'? ",
 		},
 	}
 
-	for _, test := range tests {
-		t.Run(test.name, func(t *testing.T) {
-			runCase(t, test)
-		})
-	}
+	testutil.Run(t, New, tests)
 }
 
 func TestRunInteractiveWithoutStdin(t *testing.T) {
@@ -498,144 +417,132 @@ func TestRunInteractiveWithoutStdin(t *testing.T) {
 }
 
 func TestRunVerbose(t *testing.T) {
-	tests := []testCase{
+	tests := []testutil.Case{
 		{
-			name:    "prints every removed file",
-			files:   fsx.MemFS{"a.txt": {Data: []byte("a")}, "b.txt": {Data: []byte("b")}},
-			args:    []string{"-v", "a.txt", "b.txt"},
-			absent:  []string{"a.txt", "b.txt"},
-			wantOut: "removed 'a.txt'\nremoved 'b.txt'\n",
+			Name:   "prints every removed file",
+			FS:     fsx.MemFS{"a.txt": {Data: []byte("a")}, "b.txt": {Data: []byte("b")}},
+			Args:   []string{"-v", "a.txt", "b.txt"},
+			Absent: []string{"a.txt", "b.txt"},
+			Want:   "removed 'a.txt'\nremoved 'b.txt'\n",
 		},
 		{
-			name:    "prints every entry of a hierarchy, deepest first",
-			files:   fsx.MemFS{"d/f.txt": {Data: []byte("f")}, "d/sub/g.txt": {Data: []byte("g")}},
-			args:    []string{"-rv", "d"},
-			absent:  []string{"d", "d/f.txt", "d/sub", "d/sub/g.txt"},
-			wantOut: "removed 'd/f.txt'\nremoved 'd/sub/g.txt'\nremoved 'd/sub'\nremoved 'd'\n",
+			Name:   "prints every entry of a hierarchy, deepest first",
+			FS:     fsx.MemFS{"d/f.txt": {Data: []byte("f")}, "d/sub/g.txt": {Data: []byte("g")}},
+			Args:   []string{"-rv", "d"},
+			Absent: []string{"d", "d/f.txt", "d/sub", "d/sub/g.txt"},
+			Want:   "removed 'd/f.txt'\nremoved 'd/sub/g.txt'\nremoved 'd/sub'\nremoved 'd'\n",
 		},
 		{
-			name:    "prints nothing without v",
-			files:   fsx.MemFS{"a.txt": {Data: []byte("a")}},
-			args:    []string{"a.txt"},
-			absent:  []string{"a.txt"},
-			wantOut: "",
+			Name:   "prints nothing without v",
+			FS:     fsx.MemFS{"a.txt": {Data: []byte("a")}},
+			Args:   []string{"a.txt"},
+			Absent: []string{"a.txt"},
+			Want:   "",
 		},
 	}
 
-	for _, test := range tests {
-		t.Run(test.name, func(t *testing.T) {
-			runCase(t, test)
-		})
-	}
+	testutil.Run(t, New, tests)
 }
 
 func TestRunLongOptions(t *testing.T) {
-	tests := []testCase{
+	tests := []testutil.Case{
 		{
-			name:   "dir removes an empty directory",
-			files:  fsx.MemFS{"d": {Mode: fs.ModeDir}},
-			args:   []string{"--dir", "d"},
-			absent: []string{"d"},
+			Name:   "dir removes an empty directory",
+			FS:     fsx.MemFS{"d": {Mode: fs.ModeDir}},
+			Args:   []string{"--dir", "d"},
+			Absent: []string{"d"},
 		},
 		{
-			name:  "force ignores a missing file",
-			files: fsx.MemFS{},
-			args:  []string{"--force", "missing"},
+			Name: "force ignores a missing file",
+			FS:   fsx.MemFS{},
+			Args: []string{"--force", "missing"},
 		},
 		{
-			name:    "interactive prompts and removes when affirmative",
-			files:   fsx.MemFS{"a.txt": {Data: []byte("a")}},
-			stdin:   "y\n",
-			args:    []string{"--interactive", "a.txt"},
-			absent:  []string{"a.txt"},
-			wantErr: "rm: remove 'a.txt'? ",
+			Name:    "interactive prompts and removes when affirmative",
+			FS:      fsx.MemFS{"a.txt": {Data: []byte("a")}},
+			Stdin:   strings.NewReader("y\n"),
+			Args:    []string{"--interactive", "a.txt"},
+			Absent:  []string{"a.txt"},
+			WantErr: "rm: remove 'a.txt'? ",
 		},
 		{
-			name:   "recursive removes a hierarchy",
-			files:  fsx.MemFS{"d/f.txt": {Data: []byte("f")}},
-			args:   []string{"--recursive", "d"},
-			absent: []string{"d", "d/f.txt"},
+			Name:   "recursive removes a hierarchy",
+			FS:     fsx.MemFS{"d/f.txt": {Data: []byte("f")}},
+			Args:   []string{"--recursive", "d"},
+			Absent: []string{"d", "d/f.txt"},
 		},
 		{
-			name:    "verbose prints every removed file",
-			files:   fsx.MemFS{"a.txt": {Data: []byte("a")}},
-			args:    []string{"--verbose", "a.txt"},
-			absent:  []string{"a.txt"},
-			wantOut: "removed 'a.txt'\n",
+			Name:   "verbose prints every removed file",
+			FS:     fsx.MemFS{"a.txt": {Data: []byte("a")}},
+			Args:   []string{"--verbose", "a.txt"},
+			Absent: []string{"a.txt"},
+			Want:   "removed 'a.txt'\n",
 		},
 		{
-			name:     "a long option with a value it doesn't take is an error",
-			files:    fsx.MemFS{"a.txt": {Data: []byte("a")}},
-			args:     []string{"--force=yes", "a.txt"},
-			present:  []string{"a.txt"},
-			wantErr:  "rm: option '--force=yes' doesn't allow an argument\nTry 'rm --help' for more information.\n",
-			wantExit: 2,
+			Name:     "a long option with a value it doesn't take is an error",
+			FS:       fsx.MemFS{"a.txt": {Data: []byte("a")}},
+			Args:     []string{"--force=yes", "a.txt"},
+			Present:  []string{"a.txt"},
+			WantErr:  "rm: option '--force=yes' doesn't allow an argument\nTry 'rm --help' for more information.\n",
+			WantExit: 2,
 		},
 	}
 
-	for _, test := range tests {
-		t.Run(test.name, func(t *testing.T) {
-			runCase(t, test)
-		})
-	}
+	testutil.Run(t, New, tests)
 }
 
 func TestRunErrors(t *testing.T) {
-	tests := []testCase{
+	tests := []testutil.Case{
 		{
-			name:     "missing operand",
-			files:    fsx.MemFS{},
-			args:     []string{},
-			wantErr:  "rm: missing operand\nTry 'rm --help' for more information.\n",
-			wantExit: 2,
+			Name:     "missing operand",
+			FS:       fsx.MemFS{},
+			Args:     []string{},
+			WantErr:  "rm: missing operand\nTry 'rm --help' for more information.\n",
+			WantExit: 2,
 		},
 		{
-			name:     "invalid option",
-			files:    fsx.MemFS{"a.txt": {Data: []byte("a")}},
-			args:     []string{"-x", "a.txt"},
-			present:  []string{"a.txt"},
-			wantErr:  "rm: invalid option -- 'x'\nTry 'rm --help' for more information.\n",
-			wantExit: 2,
+			Name:     "invalid option",
+			FS:       fsx.MemFS{"a.txt": {Data: []byte("a")}},
+			Args:     []string{"-x", "a.txt"},
+			Present:  []string{"a.txt"},
+			WantErr:  "rm: invalid option -- 'x'\nTry 'rm --help' for more information.\n",
+			WantExit: 2,
 		},
 		{
-			name:     "an unrecognized long option",
-			files:    fsx.MemFS{"a.txt": {Data: []byte("a")}},
-			args:     []string{"--bogus", "a.txt"},
-			present:  []string{"a.txt"},
-			wantErr:  "rm: unrecognized option '--bogus'\nTry 'rm --help' for more information.\n",
-			wantExit: 2,
+			Name:     "an unrecognized long option",
+			FS:       fsx.MemFS{"a.txt": {Data: []byte("a")}},
+			Args:     []string{"--bogus", "a.txt"},
+			Present:  []string{"a.txt"},
+			WantErr:  "rm: unrecognized option '--bogus'\nTry 'rm --help' for more information.\n",
+			WantExit: 2,
 		},
 		{
-			name:     "an empty operand",
-			files:    fsx.MemFS{},
-			args:     []string{""},
-			wantErr:  "rm: invalid zero-length file name\n",
-			wantExit: 1,
+			Name:     "an empty operand",
+			FS:       fsx.MemFS{},
+			Args:     []string{""},
+			WantErr:  "rm: invalid zero-length file name\n",
+			WantExit: 1,
 		},
 		{
-			name:     "options are not parsed after an operand",
-			files:    fsx.MemFS{"a.txt": {Data: []byte("a")}},
-			args:     []string{"a.txt", "-x"},
-			absent:   []string{"a.txt"},
-			wantErr:  "rm: -x: file does not exist\n",
-			wantExit: 1,
+			Name:     "options are not parsed after an operand",
+			FS:       fsx.MemFS{"a.txt": {Data: []byte("a")}},
+			Args:     []string{"a.txt", "-x"},
+			Absent:   []string{"a.txt"},
+			WantErr:  "rm: -x: file does not exist\n",
+			WantExit: 1,
 		},
 	}
 
-	for _, test := range tests {
-		t.Run(test.name, func(t *testing.T) {
-			runCase(t, test)
-		})
-	}
+	testutil.Run(t, New, tests)
 }
 
 func TestRunWorkingDir(t *testing.T) {
-	runCase(t, testCase{
-		name:   "resolves operands relative to the working directory",
-		files:  fsx.MemFS{"work/a.txt": {Data: []byte("a")}},
-		wd:     "work",
-		args:   []string{"a.txt"},
-		absent: []string{"work/a.txt"},
+	testutil.Once(t, New, testutil.Case{
+		Name:   "resolves operands relative to the working directory",
+		FS:     fsx.MemFS{"work/a.txt": {Data: []byte("a")}},
+		Dir:    "work",
+		Args:   []string{"a.txt"},
+		Absent: []string{"work/a.txt"},
 	})
 }
 
@@ -644,11 +551,11 @@ func TestRunWindowsSeparators(t *testing.T) {
 		t.Skip("windows-only")
 	}
 
-	runCase(t, testCase{
-		name:   "backslashes are treated as separators",
-		files:  fsx.MemFS{"d/f.txt": {Data: []byte("f")}},
-		args:   []string{"d\\f.txt"},
-		absent: []string{"d/f.txt"},
+	testutil.Once(t, New, testutil.Case{
+		Name:   "backslashes are treated as separators",
+		FS:     fsx.MemFS{"d/f.txt": {Data: []byte("f")}},
+		Args:   []string{"d\\f.txt"},
+		Absent: []string{"d/f.txt"},
 	})
 }
 
@@ -693,26 +600,5 @@ func TestProtectedErr(t *testing.T) {
 }
 
 func TestHelpVersion(t *testing.T) {
-	t.Run("help", func(t *testing.T) {
-		stdout := new(bytes.Buffer)
-		rt := &coreutils.Runtime{Stdout: stdout, Stderr: new(bytes.Buffer)}
-		if err := New(rt).Run(t.Context(), "--help"); err != nil {
-			t.Fatalf("Run() error = %v, want nil (exit status 0)", err)
-		}
-		if got, want := stdout.String(), usage; got != want {
-			t.Errorf("Run() stdout = %q, want %q", got, want)
-		}
-	})
-
-	t.Run("version", func(t *testing.T) {
-		stdout := new(bytes.Buffer)
-		rt := &coreutils.Runtime{Stdout: stdout, Stderr: new(bytes.Buffer)}
-		if err := New(rt).Run(t.Context(), "--version"); err != nil {
-			t.Fatalf("Run() error = %v, want nil (exit status 0)", err)
-		}
-		want := "rm (charm.land/snail/coreutils) " + coreutils.Version + "\nhttps://charm.land/snail\n"
-		if got := stdout.String(); got != want {
-			t.Errorf("Run() stdout = %q, want %q", got, want)
-		}
-	})
+	testutil.HelpVersion(t, New, "rm", usage)
 }

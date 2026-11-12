@@ -9,6 +9,7 @@ import (
 	"testing"
 
 	"charm.land/snail/coreutils"
+	"charm.land/snail/coreutils/internal/testutil"
 	"charm.land/snail/fsx"
 )
 
@@ -27,460 +28,383 @@ func tree() fsx.MemFS {
 	}
 }
 
-type testCase struct {
-	name     string
-	files    fsx.MemFS
-	wd       string
-	args     []string
-	environ  []string
-	wantOut  string
-	wantErr  string
-	wantExit int
-}
-
-func runCase(t *testing.T, test testCase) {
-	t.Helper()
-
-	stdout := new(bytes.Buffer)
-	stderr := new(bytes.Buffer)
-	rt := &coreutils.Runtime{
-		Stdin:      strings.NewReader(""),
-		Stdout:     stdout,
-		Stderr:     stderr,
-		FS:         test.files,
-		WorkingDir: test.wd,
-	}
-	if test.environ != nil {
-		rt.Environ = func() []string { return test.environ }
-	}
-
-	err := New(rt).Run(t.Context(), test.args...)
-
-	if got := stdout.String(); got != test.wantOut {
-		t.Errorf("Run() stdout = %q, want %q", got, test.wantOut)
-	}
-	if got := stderr.String(); got != test.wantErr {
-		t.Errorf("Run() stderr = %q, want %q", got, test.wantErr)
-	}
-	if code := exitCode(t, err); code != test.wantExit {
-		t.Errorf("Run() exit code = %d, want %d (error = %v)", code, test.wantExit, err)
-	}
-}
-
-func exitCode(t *testing.T, err error) int {
-	t.Helper()
-
-	if err == nil {
-		return 0
-	}
-	var exitErr *coreutils.ExitError
-	if !errors.As(err, &exitErr) {
-		t.Fatalf("Run() error = %v, want *coreutils.ExitError", err)
-	}
-	return exitErr.Code
-}
-
 func TestRunLinkTargets(t *testing.T) {
-	tests := []testCase{
+	tests := []testutil.Case{
 		{
-			name:    "prints the target of a symbolic link",
-			files:   tree(),
-			wd:      "work",
-			args:    []string{"link"},
-			wantOut: "a.txt\n",
+			Name: "prints the target of a symbolic link",
+			FS:   tree(),
+			Dir:  "work",
+			Args: []string{"link"},
+			Want: "a.txt\n",
 		},
 		{
-			name:    "a target is printed as stored, without being resolved",
-			files:   tree(),
-			wd:      "work",
-			args:    []string{"chain"},
-			wantOut: "link\n",
+			Name: "a target is printed as stored, without being resolved",
+			FS:   tree(),
+			Dir:  "work",
+			Args: []string{"chain"},
+			Want: "link\n",
 		},
 		{
-			name:    "a dangling link still prints its target",
-			files:   tree(),
-			wd:      "work",
-			args:    []string{"dangling"},
-			wantOut: "missing.txt\n",
+			Name: "a dangling link still prints its target",
+			FS:   tree(),
+			Dir:  "work",
+			Args: []string{"dangling"},
+			Want: "missing.txt\n",
 		},
 		{
-			name:    "a link to a directory prints its target",
-			files:   tree(),
-			wd:      "work",
-			args:    []string{"dirlink"},
-			wantOut: "d\n",
+			Name: "a link to a directory prints its target",
+			FS:   tree(),
+			Dir:  "work",
+			Args: []string{"dirlink"},
+			Want: "d\n",
 		},
 		{
-			name:    "each operand is printed on its own line",
-			files:   tree(),
-			wd:      "work",
-			args:    []string{"link", "dangling"},
-			wantOut: "a.txt\nmissing.txt\n",
+			Name: "each operand is printed on its own line",
+			FS:   tree(),
+			Dir:  "work",
+			Args: []string{"link", "dangling"},
+			Want: "a.txt\nmissing.txt\n",
 		},
 		{
-			name:    "the working directory is a prefix of the operand",
-			files:   tree(),
-			wd:      "work",
-			args:    []string{"dirlink/../link"},
-			wantOut: "a.txt\n",
+			Name: "the working directory is a prefix of the operand",
+			FS:   tree(),
+			Dir:  "work",
+			Args: []string{"dirlink/../link"},
+			Want: "a.txt\n",
 		},
 	}
 
-	for _, test := range tests {
-		t.Run(test.name, func(t *testing.T) {
-			runCase(t, test)
-		})
-	}
+	testutil.Run(t, New, tests)
 }
 
 func TestRunNotALink(t *testing.T) {
-	tests := []testCase{
+	tests := []testutil.Case{
 		{
-			name:     "a regular file prints nothing and fails quietly",
-			files:    tree(),
-			wd:       "work",
-			args:     []string{"a.txt"},
-			wantExit: 1,
+			Name:     "a regular file prints nothing and fails quietly",
+			FS:       tree(),
+			Dir:      "work",
+			Args:     []string{"a.txt"},
+			WantExit: 1,
 		},
 		{
-			name:     "a directory prints nothing and fails quietly",
-			files:    tree(),
-			wd:       "work",
-			args:     []string{"d"},
-			wantExit: 1,
+			Name:     "a directory prints nothing and fails quietly",
+			FS:       tree(),
+			Dir:      "work",
+			Args:     []string{"d"},
+			WantExit: 1,
 		},
 		{
-			name:     "a missing file fails quietly",
-			files:    tree(),
-			wd:       "work",
-			args:     []string{"missing"},
-			wantExit: 1,
+			Name:     "a missing file fails quietly",
+			FS:       tree(),
+			Dir:      "work",
+			Args:     []string{"missing"},
+			WantExit: 1,
 		},
 		{
-			name:     "-v reports a file which isn't a link",
-			files:    tree(),
-			wd:       "work",
-			args:     []string{"-v", "a.txt"},
-			wantErr:  "readlink: a.txt: not a symbolic link\n",
-			wantExit: 1,
+			Name:     "-v reports a file which isn't a link",
+			FS:       tree(),
+			Dir:      "work",
+			Args:     []string{"-v", "a.txt"},
+			WantErr:  "readlink: a.txt: not a symbolic link\n",
+			WantExit: 1,
 		},
 		{
-			name:     "-v reports a missing file",
-			files:    tree(),
-			wd:       "work",
-			args:     []string{"-v", "missing"},
-			wantErr:  "readlink: missing: file does not exist\n",
-			wantExit: 1,
+			Name:     "-v reports a missing file",
+			FS:       tree(),
+			Dir:      "work",
+			Args:     []string{"-v", "missing"},
+			WantErr:  "readlink: missing: file does not exist\n",
+			WantExit: 1,
 		},
 		{
-			name:     "a failing operand doesn't stop the others",
-			files:    tree(),
-			wd:       "work",
-			args:     []string{"a.txt", "link"},
-			wantOut:  "a.txt\n",
-			wantExit: 1,
+			Name:     "a failing operand doesn't stop the others",
+			FS:       tree(),
+			Dir:      "work",
+			Args:     []string{"a.txt", "link"},
+			Want:     "a.txt\n",
+			WantExit: 1,
 		},
 		{
-			name:     "-q suppresses the error messages",
-			files:    tree(),
-			wd:       "work",
-			args:     []string{"-q", "missing"},
-			wantExit: 1,
+			Name:     "-q suppresses the error messages",
+			FS:       tree(),
+			Dir:      "work",
+			Args:     []string{"-q", "missing"},
+			WantExit: 1,
 		},
 		{
-			name:     "-s is --silent",
-			files:    tree(),
-			wd:       "work",
-			args:     []string{"-s", "a.txt"},
-			wantExit: 1,
+			Name:     "-s is --silent",
+			FS:       tree(),
+			Dir:      "work",
+			Args:     []string{"-s", "a.txt"},
+			WantExit: 1,
 		},
 	}
 
-	for _, test := range tests {
-		t.Run(test.name, func(t *testing.T) {
-			runCase(t, test)
-		})
-	}
+	testutil.Run(t, New, tests)
 }
 
 func TestRunPOSIXLYCorrect(t *testing.T) {
 	env := []string{"POSIXLY_CORRECT=1"}
-	tests := []testCase{
+	tests := []testutil.Case{
 		{
-			name:     "errors are reported by default",
-			files:    tree(),
-			wd:       "work",
-			args:     []string{"missing"},
-			environ:  env,
-			wantErr:  "readlink: missing: file does not exist\n",
-			wantExit: 1,
+			Name:     "errors are reported by default",
+			FS:       tree(),
+			Dir:      "work",
+			Args:     []string{"missing"},
+			Environ:  env,
+			WantErr:  "readlink: missing: file does not exist\n",
+			WantExit: 1,
 		},
 		{
-			name:     "an empty POSIXLY_CORRECT still counts as set",
-			files:    tree(),
-			wd:       "work",
-			args:     []string{"missing"},
-			environ:  []string{"POSIXLY_CORRECT="},
-			wantErr:  "readlink: missing: file does not exist\n",
-			wantExit: 1,
+			Name:     "an empty POSIXLY_CORRECT still counts as set",
+			FS:       tree(),
+			Dir:      "work",
+			Args:     []string{"missing"},
+			Environ:  []string{"POSIXLY_CORRECT="},
+			WantErr:  "readlink: missing: file does not exist\n",
+			WantExit: 1,
 		},
 		{
-			name:     "-q still suppresses them",
-			files:    tree(),
-			wd:       "work",
-			args:     []string{"-q", "missing"},
-			environ:  env,
-			wantExit: 1,
+			Name:     "-q still suppresses them",
+			FS:       tree(),
+			Dir:      "work",
+			Args:     []string{"-q", "missing"},
+			Environ:  env,
+			WantExit: 1,
 		},
 		{
-			name:     "-s still suppresses them",
-			files:    tree(),
-			wd:       "work",
-			args:     []string{"-s", "a.txt"},
-			environ:  env,
-			wantExit: 1,
+			Name:     "-s still suppresses them",
+			FS:       tree(),
+			Dir:      "work",
+			Args:     []string{"-s", "a.txt"},
+			Environ:  env,
+			WantExit: 1,
 		},
 		{
-			name:     "-v keeps the messages on with POSIXLY_CORRECT",
-			files:    tree(),
-			wd:       "work",
-			args:     []string{"-v", "missing"},
-			environ:  env,
-			wantErr:  "readlink: missing: file does not exist\n",
-			wantExit: 1,
+			Name:     "-v keeps the messages on with POSIXLY_CORRECT",
+			FS:       tree(),
+			Dir:      "work",
+			Args:     []string{"-v", "missing"},
+			Environ:  env,
+			WantErr:  "readlink: missing: file does not exist\n",
+			WantExit: 1,
 		},
 		{
-			name:    "successful operands print their target",
-			files:   tree(),
-			wd:      "work",
-			args:    []string{"link"},
-			environ: env,
-			wantOut: "a.txt\n",
+			Name:    "successful operands print their target",
+			FS:      tree(),
+			Dir:     "work",
+			Args:    []string{"link"},
+			Environ: env,
+			Want:    "a.txt\n",
 		},
 	}
 
-	for _, test := range tests {
-		t.Run(test.name, func(t *testing.T) {
-			runCase(t, test)
-		})
-	}
+	testutil.Run(t, New, tests)
 }
 
 func TestRunCanonicalize(t *testing.T) {
-	tests := []testCase{
+	tests := []testutil.Case{
 		{
-			name:    "-f resolves a regular file",
-			files:   tree(),
-			wd:      "work",
-			args:    []string{"-f", "a.txt"},
-			wantOut: "work/a.txt\n",
+			Name: "-f resolves a regular file",
+			FS:   tree(),
+			Dir:  "work",
+			Args: []string{"-f", "a.txt"},
+			Want: "work/a.txt\n",
 		},
 		{
-			name:    "-f resolves a link to its target",
-			files:   tree(),
-			wd:      "work",
-			args:    []string{"-f", "link"},
-			wantOut: "work/a.txt\n",
+			Name: "-f resolves a link to its target",
+			FS:   tree(),
+			Dir:  "work",
+			Args: []string{"-f", "link"},
+			Want: "work/a.txt\n",
 		},
 		{
-			name:    "-f resolves the whole chain of links",
-			files:   tree(),
-			wd:      "work",
-			args:    []string{"-f", "chain"},
-			wantOut: "work/a.txt\n",
+			Name: "-f resolves the whole chain of links",
+			FS:   tree(),
+			Dir:  "work",
+			Args: []string{"-f", "chain"},
+			Want: "work/a.txt\n",
 		},
 		{
-			name:    "-f keeps a dangling last component",
-			files:   tree(),
-			wd:      "work",
-			args:    []string{"-f", "dangling"},
-			wantOut: "work/missing.txt\n",
+			Name: "-f keeps a dangling last component",
+			FS:   tree(),
+			Dir:  "work",
+			Args: []string{"-f", "dangling"},
+			Want: "work/missing.txt\n",
 		},
 		{
-			name:     "-f fails quietly when a component before the last is missing",
-			files:    tree(),
-			wd:       "work",
-			args:     []string{"-f", "missing/x"},
-			wantExit: 1,
+			Name:     "-f fails quietly when a component before the last is missing",
+			FS:       tree(),
+			Dir:      "work",
+			Args:     []string{"-f", "missing/x"},
+			WantExit: 1,
 		},
 		{
-			name:     "-v reports the errors of canonicalize mode",
-			files:    tree(),
-			wd:       "work",
-			args:     []string{"-v", "-f", "missing/x"},
-			wantErr:  "readlink: missing/x: file does not exist\n",
-			wantExit: 1,
+			Name:     "-v reports the errors of canonicalize mode",
+			FS:       tree(),
+			Dir:      "work",
+			Args:     []string{"-v", "-f", "missing/x"},
+			WantErr:  "readlink: missing/x: file does not exist\n",
+			WantExit: 1,
 		},
 		{
-			name:    "-e resolves existing names",
-			files:   tree(),
-			wd:      "work",
-			args:    []string{"-e", "link"},
-			wantOut: "work/a.txt\n",
+			Name: "-e resolves existing names",
+			FS:   tree(),
+			Dir:  "work",
+			Args: []string{"-e", "link"},
+			Want: "work/a.txt\n",
 		},
 		{
-			name:     "-e fails on a missing last component",
-			files:    tree(),
-			wd:       "work",
-			args:     []string{"-e", "missing"},
-			wantExit: 1,
+			Name:     "-e fails on a missing last component",
+			FS:       tree(),
+			Dir:      "work",
+			Args:     []string{"-e", "missing"},
+			WantExit: 1,
 		},
 		{
-			name:     "-e fails on a dangling link",
-			files:    tree(),
-			wd:       "work",
-			args:     []string{"-e", "dangling"},
-			wantExit: 1,
+			Name:     "-e fails on a dangling link",
+			FS:       tree(),
+			Dir:      "work",
+			Args:     []string{"-e", "dangling"},
+			WantExit: 1,
 		},
 		{
-			name:    "-m treats missing components as directories",
-			files:   tree(),
-			wd:      "work",
-			args:    []string{"-m", "none/x"},
-			wantOut: "work/none/x\n",
+			Name: "-m treats missing components as directories",
+			FS:   tree(),
+			Dir:  "work",
+			Args: []string{"-m", "none/x"},
+			Want: "work/none/x\n",
 		},
 		{
-			name:     "-f fails on a symbolic link loop",
-			files:    tree(),
-			wd:       "work",
-			args:     []string{"-f", "loop"},
-			wantExit: 1,
+			Name:     "-f fails on a symbolic link loop",
+			FS:       tree(),
+			Dir:      "work",
+			Args:     []string{"-f", "loop"},
+			WantExit: 1,
 		},
 		{
-			name:    "the last mode option wins",
-			files:   tree(),
-			wd:      "work",
-			args:    []string{"-f", "-e", "a.txt"},
-			wantOut: "work/a.txt\n",
+			Name: "the last mode option wins",
+			FS:   tree(),
+			Dir:  "work",
+			Args: []string{"-f", "-e", "a.txt"},
+			Want: "work/a.txt\n",
 		},
 		{
-			name:    "-f ignores a trailing slash",
-			files:   tree(),
-			wd:      "work",
-			args:    []string{"-f", "d/"},
-			wantOut: "work/d\n",
+			Name: "-f ignores a trailing slash",
+			FS:   tree(),
+			Dir:  "work",
+			Args: []string{"-f", "d/"},
+			Want: "work/d\n",
 		},
 	}
 
-	for _, test := range tests {
-		t.Run(test.name, func(t *testing.T) {
-			runCase(t, test)
-		})
-	}
+	testutil.Run(t, New, tests)
 }
 
 func TestRunDelimiters(t *testing.T) {
-	tests := []testCase{
+	tests := []testutil.Case{
 		{
-			name:    "-n prints no delimiter for a single file",
-			files:   tree(),
-			wd:      "work",
-			args:    []string{"-n", "link"},
-			wantOut: "a.txt",
+			Name: "-n prints no delimiter for a single file",
+			FS:   tree(),
+			Dir:  "work",
+			Args: []string{"-n", "link"},
+			Want: "a.txt",
 		},
 		{
-			name:    "-n prints no delimiter for several files",
-			files:   tree(),
-			wd:      "work",
-			args:    []string{"-n", "link", "dangling"},
-			wantOut: "a.txtmissing.txt",
-			wantErr: "readlink: warning: -n specified with more than one operand; not printing delimiters\n",
+			Name:    "-n prints no delimiter for several files",
+			FS:      tree(),
+			Dir:     "work",
+			Args:    []string{"-n", "link", "dangling"},
+			Want:    "a.txtmissing.txt",
+			WantErr: "readlink: warning: -n specified with more than one operand; not printing delimiters\n",
 		},
 		{
-			name:    "-n keeps -z from printing a delimiter",
-			files:   tree(),
-			wd:      "work",
-			args:    []string{"-nz", "link"},
-			wantOut: "a.txt",
+			Name: "-n keeps -z from printing a delimiter",
+			FS:   tree(),
+			Dir:  "work",
+			Args: []string{"-nz", "link"},
+			Want: "a.txt",
 		},
 		{
-			name:    "-z ends each line with NUL",
-			files:   tree(),
-			wd:      "work",
-			args:    []string{"-z", "link", "dangling"},
-			wantOut: "a.txt\x00missing.txt\x00",
+			Name: "-z ends each line with NUL",
+			FS:   tree(),
+			Dir:  "work",
+			Args: []string{"-z", "link", "dangling"},
+			Want: "a.txt\x00missing.txt\x00",
 		},
 		{
-			name:    "short options can be grouped",
-			files:   tree(),
-			wd:      "work",
-			args:    []string{"-qzn", "link"},
-			wantOut: "a.txt",
+			Name: "short options can be grouped",
+			FS:   tree(),
+			Dir:  "work",
+			Args: []string{"-qzn", "link"},
+			Want: "a.txt",
 		},
 	}
 
-	for _, test := range tests {
-		t.Run(test.name, func(t *testing.T) {
-			runCase(t, test)
-		})
-	}
+	testutil.Run(t, New, tests)
 }
 
 func TestRunUsageErrors(t *testing.T) {
-	tests := []testCase{
+	tests := []testutil.Case{
 		{
-			name:     "missing operands",
-			files:    tree(),
-			wd:       "work",
-			wantErr:  "readlink: missing operand\nTry 'readlink --help' for more information.\n",
-			wantExit: 1,
+			Name:     "missing operands",
+			FS:       tree(),
+			Dir:      "work",
+			WantErr:  "readlink: missing operand\nTry 'readlink --help' for more information.\n",
+			WantExit: 1,
 		},
 		{
-			name:     "an invalid short option",
-			files:    tree(),
-			wd:       "work",
-			args:     []string{"-x", "link"},
-			wantErr:  "readlink: invalid option -- 'x'\nTry 'readlink --help' for more information.\n",
-			wantExit: 1,
+			Name:     "an invalid short option",
+			FS:       tree(),
+			Dir:      "work",
+			Args:     []string{"-x", "link"},
+			WantErr:  "readlink: invalid option -- 'x'\nTry 'readlink --help' for more information.\n",
+			WantExit: 1,
 		},
 		{
-			name:     "an unknown long option",
-			files:    tree(),
-			wd:       "work",
-			args:     []string{"--bogus", "link"},
-			wantErr:  "readlink: unrecognized option '--bogus'\nTry 'readlink --help' for more information.\n",
-			wantExit: 1,
+			Name:     "an unknown long option",
+			FS:       tree(),
+			Dir:      "work",
+			Args:     []string{"--bogus", "link"},
+			WantErr:  "readlink: unrecognized option '--bogus'\nTry 'readlink --help' for more information.\n",
+			WantExit: 1,
 		},
 		{
-			name:     "an empty operand",
-			files:    tree(),
-			wd:       "work",
-			args:     []string{""},
-			wantErr:  "readlink: invalid zero-length file name\n",
-			wantExit: 1,
+			Name:     "an empty operand",
+			FS:       tree(),
+			Dir:      "work",
+			Args:     []string{""},
+			WantErr:  "readlink: invalid zero-length file name\n",
+			WantExit: 1,
 		},
 		{
-			name:  "the options end at the first operand",
-			files: tree(),
-			wd:    "work",
-			args:  []string{"link", "-n"},
+			Name: "the options end at the first operand",
+			FS:   tree(),
+			Dir:  "work",
+			Args: []string{"link", "-n"},
 			// "-n" is an operand, and it names no link; it fails quietly.
-			wantOut:  "a.txt\n",
-			wantExit: 1,
+			Want:     "a.txt\n",
+			WantExit: 1,
 		},
 		{
-			name:    "-- ends the options",
-			files:   tree(),
-			wd:      "work",
-			args:    []string{"--", "link"},
-			wantOut: "a.txt\n",
+			Name: "-- ends the options",
+			FS:   tree(),
+			Dir:  "work",
+			Args: []string{"--", "link"},
+			Want: "a.txt\n",
 		},
 	}
 
-	for _, test := range tests {
-		t.Run(test.name, func(t *testing.T) {
-			runCase(t, test)
-		})
-	}
+	testutil.Run(t, New, tests)
 }
 
 func TestCommonOptions(t *testing.T) {
 	t.Run("--help prints the usage", func(t *testing.T) {
-		runCase(t, testCase{
-			files:   tree(),
-			wd:      "work",
-			args:    []string{"--help"},
-			wantOut: usage,
+		testutil.Once(t, New, testutil.Case{
+			FS:   tree(),
+			Dir:  "work",
+			Args: []string{"--help"},
+			Want: usage,
 		})
 	})
 	t.Run("--version prints the program name", func(t *testing.T) {

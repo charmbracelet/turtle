@@ -4,112 +4,14 @@ import (
 	"bytes"
 	"context"
 	"errors"
-	"io"
 	"io/fs"
 	"strings"
 	"testing"
-	"time"
 
 	"charm.land/snail/coreutils"
+	"charm.land/snail/coreutils/internal/testutil"
 	"charm.land/snail/fsx"
 )
-
-type spyReader struct {
-	read bool
-}
-
-func (r *spyReader) Read([]byte) (int, error) {
-	r.read = true
-	return 0, io.EOF
-}
-
-type errorReader struct {
-	err error
-}
-
-func (r errorReader) Read([]byte) (int, error) {
-	return 0, r.err
-}
-
-type errorWriter struct {
-	err error
-}
-
-func (w errorWriter) Write([]byte) (int, error) {
-	return 0, w.err
-}
-
-// cancelReader cancels its context on the first read, simulating a context
-// that is done while input is being read.
-type cancelReader struct {
-	cancel context.CancelFunc
-	reads  int
-}
-
-func (r *cancelReader) Read(p []byte) (int, error) {
-	if r.reads > 0 {
-		return 0, io.EOF
-	}
-	r.reads++
-	r.cancel()
-	return copy(p, "a b\nc"), nil
-}
-
-// readerFS is an fs.FS whose only file reads from a reader.
-type readerFS struct {
-	r io.Reader
-}
-
-func (f readerFS) Open(string) (fs.File, error) {
-	return readerFile{f.r}, nil
-}
-
-func (readerFS) OpenFile(string, int, fs.FileMode) (fsx.File, error) {
-	return nil, fs.ErrInvalid
-}
-
-func (readerFS) Chtimes(string, time.Time, time.Time) error {
-	return fs.ErrInvalid
-}
-
-func (readerFS) Chmod(string, fs.FileMode) error {
-	return fs.ErrInvalid
-}
-
-func (readerFS) Mkdir(string, fs.FileMode) error {
-	return fs.ErrInvalid
-}
-
-func (readerFS) Remove(string) error {
-	return fs.ErrInvalid
-}
-
-func (readerFS) Rename(string, string) error {
-	return fs.ErrInvalid
-}
-
-func (readerFS) Link(string, string) error {
-	return fs.ErrInvalid
-}
-
-func (readerFS) Symlink(string, string) error {
-	return fs.ErrInvalid
-}
-
-func (readerFS) ReadLink(string) (string, error) {
-	return "", fs.ErrInvalid
-}
-
-func (readerFS) Lstat(string) (fs.FileInfo, error) {
-	return nil, fs.ErrInvalid
-}
-
-type readerFile struct {
-	io.Reader
-}
-
-func (readerFile) Close() error               { return nil }
-func (readerFile) Stat() (fs.FileInfo, error) { return nil, fs.ErrInvalid }
 
 // testFS holds the fixtures used by the tests:
 //
@@ -136,237 +38,180 @@ func testFS() fsx.MemFS {
 	}
 }
 
-func exitCode(t *testing.T, err error) int {
-	t.Helper()
-
-	if err == nil {
-		return 0
-	}
-	var exitErr *coreutils.ExitError
-	if !errors.As(err, &exitErr) {
-		t.Fatalf("Run() error = %v, want *coreutils.ExitError", err)
-	}
-	return exitErr.Code
-}
-
-type testCase struct {
-	name     string
-	stdin    io.Reader
-	fsys     fsx.FS
-	dir      string
-	args     []string
-	want     string
-	wantErr  string
-	wantExit int
-}
-
-func runCase(t *testing.T, test testCase) {
-	t.Helper()
-
-	stdout := new(bytes.Buffer)
-	stderr := new(bytes.Buffer)
-	rt := &coreutils.Runtime{
-		Stdin:      test.stdin,
-		Stdout:     stdout,
-		Stderr:     stderr,
-		FS:         test.fsys,
-		WorkingDir: test.dir,
-	}
-	err := New(rt).Run(t.Context(), test.args...)
-
-	if code := exitCode(t, err); code != test.wantExit {
-		t.Errorf("Run() exit code = %d, want %d (error = %v)", code, test.wantExit, err)
-	}
-	if got := stdout.String(); got != test.want {
-		t.Errorf("Run() stdout = %q, want %q", got, test.want)
-	}
-	if got := stderr.String(); got != test.wantErr {
-		t.Errorf("Run() stderr = %q, want %q", got, test.wantErr)
-	}
-}
-
 func TestRunDefaults(t *testing.T) {
-	tests := []testCase{
+	tests := []testutil.Case{
 		{
-			name:  "no operands reads the standard input",
-			stdin: strings.NewReader("a b\nc"),
-			want:  "1 3 5\n",
+			Name:  "no operands reads the standard input",
+			Stdin: strings.NewReader("a b\nc"),
+			Want:  "1 3 5\n",
 		},
 		{
-			name:  "empty standard input",
-			stdin: strings.NewReader(""),
-			want:  "0 0 0\n",
+			Name:  "empty standard input",
+			Stdin: strings.NewReader(""),
+			Want:  "0 0 0\n",
 		},
 		{
-			name:  "dash reads the standard input",
-			stdin: strings.NewReader("a b\nc"),
-			args:  []string{"-"},
-			want:  "1 3 5 -\n",
+			Name:  "dash reads the standard input",
+			Stdin: strings.NewReader("a b\nc"),
+			Args:  []string{"-"},
+			Want:  "1 3 5 -\n",
 		},
 		{
-			name:  "dash combined with a file",
-			stdin: strings.NewReader("a b\nc"),
-			fsys:  testFS(),
-			args:  []string{"-", "one.txt"},
-			want:  "1 3 5 -\n1 3 5 one.txt\n2 6 10 total\n",
+			Name:  "dash combined with a file",
+			Stdin: strings.NewReader("a b\nc"),
+			FS:    testFS(),
+			Args:  []string{"-", "one.txt"},
+			Want:  "1 3 5 -\n1 3 5 one.txt\n2 6 10 total\n",
 		},
 		{
-			name:  "double dash with no operands reads the standard input",
-			stdin: strings.NewReader("a b\nc"),
-			args:  []string{"--"},
-			want:  "1 3 5\n",
+			Name:  "double dash with no operands reads the standard input",
+			Stdin: strings.NewReader("a b\nc"),
+			Args:  []string{"--"},
+			Want:  "1 3 5\n",
 		},
 		{
-			name:  "repeated standard input operands",
-			stdin: strings.NewReader("a b\nc"),
-			args:  []string{"-", "-"},
-			want:  "1 3 5 -\n0 0 0 -\n1 3 5 total\n",
+			Name:  "repeated standard input operands",
+			Stdin: strings.NewReader("a b\nc"),
+			Args:  []string{"-", "-"},
+			Want:  "1 3 5 -\n0 0 0 -\n1 3 5 total\n",
 		},
 		{
-			name: "single file",
-			fsys: testFS(),
-			args: []string{"file.txt"},
-			want: "2 4 20 file.txt\n",
+			Name: "single file",
+			FS:   testFS(),
+			Args: []string{"file.txt"},
+			Want: "2 4 20 file.txt\n",
 		},
 		{
-			name: "empty file",
-			fsys: testFS(),
-			args: []string{"empty.txt"},
-			want: "0 0 0 empty.txt\n",
+			Name: "empty file",
+			FS:   testFS(),
+			Args: []string{"empty.txt"},
+			Want: "0 0 0 empty.txt\n",
 		},
 		{
-			name: "multiple files write a total",
-			fsys: testFS(),
-			args: []string{"file.txt", "one.txt"},
-			want: "2 4 20 file.txt\n1 3 5 one.txt\n3 7 25 total\n",
+			Name: "multiple files write a total",
+			FS:   testFS(),
+			Args: []string{"file.txt", "one.txt"},
+			Want: "2 4 20 file.txt\n1 3 5 one.txt\n3 7 25 total\n",
 		},
 		{
-			name: "the same file twice",
-			fsys: testFS(),
-			args: []string{"file.txt", "file.txt"},
-			want: "2 4 20 file.txt\n2 4 20 file.txt\n4 8 40 total\n",
+			Name: "the same file twice",
+			FS:   testFS(),
+			Args: []string{"file.txt", "file.txt"},
+			Want: "2 4 20 file.txt\n2 4 20 file.txt\n4 8 40 total\n",
 		},
 		{
-			name: "the pathname is echoed as given",
-			fsys: testFS(),
-			dir:  "sub",
-			args: []string{"inner.txt"},
-			want: "1 1 6 inner.txt\n",
+			Name: "the pathname is echoed as given",
+			FS:   testFS(),
+			Dir:  "sub",
+			Args: []string{"inner.txt"},
+			Want: "1 1 6 inner.txt\n",
 		},
 		{
-			name: "a file named like an option after a double dash",
-			fsys: testFS(),
-			args: []string{"--", "-l"},
-			want: "1 1 2 -l\n",
+			Name: "a file named like an option after a double dash",
+			FS:   testFS(),
+			Args: []string{"--", "-l"},
+			Want: "1 1 2 -l\n",
 		},
 	}
 
-	for _, test := range tests {
-		t.Run(test.name, func(t *testing.T) {
-			runCase(t, test)
-		})
-	}
+	testutil.Run(t, New, tests)
 }
 
 func TestRunOptions(t *testing.T) {
-	tests := []testCase{
+	tests := []testutil.Case{
 		{
-			name: "c writes only bytes",
-			fsys: testFS(),
-			args: []string{"-c", "file.txt"},
-			want: "20 file.txt\n",
+			Name: "c writes only bytes",
+			FS:   testFS(),
+			Args: []string{"-c", "file.txt"},
+			Want: "20 file.txt\n",
 		},
 		{
-			name: "l writes only newlines",
-			fsys: testFS(),
-			args: []string{"-l", "file.txt"},
-			want: "2 file.txt\n",
+			Name: "l writes only newlines",
+			FS:   testFS(),
+			Args: []string{"-l", "file.txt"},
+			Want: "2 file.txt\n",
 		},
 		{
-			name: "w writes only words",
-			fsys: testFS(),
-			args: []string{"-w", "file.txt"},
-			want: "4 file.txt\n",
+			Name: "w writes only words",
+			FS:   testFS(),
+			Args: []string{"-w", "file.txt"},
+			Want: "4 file.txt\n",
 		},
 		{
-			name: "m writes only characters",
-			fsys: testFS(),
-			args: []string{"-m", "utf8.txt"},
-			want: "12 utf8.txt\n",
+			Name: "m writes only characters",
+			FS:   testFS(),
+			Args: []string{"-m", "utf8.txt"},
+			Want: "12 utf8.txt\n",
 		},
 		{
-			name: "grouped options",
-			fsys: testFS(),
-			args: []string{"-lw", "file.txt"},
-			want: "2 4 file.txt\n",
+			Name: "grouped options",
+			FS:   testFS(),
+			Args: []string{"-lw", "file.txt"},
+			Want: "2 4 file.txt\n",
 		},
 		{
-			name: "grouped options in any order",
-			fsys: testFS(),
-			args: []string{"-wl", "file.txt"},
-			want: "2 4 file.txt\n",
+			Name: "grouped options in any order",
+			FS:   testFS(),
+			Args: []string{"-wl", "file.txt"},
+			Want: "2 4 file.txt\n",
 		},
 		{
-			name: "repeated options",
-			fsys: testFS(),
-			args: []string{"-l", "-l", "file.txt"},
-			want: "2 file.txt\n",
+			Name: "repeated options",
+			FS:   testFS(),
+			Args: []string{"-l", "-l", "file.txt"},
+			Want: "2 file.txt\n",
 		},
 		{
-			name: "l and c",
-			fsys: testFS(),
-			args: []string{"-lc", "file.txt"},
-			want: "2 20 file.txt\n",
+			Name: "l and c",
+			FS:   testFS(),
+			Args: []string{"-lc", "file.txt"},
+			Want: "2 20 file.txt\n",
 		},
 		{
-			name: "l, w and c",
-			fsys: testFS(),
-			args: []string{"-lwc", "file.txt"},
-			want: "2 4 20 file.txt\n",
+			Name: "l, w and c",
+			FS:   testFS(),
+			Args: []string{"-lwc", "file.txt"},
+			Want: "2 4 20 file.txt\n",
 		},
 		{
-			name: "full output with characters",
-			fsys: testFS(),
-			args: []string{"-mlw", "utf8.txt"},
-			want: "1 2 12 utf8.txt\n",
+			Name: "full output with characters",
+			FS:   testFS(),
+			Args: []string{"-mlw", "utf8.txt"},
+			Want: "1 2 12 utf8.txt\n",
 		},
 		{
-			name: "c and m together write both counts",
-			fsys: testFS(),
-			args: []string{"-cm", "utf8.txt"},
-			want: "12 14 utf8.txt\n",
+			Name: "c and m together write both counts",
+			FS:   testFS(),
+			Args: []string{"-cm", "utf8.txt"},
+			Want: "12 14 utf8.txt\n",
 		},
 		{
-			name: "c and m together in any order",
-			fsys: testFS(),
-			args: []string{"-mc", "utf8.txt"},
-			want: "12 14 utf8.txt\n",
+			Name: "c and m together in any order",
+			FS:   testFS(),
+			Args: []string{"-mc", "utf8.txt"},
+			Want: "12 14 utf8.txt\n",
 		},
 		{
-			name: "options are not parsed after the first operand",
-			fsys: testFS(),
-			args: []string{"file.txt", "-l"},
-			want: "2 4 20 file.txt\n1 1 2 -l\n3 5 22 total\n",
+			Name: "options are not parsed after the first operand",
+			FS:   testFS(),
+			Args: []string{"file.txt", "-l"},
+			Want: "2 4 20 file.txt\n1 1 2 -l\n3 5 22 total\n",
 		},
 		{
-			name: "options apply to every file and the total",
-			fsys: testFS(),
-			args: []string{"-l", "file.txt", "one.txt"},
-			want: "2 file.txt\n1 one.txt\n3 total\n",
+			Name: "options apply to every file and the total",
+			FS:   testFS(),
+			Args: []string{"-l", "file.txt", "one.txt"},
+			Want: "2 file.txt\n1 one.txt\n3 total\n",
 		},
 		{
-			name: "a lone double dash is accepted",
-			fsys: testFS(),
-			args: []string{"--", "file.txt"},
-			want: "2 4 20 file.txt\n",
+			Name: "a lone double dash is accepted",
+			FS:   testFS(),
+			Args: []string{"--", "file.txt"},
+			Want: "2 4 20 file.txt\n",
 		},
 	}
 
-	for _, test := range tests {
-		t.Run(test.name, func(t *testing.T) {
-			runCase(t, test)
-		})
-	}
+	testutil.Run(t, New, tests)
 }
 
 func TestRunWords(t *testing.T) {
@@ -409,395 +254,375 @@ func TestRunWords(t *testing.T) {
 
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			runCase(t, testCase{stdin: strings.NewReader(test.stdin), want: test.want})
+			testutil.Once(t, New, testutil.Case{Stdin: strings.NewReader(test.stdin), Want: test.want})
 		})
 	}
 }
 
 func TestRunChars(t *testing.T) {
-	tests := []testCase{
+	tests := []testutil.Case{
 		{
-			name: "multibyte characters",
-			fsys: testFS(),
-			args: []string{"-ml", "utf8.txt"},
-			want: "1 12 utf8.txt\n",
+			Name: "multibyte characters",
+			FS:   testFS(),
+			Args: []string{"-ml", "utf8.txt"},
+			Want: "1 12 utf8.txt\n",
 		},
 		{
-			name: "invalid bytes count as one character each",
-			fsys: testFS(),
-			args: []string{"-m", "invalid.txt"},
-			want: "6 invalid.txt\n",
+			Name: "invalid bytes count as one character each",
+			FS:   testFS(),
+			Args: []string{"-m", "invalid.txt"},
+			Want: "6 invalid.txt\n",
 		},
 		{
-			name: "invalid bytes are counted in bytes mode",
-			fsys: testFS(),
-			args: []string{"invalid.txt"},
-			want: "1 2 7 invalid.txt\n",
+			Name: "invalid bytes are counted in bytes mode",
+			FS:   testFS(),
+			Args: []string{"invalid.txt"},
+			Want: "1 2 7 invalid.txt\n",
 		},
 		{
-			name: "words are also counted in characters mode",
-			fsys: testFS(),
-			args: []string{"-mw", "invalid.txt"},
-			want: "2 6 invalid.txt\n",
+			Name: "words are also counted in characters mode",
+			FS:   testFS(),
+			Args: []string{"-mw", "invalid.txt"},
+			Want: "2 6 invalid.txt\n",
 		},
 		{
-			name:  "characters from the standard input",
-			stdin: strings.NewReader("héllo wörld\n"),
-			args:  []string{"-m"},
-			want:  "12\n",
+			Name:  "characters from the standard input",
+			Stdin: strings.NewReader("héllo wörld\n"),
+			Args:  []string{"-m"},
+			Want:  "12\n",
 		},
 	}
 
-	for _, test := range tests {
-		t.Run(test.name, func(t *testing.T) {
-			runCase(t, test)
-		})
-	}
+	testutil.Run(t, New, tests)
 }
 
 func TestRunLongOptions(t *testing.T) {
-	tests := []testCase{
+	tests := []testutil.Case{
 		{
-			name: "lines counts the lines",
-			fsys: testFS(),
-			args: []string{"--lines", "file.txt"},
-			want: "2 file.txt\n",
+			Name: "lines counts the lines",
+			FS:   testFS(),
+			Args: []string{"--lines", "file.txt"},
+			Want: "2 file.txt\n",
 		},
 		{
-			name: "words counts the words",
-			fsys: testFS(),
-			args: []string{"--words", "file.txt"},
-			want: "4 file.txt\n",
+			Name: "words counts the words",
+			FS:   testFS(),
+			Args: []string{"--words", "file.txt"},
+			Want: "4 file.txt\n",
 		},
 		{
-			name: "bytes counts the bytes",
-			fsys: testFS(),
-			args: []string{"--bytes", "file.txt"},
-			want: "20 file.txt\n",
+			Name: "bytes counts the bytes",
+			FS:   testFS(),
+			Args: []string{"--bytes", "file.txt"},
+			Want: "20 file.txt\n",
 		},
 		{
-			name: "chars counts the characters",
-			fsys: testFS(),
-			args: []string{"--chars", "utf8.txt"},
-			want: "12 utf8.txt\n",
+			Name: "chars counts the characters",
+			FS:   testFS(),
+			Args: []string{"--chars", "utf8.txt"},
+			Want: "12 utf8.txt\n",
 		},
 		{
-			name: "max-line-length counts the longest line",
-			fsys: testFS(),
-			args: []string{"--max-line-length", "file.txt"},
-			want: "11 file.txt\n",
+			Name: "max-line-length counts the longest line",
+			FS:   testFS(),
+			Args: []string{"--max-line-length", "file.txt"},
+			Want: "11 file.txt\n",
 		},
 		{
-			name:     "a long option with a value it doesn't take is an error",
-			fsys:     testFS(),
-			args:     []string{"--lines=2", "file.txt"},
-			wantErr:  "wc: option '--lines=2' doesn't allow an argument\nTry 'wc --help' for more information.\n",
-			wantExit: 2,
+			Name:     "a long option with a value it doesn't take is an error",
+			FS:       testFS(),
+			Args:     []string{"--lines=2", "file.txt"},
+			WantErr:  "wc: option '--lines=2' doesn't allow an argument\nTry 'wc --help' for more information.\n",
+			WantExit: 2,
 		},
 	}
 
-	for _, test := range tests {
-		t.Run(test.name, func(t *testing.T) {
-			runCase(t, test)
-		})
-	}
+	testutil.Run(t, New, tests)
 }
 
 func TestRunMaxLineLength(t *testing.T) {
-	tests := []testCase{
+	tests := []testutil.Case{
 		{
-			name: "the longest line",
-			fsys: testFS(),
-			args: []string{"-L", "file.txt"},
-			want: "11 file.txt\n",
+			Name: "the longest line",
+			FS:   testFS(),
+			Args: []string{"-L", "file.txt"},
+			Want: "11 file.txt\n",
 		},
 		{
-			name:  "empty input",
-			stdin: strings.NewReader(""),
-			args:  []string{"-L"},
-			want:  "0\n",
+			Name:  "empty input",
+			Stdin: strings.NewReader(""),
+			Args:  []string{"-L"},
+			Want:  "0\n",
 		},
 		{
-			name:  "a trailing line without a newline is counted",
-			stdin: strings.NewReader("a\nlonger"),
-			args:  []string{"-L"},
-			want:  "6\n",
+			Name:  "a trailing line without a newline is counted",
+			Stdin: strings.NewReader("a\nlonger"),
+			Args:  []string{"-L"},
+			Want:  "6\n",
 		},
 		{
-			name:  "a tab advances to the next 8th column",
-			stdin: strings.NewReader("a\tb\n"),
-			args:  []string{"-L"},
-			want:  "9\n",
+			Name:  "a tab advances to the next 8th column",
+			Stdin: strings.NewReader("a\tb\n"),
+			Args:  []string{"-L"},
+			Want:  "9\n",
 		},
 		{
-			name:  "a tab at the end of a line rounds up to a multiple of 8",
-			stdin: strings.NewReader("a\t\n"),
-			args:  []string{"-L"},
-			want:  "8\n",
+			Name:  "a tab at the end of a line rounds up to a multiple of 8",
+			Stdin: strings.NewReader("a\t\n"),
+			Args:  []string{"-L"},
+			Want:  "8\n",
 		},
 		{
-			name:  "a carriage return ends a line",
-			stdin: strings.NewReader("ab\rcd\n"),
-			args:  []string{"-L"},
-			want:  "2\n",
+			Name:  "a carriage return ends a line",
+			Stdin: strings.NewReader("ab\rcd\n"),
+			Args:  []string{"-L"},
+			Want:  "2\n",
 		},
 		{
-			name:  "a form feed ends a line",
-			stdin: strings.NewReader("ab\fcd\n"),
-			args:  []string{"-L"},
-			want:  "2\n",
+			Name:  "a form feed ends a line",
+			Stdin: strings.NewReader("ab\fcd\n"),
+			Args:  []string{"-L"},
+			Want:  "2\n",
 		},
 		{
-			name:  "a vertical tab counts no columns",
-			stdin: strings.NewReader("a\vb\n"),
-			args:  []string{"-L"},
-			want:  "2\n",
+			Name:  "a vertical tab counts no columns",
+			Stdin: strings.NewReader("a\vb\n"),
+			Args:  []string{"-L"},
+			Want:  "2\n",
 		},
 		{
-			name:  "control bytes count no columns",
-			stdin: strings.NewReader("\x01ab\x7f\n"),
-			args:  []string{"-L"},
-			want:  "2\n",
+			Name:  "control bytes count no columns",
+			Stdin: strings.NewReader("\x01ab\x7f\n"),
+			Args:  []string{"-L"},
+			Want:  "2\n",
 		},
 		{
-			name: "multibyte characters count no columns",
-			fsys: testFS(),
-			args: []string{"-L", "utf8.txt"},
-			want: "9 utf8.txt\n",
+			Name: "multibyte characters count no columns",
+			FS:   testFS(),
+			Args: []string{"-L", "utf8.txt"},
+			Want: "9 utf8.txt\n",
 		},
 		{
-			name: "characters mode keeps the byte columns",
-			fsys: testFS(),
-			args: []string{"-mL", "utf8.txt"},
-			want: "12 9 utf8.txt\n",
+			Name: "characters mode keeps the byte columns",
+			FS:   testFS(),
+			Args: []string{"-mL", "utf8.txt"},
+			Want: "12 9 utf8.txt\n",
 		},
 		{
-			name: "invalid bytes count no columns",
-			fsys: testFS(),
-			args: []string{"-L", "invalid.txt"},
-			want: "2 invalid.txt\n",
+			Name: "invalid bytes count no columns",
+			FS:   testFS(),
+			Args: []string{"-L", "invalid.txt"},
+			Want: "2 invalid.txt\n",
 		},
 		{
-			name: "the longest line is the fourth of the five columns",
-			fsys: testFS(),
-			args: []string{"-lwmL", "utf8.txt"},
-			want: "1 2 12 9 utf8.txt\n",
+			Name: "the longest line is the fourth of the five columns",
+			FS:   testFS(),
+			Args: []string{"-lwmL", "utf8.txt"},
+			Want: "1 2 12 9 utf8.txt\n",
 		},
 		{
-			name: "all counts in the manual order",
-			fsys: testFS(),
-			args: []string{"-lcwmL", "utf8.txt"},
-			want: "1 2 12 14 9 utf8.txt\n",
+			Name: "all counts in the manual order",
+			FS:   testFS(),
+			Args: []string{"-lcwmL", "utf8.txt"},
+			Want: "1 2 12 14 9 utf8.txt\n",
 		},
 		{
-			name: "the total is the maximum, not the sum",
-			fsys: testFS(),
-			args: []string{"-L", "file.txt", "one.txt"},
-			want: "11 file.txt\n3 one.txt\n11 total\n",
+			Name: "the total is the maximum, not the sum",
+			FS:   testFS(),
+			Args: []string{"-L", "file.txt", "one.txt"},
+			Want: "11 file.txt\n3 one.txt\n11 total\n",
 		},
 	}
 
-	for _, test := range tests {
-		t.Run(test.name, func(t *testing.T) {
-			runCase(t, test)
-		})
-	}
+	testutil.Run(t, New, tests)
 }
 
 func TestRunTotal(t *testing.T) {
-	tests := []testCase{
+	tests := []testutil.Case{
 		{
-			name: "auto is the default",
-			fsys: testFS(),
-			args: []string{"--total=auto", "file.txt", "one.txt"},
-			want: "2 4 20 file.txt\n1 3 5 one.txt\n3 7 25 total\n",
+			Name: "auto is the default",
+			FS:   testFS(),
+			Args: []string{"--total=auto", "file.txt", "one.txt"},
+			Want: "2 4 20 file.txt\n1 3 5 one.txt\n3 7 25 total\n",
 		},
 		{
-			name: "auto with a single file writes no total",
-			fsys: testFS(),
-			args: []string{"--total=auto", "file.txt"},
-			want: "2 4 20 file.txt\n",
+			Name: "auto with a single file writes no total",
+			FS:   testFS(),
+			Args: []string{"--total=auto", "file.txt"},
+			Want: "2 4 20 file.txt\n",
 		},
 		{
-			name: "always writes a total for a single file",
-			fsys: testFS(),
-			args: []string{"--total=always", "file.txt"},
-			want: "2 4 20 file.txt\n2 4 20 total\n",
+			Name: "always writes a total for a single file",
+			FS:   testFS(),
+			Args: []string{"--total=always", "file.txt"},
+			Want: "2 4 20 file.txt\n2 4 20 total\n",
 		},
 		{
-			name:  "always writes a total for the standard input",
-			stdin: strings.NewReader("a b\nc"),
-			args:  []string{"--total=always"},
-			want:  "1 3 5\n1 3 5 total\n",
+			Name:  "always writes a total for the standard input",
+			Stdin: strings.NewReader("a b\nc"),
+			Args:  []string{"--total=always"},
+			Want:  "1 3 5\n1 3 5 total\n",
 		},
 		{
-			name: "only writes just the cumulative counts",
-			fsys: testFS(),
-			args: []string{"--total=only", "file.txt", "one.txt"},
-			want: "3 7 25\n",
+			Name: "only writes just the cumulative counts",
+			FS:   testFS(),
+			Args: []string{"--total=only", "file.txt", "one.txt"},
+			Want: "3 7 25\n",
 		},
 		{
-			name: "only with a single file writes its counts",
-			fsys: testFS(),
-			args: []string{"--total=only", "file.txt"},
-			want: "2 4 20\n",
+			Name: "only with a single file writes its counts",
+			FS:   testFS(),
+			Args: []string{"--total=only", "file.txt"},
+			Want: "2 4 20\n",
 		},
 		{
-			name:  "only with the standard input",
-			stdin: strings.NewReader("a b\nc"),
-			args:  []string{"--total=only"},
-			want:  "1 3 5\n",
+			Name:  "only with the standard input",
+			Stdin: strings.NewReader("a b\nc"),
+			Args:  []string{"--total=only"},
+			Want:  "1 3 5\n",
 		},
 		{
-			name: "never writes no total",
-			fsys: testFS(),
-			args: []string{"--total=never", "file.txt", "one.txt"},
-			want: "2 4 20 file.txt\n1 3 5 one.txt\n",
+			Name: "never writes no total",
+			FS:   testFS(),
+			Args: []string{"--total=never", "file.txt", "one.txt"},
+			Want: "2 4 20 file.txt\n1 3 5 one.txt\n",
 		},
 		{
-			name: "the word may be held by the next argument",
-			fsys: testFS(),
-			args: []string{"--total", "never", "file.txt", "one.txt"},
-			want: "2 4 20 file.txt\n1 3 5 one.txt\n",
+			Name: "the word may be held by the next argument",
+			FS:   testFS(),
+			Args: []string{"--total", "never", "file.txt", "one.txt"},
+			Want: "2 4 20 file.txt\n1 3 5 one.txt\n",
 		},
 		{
-			name: "the total keeps the selected counts",
-			fsys: testFS(),
-			args: []string{"-L", "--total=always", "file.txt"},
-			want: "11 file.txt\n11 total\n",
+			Name: "the total keeps the selected counts",
+			FS:   testFS(),
+			Args: []string{"-L", "--total=always", "file.txt"},
+			Want: "11 file.txt\n11 total\n",
 		},
 		{
-			name:     "an invalid word is an error",
-			args:     []string{"--total=bogus"},
-			wantErr:  "wc: invalid argument 'bogus' for '--total'\nTry 'wc --help' for more information.\n",
-			wantExit: 2,
+			Name:     "an invalid word is an error",
+			Args:     []string{"--total=bogus"},
+			WantErr:  "wc: invalid argument 'bogus' for '--total'\nTry 'wc --help' for more information.\n",
+			WantExit: 2,
 		},
 		{
-			name:     "a missing word is an error",
-			args:     []string{"--total"},
-			wantErr:  "wc: option '--total' requires an argument\nTry 'wc --help' for more information.\n",
-			wantExit: 2,
+			Name:     "a missing word is an error",
+			Args:     []string{"--total"},
+			WantErr:  "wc: option '--total' requires an argument\nTry 'wc --help' for more information.\n",
+			WantExit: 2,
 		},
 	}
 
-	for _, test := range tests {
-		t.Run(test.name, func(t *testing.T) {
-			runCase(t, test)
-		})
-	}
+	testutil.Run(t, New, tests)
 }
 
 func TestRunErrors(t *testing.T) {
-	tests := []testCase{
+	tests := []testutil.Case{
 		{
-			name:     "missing file",
-			fsys:     testFS(),
-			args:     []string{"missing.txt"},
-			wantErr:  "wc: missing.txt: file does not exist\n",
-			wantExit: 1,
+			Name:     "missing file",
+			FS:       testFS(),
+			Args:     []string{"missing.txt"},
+			WantErr:  "wc: missing.txt: file does not exist\n",
+			WantExit: 1,
 		},
 		{
-			name:     "a missing file doesn't stop the other files",
-			fsys:     testFS(),
-			args:     []string{"missing.txt", "file.txt"},
-			want:     "2 4 20 file.txt\n2 4 20 total\n",
-			wantErr:  "wc: missing.txt: file does not exist\n",
-			wantExit: 1,
+			Name:     "a missing file doesn't stop the other files",
+			FS:       testFS(),
+			Args:     []string{"missing.txt", "file.txt"},
+			Want:     "2 4 20 file.txt\n2 4 20 total\n",
+			WantErr:  "wc: missing.txt: file does not exist\n",
+			WantExit: 1,
 		},
 		{
-			name:    "every missing file still writes a total",
-			fsys:    testFS(),
-			args:    []string{"missing.txt", "other.txt"},
-			want:    "0 0 0 total\n",
-			wantErr: "wc: missing.txt: file does not exist\nwc: other.txt: file does not exist\n",
+			Name:    "every missing file still writes a total",
+			FS:      testFS(),
+			Args:    []string{"missing.txt", "other.txt"},
+			Want:    "0 0 0 total\n",
+			WantErr: "wc: missing.txt: file does not exist\nwc: other.txt: file does not exist\n",
 			// The total is written even when no file could be read.
-			wantExit: 1,
+			WantExit: 1,
 		},
 		{
-			name:     "invalid option",
-			args:     []string{"-x"},
-			wantErr:  "wc: invalid option -- 'x'\nTry 'wc --help' for more information.\n",
-			wantExit: 2,
+			Name:     "invalid option",
+			Args:     []string{"-x"},
+			WantErr:  "wc: invalid option -- 'x'\nTry 'wc --help' for more information.\n",
+			WantExit: 2,
 		},
 		{
-			name:     "invalid option in a group",
-			args:     []string{"-lx"},
-			wantErr:  "wc: invalid option -- 'x'\nTry 'wc --help' for more information.\n",
-			wantExit: 2,
+			Name:     "invalid option in a group",
+			Args:     []string{"-lx"},
+			WantErr:  "wc: invalid option -- 'x'\nTry 'wc --help' for more information.\n",
+			WantExit: 2,
 		},
 		{
-			name:     "unknown long option",
-			args:     []string{"--bogus"},
-			wantErr:  "wc: unrecognized option '--bogus'\nTry 'wc --help' for more information.\n",
-			wantExit: 2,
+			Name:     "unknown long option",
+			Args:     []string{"--bogus"},
+			WantErr:  "wc: unrecognized option '--bogus'\nTry 'wc --help' for more information.\n",
+			WantExit: 2,
 		},
 		{
-			name:     "invalid option before operands",
-			args:     []string{"-x", "file.txt"},
-			wantErr:  "wc: invalid option -- 'x'\nTry 'wc --help' for more information.\n",
-			wantExit: 2,
+			Name:     "invalid option before operands",
+			Args:     []string{"-x", "file.txt"},
+			WantErr:  "wc: invalid option -- 'x'\nTry 'wc --help' for more information.\n",
+			WantExit: 2,
 		},
 		{
-			name:     "zero-length file name",
-			fsys:     testFS(),
-			args:     []string{""},
-			wantErr:  "wc: invalid zero-length file name\n",
-			wantExit: 1,
+			Name:     "zero-length file name",
+			FS:       testFS(),
+			Args:     []string{""},
+			WantErr:  "wc: invalid zero-length file name\n",
+			WantExit: 1,
 		},
 		{
-			name:     "file operand without a file system",
-			args:     []string{"file.txt"},
-			wantErr:  "wc: file.txt: no file system available\n",
-			wantExit: 1,
+			Name:     "file operand without a file system",
+			Args:     []string{"file.txt"},
+			WantErr:  "wc: file.txt: no file system available\n",
+			WantExit: 1,
 		},
 		{
-			name:     "no standard input",
-			fsys:     testFS(),
-			wantErr:  "wc: standard input: no standard input available\n",
-			wantExit: 1,
+			Name:     "no standard input",
+			FS:       testFS(),
+			WantErr:  "wc: standard input: no standard input available\n",
+			WantExit: 1,
 		},
 		{
-			name:     "standard input read error",
-			stdin:    errorReader{err: errors.New("read failed")},
-			fsys:     testFS(),
-			wantErr:  "wc: standard input: read failed\n",
-			wantExit: 1,
+			Name:     "standard input read error",
+			Stdin:    testutil.ErrorReader{Err: errors.New("read failed")},
+			FS:       testFS(),
+			WantErr:  "wc: standard input: read failed\n",
+			WantExit: 1,
 		},
 		{
-			name:     "dash read error is labeled with the operand",
-			stdin:    errorReader{err: errors.New("read failed")},
-			args:     []string{"-"},
-			wantErr:  "wc: -: read failed\n",
-			wantExit: 1,
+			Name:     "dash read error is labeled with the operand",
+			Stdin:    testutil.ErrorReader{Err: errors.New("read failed")},
+			Args:     []string{"-"},
+			WantErr:  "wc: -: read failed\n",
+			WantExit: 1,
 		},
 		{
-			name:     "file read error",
-			stdin:    strings.NewReader(""),
-			args:     []string{"dir"},
-			fsys:     fsx.MemFS{"dir": {Mode: fs.ModeDir}},
-			wantErr:  "wc: dir: invalid argument\n",
-			wantExit: 1,
+			Name:     "file read error",
+			Stdin:    strings.NewReader(""),
+			Args:     []string{"dir"},
+			FS:       fsx.MemFS{"dir": {Mode: fs.ModeDir}},
+			WantErr:  "wc: dir: invalid argument\n",
+			WantExit: 1,
 		},
 	}
 
-	for _, test := range tests {
-		t.Run(test.name, func(t *testing.T) {
-			runCase(t, test)
-		})
-	}
+	testutil.Run(t, New, tests)
 }
 
 func TestRunDoesNotReadStdinWithFiles(t *testing.T) {
-	stdin := &spyReader{}
+	stdin := &testutil.SpyReader{}
 
-	runCase(t, testCase{
-		name:  "file operands don't read the standard input",
-		stdin: stdin,
-		fsys:  testFS(),
-		args:  []string{"file.txt"},
-		want:  "2 4 20 file.txt\n",
+	testutil.Once(t, New, testutil.Case{
+		Name:  "file operands don't read the standard input",
+		Stdin: stdin,
+		FS:    testFS(),
+		Args:  []string{"file.txt"},
+		Want:  "2 4 20 file.txt\n",
 	})
-	if stdin.read {
+	if stdin.Reads > 0 {
 		t.Error("Run() read stdin, want it untouched")
 	}
 }
@@ -807,12 +632,12 @@ func TestRunWriteError(t *testing.T) {
 
 	rt := &coreutils.Runtime{
 		Stdin:  strings.NewReader("a b\nc"),
-		Stdout: errorWriter{err: writeErr},
+		Stdout: testutil.ErrorWriter{Err: writeErr},
 		Stderr: new(bytes.Buffer),
 	}
 	err := New(rt).Run(t.Context())
 
-	if code := exitCode(t, err); code != 1 {
+	if code := testutil.ExitCode(t, err); code != 1 {
 		t.Fatalf("Run() exit code = %d, want 1 (error = %v)", code, err)
 	}
 	if !errors.Is(err, writeErr) {
@@ -822,74 +647,20 @@ func TestRunWriteError(t *testing.T) {
 
 func TestRunContext(t *testing.T) {
 	t.Run("cancelled before running", func(t *testing.T) {
-		ctx, cancel := context.WithCancel(t.Context())
-		cancel()
-		runCancelled(t, ctx, strings.NewReader("a b\nc"), nil)
+		testutil.Cancelled(t, New, strings.NewReader("a b\nc"), nil)
 	})
 
 	t.Run("cancelled while reading the standard input", func(t *testing.T) {
-		ctx, cancel := context.WithCancel(t.Context())
-		runCancelled(t, ctx, &cancelReader{cancel: cancel}, nil)
+		_, cancel := context.WithCancel(t.Context())
+		testutil.Cancelled(t, New, &testutil.CancelReader{Cancel: cancel, Data: []byte("a b\nc")}, nil)
 	})
 
 	t.Run("cancelled while reading a file", func(t *testing.T) {
-		ctx, cancel := context.WithCancel(t.Context())
-		runCancelled(t, ctx, strings.NewReader(""), readerFS{&cancelReader{cancel: cancel}})
+		_, cancel := context.WithCancel(t.Context())
+		testutil.Cancelled(t, New, strings.NewReader(""), testutil.ReaderFS(&testutil.CancelReader{Cancel: cancel, Data: []byte("a b\nc")}), "file")
 	})
-}
-
-// runCancelled runs the utility with a context that is either already done or
-// becomes done while reading, and checks that the context error is returned
-// without any output.
-func runCancelled(t *testing.T, ctx context.Context, stdin io.Reader, fsys fsx.FS) {
-	t.Helper()
-
-	stdout := new(bytes.Buffer)
-	stderr := new(bytes.Buffer)
-	rt := &coreutils.Runtime{
-		Stdin:  stdin,
-		Stdout: stdout,
-		Stderr: stderr,
-		FS:     fsys,
-	}
-	var args []string
-	if fsys != nil {
-		args = []string{"file"}
-	}
-	err := New(rt).Run(ctx, args...)
-
-	if !errors.Is(err, context.Canceled) {
-		t.Fatalf("Run() error = %v, want context.Canceled", err)
-	}
-	if got := stdout.String(); got != "" {
-		t.Errorf("Run() stdout = %q, want empty", got)
-	}
-	if got := stderr.String(); got != "" {
-		t.Errorf("Run() stderr = %q, want empty", got)
-	}
 }
 
 func TestHelpVersion(t *testing.T) {
-	t.Run("help", func(t *testing.T) {
-		stdout := new(bytes.Buffer)
-		rt := &coreutils.Runtime{Stdout: stdout, Stderr: new(bytes.Buffer)}
-		if err := New(rt).Run(t.Context(), "--help"); err != nil {
-			t.Fatalf("Run() error = %v, want nil (exit status 0)", err)
-		}
-		if got, want := stdout.String(), usage; got != want {
-			t.Errorf("Run() stdout = %q, want %q", got, want)
-		}
-	})
-
-	t.Run("version", func(t *testing.T) {
-		stdout := new(bytes.Buffer)
-		rt := &coreutils.Runtime{Stdout: stdout, Stderr: new(bytes.Buffer)}
-		if err := New(rt).Run(t.Context(), "--version"); err != nil {
-			t.Fatalf("Run() error = %v, want nil (exit status 0)", err)
-		}
-		want := "wc (charm.land/snail/coreutils) " + coreutils.Version + "\nhttps://charm.land/snail\n"
-		if got := stdout.String(); got != want {
-			t.Errorf("Run() stdout = %q, want %q", got, want)
-		}
-	})
+	testutil.HelpVersion(t, New, "wc", usage)
 }

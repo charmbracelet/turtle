@@ -11,27 +11,9 @@ import (
 	"testing"
 
 	"charm.land/snail/coreutils"
+	"charm.land/snail/coreutils/internal/testutil"
 	"charm.land/snail/fsx"
 )
-
-type errorWriter struct {
-	err error
-}
-
-func (w errorWriter) Write([]byte) (int, error) {
-	return 0, w.err
-}
-
-// cancelReader cancels its context on the first read, simulating a context
-// that is done while input is being read.
-type cancelReader struct {
-	cancel context.CancelFunc
-}
-
-func (r *cancelReader) Read([]byte) (int, error) {
-	r.cancel()
-	return 0, context.Canceled
-}
 
 // randFile builds a deterministic source of n bytes with a 64-bit LCG, so
 // the 8-byte windows the generator reads are all distinct.
@@ -70,70 +52,6 @@ func testFS() fsx.MemFS {
 		"randempty":     {Data: nil},
 		"-n":            {Data: []byte("2\n1\n")},
 		"sub/inner.txt": {Data: []byte("b\na\n")},
-	}
-}
-
-func exitCode(t *testing.T, err error) int {
-	t.Helper()
-
-	if err == nil {
-		return 0
-	}
-	var exitErr *coreutils.ExitError
-	if !errors.As(err, &exitErr) {
-		t.Fatalf("Run() error = %v, want *coreutils.ExitError", err)
-	}
-	return exitErr.Code
-}
-
-type testCase struct {
-	name      string
-	stdin     io.Reader
-	fsys      fsx.MemFS
-	dir       string
-	args      []string
-	want      string
-	wantErr   string
-	wantExit  int
-	wantFiles map[string]string
-}
-
-func runCase(t *testing.T, test testCase) {
-	t.Helper()
-
-	stdout := new(bytes.Buffer)
-	stderr := new(bytes.Buffer)
-	fsys := test.fsys
-	if fsys == nil {
-		fsys = testFS()
-	}
-	rt := &coreutils.Runtime{
-		Stdin:      test.stdin,
-		Stdout:     stdout,
-		Stderr:     stderr,
-		FS:         fsys,
-		WorkingDir: test.dir,
-	}
-	err := New(rt).Run(t.Context(), test.args...)
-
-	if code := exitCode(t, err); code != test.wantExit {
-		t.Errorf("Run() exit code = %d, want %d (error = %v)", code, test.wantExit, err)
-	}
-	if got := stdout.String(); got != test.want {
-		t.Errorf("Run() stdout = %q, want %q", got, test.want)
-	}
-	if got := stderr.String(); got != test.wantErr {
-		t.Errorf("Run() stderr = %q, want %q", got, test.wantErr)
-	}
-	for name, want := range test.wantFiles {
-		f := fsys[name]
-		if f == nil {
-			t.Errorf("Run() didn't create file %q", name)
-			continue
-		}
-		if got := string(f.Data); got != want {
-			t.Errorf("Run() file %q = %q, want %q", name, got, want)
-		}
 	}
 }
 
@@ -218,6 +136,29 @@ func checkRepeats(t *testing.T, got, want string, count int, delim byte) {
 	}
 }
 
+// onceCase runs a single case like testutil.Once, with the test fixtures
+// when the case sets no file system.
+func onceCase(t *testing.T, test testutil.Case) {
+	t.Helper()
+
+	if test.FS == nil {
+		test.FS = testFS()
+	}
+	testutil.Once(t, New, test)
+}
+
+// runCases runs the cases as sub-tests, each one like onceCase.
+func runCases(t *testing.T, tests []testutil.Case) {
+	t.Helper()
+
+	for i := range tests {
+		if tests[i].FS == nil {
+			tests[i].FS = testFS()
+		}
+	}
+	testutil.Run(t, New, tests)
+}
+
 func TestRunStdin(t *testing.T) {
 	tests := []struct {
 		name  string
@@ -266,90 +207,86 @@ func TestRunFiles(t *testing.T) {
 	})
 
 	t.Run("a missing file", func(t *testing.T) {
-		test := testCase{
-			fsys:     testFS(),
-			args:     []string{"missing.txt"},
-			wantErr:  "shuf: missing.txt: file does not exist\n",
-			wantExit: 1,
+		test := testutil.Case{
+			FS:       testFS(),
+			Args:     []string{"missing.txt"},
+			WantErr:  "shuf: missing.txt: file does not exist\n",
+			WantExit: 1,
 		}
-		runCase(t, test)
+		onceCase(t, test)
 	})
 
 	t.Run("two file operands", func(t *testing.T) {
-		test := testCase{
-			fsys:     testFS(),
-			args:     []string{"names.txt", "cards.txt"},
-			wantErr:  "shuf: extra operand 'cards.txt'\nTry 'shuf --help' for more information.\n",
-			wantExit: 1,
+		test := testutil.Case{
+			FS:       testFS(),
+			Args:     []string{"names.txt", "cards.txt"},
+			WantErr:  "shuf: extra operand 'cards.txt'\nTry 'shuf --help' for more information.\n",
+			WantExit: 1,
 		}
-		runCase(t, test)
+		onceCase(t, test)
 	})
 }
 
 // TestRunDeterministic covers the outputs which a --random-source file pins
 // down, since they don't depend on the entropy of the system.
 func TestRunDeterministic(t *testing.T) {
-	tests := []testCase{
+	tests := []testutil.Case{
 		{
-			name:  "four lines from the standard input",
-			stdin: strings.NewReader("a\nb\nc\nd\n"),
-			fsys:  testFS(),
-			args:  []string{"--random-source=rand1"},
-			want:  "b\nd\nc\na\n",
+			Name:  "four lines from the standard input",
+			Stdin: strings.NewReader("a\nb\nc\nd\n"),
+			FS:    testFS(),
+			Args:  []string{"--random-source=rand1"},
+			Want:  "b\nd\nc\na\n",
 		},
 		{
-			name:  "the same source gives the same output",
-			stdin: strings.NewReader("a\nb\nc\nd\n"),
-			fsys:  testFS(),
-			args:  []string{"--random-source=rand1"},
-			want:  "b\nd\nc\na\n",
+			Name:  "the same source gives the same output",
+			Stdin: strings.NewReader("a\nb\nc\nd\n"),
+			FS:    testFS(),
+			Args:  []string{"--random-source=rand1"},
+			Want:  "b\nd\nc\na\n",
 		},
 		{
-			name:  "a different source gives a different permutation",
-			stdin: strings.NewReader("a\nb\nc\nd\n"),
-			fsys:  testFS(),
-			args:  []string{"--random-source=rand2"},
-			want:  "d\nb\nc\na\n",
+			Name:  "a different source gives a different permutation",
+			Stdin: strings.NewReader("a\nb\nc\nd\n"),
+			FS:    testFS(),
+			Args:  []string{"--random-source=rand2"},
+			Want:  "d\nb\nc\na\n",
 		},
 		{
-			name:  "three lines",
-			stdin: strings.NewReader("x\ny\nz\n"),
-			fsys:  testFS(),
-			args:  []string{"--random-source=rand1"},
-			want:  "y\nz\nx\n",
+			Name:  "three lines",
+			Stdin: strings.NewReader("x\ny\nz\n"),
+			FS:    testFS(),
+			Args:  []string{"--random-source=rand1"},
+			Want:  "y\nz\nx\n",
 		},
 		{
-			name: "a file operand",
-			fsys: testFS(),
-			args: []string{"--random-source=rand1", "names.txt"},
-			want: "eve\namy\nzoe\n",
+			Name: "a file operand",
+			FS:   testFS(),
+			Args: []string{"--random-source=rand1", "names.txt"},
+			Want: "eve\namy\nzoe\n",
 		},
 		{
-			name: "a file without a final newline",
-			fsys: testFS(),
-			args: []string{"--random-source=rand1", "nonl.txt"},
-			want: "a\nb\n",
+			Name: "a file without a final newline",
+			FS:   testFS(),
+			Args: []string{"--random-source=rand1", "nonl.txt"},
+			Want: "a\nb\n",
 		},
 		{
-			name: "a relative file from the working directory",
-			fsys: testFS(),
-			dir:  "sub",
-			args: []string{"--random-source=../rand1", "inner.txt"},
-			want: "a\nb\n",
+			Name: "a relative file from the working directory",
+			FS:   testFS(),
+			Dir:  "sub",
+			Args: []string{"--random-source=../rand1", "inner.txt"},
+			Want: "a\nb\n",
 		},
 		{
-			name: "a zero count doesn't read a missing file",
-			fsys: testFS(),
-			args: []string{"-n", "0", "missing.txt"},
-			want: "",
+			Name: "a zero count doesn't read a missing file",
+			FS:   testFS(),
+			Args: []string{"-n", "0", "missing.txt"},
+			Want: "",
 		},
 	}
 
-	for _, test := range tests {
-		t.Run(test.name, func(t *testing.T) {
-			runCase(t, test)
-		})
-	}
+	runCases(t, tests)
 }
 
 func TestRunEcho(t *testing.T) {
@@ -365,29 +302,25 @@ func TestRunEcho(t *testing.T) {
 		}
 	})
 
-	tests := []testCase{
+	tests := []testutil.Case{
 		{
-			name: "a deterministic permutation",
-			args: []string{"-e", "--random-source=rand1", "clubs", "hearts", "diamonds", "spades"},
-			want: "hearts\nspades\ndiamonds\nclubs\n",
+			Name: "a deterministic permutation",
+			Args: []string{"-e", "--random-source=rand1", "clubs", "hearts", "diamonds", "spades"},
+			Want: "hearts\nspades\ndiamonds\nclubs\n",
 		},
 		{
-			name: "two operands keep both",
-			args: []string{"-e", "--random-source=rand1", "one", "two"},
-			want: "two\none\n",
+			Name: "two operands keep both",
+			Args: []string{"-e", "--random-source=rand1", "one", "two"},
+			Want: "two\none\n",
 		},
 		{
-			name: "duplicate operands are kept",
-			args: []string{"-e", "--random-source=rand1", "a", "a", "b"},
-			want: "a\nb\na\n",
+			Name: "duplicate operands are kept",
+			Args: []string{"-e", "--random-source=rand1", "a", "a", "b"},
+			Want: "a\nb\na\n",
 		},
 	}
 
-	for _, test := range tests {
-		t.Run(test.name, func(t *testing.T) {
-			runCase(t, test)
-		})
-	}
+	runCases(t, tests)
 }
 
 func TestRunRange(t *testing.T) {
@@ -417,156 +350,152 @@ func TestRunRange(t *testing.T) {
 		}
 	})
 
-	tests := []testCase{
+	tests := []testutil.Case{
 		{
-			name: "a range of four",
-			args: []string{"-i", "1-4", "--random-source=rand1"},
-			want: "1\n4\n3\n2\n",
+			Name: "a range of four",
+			Args: []string{"-i", "1-4", "--random-source=rand1"},
+			Want: "1\n4\n3\n2\n",
 		},
 		{
-			name: "the long form",
-			args: []string{"--input-range=1-4", "--random-source=rand1"},
-			want: "1\n4\n3\n2\n",
+			Name: "the long form",
+			Args: []string{"--input-range=1-4", "--random-source=rand1"},
+			Want: "1\n4\n3\n2\n",
 		},
 		{
-			name: "an attached value",
-			args: []string{"-i1-5", "--random-source=rand1"},
-			want: "5\n4\n3\n1\n2\n",
+			Name: "an attached value",
+			Args: []string{"-i1-5", "--random-source=rand1"},
+			Want: "5\n4\n3\n1\n2\n",
 		},
 		{
-			name: "a range of one",
-			args: []string{"-i", "5-5", "--random-source=rand1"},
-			want: "5\n",
+			Name: "a range of one",
+			Args: []string{"-i", "5-5", "--random-source=rand1"},
+			Want: "5\n",
 		},
 		{
-			name: "a range at zero",
-			args: []string{"-i", "0-0", "--random-source=rand1"},
-			want: "0\n",
+			Name: "a range at zero",
+			Args: []string{"-i", "0-0", "--random-source=rand1"},
+			Want: "0\n",
 		},
 		{
-			name: "a head count of the range",
-			args: []string{"-i", "1-4", "-n", "2", "--random-source=rand1"},
-			want: "1\n4\n",
+			Name: "a head count of the range",
+			Args: []string{"-i", "1-4", "-n", "2", "--random-source=rand1"},
+			Want: "1\n4\n",
 		},
 		{
-			name: "a big range with a head count",
-			args: []string{"-i", "0-999999999", "-n", "3", "--random-source=rand1"},
-			want: "581272172\n163459798\n882872940\n",
+			Name: "a big range with a head count",
+			Args: []string{"-i", "0-999999999", "-n", "3", "--random-source=rand1"},
+			Want: "581272172\n163459798\n882872940\n",
 		},
 		{
-			name: "a huge range with a head count",
-			args: []string{"-i", "0-99999999999999999", "-n", "3", "--random-source=rand1"},
-			want: "39829582737932908\n89598964340241110\n92574438307318115\n",
+			Name: "a huge range with a head count",
+			Args: []string{"-i", "0-99999999999999999", "-n", "3", "--random-source=rand1"},
+			Want: "39829582737932908\n89598964340241110\n92574438307318115\n",
 		},
 		{
-			name:     "a range with an operand",
-			args:     []string{"-i", "1-2", "file"},
-			wantErr:  "shuf: extra operand 'file'\nTry 'shuf --help' for more information.\n",
-			wantExit: 1,
+			Name:     "a range with an operand",
+			Args:     []string{"-i", "1-2", "file"},
+			WantErr:  "shuf: extra operand 'file'\nTry 'shuf --help' for more information.\n",
+			WantExit: 1,
 		},
 		{
-			name:     "a missing value",
-			args:     []string{"-i"},
-			wantErr:  "shuf: option requires an argument -- 'i'\nTry 'shuf --help' for more information.\n",
-			wantExit: 1,
+			Name:     "a missing value",
+			Args:     []string{"-i"},
+			WantErr:  "shuf: option requires an argument -- 'i'\nTry 'shuf --help' for more information.\n",
+			WantExit: 1,
 		},
 		{
-			name:     "an empty value",
-			args:     []string{"-i", ""},
-			wantErr:  "shuf: invalid input range ''\nTry 'shuf --help' for more information.\n",
-			wantExit: 1,
+			Name:     "an empty value",
+			Args:     []string{"-i", ""},
+			WantErr:  "shuf: invalid input range ''\nTry 'shuf --help' for more information.\n",
+			WantExit: 1,
 		},
 		{
-			name:     "a value without a dash",
-			args:     []string{"-i", "5"},
-			wantErr:  "shuf: invalid input range '5'\nTry 'shuf --help' for more information.\n",
-			wantExit: 1,
+			Name:     "a value without a dash",
+			Args:     []string{"-i", "5"},
+			WantErr:  "shuf: invalid input range '5'\nTry 'shuf --help' for more information.\n",
+			WantExit: 1,
 		},
 		{
-			name:     "a reversed range",
-			args:     []string{"-i", "5-3"},
-			wantErr:  "shuf: invalid input range '5-3'\nTry 'shuf --help' for more information.\n",
-			wantExit: 1,
+			Name:     "a reversed range",
+			Args:     []string{"-i", "5-3"},
+			WantErr:  "shuf: invalid input range '5-3'\nTry 'shuf --help' for more information.\n",
+			WantExit: 1,
 		},
 		{
-			name:     "two dashes",
-			args:     []string{"-i", "5-3-7"},
-			wantErr:  "shuf: invalid input range '5-3-7'\nTry 'shuf --help' for more information.\n",
-			wantExit: 1,
+			Name:     "two dashes",
+			Args:     []string{"-i", "5-3-7"},
+			WantErr:  "shuf: invalid input range '5-3-7'\nTry 'shuf --help' for more information.\n",
+			WantExit: 1,
 		},
 		{
-			name:     "a missing high value",
-			args:     []string{"-i", "5-"},
-			wantErr:  "shuf: invalid input range '5-'\nTry 'shuf --help' for more information.\n",
-			wantExit: 1,
+			Name:     "a missing high value",
+			Args:     []string{"-i", "5-"},
+			WantErr:  "shuf: invalid input range '5-'\nTry 'shuf --help' for more information.\n",
+			WantExit: 1,
 		},
 		{
-			name:     "letters",
-			args:     []string{"-i", "a-b"},
-			wantErr:  "shuf: invalid input range 'a-b'\nTry 'shuf --help' for more information.\n",
-			wantExit: 1,
+			Name:     "letters",
+			Args:     []string{"-i", "a-b"},
+			WantErr:  "shuf: invalid input range 'a-b'\nTry 'shuf --help' for more information.\n",
+			WantExit: 1,
 		},
 		{
-			name:     "an overflowing low value",
-			args:     []string{"-i", "18446744073709551616-20"},
-			wantErr:  "shuf: invalid input range '18446744073709551616-20'\nTry 'shuf --help' for more information.\n",
-			wantExit: 1,
+			Name:     "an overflowing low value",
+			Args:     []string{"-i", "18446744073709551616-20"},
+			WantErr:  "shuf: invalid input range '18446744073709551616-20'\nTry 'shuf --help' for more information.\n",
+			WantExit: 1,
 		},
 		{
-			name:     "a range that wraps around",
-			args:     []string{"-i", "0-18446744073709551615"},
-			wantErr:  "shuf: invalid input range '0-18446744073709551615'\nTry 'shuf --help' for more information.\n",
-			wantExit: 1,
+			Name:     "a range that wraps around",
+			Args:     []string{"-i", "0-18446744073709551615"},
+			WantErr:  "shuf: invalid input range '0-18446744073709551615'\nTry 'shuf --help' for more information.\n",
+			WantExit: 1,
 		},
 		{
-			name:     "a range too large to hold its indices",
-			args:     []string{"-i", "0-9223372036854775807"},
-			wantErr:  "shuf: too many input lines\n",
-			wantExit: 1,
+			Name:     "a range too large to hold its indices",
+			Args:     []string{"-i", "0-9223372036854775807"},
+			WantErr:  "shuf: too many input lines\n",
+			WantExit: 1,
 		},
 		{
-			name:     "a range representable but unallocatable",
-			args:     []string{"-i", "0-1152921504606846975"},
-			wantErr:  "shuf: too many input lines\n",
-			wantExit: 1,
+			Name:     "a range representable but unallocatable",
+			Args:     []string{"-i", "0-1152921504606846975"},
+			WantErr:  "shuf: too many input lines\n",
+			WantExit: 1,
 		},
 		{
-			name:     "a range too large to permute in memory",
-			args:     []string{"-i", "0-9999999"},
-			wantErr:  "shuf: too many input lines\n",
-			wantExit: 1,
+			Name:     "a range too large to permute in memory",
+			Args:     []string{"-i", "0-9999999"},
+			WantErr:  "shuf: too many input lines\n",
+			WantExit: 1,
 		},
 		{
-			name:     "a sample too large to hold in memory",
-			args:     []string{"-i", "0-99999999", "-n", "2000000"},
-			wantErr:  "shuf: too many input lines\n",
-			wantExit: 1,
+			Name:     "a sample too large to hold in memory",
+			Args:     []string{"-i", "0-99999999", "-n", "2000000"},
+			WantErr:  "shuf: too many input lines\n",
+			WantExit: 1,
 		},
 		{
-			name:     "a range near the top of the unsigned numbers",
-			args:     []string{"-i", "5-18446744073709551615"},
-			wantErr:  "shuf: too many input lines\n",
-			wantExit: 1,
+			Name:     "a range near the top of the unsigned numbers",
+			Args:     []string{"-i", "5-18446744073709551615"},
+			WantErr:  "shuf: too many input lines\n",
+			WantExit: 1,
 		},
 		{
-			name:     "two ranges",
-			args:     []string{"-i", "1-5", "-i", "2-4"},
-			wantErr:  "shuf: multiple -i options specified\nTry 'shuf --help' for more information.\n",
-			wantExit: 1,
+			Name:     "two ranges",
+			Args:     []string{"-i", "1-5", "-i", "2-4"},
+			WantErr:  "shuf: multiple -i options specified\nTry 'shuf --help' for more information.\n",
+			WantExit: 1,
 		},
 		{
-			name:     "echo with a range",
-			args:     []string{"-e", "-i", "1-2"},
-			wantErr:  "shuf: cannot combine -e and -i options\nTry 'shuf --help' for more information.\n",
-			wantExit: 1,
+			Name:     "echo with a range",
+			Args:     []string{"-e", "-i", "1-2"},
+			WantErr:  "shuf: cannot combine -e and -i options\nTry 'shuf --help' for more information.\n",
+			WantExit: 1,
 		},
 	}
 
-	for _, test := range tests {
-		t.Run(test.name, func(t *testing.T) {
-			runCase(t, test)
-		})
-	}
+	runCases(t, tests)
 }
 
 func TestRunHeadCount(t *testing.T) {
@@ -607,38 +536,34 @@ func TestRunHeadCount(t *testing.T) {
 		checkSample(t, got, "0\n1\n2\n3\n4\n5\n6\n7\n8\n9\n", 4, '\n')
 	})
 
-	tests := []testCase{
+	tests := []testutil.Case{
 		{
-			name:     "a non-numeric count",
-			args:     []string{"-n", "abc"},
-			wantErr:  "shuf: invalid line count: 'abc'\nTry 'shuf --help' for more information.\n",
-			wantExit: 1,
+			Name:     "a non-numeric count",
+			Args:     []string{"-n", "abc"},
+			WantErr:  "shuf: invalid line count: 'abc'\nTry 'shuf --help' for more information.\n",
+			WantExit: 1,
 		},
 		{
-			name:     "a negative count",
-			args:     []string{"-n", "-1"},
-			wantErr:  "shuf: invalid line count: '-1'\nTry 'shuf --help' for more information.\n",
-			wantExit: 1,
+			Name:     "a negative count",
+			Args:     []string{"-n", "-1"},
+			WantErr:  "shuf: invalid line count: '-1'\nTry 'shuf --help' for more information.\n",
+			WantExit: 1,
 		},
 		{
-			name:     "an empty count",
-			args:     []string{"-n", ""},
-			wantErr:  "shuf: invalid line count: ''\nTry 'shuf --help' for more information.\n",
-			wantExit: 1,
+			Name:     "an empty count",
+			Args:     []string{"-n", ""},
+			WantErr:  "shuf: invalid line count: ''\nTry 'shuf --help' for more information.\n",
+			WantExit: 1,
 		},
 		{
-			name:     "a missing count",
-			args:     []string{"-n"},
-			wantErr:  "shuf: option requires an argument -- 'n'\nTry 'shuf --help' for more information.\n",
-			wantExit: 1,
+			Name:     "a missing count",
+			Args:     []string{"-n"},
+			WantErr:  "shuf: option requires an argument -- 'n'\nTry 'shuf --help' for more information.\n",
+			WantExit: 1,
 		},
 	}
 
-	for _, test := range tests {
-		t.Run(test.name, func(t *testing.T) {
-			runCase(t, test)
-		})
-	}
+	runCases(t, tests)
 }
 
 func TestRunRepeat(t *testing.T) {
@@ -658,197 +583,189 @@ func TestRunRepeat(t *testing.T) {
 	})
 
 	t.Run("a deterministic selection", func(t *testing.T) {
-		test := testCase{
-			args: []string{"-r", "-n", "5", "-e", "--random-source=rand1", "a", "b"},
-			want: "a\na\na\nb\na\n",
+		test := testutil.Case{
+			Args: []string{"-r", "-n", "5", "-e", "--random-source=rand1", "a", "b"},
+			Want: "a\na\na\nb\na\n",
 		}
-		runCase(t, test)
+		onceCase(t, test)
 	})
 
 	t.Run("an empty input", func(t *testing.T) {
-		test := testCase{
-			stdin:    strings.NewReader(""),
-			args:     []string{"-r", "-n", "3"},
-			wantErr:  "shuf: no lines to repeat\n",
-			wantExit: 1,
+		test := testutil.Case{
+			Stdin:    strings.NewReader(""),
+			Args:     []string{"-r", "-n", "3"},
+			WantErr:  "shuf: no lines to repeat\n",
+			WantExit: 1,
 		}
-		runCase(t, test)
+		onceCase(t, test)
 	})
 
 	t.Run("echo without operands", func(t *testing.T) {
-		test := testCase{
-			args:     []string{"-r", "-n", "3", "-e"},
-			wantErr:  "shuf: no lines to repeat\n",
-			wantExit: 1,
+		test := testutil.Case{
+			Args:     []string{"-r", "-n", "3", "-e"},
+			WantErr:  "shuf: no lines to repeat\n",
+			WantExit: 1,
 		}
-		runCase(t, test)
+		onceCase(t, test)
 	})
 
 	t.Run("a zero count of an empty input writes nothing", func(t *testing.T) {
-		test := testCase{
-			stdin: strings.NewReader(""),
-			args:  []string{"-r", "-n", "0"},
-			want:  "",
+		test := testutil.Case{
+			Stdin: strings.NewReader(""),
+			Args:  []string{"-r", "-n", "0"},
+			Want:  "",
 		}
-		runCase(t, test)
+		onceCase(t, test)
 	})
 }
 
 func TestRunOutput(t *testing.T) {
 	t.Run("the output file is written", func(t *testing.T) {
-		test := testCase{
-			stdin: strings.NewReader("a\nb\nc\nd\n"),
-			fsys:  testFS(),
-			args:  []string{"-o", "out.txt", "--random-source=rand1"},
-			wantFiles: map[string]string{
+		test := testutil.Case{
+			Stdin: strings.NewReader("a\nb\nc\nd\n"),
+			FS:    testFS(),
+			Args:  []string{"-o", "out.txt", "--random-source=rand1"},
+			WantFiles: map[string]string{
 				"out.txt": "b\nd\nc\na\n",
 			},
 		}
-		runCase(t, test)
+		onceCase(t, test)
 	})
 
 	t.Run("an existing output file is truncated", func(t *testing.T) {
-		test := testCase{
-			stdin: strings.NewReader("a\nb\n"),
-			fsys:  testFS(),
-			args:  []string{"-o", "out.txt", "--random-source=rand1"},
-			wantFiles: map[string]string{
+		test := testutil.Case{
+			Stdin: strings.NewReader("a\nb\n"),
+			FS:    testFS(),
+			Args:  []string{"-o", "out.txt", "--random-source=rand1"},
+			WantFiles: map[string]string{
 				"out.txt": "b\na\n",
 			},
 		}
-		runCase(t, test)
+		onceCase(t, test)
 	})
 
 	t.Run("a file is shuffled in place", func(t *testing.T) {
-		test := testCase{
-			fsys: testFS(),
-			args: []string{"--random-source=rand1", "-o", "cards.txt", "cards.txt"},
-			wantFiles: map[string]string{
+		test := testutil.Case{
+			FS:   testFS(),
+			Args: []string{"--random-source=rand1", "-o", "cards.txt", "cards.txt"},
+			WantFiles: map[string]string{
 				"cards.txt": "b\nd\nc\na\n",
 			},
 		}
-		runCase(t, test)
+		onceCase(t, test)
 	})
 
 	t.Run("repeating the same output file is allowed", func(t *testing.T) {
-		test := testCase{
-			stdin: strings.NewReader("a\nb\n"),
-			fsys:  testFS(),
-			args:  []string{"-o", "out.txt", "-o", "out.txt", "--random-source=rand1"},
-			wantFiles: map[string]string{
+		test := testutil.Case{
+			Stdin: strings.NewReader("a\nb\n"),
+			FS:    testFS(),
+			Args:  []string{"-o", "out.txt", "-o", "out.txt", "--random-source=rand1"},
+			WantFiles: map[string]string{
 				"out.txt": "b\na\n",
 			},
 		}
-		runCase(t, test)
+		onceCase(t, test)
 	})
 
-	tests := []testCase{
+	tests := []testutil.Case{
 		{
-			name:     "two different output files",
-			stdin:    strings.NewReader("a\nb\n"),
-			fsys:     testFS(),
-			args:     []string{"-o", "out.txt", "-o", "other.txt"},
-			wantErr:  "shuf: multiple output files specified\nTry 'shuf --help' for more information.\n",
-			wantExit: 1,
+			Name:     "two different output files",
+			Stdin:    strings.NewReader("a\nb\n"),
+			FS:       testFS(),
+			Args:     []string{"-o", "out.txt", "-o", "other.txt"},
+			WantErr:  "shuf: multiple output files specified\nTry 'shuf --help' for more information.\n",
+			WantExit: 1,
 		},
 		{
-			name:     "a missing output file argument",
-			args:     []string{"-o"},
-			wantErr:  "shuf: option requires an argument -- 'o'\nTry 'shuf --help' for more information.\n",
-			wantExit: 1,
+			Name:     "a missing output file argument",
+			Args:     []string{"-o"},
+			WantErr:  "shuf: option requires an argument -- 'o'\nTry 'shuf --help' for more information.\n",
+			WantExit: 1,
 		},
 		{
-			name:     "an output file without a parent directory",
-			stdin:    strings.NewReader("a\nb\n"),
-			fsys:     testFS(),
-			args:     []string{"-o", "no/such/out.txt"},
-			wantErr:  "shuf: no/such/out.txt: file does not exist\n",
-			wantExit: 1,
+			Name:     "an output file without a parent directory",
+			Stdin:    strings.NewReader("a\nb\n"),
+			FS:       testFS(),
+			Args:     []string{"-o", "no/such/out.txt"},
+			WantErr:  "shuf: no/such/out.txt: file does not exist\n",
+			WantExit: 1,
 		},
 	}
 
-	for _, test := range tests {
-		t.Run(test.name, func(t *testing.T) {
-			runCase(t, test)
-		})
-	}
+	runCases(t, tests)
 }
 
 func TestRunRandomSource(t *testing.T) {
-	tests := []testCase{
+	tests := []testutil.Case{
 		{
-			name:  "a source with enough bytes",
-			stdin: strings.NewReader("a\nb\nc\nd\n"),
-			fsys:  testFS(),
-			args:  []string{"--random-source=rand1"},
-			want:  "b\nd\nc\na\n",
+			Name:  "a source with enough bytes",
+			Stdin: strings.NewReader("a\nb\nc\nd\n"),
+			FS:    testFS(),
+			Args:  []string{"--random-source=rand1"},
+			Want:  "b\nd\nc\na\n",
 		},
 		{
-			name:  "repeating the same random source is allowed",
-			stdin: strings.NewReader("a\nb\nc\nd\n"),
-			fsys:  testFS(),
-			args:  []string{"--random-source=rand1", "--random-source=rand1"},
-			want:  "b\nd\nc\na\n",
+			Name:  "repeating the same random source is allowed",
+			Stdin: strings.NewReader("a\nb\nc\nd\n"),
+			FS:    testFS(),
+			Args:  []string{"--random-source=rand1", "--random-source=rand1"},
+			Want:  "b\nd\nc\na\n",
 		},
 		{
-			name:     "an empty random source fails",
-			stdin:    strings.NewReader("a\nb\nc\nd\n"),
-			fsys:     testFS(),
-			args:     []string{"--random-source=randempty"},
-			wantErr:  "shuf: randempty: end of file\n",
-			wantExit: 1,
+			Name:     "an empty random source fails",
+			Stdin:    strings.NewReader("a\nb\nc\nd\n"),
+			FS:       testFS(),
+			Args:     []string{"--random-source=randempty"},
+			WantErr:  "shuf: randempty: end of file\n",
+			WantExit: 1,
 		},
 		{
-			name:  "a single line needs no random bytes",
-			stdin: strings.NewReader("only\n"),
-			fsys:  testFS(),
-			args:  []string{"--random-source=randempty"},
-			want:  "only\n",
+			Name:  "a single line needs no random bytes",
+			Stdin: strings.NewReader("only\n"),
+			FS:    testFS(),
+			Args:  []string{"--random-source=randempty"},
+			Want:  "only\n",
 		},
 		{
-			name: "a single number range needs no random bytes",
-			fsys: testFS(),
-			args: []string{"-i", "5-5", "--random-source=randempty"},
-			want: "5\n",
+			Name: "a single number range needs no random bytes",
+			FS:   testFS(),
+			Args: []string{"-i", "5-5", "--random-source=randempty"},
+			Want: "5\n",
 		},
 		{
-			name:     "a short random source fails",
-			stdin:    strings.NewReader("a\nb\nc\nd\n"),
-			fsys:     testFS(),
-			args:     []string{"--random-source=randshort"},
-			wantErr:  "shuf: randshort: end of file\n",
-			wantExit: 1,
+			Name:     "a short random source fails",
+			Stdin:    strings.NewReader("a\nb\nc\nd\n"),
+			FS:       testFS(),
+			Args:     []string{"--random-source=randshort"},
+			WantErr:  "shuf: randshort: end of file\n",
+			WantExit: 1,
 		},
 		{
-			name:  "a short random source is enough for two lines",
-			stdin: strings.NewReader("a\nb\n"),
-			fsys:  testFS(),
-			args:  []string{"--random-source=randshort"},
-			want:  "b\na\n",
+			Name:  "a short random source is enough for two lines",
+			Stdin: strings.NewReader("a\nb\n"),
+			FS:    testFS(),
+			Args:  []string{"--random-source=randshort"},
+			Want:  "b\na\n",
 		},
 		{
-			name:     "a missing random source",
-			stdin:    strings.NewReader("a\nb\n"),
-			fsys:     testFS(),
-			args:     []string{"--random-source=missing"},
-			wantErr:  "shuf: missing: file does not exist\n",
-			wantExit: 1,
+			Name:     "a missing random source",
+			Stdin:    strings.NewReader("a\nb\n"),
+			FS:       testFS(),
+			Args:     []string{"--random-source=missing"},
+			WantErr:  "shuf: missing: file does not exist\n",
+			WantExit: 1,
 		},
 		{
-			name:     "two different random sources",
-			stdin:    strings.NewReader("a\nb\n"),
-			fsys:     testFS(),
-			args:     []string{"--random-source=rand1", "--random-source=rand2"},
-			wantErr:  "shuf: multiple random sources specified\nTry 'shuf --help' for more information.\n",
-			wantExit: 1,
+			Name:     "two different random sources",
+			Stdin:    strings.NewReader("a\nb\n"),
+			FS:       testFS(),
+			Args:     []string{"--random-source=rand1", "--random-source=rand2"},
+			WantErr:  "shuf: multiple random sources specified\nTry 'shuf --help' for more information.\n",
+			WantExit: 1,
 		},
 	}
 
-	for _, test := range tests {
-		t.Run(test.name, func(t *testing.T) {
-			runCase(t, test)
-		})
-	}
+	runCases(t, tests)
 }
 
 func TestRunZeroTerminated(t *testing.T) {
@@ -857,93 +774,85 @@ func TestRunZeroTerminated(t *testing.T) {
 		checkPermutation(t, got, "x\x00z\x00y\x00", 0)
 	})
 
-	tests := []testCase{
+	tests := []testutil.Case{
 		{
-			name:  "the output is zero terminated",
-			stdin: strings.NewReader("a\x00b\x00c\x00"),
-			args:  []string{"-z", "--random-source=rand1"},
-			want:  "b\x00c\x00a\x00",
+			Name:  "the output is zero terminated",
+			Stdin: strings.NewReader("a\x00b\x00c\x00"),
+			Args:  []string{"-z", "--random-source=rand1"},
+			Want:  "b\x00c\x00a\x00",
 		},
 		{
-			name:  "a missing final zero byte",
-			stdin: strings.NewReader("a\x00b\x00c"),
-			args:  []string{"-z", "--random-source=rand1"},
-			want:  "b\x00c\x00a\x00",
+			Name:  "a missing final zero byte",
+			Stdin: strings.NewReader("a\x00b\x00c"),
+			Args:  []string{"-z", "--random-source=rand1"},
+			Want:  "b\x00c\x00a\x00",
 		},
 		{
-			name: "echo with zero termination",
-			args: []string{"-z", "-e", "--random-source=rand1", "a", "b", "c"},
-			want: "b\x00c\x00a\x00",
+			Name: "echo with zero termination",
+			Args: []string{"-z", "-e", "--random-source=rand1", "a", "b", "c"},
+			Want: "b\x00c\x00a\x00",
 		},
 		{
-			name: "a range with zero termination",
-			args: []string{"-z", "-i", "1-3", "--random-source=rand1"},
-			want: "1\x002\x003\x00",
+			Name: "a range with zero termination",
+			Args: []string{"-z", "-i", "1-3", "--random-source=rand1"},
+			Want: "1\x002\x003\x00",
 		},
 		{
-			name: "the long form",
-			args: []string{"--zero-terminated", "-e", "--random-source=rand1", "a", "b", "c"},
-			want: "b\x00c\x00a\x00",
+			Name: "the long form",
+			Args: []string{"--zero-terminated", "-e", "--random-source=rand1", "a", "b", "c"},
+			Want: "b\x00c\x00a\x00",
 		},
 	}
 
-	for _, test := range tests {
-		t.Run(test.name, func(t *testing.T) {
-			runCase(t, test)
-		})
-	}
+	runCases(t, tests)
 }
 
 func TestRunOptionForms(t *testing.T) {
 	t.Run("grouped options", func(t *testing.T) {
-		test := testCase{
-			args: []string{"-rn2", "-e", "--random-source=rand1", "a", "b"},
-			want: "a\na\n",
+		test := testutil.Case{
+			Args: []string{"-rn2", "-e", "--random-source=rand1", "a", "b"},
+			Want: "a\na\n",
 		}
-		runCase(t, test)
+		onceCase(t, test)
 	})
 
 	t.Run("options stop at the first operand", func(t *testing.T) {
-		test := testCase{
-			fsys:     testFS(),
-			args:     []string{"names.txt", "-z"},
-			wantErr:  "shuf: extra operand '-z'\nTry 'shuf --help' for more information.\n",
-			wantExit: 1,
+		test := testutil.Case{
+			FS:       testFS(),
+			Args:     []string{"names.txt", "-z"},
+			WantErr:  "shuf: extra operand '-z'\nTry 'shuf --help' for more information.\n",
+			WantExit: 1,
 		}
-		runCase(t, test)
+		onceCase(t, test)
 	})
 
 	t.Run("repeat with a count of the input", func(t *testing.T) {
-		test := testCase{
-			stdin: strings.NewReader("a\nb\nc\nd\n"),
-			args:  []string{"-r", "-n", "2", "--random-source=rand1"},
-			want:  "a\nc\n",
+		test := testutil.Case{
+			Stdin: strings.NewReader("a\nb\nc\nd\n"),
+			Args:  []string{"-r", "-n", "2", "--random-source=rand1"},
+			Want:  "a\nc\n",
 		}
-		runCase(t, test)
+		onceCase(t, test)
 	})
 }
 
 func TestRunErrors(t *testing.T) {
-	tests := []testCase{
+	tests := []testutil.Case{
 		{
-			name:     "an invalid short option",
-			args:     []string{"-x"},
-			wantErr:  "shuf: invalid option -- 'x'\nTry 'shuf --help' for more information.\n",
-			wantExit: 1,
+			Name:     "an invalid short option",
+			Args:     []string{"-x"},
+			WantErr:  "shuf: invalid option -- 'x'\nTry 'shuf --help' for more information.\n",
+			WantExit: 1,
 		},
 		{
-			name:     "an unrecognized long option",
-			args:     []string{"--foo"},
-			wantErr:  "shuf: unrecognized option '--foo'\nTry 'shuf --help' for more information.\n",
-			wantExit: 1,
+			Name:     "an unrecognized long option",
+			Args:     []string{"--foo"},
+			WantErr:  "shuf: unrecognized option '--foo'\nTry 'shuf --help' for more information.\n",
+			WantExit: 1,
 		},
 	}
 
-	for _, test := range tests {
-		t.Run(test.name, func(t *testing.T) {
-			runCase(t, test)
-		})
-	}
+	runCases(t, tests)
 }
 
 func TestRunInterrupted(t *testing.T) {
@@ -952,7 +861,7 @@ func TestRunInterrupted(t *testing.T) {
 		cancel()
 		stdout := new(bytes.Buffer)
 		rt := &coreutils.Runtime{
-			Stdin:  &cancelReader{cancel: cancel},
+			Stdin:  &testutil.CancelReader{Cancel: cancel},
 			Stdout: stdout,
 			Stderr: io.Discard,
 		}
@@ -1017,11 +926,11 @@ func TestRunInterrupted(t *testing.T) {
 func TestRunWriteError(t *testing.T) {
 	stderr := new(bytes.Buffer)
 	rt := &coreutils.Runtime{
-		Stdout: errorWriter{err: errors.New("boom")},
+		Stdout: testutil.ErrorWriter{Err: errors.New("boom")},
 		Stderr: stderr,
 	}
 	err := New(rt).Run(t.Context(), "-e", "a", "b", "c")
-	if code := exitCode(t, err); code != 1 {
+	if code := testutil.ExitCode(t, err); code != 1 {
 		t.Errorf("Run() exit code = %d, want 1", code)
 	}
 	if got, want := stderr.String(), "shuf: write error: boom\n"; got != want {
@@ -1030,26 +939,5 @@ func TestRunWriteError(t *testing.T) {
 }
 
 func TestHelpVersion(t *testing.T) {
-	t.Run("help", func(t *testing.T) {
-		stdout := new(bytes.Buffer)
-		rt := &coreutils.Runtime{Stdout: stdout, Stderr: new(bytes.Buffer)}
-		if err := New(rt).Run(t.Context(), "--help"); err != nil {
-			t.Fatalf("Run() error = %v, want nil (exit status 0)", err)
-		}
-		if got, want := stdout.String(), usage; got != want {
-			t.Errorf("Run() stdout = %q, want %q", got, want)
-		}
-	})
-
-	t.Run("version", func(t *testing.T) {
-		stdout := new(bytes.Buffer)
-		rt := &coreutils.Runtime{Stdout: stdout, Stderr: new(bytes.Buffer)}
-		if err := New(rt).Run(t.Context(), "--version"); err != nil {
-			t.Fatalf("Run() error = %v, want nil (exit status 0)", err)
-		}
-		want := "shuf (charm.land/snail/coreutils) " + coreutils.Version + "\nhttps://charm.land/snail\n"
-		if got := stdout.String(); got != want {
-			t.Errorf("Run() stdout = %q, want %q", got, want)
-		}
-	})
+	testutil.HelpVersion(t, New, "shuf", usage)
 }

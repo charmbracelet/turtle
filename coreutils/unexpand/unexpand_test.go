@@ -2,43 +2,15 @@ package unexpand
 
 import (
 	"bytes"
-	"context"
 	"errors"
-	"io"
 	"io/fs"
 	"strings"
 	"testing"
 
 	"charm.land/snail/coreutils"
+	"charm.land/snail/coreutils/internal/testutil"
 	"charm.land/snail/fsx"
 )
-
-type errorReader struct {
-	err error
-}
-
-func (r errorReader) Read([]byte) (int, error) {
-	return 0, r.err
-}
-
-type errorWriter struct {
-	err error
-}
-
-func (w errorWriter) Write([]byte) (int, error) {
-	return 0, w.err
-}
-
-// cancelReader cancels its context on the first read, simulating a context
-// that is done while input is being read.
-type cancelReader struct {
-	cancel context.CancelFunc
-}
-
-func (r *cancelReader) Read([]byte) (int, error) {
-	r.cancel()
-	return 0, context.Canceled
-}
 
 // testFS holds the fixtures used by the tests:
 //
@@ -63,570 +35,481 @@ func testFS() fsx.MemFS {
 	}
 }
 
-func exitCode(t *testing.T, err error) int {
-	t.Helper()
-
-	if err == nil {
-		return 0
-	}
-	var exitErr *coreutils.ExitError
-	if !errors.As(err, &exitErr) {
-		t.Fatalf("Run() error = %v, want *coreutils.ExitError", err)
-	}
-	return exitErr.Code
-}
-
-type testCase struct {
-	name     string
-	stdin    io.Reader
-	fsys     fsx.FS
-	dir      string
-	args     []string
-	want     string
-	wantErr  string
-	wantExit int
-}
-
-func runCase(t *testing.T, test testCase) {
-	t.Helper()
-
-	stdout := new(bytes.Buffer)
-	stderr := new(bytes.Buffer)
-	rt := &coreutils.Runtime{
-		Stdin:      test.stdin,
-		Stdout:     stdout,
-		Stderr:     stderr,
-		FS:         test.fsys,
-		WorkingDir: test.dir,
-	}
-	err := New(rt).Run(t.Context(), test.args...)
-
-	if code := exitCode(t, err); code != test.wantExit {
-		t.Errorf("Run() exit code = %d, want %d (error = %v)", code, test.wantExit, err)
-	}
-	if got := stdout.String(); got != test.want {
-		t.Errorf("Run() stdout = %q, want %q", got, test.want)
-	}
-	if got := stderr.String(); got != test.wantErr {
-		t.Errorf("Run() stderr = %q, want %q", got, test.wantErr)
-	}
-}
-
 func TestRunDefaults(t *testing.T) {
-	tests := []testCase{
+	tests := []testutil.Case{
 		{
-			name:  "no operands read the standard input",
-			stdin: strings.NewReader("        foo\n"),
-			want:  "\tfoo\n",
+			Name:  "no operands read the standard input",
+			Stdin: strings.NewReader("        foo\n"),
+			Want:  "\tfoo\n",
 		},
 		{
-			name:  "an empty standard input",
-			stdin: strings.NewReader(""),
-			want:  "",
+			Name:  "an empty standard input",
+			Stdin: strings.NewReader(""),
+			Want:  "",
 		},
 		{
-			name:  "an empty line stays empty",
-			stdin: strings.NewReader("\n"),
-			want:  "\n",
+			Name:  "an empty line stays empty",
+			Stdin: strings.NewReader("\n"),
+			Want:  "\n",
 		},
 		{
-			name:  "fewer than a tab stop of leading blanks",
-			stdin: strings.NewReader("       foo\n"),
-			want:  "       foo\n",
+			Name:  "fewer than a tab stop of leading blanks",
+			Stdin: strings.NewReader("       foo\n"),
+			Want:  "       foo\n",
 		},
 		{
-			name:  "leading blanks become tabs and spaces",
-			stdin: strings.NewReader("         foo\n"),
-			want:  "\t foo\n",
+			Name:  "leading blanks become tabs and spaces",
+			Stdin: strings.NewReader("         foo\n"),
+			Want:  "\t foo\n",
 		},
 		{
-			name:  "two tab stops of leading blanks",
-			stdin: strings.NewReader("                foo\n"),
-			want:  "\t\tfoo\n",
+			Name:  "two tab stops of leading blanks",
+			Stdin: strings.NewReader("                foo\n"),
+			Want:  "\t\tfoo\n",
 		},
 		{
-			name:  "leading blanks and tabs mix",
-			stdin: strings.NewReader("  \tfoo\n"),
-			want:  "\tfoo\n",
+			Name:  "leading blanks and tabs mix",
+			Stdin: strings.NewReader("  \tfoo\n"),
+			Want:  "\tfoo\n",
 		},
 		{
-			name:  "interior blanks are not converted",
-			stdin: strings.NewReader("a       b\n"),
-			want:  "a       b\n",
+			Name:  "interior blanks are not converted",
+			Stdin: strings.NewReader("a       b\n"),
+			Want:  "a       b\n",
 		},
 		{
-			name:  "a line starting with a non blank is untouched",
-			stdin: strings.NewReader("x       y\n"),
-			want:  "x       y\n",
+			Name:  "a line starting with a non blank is untouched",
+			Stdin: strings.NewReader("x       y\n"),
+			Want:  "x       y\n",
 		},
 		{
-			name:  "a missing final newline is not added",
-			stdin: strings.NewReader("        x"),
-			want:  "\tx",
+			Name:  "a missing final newline is not added",
+			Stdin: strings.NewReader("        x"),
+			Want:  "\tx",
 		},
 	}
 
-	for _, test := range tests {
-		t.Run(test.name, func(t *testing.T) {
-			runCase(t, test)
-		})
-	}
+	testutil.Run(t, New, tests)
 }
 
 func TestRunAll(t *testing.T) {
-	tests := []testCase{
+	tests := []testutil.Case{
 		{
-			name:  "interior blanks preceding a stop are converted",
-			stdin: strings.NewReader("a       b\n"),
-			args:  []string{"-a"},
-			want:  "a\tb\n",
+			Name:  "interior blanks preceding a stop are converted",
+			Stdin: strings.NewReader("a       b\n"),
+			Args:  []string{"-a"},
+			Want:  "a\tb\n",
 		},
 		{
-			name:  "interior blanks not reaching a stop stay",
-			stdin: strings.NewReader("a  b\n"),
-			args:  []string{"-a"},
-			want:  "a  b\n",
+			Name:  "interior blanks not reaching a stop stay",
+			Stdin: strings.NewReader("a  b\n"),
+			Args:  []string{"-a"},
+			Want:  "a  b\n",
 		},
 		{
-			name:  "a run of blanks and tabs",
-			stdin: strings.NewReader("a \tb\n"),
-			args:  []string{"-a"},
-			want:  "a\tb\n",
+			Name:  "a run of blanks and tabs",
+			Stdin: strings.NewReader("a \tb\n"),
+			Args:  []string{"-a"},
+			Want:  "a\tb\n",
 		},
 		{
-			name:  "only the runs reaching a stop are converted",
-			stdin: strings.NewReader("a       b     c\n"),
-			args:  []string{"-a"},
-			want:  "a\tb     c\n",
+			Name:  "only the runs reaching a stop are converted",
+			Stdin: strings.NewReader("a       b     c\n"),
+			Args:  []string{"-a"},
+			Want:  "a\tb     c\n",
 		},
 		{
-			name:  "trailing blanks",
-			stdin: strings.NewReader("a       \n"),
-			args:  []string{"-a"},
-			want:  "a\t\n",
+			Name:  "trailing blanks",
+			Stdin: strings.NewReader("a       \n"),
+			Args:  []string{"-a"},
+			Want:  "a\t\n",
 		},
 		{
-			name:  "leading blanks are still converted",
-			stdin: strings.NewReader("        foo\n"),
-			args:  []string{"-a"},
-			want:  "\tfoo\n",
+			Name:  "leading blanks are still converted",
+			Stdin: strings.NewReader("        foo\n"),
+			Args:  []string{"-a"},
+			Want:  "\tfoo\n",
 		},
 	}
 
-	for _, test := range tests {
-		t.Run(test.name, func(t *testing.T) {
-			runCase(t, test)
-		})
-	}
+	testutil.Run(t, New, tests)
 }
 
 func TestRunTabStops(t *testing.T) {
-	tests := []testCase{
+	tests := []testutil.Case{
 		{
-			name:  "a single number sets the distance between stops",
-			stdin: strings.NewReader("     foo\n"),
-			args:  []string{"-t", "4"},
-			want:  "\t foo\n",
+			Name:  "a single number sets the distance between stops",
+			Stdin: strings.NewReader("     foo\n"),
+			Args:  []string{"-t", "4"},
+			Want:  "\t foo\n",
 		},
 		{
-			name:  "a single number of eight is the default distance",
-			stdin: strings.NewReader("        foo\n"),
-			args:  []string{"-t", "8"},
-			want:  "\tfoo\n",
+			Name:  "a single number of eight is the default distance",
+			Stdin: strings.NewReader("        foo\n"),
+			Args:  []string{"-t", "8"},
+			Want:  "\tfoo\n",
 		},
 		{
-			name:  "a list of stops",
-			stdin: strings.NewReader("    x\n"),
-			args:  []string{"-t", "4,8"},
-			want:  "\tx\n",
+			Name:  "a list of stops",
+			Stdin: strings.NewReader("    x\n"),
+			Args:  []string{"-t", "4,8"},
+			Want:  "\tx\n",
 		},
 		{
-			name:  "a list of stops with a remainder",
-			stdin: strings.NewReader("     x\n"),
-			args:  []string{"-t", "4,8"},
-			want:  "\t x\n",
+			Name:  "a list of stops with a remainder",
+			Stdin: strings.NewReader("     x\n"),
+			Args:  []string{"-t", "4,8"},
+			Want:  "\t x\n",
 		},
 		{
-			name:  "multiple list stops",
-			stdin: strings.NewReader("         x\n"),
-			args:  []string{"-t", "4,8"},
-			want:  "\t\t x\n",
+			Name:  "multiple list stops",
+			Stdin: strings.NewReader("         x\n"),
+			Args:  []string{"-t", "4,8"},
+			Want:  "\t\t x\n",
 		},
 		{
-			name:  "no conversions past the last stop",
-			stdin: strings.NewReader("          x\n"),
-			args:  []string{"-t", "4,8"},
-			want:  "\t\t  x\n",
+			Name:  "no conversions past the last stop",
+			Stdin: strings.NewReader("          x\n"),
+			Args:  []string{"-t", "4,8"},
+			Want:  "\t\t  x\n",
 		},
 		{
-			name:  "a tab past the last stop is copied",
-			stdin: strings.NewReader("        \t  x\n"),
-			args:  []string{"-t", "4,8"},
-			want:  "\t\t\t  x\n",
+			Name:  "a tab past the last stop is copied",
+			Stdin: strings.NewReader("        \t  x\n"),
+			Args:  []string{"-t", "4,8"},
+			Want:  "\t\t\t  x\n",
 		},
 		{
-			name:  "a single blank just before a stop is not converted",
-			stdin: strings.NewReader("a b\n"),
-			args:  []string{"-t", "2"},
-			want:  "a b\n",
+			Name:  "a single blank just before a stop is not converted",
+			Stdin: strings.NewReader("a b\n"),
+			Args:  []string{"-t", "2"},
+			Want:  "a b\n",
 		},
 		{
-			name:  "two blanks before a stop are converted",
-			stdin: strings.NewReader("a  b\n"),
-			args:  []string{"-t", "2"},
-			want:  "a\t b\n",
+			Name:  "two blanks before a stop are converted",
+			Stdin: strings.NewReader("a  b\n"),
+			Args:  []string{"-t", "2"},
+			Want:  "a\t b\n",
 		},
 		{
-			name:  "a lone leading blank on a stop is converted",
-			stdin: strings.NewReader(" x\n"),
-			args:  []string{"-t", "1"},
-			want:  "\tx\n",
+			Name:  "a lone leading blank on a stop is converted",
+			Stdin: strings.NewReader(" x\n"),
+			Args:  []string{"-t", "1"},
+			Want:  "\tx\n",
 		},
 		{
-			name:  "t implies a",
-			stdin: strings.NewReader("a       b\n"),
-			args:  []string{"-t", "8"},
-			want:  "a\tb\n",
+			Name:  "t implies a",
+			Stdin: strings.NewReader("a       b\n"),
+			Args:  []string{"-t", "8"},
+			Want:  "a\tb\n",
 		},
 		{
-			name:  "grouped a and t",
-			stdin: strings.NewReader("     foo\n"),
-			args:  []string{"-at", "4"},
-			want:  "\t foo\n",
+			Name:  "grouped a and t",
+			Stdin: strings.NewReader("     foo\n"),
+			Args:  []string{"-at", "4"},
+			Want:  "\t foo\n",
 		},
 		{
-			name:  "the last list wins",
-			stdin: strings.NewReader("     foo\n"),
-			args:  []string{"-t", "8", "-t", "4"},
-			want:  "\t foo\n",
+			Name:  "the last list wins",
+			Stdin: strings.NewReader("     foo\n"),
+			Args:  []string{"-t", "8", "-t", "4"},
+			Want:  "\t foo\n",
 		},
 	}
 
-	for _, test := range tests {
-		t.Run(test.name, func(t *testing.T) {
-			runCase(t, test)
-		})
-	}
+	testutil.Run(t, New, tests)
 }
 
 func TestRunFirstOnly(t *testing.T) {
-	tests := []testCase{
+	tests := []testutil.Case{
 		{
-			name:  "interior blanks are not converted",
-			stdin: strings.NewReader("a       b\n"),
-			args:  []string{"--first-only"},
-			want:  "a       b\n",
+			Name:  "interior blanks are not converted",
+			Stdin: strings.NewReader("a       b\n"),
+			Args:  []string{"--first-only"},
+			Want:  "a       b\n",
 		},
 		{
-			name:  "leading blanks are converted",
-			stdin: strings.NewReader("        foo\n"),
-			args:  []string{"--first-only"},
-			want:  "\tfoo\n",
+			Name:  "leading blanks are converted",
+			Stdin: strings.NewReader("        foo\n"),
+			Args:  []string{"--first-only"},
+			Want:  "\tfoo\n",
 		},
 		{
-			name:  "the leading blanks and the interior ones are separated",
-			stdin: strings.NewReader("        a  b\n"),
-			args:  []string{"--first-only"},
-			want:  "\ta  b\n",
+			Name:  "the leading blanks and the interior ones are separated",
+			Stdin: strings.NewReader("        a  b\n"),
+			Args:  []string{"--first-only"},
+			Want:  "\ta  b\n",
 		},
 		{
-			name:  "first-only overrides a given all",
-			stdin: strings.NewReader("a       b\n"),
-			args:  []string{"--all", "--first-only"},
-			want:  "a       b\n",
+			Name:  "first-only overrides a given all",
+			Stdin: strings.NewReader("a       b\n"),
+			Args:  []string{"--all", "--first-only"},
+			Want:  "a       b\n",
 		},
 		{
-			name:  "first-only overrides all given before it",
-			stdin: strings.NewReader("a       b\n"),
-			args:  []string{"--first-only", "--all"},
-			want:  "a       b\n",
+			Name:  "first-only overrides all given before it",
+			Stdin: strings.NewReader("a       b\n"),
+			Args:  []string{"--first-only", "--all"},
+			Want:  "a       b\n",
 		},
 		{
-			name:  "first-only with tabs converts only the leading blanks",
-			stdin: strings.NewReader("        a  b\n"),
-			args:  []string{"--first-only", "-t", "4"},
-			want:  "\t\ta  b\n",
+			Name:  "first-only with tabs converts only the leading blanks",
+			Stdin: strings.NewReader("        a  b\n"),
+			Args:  []string{"--first-only", "-t", "4"},
+			Want:  "\t\ta  b\n",
 		},
 		{
-			name:  "first-only cancels the all implied by tabs",
-			stdin: strings.NewReader("a       b\n"),
-			args:  []string{"--first-only", "-t", "8"},
-			want:  "a       b\n",
+			Name:  "first-only cancels the all implied by tabs",
+			Stdin: strings.NewReader("a       b\n"),
+			Args:  []string{"--first-only", "-t", "8"},
+			Want:  "a       b\n",
 		},
 		{
-			name:  "first-only cancels the all implied by tabs given before it",
-			stdin: strings.NewReader("a       b\n"),
-			args:  []string{"-t", "8", "--first-only"},
-			want:  "a       b\n",
+			Name:  "first-only cancels the all implied by tabs given before it",
+			Stdin: strings.NewReader("a       b\n"),
+			Args:  []string{"-t", "8", "--first-only"},
+			Want:  "a       b\n",
 		},
 	}
 
-	for _, test := range tests {
-		t.Run(test.name, func(t *testing.T) {
-			runCase(t, test)
-		})
-	}
+	testutil.Run(t, New, tests)
 }
 
 func TestRunBackspace(t *testing.T) {
-	tests := []testCase{
+	tests := []testutil.Case{
 		{
-			name:  "backspaces are copied and decrement the column",
-			stdin: strings.NewReader("  \b        x\n"),
-			args:  []string{"-a"},
-			want:  "  \b\t x\n",
+			Name:  "backspaces are copied and decrement the column",
+			Stdin: strings.NewReader("  \b        x\n"),
+			Args:  []string{"-a"},
+			Want:  "  \b\t x\n",
 		},
 		{
-			name:  "the column is not decremented below zero",
-			stdin: strings.NewReader("\b        x\n"),
-			args:  []string{"-a"},
-			want:  "\b\tx\n",
+			Name:  "the column is not decremented below zero",
+			Stdin: strings.NewReader("\b        x\n"),
+			Args:  []string{"-a"},
+			Want:  "\b\tx\n",
 		},
 	}
 
-	for _, test := range tests {
-		t.Run(test.name, func(t *testing.T) {
-			runCase(t, test)
-		})
-	}
+	testutil.Run(t, New, tests)
 }
 
 func TestRunUTF8(t *testing.T) {
-	tests := []testCase{
+	tests := []testutil.Case{
 		{
-			name: "a multibyte character counts as one column",
-			fsys: testFS(),
-			args: []string{"-a", "utf8.txt"},
-			want: "á\tb\n",
+			Name: "a multibyte character counts as one column",
+			FS:   testFS(),
+			Args: []string{"-a", "utf8.txt"},
+			Want: "á\tb\n",
 		},
 		{
-			name: "an invalid byte counts as one column",
-			fsys: testFS(),
-			args: []string{"-a", "invalid.txt"},
-			want: "a\xff\t b\n",
+			Name: "an invalid byte counts as one column",
+			FS:   testFS(),
+			Args: []string{"-a", "invalid.txt"},
+			Want: "a\xff\t b\n",
 		},
 	}
 
-	for _, test := range tests {
-		t.Run(test.name, func(t *testing.T) {
-			runCase(t, test)
-		})
-	}
+	testutil.Run(t, New, tests)
 }
 
 func TestRunFiles(t *testing.T) {
-	tests := []testCase{
+	tests := []testutil.Case{
 		{
-			name: "a file operand",
-			fsys: testFS(),
-			args: []string{"spaces.txt"},
-			want: "\tfoo\n",
+			Name: "a file operand",
+			FS:   testFS(),
+			Args: []string{"spaces.txt"},
+			Want: "\tfoo\n",
 		},
 		{
-			name: "multiple files are concatenated in order",
-			fsys: testFS(),
-			args: []string{"spaces.txt", "mid.txt"},
-			want: "\tfoo\na       b\n",
+			Name: "multiple files are concatenated in order",
+			FS:   testFS(),
+			Args: []string{"spaces.txt", "mid.txt"},
+			Want: "\tfoo\na       b\n",
 		},
 		{
-			name:  "dash reads the standard input",
-			stdin: strings.NewReader("        s\n"),
-			fsys:  testFS(),
-			args:  []string{"-"},
-			want:  "\ts\n",
+			Name:  "dash reads the standard input",
+			Stdin: strings.NewReader("        s\n"),
+			FS:    testFS(),
+			Args:  []string{"-"},
+			Want:  "\ts\n",
 		},
 		{
-			name:  "dash between files reads the standard input at that point",
-			stdin: strings.NewReader("        s\n"),
-			fsys:  testFS(),
-			args:  []string{"spaces.txt", "-", "mid.txt"},
-			want:  "\tfoo\n\ts\na       b\n",
+			Name:  "dash between files reads the standard input at that point",
+			Stdin: strings.NewReader("        s\n"),
+			FS:    testFS(),
+			Args:  []string{"spaces.txt", "-", "mid.txt"},
+			Want:  "\tfoo\n\ts\na       b\n",
 		},
 		{
-			name: "pathnames are resolved from the working directory",
-			fsys: testFS(),
-			dir:  "sub",
-			args: []string{"inner.txt"},
-			want: "    y\n",
+			Name: "pathnames are resolved from the working directory",
+			FS:   testFS(),
+			Dir:  "sub",
+			Args: []string{"inner.txt"},
+			Want: "    y\n",
 		},
 		{
-			name: "a missing final newline is not added",
-			fsys: testFS(),
-			args: []string{"nonl.txt"},
-			want: "\tx",
+			Name: "a missing final newline is not added",
+			FS:   testFS(),
+			Args: []string{"nonl.txt"},
+			Want: "\tx",
 		},
 		{
-			name: "an empty file produces no output",
-			fsys: testFS(),
-			args: []string{"empty.txt"},
-			want: "",
+			Name: "an empty file produces no output",
+			FS:   testFS(),
+			Args: []string{"empty.txt"},
+			Want: "",
 		},
 		{
-			name: "a file named like an option after a double dash",
-			fsys: testFS(),
-			args: []string{"--", "-a"},
-			want: "\tz\n",
+			Name: "a file named like an option after a double dash",
+			FS:   testFS(),
+			Args: []string{"--", "-a"},
+			Want: "\tz\n",
 		},
 		{
-			name:     "options are not parsed after the first operand",
-			fsys:     testFS(),
-			args:     []string{"spaces.txt", "-x"},
-			want:     "\tfoo\n",
-			wantErr:  "unexpand: -x: file does not exist\n",
-			wantExit: 1,
+			Name:     "options are not parsed after the first operand",
+			FS:       testFS(),
+			Args:     []string{"spaces.txt", "-x"},
+			Want:     "\tfoo\n",
+			WantErr:  "unexpand: -x: file does not exist\n",
+			WantExit: 1,
 		},
 		{
-			name:     "a missing file doesn't stop the other files",
-			fsys:     testFS(),
-			args:     []string{"missing.txt", "spaces.txt"},
-			want:     "\tfoo\n",
-			wantErr:  "unexpand: missing.txt: file does not exist\n",
-			wantExit: 1,
+			Name:     "a missing file doesn't stop the other files",
+			FS:       testFS(),
+			Args:     []string{"missing.txt", "spaces.txt"},
+			Want:     "\tfoo\n",
+			WantErr:  "unexpand: missing.txt: file does not exist\n",
+			WantExit: 1,
 		},
 	}
 
-	for _, test := range tests {
-		t.Run(test.name, func(t *testing.T) {
-			runCase(t, test)
-		})
-	}
+	testutil.Run(t, New, tests)
 }
 
 func TestRunOptions(t *testing.T) {
-	tests := []testCase{
+	tests := []testutil.Case{
 		{
-			name:     "invalid option",
-			args:     []string{"-x"},
-			wantErr:  "unexpand: invalid option -- 'x'\nTry 'unexpand --help' for more information.\n",
-			wantExit: 2,
+			Name:     "invalid option",
+			Args:     []string{"-x"},
+			WantErr:  "unexpand: invalid option -- 'x'\nTry 'unexpand --help' for more information.\n",
+			WantExit: 2,
 		},
 		{
-			name:     "unknown long option",
-			args:     []string{"--foo"},
-			wantErr:  "unexpand: unrecognized option '--foo'\nTry 'unexpand --help' for more information.\n",
-			wantExit: 2,
+			Name:     "unknown long option",
+			Args:     []string{"--foo"},
+			WantErr:  "unexpand: unrecognized option '--foo'\nTry 'unexpand --help' for more information.\n",
+			WantExit: 2,
 		},
 		{
-			name:     "missing tab list argument",
-			args:     []string{"-t"},
-			wantErr:  "unexpand: option requires an argument -- 't'\nTry 'unexpand --help' for more information.\n",
-			wantExit: 2,
+			Name:     "missing tab list argument",
+			Args:     []string{"-t"},
+			WantErr:  "unexpand: option requires an argument -- 't'\nTry 'unexpand --help' for more information.\n",
+			WantExit: 2,
 		},
 		{
-			name:     "zero distance",
-			args:     []string{"-t", "0"},
-			wantErr:  "unexpand: invalid tab stop: '0'\nTry 'unexpand --help' for more information.\n",
-			wantExit: 2,
+			Name:     "zero distance",
+			Args:     []string{"-t", "0"},
+			WantErr:  "unexpand: invalid tab stop: '0'\nTry 'unexpand --help' for more information.\n",
+			WantExit: 2,
 		},
 		{
-			name:     "a non numeric stop",
-			args:     []string{"-t", "x"},
-			wantErr:  "unexpand: invalid tab stop: 'x'\nTry 'unexpand --help' for more information.\n",
-			wantExit: 2,
+			Name:     "a non numeric stop",
+			Args:     []string{"-t", "x"},
+			WantErr:  "unexpand: invalid tab stop: 'x'\nTry 'unexpand --help' for more information.\n",
+			WantExit: 2,
 		},
 		{
-			name:     "not ascending stops",
-			args:     []string{"-t", "8,4"},
-			wantErr:  "unexpand: tab sizes must be ascending\nTry 'unexpand --help' for more information.\n",
-			wantExit: 2,
+			Name:     "not ascending stops",
+			Args:     []string{"-t", "8,4"},
+			WantErr:  "unexpand: tab sizes must be ascending\nTry 'unexpand --help' for more information.\n",
+			WantExit: 2,
 		},
 		{
-			name:     "first-only with a value",
-			args:     []string{"--first-only=1"},
-			wantErr:  "unexpand: option '--first-only=1' doesn't allow an argument\nTry 'unexpand --help' for more information.\n",
-			wantExit: 2,
+			Name:     "first-only with a value",
+			Args:     []string{"--first-only=1"},
+			WantErr:  "unexpand: option '--first-only=1' doesn't allow an argument\nTry 'unexpand --help' for more information.\n",
+			WantExit: 2,
 		},
 		{
-			name:     "an empty tab list",
-			args:     []string{"-t", ""},
-			wantErr:  "unexpand: empty tab list\nTry 'unexpand --help' for more information.\n",
-			wantExit: 2,
+			Name:     "an empty tab list",
+			Args:     []string{"-t", ""},
+			WantErr:  "unexpand: empty tab list\nTry 'unexpand --help' for more information.\n",
+			WantExit: 2,
 		},
 	}
 
-	for _, test := range tests {
-		t.Run(test.name, func(t *testing.T) {
-			runCase(t, test)
-		})
-	}
+	testutil.Run(t, New, tests)
 }
 
 func TestRunLongOptions(t *testing.T) {
-	tests := []testCase{
+	tests := []testutil.Case{
 		{
-			name:  "all",
-			stdin: strings.NewReader("a       b\n"),
-			args:  []string{"--all"},
-			want:  "a\tb\n",
+			Name:  "all",
+			Stdin: strings.NewReader("a       b\n"),
+			Args:  []string{"--all"},
+			Want:  "a\tb\n",
 		},
 		{
-			name:  "tabs",
-			stdin: strings.NewReader("     foo\n"),
-			args:  []string{"--tabs", "4"},
-			want:  "\t foo\n",
+			Name:  "tabs",
+			Stdin: strings.NewReader("     foo\n"),
+			Args:  []string{"--tabs", "4"},
+			Want:  "\t foo\n",
 		},
 		{
-			name:  "tabs with an attached value",
-			stdin: strings.NewReader("     foo\n"),
-			args:  []string{"--tabs=4"},
-			want:  "\t foo\n",
+			Name:  "tabs with an attached value",
+			Stdin: strings.NewReader("     foo\n"),
+			Args:  []string{"--tabs=4"},
+			Want:  "\t foo\n",
 		},
 	}
 
-	for _, test := range tests {
-		t.Run(test.name, func(t *testing.T) {
-			runCase(t, test)
-		})
-	}
+	testutil.Run(t, New, tests)
 }
 
 func TestRunErrors(t *testing.T) {
-	tests := []testCase{
+	tests := []testutil.Case{
 		{
-			name:     "missing file",
-			fsys:     testFS(),
-			args:     []string{"missing.txt"},
-			wantErr:  "unexpand: missing.txt: file does not exist\n",
-			wantExit: 1,
+			Name:     "missing file",
+			FS:       testFS(),
+			Args:     []string{"missing.txt"},
+			WantErr:  "unexpand: missing.txt: file does not exist\n",
+			WantExit: 1,
 		},
 		{
-			name:     "directory operand",
-			fsys:     fsx.MemFS{"dir": {Mode: fs.ModeDir}},
-			args:     []string{"dir"},
-			wantErr:  "unexpand: dir: invalid argument\n",
-			wantExit: 1,
+			Name:     "directory operand",
+			FS:       fsx.MemFS{"dir": {Mode: fs.ModeDir}},
+			Args:     []string{"dir"},
+			WantErr:  "unexpand: dir: invalid argument\n",
+			WantExit: 1,
 		},
 		{
-			name:     "zero-length file name",
-			fsys:     testFS(),
-			args:     []string{""},
-			wantErr:  "unexpand: invalid zero-length file name\n",
-			wantExit: 1,
+			Name:     "zero-length file name",
+			FS:       testFS(),
+			Args:     []string{""},
+			WantErr:  "unexpand: invalid zero-length file name\n",
+			WantExit: 1,
 		},
 		{
-			name:     "file operand without a file system",
-			args:     []string{"spaces.txt"},
-			wantErr:  "unexpand: spaces.txt: no file system available\n",
-			wantExit: 1,
+			Name:     "file operand without a file system",
+			Args:     []string{"spaces.txt"},
+			WantErr:  "unexpand: spaces.txt: no file system available\n",
+			WantExit: 1,
 		},
 		{
-			name:     "no standard input",
-			wantErr:  "unexpand: standard input: no standard input available\n",
-			wantExit: 1,
+			Name:     "no standard input",
+			WantErr:  "unexpand: standard input: no standard input available\n",
+			WantExit: 1,
 		},
 		{
-			name:     "standard input read error",
-			stdin:    errorReader{err: errors.New("read failed")},
-			wantErr:  "unexpand: standard input: read failed\n",
-			wantExit: 1,
+			Name:     "standard input read error",
+			Stdin:    testutil.ErrorReader{Err: errors.New("read failed")},
+			WantErr:  "unexpand: standard input: read failed\n",
+			WantExit: 1,
 		},
 	}
 
-	for _, test := range tests {
-		t.Run(test.name, func(t *testing.T) {
-			runCase(t, test)
-		})
-	}
+	testutil.Run(t, New, tests)
 }
 
 func TestRunWriteError(t *testing.T) {
@@ -635,12 +518,12 @@ func TestRunWriteError(t *testing.T) {
 	stderr := new(bytes.Buffer)
 	rt := &coreutils.Runtime{
 		Stdin:  strings.NewReader("hello\n"),
-		Stdout: errorWriter{err: writeErr},
+		Stdout: testutil.ErrorWriter{Err: writeErr},
 		Stderr: stderr,
 	}
 	err := New(rt).Run(t.Context())
 
-	if code := exitCode(t, err); code != 1 {
+	if code := testutil.ExitCode(t, err); code != 1 {
 		t.Fatalf("Run() exit code = %d, want 1 (error = %v)", code, err)
 	}
 	if !errors.Is(err, writeErr) {
@@ -653,64 +536,14 @@ func TestRunWriteError(t *testing.T) {
 
 func TestRunContext(t *testing.T) {
 	t.Run("cancelled before running", func(t *testing.T) {
-		ctx, cancel := context.WithCancel(t.Context())
-		cancel()
-		runCancelled(t, ctx, strings.NewReader("hello\n"))
+		testutil.Cancelled(t, New, strings.NewReader("hello\n"), nil)
 	})
 
 	t.Run("cancelled while reading the standard input", func(t *testing.T) {
-		ctx, cancel := context.WithCancel(t.Context())
-		runCancelled(t, ctx, &cancelReader{cancel: cancel})
+		testutil.Cancelled(t, New, &testutil.CancelReader{}, nil)
 	})
-}
-
-// runCancelled runs the utility with a context that is either already done or
-// becomes done while reading, and checks that the context error is returned
-// without any output.
-func runCancelled(t *testing.T, ctx context.Context, stdin io.Reader) {
-	t.Helper()
-
-	stdout := new(bytes.Buffer)
-	stderr := new(bytes.Buffer)
-	rt := &coreutils.Runtime{
-		Stdin:  stdin,
-		Stdout: stdout,
-		Stderr: stderr,
-	}
-	err := New(rt).Run(ctx)
-
-	if !errors.Is(err, context.Canceled) {
-		t.Fatalf("Run() error = %v, want context.Canceled", err)
-	}
-	if got := stdout.String(); got != "" {
-		t.Errorf("Run() stdout = %q, want empty", got)
-	}
-	if got := stderr.String(); got != "" {
-		t.Errorf("Run() stderr = %q, want empty", got)
-	}
 }
 
 func TestHelpVersion(t *testing.T) {
-	t.Run("help", func(t *testing.T) {
-		stdout := new(bytes.Buffer)
-		rt := &coreutils.Runtime{Stdout: stdout, Stderr: new(bytes.Buffer)}
-		if err := New(rt).Run(t.Context(), "--help"); err != nil {
-			t.Fatalf("Run() error = %v, want nil (exit status 0)", err)
-		}
-		if got, want := stdout.String(), usage; got != want {
-			t.Errorf("Run() stdout = %q, want %q", got, want)
-		}
-	})
-
-	t.Run("version", func(t *testing.T) {
-		stdout := new(bytes.Buffer)
-		rt := &coreutils.Runtime{Stdout: stdout, Stderr: new(bytes.Buffer)}
-		if err := New(rt).Run(t.Context(), "--version"); err != nil {
-			t.Fatalf("Run() error = %v, want nil (exit status 0)", err)
-		}
-		want := "unexpand (charm.land/snail/coreutils) " + coreutils.Version + "\nhttps://charm.land/snail\n"
-		if got := stdout.String(); got != want {
-			t.Errorf("Run() stdout = %q, want %q", got, want)
-		}
-	})
+	testutil.HelpVersion(t, New, "unexpand", usage)
 }

@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"charm.land/snail/coreutils"
+	"charm.land/snail/coreutils/internal/testutil"
 )
 
 // errKilled is the error an execution reports for the child process killed
@@ -214,19 +215,6 @@ func run(t *testing.T, exec coreutils.ExecFunc, sleep coreutils.SleepFunc, envir
 	}
 	err := New(rt).Run(t.Context(), args...)
 	return rt.Stdout.(*bytes.Buffer).String(), rt.Stderr.(*bytes.Buffer).String(), err
-}
-
-func exitCode(t *testing.T, err error) int {
-	t.Helper()
-
-	if err == nil {
-		return 0
-	}
-	var exitErr *coreutils.ExitError
-	if !errors.As(err, &exitErr) {
-		t.Fatalf("Run() error = %v, want *coreutils.ExitError", err)
-	}
-	return exitErr.Code
 }
 
 func TestParseDuration(t *testing.T) {
@@ -461,7 +449,7 @@ func TestRunCompletion(t *testing.T) {
 			if stderr != test.wantErr {
 				t.Errorf("Run() stderr = %q, want %q", stderr, test.wantErr)
 			}
-			if code := exitCode(t, err); code != test.wantExit {
+			if code := testutil.ExitCode(t, err); code != test.wantExit {
 				t.Errorf("Run() exit code = %d, want %d", code, test.wantExit)
 			}
 			if rec.calls != 1 {
@@ -602,7 +590,7 @@ func TestRunTimeout(t *testing.T) {
 			if stderr != test.wantErr {
 				t.Errorf("Run() stderr = %q, want %q", stderr, test.wantErr)
 			}
-			if code := exitCode(t, err); code != test.wantExit {
+			if code := testutil.ExitCode(t, err); code != test.wantExit {
 				t.Errorf("Run() exit code = %d, want %d", code, test.wantExit)
 			}
 			if rec.count() != 1 {
@@ -715,7 +703,7 @@ func TestRunKillAfter(t *testing.T) {
 			if stderr != test.wantErr {
 				t.Errorf("Run() stderr = %q, want %q", stderr, test.wantErr)
 			}
-			if code := exitCode(t, err); code != test.wantExit {
+			if code := testutil.ExitCode(t, err); code != test.wantExit {
 				t.Errorf("Run() exit code = %d, want %d", code, test.wantExit)
 			}
 			if test.check != nil {
@@ -735,7 +723,7 @@ func TestRunKillAfter(t *testing.T) {
 		rec := &execRecorder{reply: exits(2)}
 		sleeper := &blockedSleeper{}
 		_, _, err := run(t, rec.exec, sleeper.sleep, nil, "-k", "5", "0", "cmd")
-		if code := exitCode(t, err); code != 2 {
+		if code := testutil.ExitCode(t, err); code != 2 {
 			t.Errorf("Run() exit code = %d, want 2", code)
 		}
 		if waited := sleeper.waited(); len(waited) != 0 {
@@ -832,7 +820,7 @@ func TestRunUsageErrors(t *testing.T) {
 			if stderr != test.wantErr {
 				t.Errorf("Run() stderr = %q, want %q", stderr, test.wantErr)
 			}
-			if code := exitCode(t, err); code != 1 {
+			if code := testutil.ExitCode(t, err); code != 1 {
 				t.Errorf("Run() exit code = %d, want 1", code)
 			}
 		})
@@ -845,7 +833,7 @@ func TestRunNoExec(t *testing.T) {
 	if stderr != "timeout: no command execution available\n" {
 		t.Errorf("Run() stderr = %q", stderr)
 	}
-	if code := exitCode(t, err); code != 125 {
+	if code := testutil.ExitCode(t, err); code != 125 {
 		t.Errorf("Run() exit code = %d, want 125", code)
 	}
 }
@@ -885,7 +873,7 @@ func TestRunInfDurationEnforcesNoTimeLimit(t *testing.T) {
 	rec := &execRecorder{reply: exits(0)}
 	sleeper := &elapsedSleeper{}
 	stdout, _, err := run(t, rec.exec, sleeper.sleep, nil, "inf", "cmd")
-	if code := exitCode(t, err); code != 0 {
+	if code := testutil.ExitCode(t, err); code != 0 {
 		t.Errorf("Run() exit code = %d, want 0", code)
 	}
 	if stdout != "" {
@@ -1047,7 +1035,7 @@ func TestNoLeakedGoroutines(t *testing.T) {
 			if stderr != "" {
 				t.Errorf("Run() stderr = %q, want empty", stderr)
 			}
-			if code := exitCode(t, err); code != scenario.wantOut {
+			if code := testutil.ExitCode(t, err); code != scenario.wantOut {
 				t.Errorf("Run() exit code = %d, want %d", code, scenario.wantOut)
 			}
 			if scenario.hang {

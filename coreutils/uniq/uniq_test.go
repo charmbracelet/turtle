@@ -2,43 +2,15 @@ package uniq
 
 import (
 	"bytes"
-	"context"
 	"errors"
-	"io"
 	"io/fs"
 	"strings"
 	"testing"
 
 	"charm.land/snail/coreutils"
+	"charm.land/snail/coreutils/internal/testutil"
 	"charm.land/snail/fsx"
 )
-
-type errorReader struct {
-	err error
-}
-
-func (r errorReader) Read([]byte) (int, error) {
-	return 0, r.err
-}
-
-type errorWriter struct {
-	err error
-}
-
-func (w errorWriter) Write([]byte) (int, error) {
-	return 0, w.err
-}
-
-// cancelReader cancels its context on the first read, simulating a context
-// that is done while input is being read.
-type cancelReader struct {
-	cancel context.CancelFunc
-}
-
-func (r *cancelReader) Read([]byte) (int, error) {
-	r.cancel()
-	return 0, context.Canceled
-}
 
 // testFS holds the fixtures used by the tests:
 //
@@ -63,783 +35,665 @@ func testFS() fsx.MemFS {
 	}
 }
 
-func exitCode(t *testing.T, err error) int {
-	t.Helper()
-
-	if err == nil {
-		return 0
-	}
-	var exitErr *coreutils.ExitError
-	if !errors.As(err, &exitErr) {
-		t.Fatalf("Run() error = %v, want *coreutils.ExitError", err)
-	}
-	return exitErr.Code
-}
-
-type testCase struct {
-	name      string
-	stdin     io.Reader
-	fsys      fsx.MemFS
-	dir       string
-	args      []string
-	want      string
-	wantErr   string
-	wantExit  int
-	wantFiles map[string]string
-}
-
-func runCase(t *testing.T, test testCase) {
-	t.Helper()
-
-	stdout := new(bytes.Buffer)
-	stderr := new(bytes.Buffer)
-	rt := &coreutils.Runtime{
-		Stdin:      test.stdin,
-		Stdout:     stdout,
-		Stderr:     stderr,
-		WorkingDir: test.dir,
-	}
-	if test.fsys != nil {
-		rt.FS = test.fsys
-	}
-	err := New(rt).Run(t.Context(), test.args...)
-
-	if code := exitCode(t, err); code != test.wantExit {
-		t.Errorf("Run() exit code = %d, want %d (error = %v)", code, test.wantExit, err)
-	}
-	if got := stdout.String(); got != test.want {
-		t.Errorf("Run() stdout = %q, want %q", got, test.want)
-	}
-	if got := stderr.String(); got != test.wantErr {
-		t.Errorf("Run() stderr = %q, want %q", got, test.wantErr)
-	}
-	for name, want := range test.wantFiles {
-		f := test.fsys[name]
-		if f == nil {
-			t.Errorf("Run() didn't create file %q", name)
-			continue
-		}
-		if got := string(f.Data); got != want {
-			t.Errorf("Run() file %q = %q, want %q", name, got, want)
-		}
-	}
-}
-
 func TestRunDefaults(t *testing.T) {
-	tests := []testCase{
+	tests := []testutil.Case{
 		{
-			name:  "no operands read the standard input",
-			stdin: strings.NewReader("a\na\nb\n"),
-			want:  "a\nb\n",
+			Name:  "no operands read the standard input",
+			Stdin: strings.NewReader("a\na\nb\n"),
+			Want:  "a\nb\n",
 		},
 		{
-			name:  "adjacent repeated lines collapse",
-			stdin: strings.NewReader("a\na\nb\nb\nb\nc\na\n"),
-			want:  "a\nb\nc\na\n",
+			Name:  "adjacent repeated lines collapse",
+			Stdin: strings.NewReader("a\na\nb\nb\nb\nc\na\n"),
+			Want:  "a\nb\nc\na\n",
 		},
 		{
-			name:  "repeated lines that are not adjacent are kept",
-			stdin: strings.NewReader("a\nb\na\n"),
-			want:  "a\nb\na\n",
+			Name:  "repeated lines that are not adjacent are kept",
+			Stdin: strings.NewReader("a\nb\na\n"),
+			Want:  "a\nb\na\n",
 		},
 		{
-			name:  "no repeated lines",
-			stdin: strings.NewReader("a\nb\nc\n"),
-			want:  "a\nb\nc\n",
+			Name:  "no repeated lines",
+			Stdin: strings.NewReader("a\nb\nc\n"),
+			Want:  "a\nb\nc\n",
 		},
 		{
-			name:  "empty lines group together",
-			stdin: strings.NewReader("a\n\n\nb\n"),
-			want:  "a\n\nb\n",
+			Name:  "empty lines group together",
+			Stdin: strings.NewReader("a\n\n\nb\n"),
+			Want:  "a\n\nb\n",
 		},
 		{
-			name:  "an empty standard input",
-			stdin: strings.NewReader(""),
-			want:  "",
+			Name:  "an empty standard input",
+			Stdin: strings.NewReader(""),
+			Want:  "",
 		},
 		{
-			name:  "a missing final newline is not added",
-			stdin: strings.NewReader("a\nb"),
-			want:  "a\nb",
+			Name:  "a missing final newline is not added",
+			Stdin: strings.NewReader("a\nb"),
+			Want:  "a\nb",
 		},
 	}
 
-	for _, test := range tests {
-		t.Run(test.name, func(t *testing.T) {
-			runCase(t, test)
-		})
-	}
+	testutil.Run(t, New, tests)
 }
 
 func TestRunCount(t *testing.T) {
-	tests := []testCase{
+	tests := []testutil.Case{
 		{
-			name:  "each line is preceded by its count",
-			stdin: strings.NewReader("a\na\nb\n"),
-			args:  []string{"-c"},
-			want:  "      2 a\n      1 b\n",
+			Name:  "each line is preceded by its count",
+			Stdin: strings.NewReader("a\na\nb\n"),
+			Args:  []string{"-c"},
+			Want:  "      2 a\n      1 b\n",
 		},
 		{
-			name:  "a wider count",
-			stdin: strings.NewReader(strings.Repeat("a\n", 10)),
-			args:  []string{"-c"},
-			want:  "     10 a\n",
+			Name:  "a wider count",
+			Stdin: strings.NewReader(strings.Repeat("a\n", 10)),
+			Args:  []string{"-c"},
+			Want:  "     10 a\n",
 		},
 		{
-			name:  "counts of repeated lines with d",
-			stdin: strings.NewReader("a\na\nb\n"),
-			args:  []string{"-c", "-d"},
-			want:  "      2 a\n",
+			Name:  "counts of repeated lines with d",
+			Stdin: strings.NewReader("a\na\nb\n"),
+			Args:  []string{"-c", "-d"},
+			Want:  "      2 a\n",
 		},
 		{
-			name:  "counts of unique lines with u",
-			stdin: strings.NewReader("a\na\nb\n"),
-			args:  []string{"-c", "-u"},
-			want:  "      1 b\n",
+			Name:  "counts of unique lines with u",
+			Stdin: strings.NewReader("a\na\nb\n"),
+			Args:  []string{"-c", "-u"},
+			Want:  "      1 b\n",
 		},
 	}
 
-	for _, test := range tests {
-		t.Run(test.name, func(t *testing.T) {
-			runCase(t, test)
-		})
-	}
+	testutil.Run(t, New, tests)
 }
 
 func TestRunRepeated(t *testing.T) {
-	tests := []testCase{
+	tests := []testutil.Case{
 		{
-			name:  "only repeated lines, one copy each",
-			stdin: strings.NewReader("a\na\nb\nb\nb\nc\n"),
-			args:  []string{"-d"},
-			want:  "a\nb\n",
+			Name:  "only repeated lines, one copy each",
+			Stdin: strings.NewReader("a\na\nb\nb\nb\nc\n"),
+			Args:  []string{"-d"},
+			Want:  "a\nb\n",
 		},
 		{
-			name:  "no repeated lines",
-			stdin: strings.NewReader("a\nb\n"),
-			args:  []string{"-d"},
-			want:  "",
+			Name:  "no repeated lines",
+			Stdin: strings.NewReader("a\nb\n"),
+			Args:  []string{"-d"},
+			Want:  "",
 		},
 		{
-			name:  "an unrepeated line is not written",
-			stdin: strings.NewReader("a\n"),
-			args:  []string{"-d"},
-			want:  "",
+			Name:  "an unrepeated line is not written",
+			Stdin: strings.NewReader("a\n"),
+			Args:  []string{"-d"},
+			Want:  "",
 		},
 	}
 
-	for _, test := range tests {
-		t.Run(test.name, func(t *testing.T) {
-			runCase(t, test)
-		})
-	}
+	testutil.Run(t, New, tests)
 }
 
 func TestRunUnique(t *testing.T) {
-	tests := []testCase{
+	tests := []testutil.Case{
 		{
-			name:  "only non repeated lines",
-			stdin: strings.NewReader("a\na\nb\nb\nb\nc\n"),
-			args:  []string{"-u"},
-			want:  "c\n",
+			Name:  "only non repeated lines",
+			Stdin: strings.NewReader("a\na\nb\nb\nb\nc\n"),
+			Args:  []string{"-u"},
+			Want:  "c\n",
 		},
 		{
-			name:  "all lines repeated",
-			stdin: strings.NewReader("a\na\n"),
-			args:  []string{"-u"},
-			want:  "",
+			Name:  "all lines repeated",
+			Stdin: strings.NewReader("a\na\n"),
+			Args:  []string{"-u"},
+			Want:  "",
 		},
 	}
 
-	for _, test := range tests {
-		t.Run(test.name, func(t *testing.T) {
-			runCase(t, test)
-		})
-	}
+	testutil.Run(t, New, tests)
 }
 
 func TestRunFields(t *testing.T) {
-	tests := []testCase{
+	tests := []testutil.Case{
 		{
-			name: "the first field is ignored",
-			fsys: testFS(),
-			args: []string{"-f", "1", "fields.txt"},
-			want: "x 1\nz 2\n",
+			Name: "the first field is ignored",
+			FS:   testFS(),
+			Args: []string{"-f", "1", "fields.txt"},
+			Want: "x 1\nz 2\n",
 		},
 		{
-			name:  "zero fields is a no-op",
-			stdin: strings.NewReader("a\na\n"),
-			args:  []string{"-f", "0"},
-			want:  "a\n",
+			Name:  "zero fields is a no-op",
+			Stdin: strings.NewReader("a\na\n"),
+			Args:  []string{"-f", "0"},
+			Want:  "a\n",
 		},
 		{
-			name:  "more fields than the line has compare as empty",
-			stdin: strings.NewReader("a\nb\n"),
-			args:  []string{"-f", "5"},
-			want:  "a\n",
+			Name:  "more fields than the line has compare as empty",
+			Stdin: strings.NewReader("a\nb\n"),
+			Args:  []string{"-f", "5"},
+			Want:  "a\n",
 		},
 		{
-			name:  "the blanks before a field are part of it",
-			stdin: strings.NewReader("x   a\ny a\n"),
-			args:  []string{"-f", "1"},
-			want:  "x   a\ny a\n",
+			Name:  "the blanks before a field are part of it",
+			Stdin: strings.NewReader("x   a\ny a\n"),
+			Args:  []string{"-f", "1"},
+			Want:  "x   a\ny a\n",
 		},
 		{
-			name:  "leading blanks belong to the first field",
-			stdin: strings.NewReader("  a x\n  b x\n"),
-			args:  []string{"-f", "1"},
-			want:  "  a x\n",
+			Name:  "leading blanks belong to the first field",
+			Stdin: strings.NewReader("  a x\n  b x\n"),
+			Args:  []string{"-f", "1"},
+			Want:  "  a x\n",
 		},
 	}
 
-	for _, test := range tests {
-		t.Run(test.name, func(t *testing.T) {
-			runCase(t, test)
-		})
-	}
+	testutil.Run(t, New, tests)
 }
 
 func TestRunChars(t *testing.T) {
-	tests := []testCase{
+	tests := []testutil.Case{
 		{
-			name: "the first characters are ignored",
-			fsys: testFS(),
-			args: []string{"-s", "1", "utf8.txt"},
-			want: "áx\náy\n",
+			Name: "the first characters are ignored",
+			FS:   testFS(),
+			Args: []string{"-s", "1", "utf8.txt"},
+			Want: "áx\náy\n",
 		},
 		{
-			name:  "more characters than the line has compare as empty",
-			stdin: strings.NewReader("ab\ncd\n"),
-			args:  []string{"-s", "5"},
-			want:  "ab\n",
+			Name:  "more characters than the line has compare as empty",
+			Stdin: strings.NewReader("ab\ncd\n"),
+			Args:  []string{"-s", "5"},
+			Want:  "ab\n",
 		},
 		{
-			name:  "characters are skipped after the fields",
-			stdin: strings.NewReader("1x a\n2y a\n"),
-			args:  []string{"-f", "1", "-s", "1"},
-			want:  "1x a\n",
+			Name:  "characters are skipped after the fields",
+			Stdin: strings.NewReader("1x a\n2y a\n"),
+			Args:  []string{"-f", "1", "-s", "1"},
+			Want:  "1x a\n",
 		},
 		{
-			name:  "characters are characters, not bytes",
-			stdin: strings.NewReader("áax\nábx\n"),
-			args:  []string{"-s", "2"},
-			want:  "áax\n",
+			Name:  "characters are characters, not bytes",
+			Stdin: strings.NewReader("áax\nábx\n"),
+			Args:  []string{"-s", "2"},
+			Want:  "áax\n",
 		},
 	}
 
-	for _, test := range tests {
-		t.Run(test.name, func(t *testing.T) {
-			runCase(t, test)
-		})
-	}
+	testutil.Run(t, New, tests)
 }
 
 func TestRunIgnoreCase(t *testing.T) {
-	tests := []testCase{
+	tests := []testutil.Case{
 		{
-			name:  "lines differing only in case group together",
-			stdin: strings.NewReader("a\nA\nb\n"),
-			args:  []string{"-i"},
-			want:  "a\nb\n",
+			Name:  "lines differing only in case group together",
+			Stdin: strings.NewReader("a\nA\nb\n"),
+			Args:  []string{"-i"},
+			Want:  "a\nb\n",
 		},
 		{
-			name:  "the case of the written line is the first one",
-			stdin: strings.NewReader("A\na\nA\n"),
-			args:  []string{"-i"},
-			want:  "A\n",
+			Name:  "the case of the written line is the first one",
+			Stdin: strings.NewReader("A\na\nA\n"),
+			Args:  []string{"-i"},
+			Want:  "A\n",
 		},
 		{
-			name:  "non ASCII letters are not folded",
-			stdin: strings.NewReader("á\nÁ\n"),
-			args:  []string{"-i"},
-			want:  "á\nÁ\n",
+			Name:  "non ASCII letters are not folded",
+			Stdin: strings.NewReader("á\nÁ\n"),
+			Args:  []string{"-i"},
+			Want:  "á\nÁ\n",
 		},
 		{
-			name:  "with counts",
-			stdin: strings.NewReader("a\nA\nb\n"),
-			args:  []string{"-i", "-c"},
-			want:  "      2 a\n      1 b\n",
+			Name:  "with counts",
+			Stdin: strings.NewReader("a\nA\nb\n"),
+			Args:  []string{"-i", "-c"},
+			Want:  "      2 a\n      1 b\n",
 		},
 	}
 
-	for _, test := range tests {
-		t.Run(test.name, func(t *testing.T) {
-			runCase(t, test)
-		})
-	}
+	testutil.Run(t, New, tests)
 }
 
 func TestRunAllRepeated(t *testing.T) {
-	tests := []testCase{
+	tests := []testutil.Case{
 		{
-			name:  "every line of a repeated group is written",
-			stdin: strings.NewReader("a\na\nb\nb\nb\nc\na\n"),
-			args:  []string{"-D"},
-			want:  "a\na\nb\nb\nb\n",
+			Name:  "every line of a repeated group is written",
+			Stdin: strings.NewReader("a\na\nb\nb\nb\nc\na\n"),
+			Args:  []string{"-D"},
+			Want:  "a\na\nb\nb\nb\n",
 		},
 		{
-			name:  "no repeated lines",
-			stdin: strings.NewReader("a\nb\n"),
-			args:  []string{"-D"},
-			want:  "",
+			Name:  "no repeated lines",
+			Stdin: strings.NewReader("a\nb\n"),
+			Args:  []string{"-D"},
+			Want:  "",
 		},
 		{
-			name:  "none delimits nothing",
-			stdin: strings.NewReader("a\na\nb\nb\n"),
-			args:  []string{"--all-repeated=none"},
-			want:  "a\na\nb\nb\n",
+			Name:  "none delimits nothing",
+			Stdin: strings.NewReader("a\na\nb\nb\n"),
+			Args:  []string{"--all-repeated=none"},
+			Want:  "a\na\nb\nb\n",
 		},
 		{
-			name:  "separate delimits between groups",
-			stdin: strings.NewReader("a\na\nb\nb\n"),
-			args:  []string{"--all-repeated=separate"},
-			want:  "a\na\n\nb\nb\n",
+			Name:  "separate delimits between groups",
+			Stdin: strings.NewReader("a\na\nb\nb\n"),
+			Args:  []string{"--all-repeated=separate"},
+			Want:  "a\na\n\nb\nb\n",
 		},
 		{
-			name:  "separate delimits nothing before the first group",
-			stdin: strings.NewReader("x\na\na\nb\nb\n"),
-			args:  []string{"--all-repeated=separate"},
-			want:  "a\na\n\nb\nb\n",
+			Name:  "separate delimits nothing before the first group",
+			Stdin: strings.NewReader("x\na\na\nb\nb\n"),
+			Args:  []string{"--all-repeated=separate"},
+			Want:  "a\na\n\nb\nb\n",
 		},
 		{
-			name:  "prepend delimits before each group",
-			stdin: strings.NewReader("a\na\nb\nb\n"),
-			args:  []string{"--all-repeated=prepend"},
-			want:  "\na\na\n\nb\nb\n",
+			Name:  "prepend delimits before each group",
+			Stdin: strings.NewReader("a\na\nb\nb\n"),
+			Args:  []string{"--all-repeated=prepend"},
+			Want:  "\na\na\n\nb\nb\n",
 		},
 		{
-			name:  "separate delimits with a NUL byte with z",
-			stdin: strings.NewReader("a\x00a\x00b\x00b\x00"),
-			args:  []string{"-z", "--all-repeated=separate"},
-			want:  "a\x00a\x00\x00b\x00b\x00",
+			Name:  "separate delimits with a NUL byte with z",
+			Stdin: strings.NewReader("a\x00a\x00b\x00b\x00"),
+			Args:  []string{"-z", "--all-repeated=separate"},
+			Want:  "a\x00a\x00\x00b\x00b\x00",
 		},
 		{
-			name:  "a group without a final newline",
-			stdin: strings.NewReader("a\na"),
-			args:  []string{"-D"},
-			want:  "a\na",
+			Name:  "a group without a final newline",
+			Stdin: strings.NewReader("a\na"),
+			Args:  []string{"-D"},
+			Want:  "a\na",
 		},
 		{
-			name:  "with a skipped field",
-			stdin: strings.NewReader("1 a\n2 a\n3 b\n"),
-			args:  []string{"-D", "-f", "1"},
-			want:  "1 a\n2 a\n",
+			Name:  "with a skipped field",
+			Stdin: strings.NewReader("1 a\n2 a\n3 b\n"),
+			Args:  []string{"-D", "-f", "1"},
+			Want:  "1 a\n2 a\n",
 		},
 		{
-			name:  "ignoring case",
-			stdin: strings.NewReader("a\nA\nb\nb\n"),
-			args:  []string{"-D", "-i"},
-			want:  "a\nA\nb\nb\n",
+			Name:  "ignoring case",
+			Stdin: strings.NewReader("a\nA\nb\nb\n"),
+			Args:  []string{"-D", "-i"},
+			Want:  "a\nA\nb\nb\n",
 		},
 		{
-			name:     "an invalid delimit method",
-			stdin:    strings.NewReader("a\na\n"),
-			args:     []string{"--all-repeated=x"},
-			wantErr:  "uniq: invalid argument 'x' for '--all-repeated'\nTry 'uniq --help' for more information.\n",
-			wantExit: 2,
+			Name:     "an invalid delimit method",
+			Stdin:    strings.NewReader("a\na\n"),
+			Args:     []string{"--all-repeated=x"},
+			WantErr:  "uniq: invalid argument 'x' for '--all-repeated'\nTry 'uniq --help' for more information.\n",
+			WantExit: 2,
 		},
 		{
-			name:     "count is meaningless with all repeated",
-			stdin:    strings.NewReader("a\na\n"),
-			args:     []string{"-c", "-D"},
-			wantErr:  "uniq: printing all duplicated lines and repeat counts is meaningless\nTry 'uniq --help' for more information.\n",
-			wantExit: 2,
+			Name:     "count is meaningless with all repeated",
+			Stdin:    strings.NewReader("a\na\n"),
+			Args:     []string{"-c", "-D"},
+			WantErr:  "uniq: printing all duplicated lines and repeat counts is meaningless\nTry 'uniq --help' for more information.\n",
+			WantExit: 2,
 		},
 		{
-			name:     "unique is not supported with all repeated",
-			stdin:    strings.NewReader("a\na\n"),
-			args:     []string{"-u", "-D"},
-			wantErr:  "uniq: printing all duplicated and unique lines is not supported\nTry 'uniq --help' for more information.\n",
-			wantExit: 2,
+			Name:     "unique is not supported with all repeated",
+			Stdin:    strings.NewReader("a\na\n"),
+			Args:     []string{"-u", "-D"},
+			WantErr:  "uniq: printing all duplicated and unique lines is not supported\nTry 'uniq --help' for more information.\n",
+			WantExit: 2,
 		},
 	}
 
-	for _, test := range tests {
-		t.Run(test.name, func(t *testing.T) {
-			runCase(t, test)
-		})
-	}
+	testutil.Run(t, New, tests)
 }
 
 func TestRunCheckChars(t *testing.T) {
-	tests := []testCase{
+	tests := []testutil.Case{
 		{
-			name:  "only the first characters are compared",
-			stdin: strings.NewReader("apple\napricot\nbanana\n"),
-			args:  []string{"-w", "2"},
-			want:  "apple\nbanana\n",
+			Name:  "only the first characters are compared",
+			Stdin: strings.NewReader("apple\napricot\nbanana\n"),
+			Args:  []string{"-w", "2"},
+			Want:  "apple\nbanana\n",
 		},
 		{
-			name:  "zero characters make every line equal",
-			stdin: strings.NewReader("a\nb\n"),
-			args:  []string{"-w", "0"},
-			want:  "a\n",
+			Name:  "zero characters make every line equal",
+			Stdin: strings.NewReader("a\nb\n"),
+			Args:  []string{"-w", "0"},
+			Want:  "a\n",
 		},
 		{
-			name:  "more characters than the line has",
-			stdin: strings.NewReader("a\nab\n"),
-			args:  []string{"-w", "5"},
-			want:  "a\nab\n",
+			Name:  "more characters than the line has",
+			Stdin: strings.NewReader("a\nab\n"),
+			Args:  []string{"-w", "5"},
+			Want:  "a\nab\n",
 		},
 		{
-			name:  "characters are compared after the skipped ones",
-			stdin: strings.NewReader("xxab\nxxac\nxxb\n"),
-			args:  []string{"-s", "2", "-w", "1"},
-			want:  "xxab\nxxb\n",
+			Name:  "characters are compared after the skipped ones",
+			Stdin: strings.NewReader("xxab\nxxac\nxxb\n"),
+			Args:  []string{"-s", "2", "-w", "1"},
+			Want:  "xxab\nxxb\n",
 		},
 		{
-			name:  "characters are compared after the skipped fields",
-			stdin: strings.NewReader("1 ax\n2 ay\n"),
-			args:  []string{"-f", "1", "-w", "1"},
-			want:  "1 ax\n",
+			Name:  "characters are compared after the skipped fields",
+			Stdin: strings.NewReader("1 ax\n2 ay\n"),
+			Args:  []string{"-f", "1", "-w", "1"},
+			Want:  "1 ax\n",
 		},
 		{
-			name:  "characters are characters, not bytes",
-			stdin: strings.NewReader("áa\náb\n"),
-			args:  []string{"-w", "1"},
-			want:  "áa\n",
+			Name:  "characters are characters, not bytes",
+			Stdin: strings.NewReader("áa\náb\n"),
+			Args:  []string{"-w", "1"},
+			Want:  "áa\n",
 		},
 		{
-			name:  "ignoring case",
-			stdin: strings.NewReader("aB\nAb\n"),
-			args:  []string{"-w", "2", "-i"},
-			want:  "aB\n",
+			Name:  "ignoring case",
+			Stdin: strings.NewReader("aB\nAb\n"),
+			Args:  []string{"-w", "2", "-i"},
+			Want:  "aB\n",
 		},
 	}
 
-	for _, test := range tests {
-		t.Run(test.name, func(t *testing.T) {
-			runCase(t, test)
-		})
-	}
+	testutil.Run(t, New, tests)
 }
 
 func TestRunZeroTerminated(t *testing.T) {
-	tests := []testCase{
+	tests := []testutil.Case{
 		{
-			name:  "items are delimited by a NUL byte",
-			stdin: strings.NewReader("a\x00a\x00b\x00"),
-			args:  []string{"-z"},
-			want:  "a\x00b\x00",
+			Name:  "items are delimited by a NUL byte",
+			Stdin: strings.NewReader("a\x00a\x00b\x00"),
+			Args:  []string{"-z"},
+			Want:  "a\x00b\x00",
 		},
 		{
-			name:  "an item without a final NUL is kept as is",
-			stdin: strings.NewReader("a\x00a"),
-			args:  []string{"-z"},
-			want:  "a\x00",
+			Name:  "an item without a final NUL is kept as is",
+			Stdin: strings.NewReader("a\x00a"),
+			Args:  []string{"-z"},
+			Want:  "a\x00",
 		},
 		{
-			name:  "newlines are part of the items",
-			stdin: strings.NewReader("a\nb\x00a\nb\x00"),
-			args:  []string{"-z"},
-			want:  "a\nb\x00",
+			Name:  "newlines are part of the items",
+			Stdin: strings.NewReader("a\nb\x00a\nb\x00"),
+			Args:  []string{"-z"},
+			Want:  "a\nb\x00",
 		},
 		{
-			name:  "counts are written before the items",
-			stdin: strings.NewReader("a\x00a\x00b\x00"),
-			args:  []string{"-z", "-c"},
-			want:  "      2 a\x00      1 b\x00",
+			Name:  "counts are written before the items",
+			Stdin: strings.NewReader("a\x00a\x00b\x00"),
+			Args:  []string{"-z", "-c"},
+			Want:  "      2 a\x00      1 b\x00",
 		},
 		{
-			name:  "only repeated items",
-			stdin: strings.NewReader("a\x00a\x00b\x00"),
-			args:  []string{"-z", "-d"},
-			want:  "a\x00",
+			Name:  "only repeated items",
+			Stdin: strings.NewReader("a\x00a\x00b\x00"),
+			Args:  []string{"-z", "-d"},
+			Want:  "a\x00",
 		},
 		{
-			name:  "a newline separates fields",
-			stdin: strings.NewReader("a\nx\x00b\nx\x00"),
-			args:  []string{"-z", "-f", "1"},
-			want:  "a\nx\x00",
+			Name:  "a newline separates fields",
+			Stdin: strings.NewReader("a\nx\x00b\nx\x00"),
+			Args:  []string{"-z", "-f", "1"},
+			Want:  "a\nx\x00",
 		},
 		{
-			name:  "an empty standard input",
-			stdin: strings.NewReader(""),
-			args:  []string{"-z"},
-			want:  "",
+			Name:  "an empty standard input",
+			Stdin: strings.NewReader(""),
+			Args:  []string{"-z"},
+			Want:  "",
 		},
 	}
 
-	for _, test := range tests {
-		t.Run(test.name, func(t *testing.T) {
-			runCase(t, test)
-		})
-	}
+	testutil.Run(t, New, tests)
 }
 
 func TestRunOperands(t *testing.T) {
-	tests := []testCase{
+	tests := []testutil.Case{
 		{
-			name: "an input file",
-			fsys: testFS(),
-			args: []string{"dups.txt"},
-			want: "a\nb\nc\na\n",
+			Name: "an input file",
+			FS:   testFS(),
+			Args: []string{"dups.txt"},
+			Want: "a\nb\nc\na\n",
 		},
 		{
-			name:      "an input and an output file",
-			fsys:      testFS(),
-			args:      []string{"dups.txt", "out.txt"},
-			want:      "",
-			wantFiles: map[string]string{"out.txt": "a\nb\nc\na\n"},
+			Name:      "an input and an output file",
+			FS:        testFS(),
+			Args:      []string{"dups.txt", "out.txt"},
+			Want:      "",
+			WantFiles: map[string]string{"out.txt": "a\nb\nc\na\n"},
 		},
 		{
-			name:      "the output file is truncated",
-			fsys:      testFS(),
-			args:      []string{"fields.txt", "out.txt"},
-			wantFiles: map[string]string{"out.txt": "x 1\ny 1\nz 2\n"},
+			Name:      "the output file is truncated",
+			FS:        testFS(),
+			Args:      []string{"fields.txt", "out.txt"},
+			WantFiles: map[string]string{"out.txt": "x 1\ny 1\nz 2\n"},
 		},
 		{
-			name:  "a dash input reads the standard input",
-			stdin: strings.NewReader("s\ns\n"),
-			args:  []string{"-"},
-			want:  "s\n",
+			Name:  "a dash input reads the standard input",
+			Stdin: strings.NewReader("s\ns\n"),
+			Args:  []string{"-"},
+			Want:  "s\n",
 		},
 		{
-			name: "a dash output writes the standard output",
-			fsys: testFS(),
-			args: []string{"dups.txt", "-"},
-			want: "a\nb\nc\na\n",
+			Name: "a dash output writes the standard output",
+			FS:   testFS(),
+			Args: []string{"dups.txt", "-"},
+			Want: "a\nb\nc\na\n",
 		},
 		{
-			name:      "pathnames are resolved from the working directory",
-			fsys:      testFS(),
-			dir:       "sub",
-			args:      []string{"inner.txt", "out.txt"},
-			wantFiles: map[string]string{"sub/out.txt": "i\n"},
+			Name:      "pathnames are resolved from the working directory",
+			FS:        testFS(),
+			Dir:       "sub",
+			Args:      []string{"inner.txt", "out.txt"},
+			WantFiles: map[string]string{"sub/out.txt": "i\n"},
 		},
 		{
-			name: "a file named like an option after a double dash",
-			fsys: testFS(),
-			args: []string{"--", "-d"},
-			want: "p\n",
+			Name: "a file named like an option after a double dash",
+			FS:   testFS(),
+			Args: []string{"--", "-d"},
+			Want: "p\n",
 		},
 		{
-			name:      "options are not parsed after the first operand",
-			fsys:      testFS(),
-			args:      []string{"dups.txt", "-c"},
-			want:      "",
-			wantFiles: map[string]string{"-c": "a\nb\nc\na\n"},
+			Name:      "options are not parsed after the first operand",
+			FS:        testFS(),
+			Args:      []string{"dups.txt", "-c"},
+			Want:      "",
+			WantFiles: map[string]string{"-c": "a\nb\nc\na\n"},
 		},
 		{
-			name:     "an extra operand",
-			fsys:     testFS(),
-			args:     []string{"dups.txt", "out.txt", "third.txt"},
-			wantErr:  "uniq: extra operand 'third.txt'\nTry 'uniq --help' for more information.\n",
-			wantExit: 2,
+			Name:     "an extra operand",
+			FS:       testFS(),
+			Args:     []string{"dups.txt", "out.txt", "third.txt"},
+			WantErr:  "uniq: extra operand 'third.txt'\nTry 'uniq --help' for more information.\n",
+			WantExit: 2,
 		},
 		{
-			name:     "a zero-length input operand",
-			fsys:     testFS(),
-			args:     []string{""},
-			wantErr:  "uniq: invalid zero-length file name\n",
-			wantExit: 1,
+			Name:     "a zero-length input operand",
+			FS:       testFS(),
+			Args:     []string{""},
+			WantErr:  "uniq: invalid zero-length file name\n",
+			WantExit: 1,
 		},
 		{
-			name:     "a zero-length output operand",
-			fsys:     testFS(),
-			args:     []string{"dups.txt", ""},
-			wantErr:  "uniq: invalid zero-length file name\n",
-			wantExit: 1,
+			Name:     "a zero-length output operand",
+			FS:       testFS(),
+			Args:     []string{"dups.txt", ""},
+			WantErr:  "uniq: invalid zero-length file name\n",
+			WantExit: 1,
 		},
 	}
 
-	for _, test := range tests {
-		t.Run(test.name, func(t *testing.T) {
-			runCase(t, test)
-		})
-	}
+	testutil.Run(t, New, tests)
 }
 
 func TestRunOptions(t *testing.T) {
-	tests := []testCase{
+	tests := []testutil.Case{
 		{
-			name:     "invalid option",
-			args:     []string{"-x"},
-			wantErr:  "uniq: invalid option -- 'x'\nTry 'uniq --help' for more information.\n",
-			wantExit: 2,
+			Name:     "invalid option",
+			Args:     []string{"-x"},
+			WantErr:  "uniq: invalid option -- 'x'\nTry 'uniq --help' for more information.\n",
+			WantExit: 2,
 		},
 		{
-			name:     "unknown long option",
-			args:     []string{"--foo"},
-			wantErr:  "uniq: unrecognized option '--foo'\nTry 'uniq --help' for more information.\n",
-			wantExit: 2,
+			Name:     "unknown long option",
+			Args:     []string{"--foo"},
+			WantErr:  "uniq: unrecognized option '--foo'\nTry 'uniq --help' for more information.\n",
+			WantExit: 2,
 		},
 		{
-			name:     "d and u are incompatible",
-			args:     []string{"-d", "-u"},
-			wantErr:  "uniq: printing only duplicated and unique lines is not supported\nTry 'uniq --help' for more information.\n",
-			wantExit: 2,
+			Name:     "d and u are incompatible",
+			Args:     []string{"-d", "-u"},
+			WantErr:  "uniq: printing only duplicated and unique lines is not supported\nTry 'uniq --help' for more information.\n",
+			WantExit: 2,
 		},
 		{
-			name:     "missing field count argument",
-			args:     []string{"-f"},
-			wantErr:  "uniq: option requires an argument -- 'f'\nTry 'uniq --help' for more information.\n",
-			wantExit: 2,
+			Name:     "missing field count argument",
+			Args:     []string{"-f"},
+			WantErr:  "uniq: option requires an argument -- 'f'\nTry 'uniq --help' for more information.\n",
+			WantExit: 2,
 		},
 		{
-			name:     "a non numeric field count",
-			args:     []string{"-f", "x"},
-			wantErr:  "uniq: invalid number of fields: 'x'\nTry 'uniq --help' for more information.\n",
-			wantExit: 2,
+			Name:     "a non numeric field count",
+			Args:     []string{"-f", "x"},
+			WantErr:  "uniq: invalid number of fields: 'x'\nTry 'uniq --help' for more information.\n",
+			WantExit: 2,
 		},
 		{
-			name:     "a negative field count",
-			args:     []string{"-f", "-1"},
-			wantErr:  "uniq: invalid number of fields: '-1'\nTry 'uniq --help' for more information.\n",
-			wantExit: 2,
+			Name:     "a negative field count",
+			Args:     []string{"-f", "-1"},
+			WantErr:  "uniq: invalid number of fields: '-1'\nTry 'uniq --help' for more information.\n",
+			WantExit: 2,
 		},
 		{
-			name:     "a non numeric character count",
-			args:     []string{"-s", "x"},
-			wantErr:  "uniq: invalid number of characters: 'x'\nTry 'uniq --help' for more information.\n",
-			wantExit: 2,
+			Name:     "a non numeric character count",
+			Args:     []string{"-s", "x"},
+			WantErr:  "uniq: invalid number of characters: 'x'\nTry 'uniq --help' for more information.\n",
+			WantExit: 2,
 		},
 		{
-			name:     "missing count of characters to compare argument",
-			args:     []string{"-w"},
-			wantErr:  "uniq: option requires an argument -- 'w'\nTry 'uniq --help' for more information.\n",
-			wantExit: 2,
+			Name:     "missing count of characters to compare argument",
+			Args:     []string{"-w"},
+			WantErr:  "uniq: option requires an argument -- 'w'\nTry 'uniq --help' for more information.\n",
+			WantExit: 2,
 		},
 		{
-			name:     "a non numeric count of characters to compare",
-			args:     []string{"-w", "x"},
-			wantErr:  "uniq: invalid number of characters to compare: 'x'\nTry 'uniq --help' for more information.\n",
-			wantExit: 2,
+			Name:     "a non numeric count of characters to compare",
+			Args:     []string{"-w", "x"},
+			WantErr:  "uniq: invalid number of characters to compare: 'x'\nTry 'uniq --help' for more information.\n",
+			WantExit: 2,
 		},
 		{
-			name:     "a negative count of characters to compare",
-			args:     []string{"-w", "-1"},
-			wantErr:  "uniq: invalid number of characters to compare: '-1'\nTry 'uniq --help' for more information.\n",
-			wantExit: 2,
+			Name:     "a negative count of characters to compare",
+			Args:     []string{"-w", "-1"},
+			WantErr:  "uniq: invalid number of characters to compare: '-1'\nTry 'uniq --help' for more information.\n",
+			WantExit: 2,
 		},
 	}
 
-	for _, test := range tests {
-		t.Run(test.name, func(t *testing.T) {
-			runCase(t, test)
-		})
-	}
+	testutil.Run(t, New, tests)
 }
 
 func TestRunLongOptions(t *testing.T) {
-	tests := []testCase{
+	tests := []testutil.Case{
 		{
-			name:  "count",
-			stdin: strings.NewReader("a\na\nb\n"),
-			args:  []string{"--count"},
-			want:  "      2 a\n      1 b\n",
+			Name:  "count",
+			Stdin: strings.NewReader("a\na\nb\n"),
+			Args:  []string{"--count"},
+			Want:  "      2 a\n      1 b\n",
 		},
 		{
-			name:  "repeated",
-			stdin: strings.NewReader("a\na\nb\n"),
-			args:  []string{"--repeated"},
-			want:  "a\n",
+			Name:  "repeated",
+			Stdin: strings.NewReader("a\na\nb\n"),
+			Args:  []string{"--repeated"},
+			Want:  "a\n",
 		},
 		{
-			name:  "unique",
-			stdin: strings.NewReader("a\na\nb\n"),
-			args:  []string{"--unique"},
-			want:  "b\n",
+			Name:  "unique",
+			Stdin: strings.NewReader("a\na\nb\n"),
+			Args:  []string{"--unique"},
+			Want:  "b\n",
 		},
 		{
-			name: "skip-fields",
-			fsys: testFS(),
-			args: []string{"--skip-fields", "1", "fields.txt"},
-			want: "x 1\nz 2\n",
+			Name: "skip-fields",
+			FS:   testFS(),
+			Args: []string{"--skip-fields", "1", "fields.txt"},
+			Want: "x 1\nz 2\n",
 		},
 		{
-			name: "skip-chars with an attached value",
-			fsys: testFS(),
-			args: []string{"--skip-chars=1", "utf8.txt"},
-			want: "áx\náy\n",
+			Name: "skip-chars with an attached value",
+			FS:   testFS(),
+			Args: []string{"--skip-chars=1", "utf8.txt"},
+			Want: "áx\náy\n",
 		},
 		{
-			name:  "ignore-case",
-			stdin: strings.NewReader("a\nA\n"),
-			args:  []string{"--ignore-case"},
-			want:  "a\n",
+			Name:  "ignore-case",
+			Stdin: strings.NewReader("a\nA\n"),
+			Args:  []string{"--ignore-case"},
+			Want:  "a\n",
 		},
 		{
-			name:  "all-repeated",
-			stdin: strings.NewReader("a\na\nb\n"),
-			args:  []string{"--all-repeated"},
-			want:  "a\na\n",
+			Name:  "all-repeated",
+			Stdin: strings.NewReader("a\na\nb\n"),
+			Args:  []string{"--all-repeated"},
+			Want:  "a\na\n",
 		},
 		{
-			name:  "check-chars with an attached value",
-			stdin: strings.NewReader("ab\nac\n"),
-			args:  []string{"--check-chars=1"},
-			want:  "ab\n",
+			Name:  "check-chars with an attached value",
+			Stdin: strings.NewReader("ab\nac\n"),
+			Args:  []string{"--check-chars=1"},
+			Want:  "ab\n",
 		},
 		{
-			name:  "zero-terminated",
-			stdin: strings.NewReader("a\x00a\x00"),
-			args:  []string{"--zero-terminated"},
-			want:  "a\x00",
+			Name:  "zero-terminated",
+			Stdin: strings.NewReader("a\x00a\x00"),
+			Args:  []string{"--zero-terminated"},
+			Want:  "a\x00",
 		},
 	}
 
-	for _, test := range tests {
-		t.Run(test.name, func(t *testing.T) {
-			runCase(t, test)
-		})
-	}
+	testutil.Run(t, New, tests)
 }
 
 func TestRunErrors(t *testing.T) {
-	tests := []testCase{
+	tests := []testutil.Case{
 		{
-			name:     "missing input file",
-			fsys:     testFS(),
-			args:     []string{"missing.txt"},
-			wantErr:  "uniq: missing.txt: file does not exist\n",
-			wantExit: 1,
+			Name:     "missing input file",
+			FS:       testFS(),
+			Args:     []string{"missing.txt"},
+			WantErr:  "uniq: missing.txt: file does not exist\n",
+			WantExit: 1,
 		},
 		{
-			name:     "directory input",
-			fsys:     fsx.MemFS{"dir": {Mode: fs.ModeDir}},
-			args:     []string{"dir"},
-			wantErr:  "uniq: dir: invalid argument\n",
-			wantExit: 1,
+			Name:     "directory input",
+			FS:       fsx.MemFS{"dir": {Mode: fs.ModeDir}},
+			Args:     []string{"dir"},
+			WantErr:  "uniq: dir: invalid argument\n",
+			WantExit: 1,
 		},
 		{
-			name:     "directory output",
-			fsys:     fsx.MemFS{"dups.txt": {Data: []byte("a\n")}, "dir": {Mode: fs.ModeDir}},
-			args:     []string{"dups.txt", "dir"},
-			wantErr:  "uniq: dir: invalid argument\n",
-			wantExit: 1,
+			Name:     "directory output",
+			FS:       fsx.MemFS{"dups.txt": {Data: []byte("a\n")}, "dir": {Mode: fs.ModeDir}},
+			Args:     []string{"dups.txt", "dir"},
+			WantErr:  "uniq: dir: invalid argument\n",
+			WantExit: 1,
 		},
 		{
-			name:     "output with a missing parent directory",
-			fsys:     testFS(),
-			args:     []string{"dups.txt", "no/such/out.txt"},
-			wantErr:  "uniq: no/such/out.txt: file does not exist\n",
-			wantExit: 1,
+			Name:     "output with a missing parent directory",
+			FS:       testFS(),
+			Args:     []string{"dups.txt", "no/such/out.txt"},
+			WantErr:  "uniq: no/such/out.txt: file does not exist\n",
+			WantExit: 1,
 		},
 		{
-			name:     "input file without a file system",
-			args:     []string{"dups.txt"},
-			wantErr:  "uniq: dups.txt: no file system available\n",
-			wantExit: 1,
+			Name:     "input file without a file system",
+			Args:     []string{"dups.txt"},
+			WantErr:  "uniq: dups.txt: no file system available\n",
+			WantExit: 1,
 		},
 		{
-			name:     "no standard input",
-			wantErr:  "uniq: standard input: no standard input available\n",
-			wantExit: 1,
+			Name:     "no standard input",
+			WantErr:  "uniq: standard input: no standard input available\n",
+			WantExit: 1,
 		},
 		{
-			name:     "standard input read error",
-			stdin:    errorReader{err: errors.New("read failed")},
-			wantErr:  "uniq: standard input: read failed\n",
-			wantExit: 1,
+			Name:     "standard input read error",
+			Stdin:    testutil.ErrorReader{Err: errors.New("read failed")},
+			WantErr:  "uniq: standard input: read failed\n",
+			WantExit: 1,
 		},
 	}
 
-	for _, test := range tests {
-		t.Run(test.name, func(t *testing.T) {
-			runCase(t, test)
-		})
-	}
+	testutil.Run(t, New, tests)
 }
 
 func TestRunWriteError(t *testing.T) {
@@ -848,12 +702,12 @@ func TestRunWriteError(t *testing.T) {
 	stderr := new(bytes.Buffer)
 	rt := &coreutils.Runtime{
 		Stdin:  strings.NewReader("hello\n"),
-		Stdout: errorWriter{err: writeErr},
+		Stdout: testutil.ErrorWriter{Err: writeErr},
 		Stderr: stderr,
 	}
 	err := New(rt).Run(t.Context())
 
-	if code := exitCode(t, err); code != 1 {
+	if code := testutil.ExitCode(t, err); code != 1 {
 		t.Fatalf("Run() exit code = %d, want 1 (error = %v)", code, err)
 	}
 	if !errors.Is(err, writeErr) {
@@ -866,64 +720,14 @@ func TestRunWriteError(t *testing.T) {
 
 func TestRunContext(t *testing.T) {
 	t.Run("cancelled before running", func(t *testing.T) {
-		ctx, cancel := context.WithCancel(t.Context())
-		cancel()
-		runCancelled(t, ctx, strings.NewReader("hello\n"))
+		testutil.Cancelled(t, New, strings.NewReader("hello\n"), nil)
 	})
 
 	t.Run("cancelled while reading the standard input", func(t *testing.T) {
-		ctx, cancel := context.WithCancel(t.Context())
-		runCancelled(t, ctx, &cancelReader{cancel: cancel})
+		testutil.Cancelled(t, New, &testutil.CancelReader{}, nil)
 	})
-}
-
-// runCancelled runs the utility with a context that is either already done or
-// becomes done while reading, and checks that the context error is returned
-// without any output.
-func runCancelled(t *testing.T, ctx context.Context, stdin io.Reader) {
-	t.Helper()
-
-	stdout := new(bytes.Buffer)
-	stderr := new(bytes.Buffer)
-	rt := &coreutils.Runtime{
-		Stdin:  stdin,
-		Stdout: stdout,
-		Stderr: stderr,
-	}
-	err := New(rt).Run(ctx)
-
-	if !errors.Is(err, context.Canceled) {
-		t.Fatalf("Run() error = %v, want context.Canceled", err)
-	}
-	if got := stdout.String(); got != "" {
-		t.Errorf("Run() stdout = %q, want empty", got)
-	}
-	if got := stderr.String(); got != "" {
-		t.Errorf("Run() stderr = %q, want empty", got)
-	}
 }
 
 func TestHelpVersion(t *testing.T) {
-	t.Run("help", func(t *testing.T) {
-		stdout := new(bytes.Buffer)
-		rt := &coreutils.Runtime{Stdout: stdout, Stderr: new(bytes.Buffer)}
-		if err := New(rt).Run(t.Context(), "--help"); err != nil {
-			t.Fatalf("Run() error = %v, want nil (exit status 0)", err)
-		}
-		if got, want := stdout.String(), usage; got != want {
-			t.Errorf("Run() stdout = %q, want %q", got, want)
-		}
-	})
-
-	t.Run("version", func(t *testing.T) {
-		stdout := new(bytes.Buffer)
-		rt := &coreutils.Runtime{Stdout: stdout, Stderr: new(bytes.Buffer)}
-		if err := New(rt).Run(t.Context(), "--version"); err != nil {
-			t.Fatalf("Run() error = %v, want nil (exit status 0)", err)
-		}
-		want := "uniq (charm.land/snail/coreutils) " + coreutils.Version + "\nhttps://charm.land/snail\n"
-		if got := stdout.String(); got != want {
-			t.Errorf("Run() stdout = %q, want %q", got, want)
-		}
-	})
+	testutil.HelpVersion(t, New, "uniq", usage)
 }

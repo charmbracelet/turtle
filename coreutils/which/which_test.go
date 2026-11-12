@@ -2,7 +2,6 @@ package which
 
 import (
 	"bytes"
-	"errors"
 	"io/fs"
 	"os"
 	"path/filepath"
@@ -11,6 +10,7 @@ import (
 	"testing"
 
 	"charm.land/snail/coreutils"
+	"charm.land/snail/coreutils/internal/testutil"
 )
 
 const (
@@ -34,19 +34,6 @@ func runWhich(t *testing.T, environ []string, workDir string, tty bool, args ...
 	}
 	err := New(rt).Run(t.Context(), args...)
 	return stdout.String(), stderr.String(), err
-}
-
-func exitCode(t *testing.T, err error) int {
-	t.Helper()
-
-	if err == nil {
-		return 0
-	}
-	var exitErr *coreutils.ExitError
-	if !errors.As(err, &exitErr) {
-		t.Fatalf("Run() error = %v, want *coreutils.ExitError", err)
-	}
-	return exitErr.Code
 }
 
 // writeFile creates a file at path with the given mode.
@@ -94,7 +81,7 @@ func runCases(t *testing.T, tests []testCase) {
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
 			got, stderr, err := runWhich(t, test.environ, test.workDir, test.tty, test.args...)
-			if code := exitCode(t, err); code != test.wantExit {
+			if code := testutil.ExitCode(t, err); code != test.wantExit {
 				t.Errorf("Run() exit code = %d, want %d (error = %v)", code, test.wantExit, err)
 			}
 			if got != test.want {
@@ -681,7 +668,7 @@ func TestWindowsExtensions(t *testing.T) {
 
 	t.Run("the .exe extension is tried first", func(t *testing.T) {
 		stdout, _, err := runWhich(t, pathVar(dir), "", false, "foo")
-		if code := exitCode(t, err); code != 0 {
+		if code := testutil.ExitCode(t, err); code != 0 {
 			t.Fatalf("Run() exit code = %d, want 0 (error = %v)", code, err)
 		}
 		if want := filepath.Join(dir, "foo.exe") + "\n"; stdout != want {
@@ -691,7 +678,7 @@ func TestWindowsExtensions(t *testing.T) {
 
 	t.Run("a file without an extension is accepted", func(t *testing.T) {
 		stdout, _, err := runWhich(t, pathVar(dir), "", false, "bar")
-		if code := exitCode(t, err); code != 0 {
+		if code := testutil.ExitCode(t, err); code != 0 {
 			t.Fatalf("Run() exit code = %d, want 0 (error = %v)", code, err)
 		}
 		if want := filepath.Join(dir, "bar") + "\n"; stdout != want {
@@ -701,7 +688,7 @@ func TestWindowsExtensions(t *testing.T) {
 
 	t.Run("a name with an extension keeps it", func(t *testing.T) {
 		stdout, _, err := runWhich(t, pathVar(dir), "", false, "plain")
-		if code := exitCode(t, err); code != 0 {
+		if code := testutil.ExitCode(t, err); code != 0 {
 			t.Fatalf("Run() exit code = %d, want 0 (error = %v)", code, err)
 		}
 		if want := filepath.Join(dir, "plain") + "\n"; stdout != want {
