@@ -8,11 +8,9 @@ import (
 	"fmt"
 	"io"
 	"io/fs"
-	"os/user"
 	"path"
 	"path/filepath"
 	"slices"
-	"strconv"
 	"strings"
 	"time"
 
@@ -25,6 +23,7 @@ import (
 	"charm.land/snail/coreutils/internal/output"
 	"charm.land/snail/coreutils/internal/patherr"
 	"charm.land/snail/coreutils/internal/stdopts"
+	"charm.land/snail/coreutils/internal/usernames"
 	"charm.land/snail/coreutils/internal/walk"
 )
 
@@ -88,7 +87,7 @@ func (p *Prog) Run(ctx context.Context, args ...string) error {
 	s := &state{
 		p: p, ctx: ctx, opts: opts, now: p.Now(),
 		execs: execs, outFiles: map[string]io.Writer{},
-		names: map[int]string{}, groups: map[int]string{},
+		usernames: usernames.Names{},
 	}
 	if err := s.openOutFiles(outFiles); err != nil {
 		return &coreutils.ExitError{Code: 1}
@@ -265,9 +264,8 @@ type state struct {
 	execs      []*execExpr
 	stdin      *bufio.Reader
 	outFiles   map[string]io.Writer
-	outClosers []io.Closer    // the output files that were opened
-	names      map[int]string // cached user names
-	groups     map[int]string // cached group names
+	outClosers []io.Closer     // the output files that were opened
+	usernames  usernames.Names // the cached user and group names
 }
 
 // out returns the writer an output file name stands for, which is the
@@ -298,34 +296,6 @@ func (s *state) timeOf(fi fs.FileInfo, which byte) time.Time {
 // beyond what io/fs models.
 func fileInfoStat(fi fs.FileInfo) (fileinfo.Info, bool) {
 	return fileinfo.Stat(fi)
-}
-
-// userName returns the name of the user an identifier stands for, or its
-// decimal form when it names no user.
-func (s *state) userName(uid int) string {
-	if name, ok := s.names[uid]; ok {
-		return name
-	}
-	name := strconv.Itoa(uid)
-	if u, err := user.LookupId(name); err == nil {
-		name = u.Username
-	}
-	s.names[uid] = name
-	return name
-}
-
-// groupName returns the name of the group an identifier stands for, or its
-// decimal form when it names no group.
-func (s *state) groupName(gid int) string {
-	if name, ok := s.groups[gid]; ok {
-		return name
-	}
-	name := strconv.Itoa(gid)
-	if g, err := user.LookupGroupId(name); err == nil {
-		name = g.Name
-	}
-	s.groups[gid] = name
-	return name
 }
 
 // options holds the options and the primaries that apply to the whole

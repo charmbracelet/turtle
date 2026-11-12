@@ -187,11 +187,11 @@ func (piece printfPiece) text(s *state, file file) string {
 	case 'H':
 		return format(file.root)
 	case 'g':
-		return format(s.groupName(gid))
+		return format(s.usernames.Group(uint64(gid)))
 	case 'G':
 		return format(strconv.Itoa(gid))
 	case 'u':
-		return format(s.userName(uid))
+		return format(s.usernames.User(uint64(uid)))
 	case 'U':
 		return format(strconv.Itoa(uid))
 	case 'm':
@@ -399,7 +399,7 @@ func listFile(s *state, w io.Writer, f file) error {
 	date := fileTime(f.fi, 'm')
 	_, err := fmt.Fprintf(w, "%7d %6d %s %3d %-8s %-8s %8s %s %s",
 		st.Ino, blocks, filemode.String(f.fi.Mode()), nlink,
-		s.userName(uid), s.groupName(gid),
+		s.usernames.User(uint64(uid)), s.usernames.Group(uint64(gid)),
 		sizefmt.ByteSpec.Format(f.fi.Size()), lsTime(s, date), quoteName(f.name))
 	if err != nil {
 		return err

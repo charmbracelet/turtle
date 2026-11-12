@@ -15,6 +15,7 @@ import (
 
 	"charm.land/snail/coreutils"
 
+	"charm.land/snail/coreutils/internal/filehdr"
 	"charm.land/snail/coreutils/internal/getopt"
 	"charm.land/snail/coreutils/internal/input"
 	"charm.land/snail/coreutils/internal/numparse"
@@ -33,15 +34,6 @@ type Prog struct {
 func New(rt *coreutils.Runtime) coreutils.Program {
 	return &Prog{Runtime: rt}
 }
-
-// headerMode says when the "==> name <==" headers are printed.
-type headerMode int
-
-const (
-	headerMultiple headerMode = iota // only with multiple operands
-	headerNever                      // -q
-	headerAlways                     // -v
-)
 
 // Run writes the first lines or bytes of the given files to the standard
 // output, in the same order the operands are given. The standard input is
@@ -65,8 +57,8 @@ func (p *Prog) Run(ctx context.Context, args ...string) error {
 		inputs = append(inputs, input.Input{Stdin: true})
 	}
 
-	header := opts.headers(len(inputs) > 1)
-	first := true
+	headers := opts.header.Enabled(len(inputs) > 1)
+	hdr := filehdr.New(p.Stdout)
 
 	ok := true
 	for _, in := range inputs {
@@ -84,9 +76,8 @@ func (p *Prog) Run(ctx context.Context, args ...string) error {
 			ok = false
 			continue
 		}
-		if header {
-			p.writeHeader(in, !first)
-			first = false
+		if headers {
+			hdr.Write(in.Label())
 		}
 		err = p.copy(r, opts)
 		r.Close()
@@ -221,15 +212,6 @@ func (p *Prog) copyAll(r io.Reader) error {
 	return nil
 }
 
-// writeHeader writes the header that precedes each file when there are
-// multiple operands. The first header has no leading <newline>.
-func (p *Prog) writeHeader(in input.Input, leadingNewline bool) {
-	if leadingNewline {
-		fmt.Fprint(p.Stdout, "\n")
-	}
-	fmt.Fprintf(p.Stdout, "==> %s <==\n", in.Label())
-}
-
 // options holds how much of each input is copied and whether the headers
 // are printed.
 type options struct {
@@ -239,7 +221,7 @@ type options struct {
 	zero  bool // -z: items terminated with a NUL byte
 
 	countSet bool
-	header   headerMode
+	header   filehdr.Mode
 }
 
 // delim returns the byte separating the items counted by -n.
@@ -248,20 +230,6 @@ func (o options) delim() byte {
 		return 0
 	}
 	return '\n'
-}
-
-// headers reports whether the "==> name <==" headers are printed for the
-// operands given: never with -q, always with -v, otherwise only with
-// multiple operands.
-func (o options) headers(multiple bool) bool {
-	switch o.header {
-	case headerNever:
-		return false
-	case headerAlways:
-		return true
-	default:
-		return multiple
-	}
 }
 
 // writeError marks an error as coming from writing to the standard output.
@@ -333,9 +301,9 @@ func parseFlags(args []string) (options, []string, error) {
 	operands, err := optSet.Parse(args, func(opt rune, value string) error {
 		switch opt {
 		case 'q':
-			opts.header = headerNever
+			opts.header = filehdr.Never
 		case 'v':
-			opts.header = headerAlways
+			opts.header = filehdr.Always
 		case 'z':
 			opts.zero = true
 		case 'c', 'n':
@@ -402,9 +370,9 @@ func parseObsolete(args []string, opts *options) ([]string, error) {
 		case 'l':
 			lines = true
 		case 'q':
-			opts.header = headerNever
+			opts.header = filehdr.Never
 		case 'v':
-			opts.header = headerAlways
+			opts.header = filehdr.Always
 		case 'z':
 			opts.zero = true
 		default:

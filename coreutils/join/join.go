@@ -240,21 +240,9 @@ func field(line []byte, n int, sep []byte) []byte {
 // letters first when the -i option was given.
 func compareFields(a, b []byte, ignoreCase bool) int {
 	if ignoreCase {
-		a, b = foldCase(a), foldCase(b)
+		a, b = textutil.FoldCase(a), textutil.FoldCase(b)
 	}
 	return bytes.Compare(a, b)
-}
-
-// foldCase lowercases the ASCII letters of s.
-func foldCase(s []byte) []byte {
-	folded := make([]byte, len(s))
-	for i, c := range s {
-		if c >= 'A' && c <= 'Z' {
-			c += 'a' - 'A'
-		}
-		folded[i] = c
-	}
-	return folded
 }
 
 // otherFields returns the fields of the line besides its join field, in
