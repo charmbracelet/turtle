@@ -2,10 +2,7 @@ package ls
 
 import (
 	"bytes"
-	"context"
-	"errors"
 	"fmt"
-	"io"
 	"io/fs"
 	"math"
 	"os"
@@ -15,6 +12,7 @@ import (
 	"time"
 
 	"charm.land/snail/coreutils"
+	"charm.land/snail/coreutils/internal/testutil"
 	"charm.land/snail/fsx"
 )
 
@@ -87,7 +85,7 @@ func runCase(t *testing.T, test testCase) {
 		Stdout:     stdout,
 		Stderr:     stderr,
 		WorkingDir: test.wd,
-		Environ:    func() []string { return environ(test.env) },
+		Environ:    func() []string { return testutil.Environ(test.env) },
 		IsTerminal: func(fd int) bool { return test.terminal && fd == 1 },
 	}
 	switch {
@@ -99,7 +97,7 @@ func runCase(t *testing.T, test testCase) {
 
 	err := New(rt).Run(t.Context(), test.args...)
 
-	if code := exitCode(t, err); code != test.wantExit {
+	if code := testutil.ExitCode(t, err); code != test.wantExit {
 		t.Errorf("Run() exit code = %d, want %d (error = %v)", code, test.wantExit, err)
 	}
 	if got := stdout.String(); got != test.wantOut {
@@ -118,28 +116,6 @@ func runCases(t *testing.T, tests []testCase) {
 			runCase(t, test)
 		})
 	}
-}
-
-// environ returns the test environment as a list of KEY=VALUE strings.
-func environ(values map[string]string) []string {
-	entries := make([]string, 0, len(values))
-	for name, value := range values {
-		entries = append(entries, name+"="+value)
-	}
-	return entries
-}
-
-func exitCode(t *testing.T, err error) int {
-	t.Helper()
-
-	if err == nil {
-		return 0
-	}
-	var exitErr *coreutils.ExitError
-	if !errors.As(err, &exitErr) {
-		t.Fatalf("Run() error = %v, want *coreutils.ExitError", err)
-	}
-	return exitErr.Code
 }
 
 func TestRunDefault(t *testing.T) {
@@ -1052,30 +1028,7 @@ func TestRunSymbolicLinks(t *testing.T) {
 }
 
 func TestHelpVersion(t *testing.T) {
-	t.Run("help", func(t *testing.T) {
-		stdout := new(bytes.Buffer)
-		stderr := new(bytes.Buffer)
-		rt := &coreutils.Runtime{Stdout: stdout, Stderr: stderr}
-		if err := New(rt).Run(t.Context(), "--help"); err != nil {
-			t.Fatalf("Run() error = %v, want nil (exit status 0)", err)
-		}
-		if got, want := stdout.String(), usage; got != want {
-			t.Errorf("Run() stdout = %q, want %q", got, want)
-		}
-	})
-
-	t.Run("version", func(t *testing.T) {
-		stdout := new(bytes.Buffer)
-		stderr := new(bytes.Buffer)
-		rt := &coreutils.Runtime{Stdout: stdout, Stderr: stderr}
-		if err := New(rt).Run(t.Context(), "--version"); err != nil {
-			t.Fatalf("Run() error = %v, want nil (exit status 0)", err)
-		}
-		want := "ls (charm.land/snail/coreutils) " + coreutils.Version + "\nhttps://charm.land/snail\n"
-		if got := stdout.String(); got != want {
-			t.Errorf("Run() stdout = %q, want %q", got, want)
-		}
-	})
+	testutil.HelpVersion(t, New, "ls", usage)
 }
 
 func TestRunDirectories(t *testing.T) {
@@ -1617,7 +1570,7 @@ func TestRunRealFS(t *testing.T) {
 			Stdout:  stdout,
 			Stderr:  stderr,
 			FS:      sys,
-			Environ: func() []string { return environ(nil) },
+			Environ: func() []string { return testutil.Environ(nil) },
 		}
 		if err := New(rt).Run(t.Context(), args...); err != nil {
 			t.Fatalf("Run() error = %v, stderr = %q", err, stderr)
@@ -1786,7 +1739,7 @@ func TestRunFastOrder(t *testing.T) {
 		Stdout:  stdout,
 		Stderr:  stderr,
 		FS:      sys,
-		Environ: func() []string { return environ(nil) },
+		Environ: func() []string { return testutil.Environ(nil) },
 	}
 	if err := New(rt).Run(t.Context(), "-f"); err != nil {
 		t.Fatalf("Run() error = %v, stderr = %q", err, stderr)
@@ -1819,10 +1772,10 @@ func TestRunCycle(t *testing.T) {
 		Stdout:  stdout,
 		Stderr:  stderr,
 		FS:      sys,
-		Environ: func() []string { return environ(nil) },
+		Environ: func() []string { return testutil.Environ(nil) },
 	}
 	err := New(rt).Run(t.Context(), "-1", "-L", "-R", "x")
-	if code := exitCode(t, err); code != 1 {
+	if code := testutil.ExitCode(t, err); code != 1 {
 		t.Errorf("Run() exit code = %d, want 1 (error = %v)", code, err)
 	}
 	if got, want := stdout.String(), "x:\ny\n\nx/y:\nback\n"; got != want {
@@ -1857,18 +1810,7 @@ func TestRunWindows(t *testing.T) {
 
 // TestRunContext checks that a listing stops with the context it's given.
 func TestRunContext(t *testing.T) {
-	ctx, cancel := context.WithCancel(t.Context())
-	cancel()
-
-	rt := &coreutils.Runtime{
-		Stdout:  io.Discard,
-		Stderr:  io.Discard,
-		FS:      fsx.MemFS{"a.txt": {}},
-		Environ: func() []string { return environ(nil) },
-	}
-	if err := New(rt).Run(ctx, "a.txt"); !errors.Is(err, context.Canceled) {
-		t.Errorf("Run() error = %v, want context.Canceled", err)
-	}
+	testutil.Cancelled(t, New, nil, fsx.MemFS{"a.txt": {}}, "a.txt")
 }
 
 // TestRunIgnore checks the options that drop entries from a listing.

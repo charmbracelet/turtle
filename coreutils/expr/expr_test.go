@@ -2,11 +2,11 @@ package expr
 
 import (
 	"bytes"
-	"context"
 	"errors"
 	"testing"
 
 	"charm.land/snail/coreutils"
+	"charm.land/snail/coreutils/internal/testutil"
 )
 
 // runExpr evaluates args with a fresh runtime, returning the standard
@@ -17,19 +17,6 @@ func runExpr(t *testing.T, args ...string) (string, string, error) {
 	rt := &coreutils.Runtime{Stdout: stdout, Stderr: stderr}
 	err := New(rt).Run(t.Context(), args...)
 	return stdout.String(), stderr.String(), err
-}
-
-// exitCode gives the exit status asked by err, zero when err is nil.
-func exitCode(t *testing.T, err error) int {
-	t.Helper()
-	if err == nil {
-		return 0
-	}
-	var exitErr *coreutils.ExitError
-	if !errors.As(err, &exitErr) {
-		t.Fatalf("Run() error = %v, want an ExitError", err)
-	}
-	return exitErr.Code
 }
 
 func TestArithmetic(t *testing.T) {
@@ -139,7 +126,7 @@ func TestArithmetic(t *testing.T) {
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
 			out, _, err := runExpr(t, test.args...)
-			if code := exitCode(t, err); code != test.wantCode {
+			if code := testutil.ExitCode(t, err); code != test.wantCode {
 				t.Errorf("Run() exit code = %d, want %d", code, test.wantCode)
 			}
 			if out != test.wantOut {
@@ -239,7 +226,7 @@ func TestArithmetic(t *testing.T) {
 		for _, test := range tests {
 			t.Run(test.name, func(t *testing.T) {
 				out, stderr, err := runExpr(t, test.args...)
-				if code := exitCode(t, err); code != test.wantCode {
+				if code := testutil.ExitCode(t, err); code != test.wantCode {
 					t.Errorf("Run() exit code = %d, want %d", code, test.wantCode)
 				}
 				if out != "" {
@@ -374,7 +361,7 @@ func TestComparison(t *testing.T) {
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
 			out, _, err := runExpr(t, test.args...)
-			if code := exitCode(t, err); code != test.wantCode {
+			if code := testutil.ExitCode(t, err); code != test.wantCode {
 				t.Errorf("Run() exit code = %d, want %d", code, test.wantCode)
 			}
 			if out != test.wantOut {
@@ -471,7 +458,7 @@ func TestLogical(t *testing.T) {
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
 			out, _, err := runExpr(t, test.args...)
-			if code := exitCode(t, err); code != test.wantCode {
+			if code := testutil.ExitCode(t, err); code != test.wantCode {
 				t.Errorf("Run() exit code = %d, want %d", code, test.wantCode)
 			}
 			if out != test.wantOut {
@@ -506,7 +493,7 @@ func TestLogical(t *testing.T) {
 		for _, test := range tests {
 			t.Run(test.name, func(t *testing.T) {
 				out, stderr, err := runExpr(t, test.args...)
-				if code := exitCode(t, err); code != test.wantCode {
+				if code := testutil.ExitCode(t, err); code != test.wantCode {
 					t.Errorf("Run() exit code = %d, want %d", code, test.wantCode)
 				}
 				if stderr != "" {
@@ -659,7 +646,7 @@ func TestStringKeywords(t *testing.T) {
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
 			out, _, err := runExpr(t, test.args...)
-			if code := exitCode(t, err); code != test.wantCode {
+			if code := testutil.ExitCode(t, err); code != test.wantCode {
 				t.Errorf("Run() exit code = %d, want %d", code, test.wantCode)
 			}
 			if out != test.wantOut {
@@ -694,7 +681,7 @@ func TestStringKeywords(t *testing.T) {
 		for _, test := range tests {
 			t.Run(test.name, func(t *testing.T) {
 				out, _, err := runExpr(t, test.args...)
-				if code := exitCode(t, err); code != test.wantCode {
+				if code := testutil.ExitCode(t, err); code != test.wantCode {
 					t.Errorf("Run() exit code = %d, want %d", code, test.wantCode)
 				}
 				if out != test.wantOut {
@@ -832,7 +819,7 @@ func TestPatternMatching(t *testing.T) {
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
 			out, _, err := runExpr(t, test.args...)
-			if code := exitCode(t, err); code != test.wantCode {
+			if code := testutil.ExitCode(t, err); code != test.wantCode {
 				t.Errorf("Run() exit code = %d, want %d", code, test.wantCode)
 			}
 			if out != test.wantOut {
@@ -866,7 +853,7 @@ func TestPatternMatching(t *testing.T) {
 		for _, test := range tests {
 			t.Run(test.name, func(t *testing.T) {
 				out, stderr, err := runExpr(t, test.args...)
-				if code := exitCode(t, err); code != test.wantCode {
+				if code := testutil.ExitCode(t, err); code != test.wantCode {
 					t.Errorf("Run() exit code = %d, want %d", code, test.wantCode)
 				}
 				if out != "" {
@@ -984,7 +971,7 @@ func TestQuotingAndGrouping(t *testing.T) {
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
 			out, _, err := runExpr(t, test.args...)
-			if code := exitCode(t, err); code != test.wantCode {
+			if code := testutil.ExitCode(t, err); code != test.wantCode {
 				t.Errorf("Run() exit code = %d, want %d", code, test.wantCode)
 			}
 			if out != test.wantOut {
@@ -1051,7 +1038,7 @@ func TestNullAndStatus(t *testing.T) {
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
 			out, _, err := runExpr(t, test.args...)
-			if code := exitCode(t, err); code != test.wantCode {
+			if code := testutil.ExitCode(t, err); code != test.wantCode {
 				t.Errorf("Run() exit code = %d, want %d", code, test.wantCode)
 			}
 			if out != test.wantOut {
@@ -1132,7 +1119,7 @@ func TestErrors(t *testing.T) {
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
 			out, stderr, err := runExpr(t, test.args...)
-			if code := exitCode(t, err); code != test.wantCode {
+			if code := testutil.ExitCode(t, err); code != test.wantCode {
 				t.Errorf("Run() exit code = %d, want %d", code, test.wantCode)
 			}
 			if out != "" {
@@ -1183,7 +1170,7 @@ func TestEndOfOptions(t *testing.T) {
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
 			out, _, err := runExpr(t, test.args...)
-			if code := exitCode(t, err); code != test.wantCode {
+			if code := testutil.ExitCode(t, err); code != test.wantCode {
 				t.Errorf("Run() exit code = %d, want %d", code, test.wantCode)
 			}
 			if out != test.wantOut {
@@ -1224,7 +1211,7 @@ func TestPOSIXExamples(t *testing.T) {
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
 			out, _, err := runExpr(t, test.args...)
-			if code := exitCode(t, err); code != test.wantCode {
+			if code := testutil.ExitCode(t, err); code != test.wantCode {
 				t.Errorf("Run() exit code = %d, want %d", code, test.wantCode)
 			}
 			if out != test.wantOut {
@@ -1235,66 +1222,18 @@ func TestPOSIXExamples(t *testing.T) {
 }
 
 func TestHelpVersion(t *testing.T) {
-	t.Run("help", func(t *testing.T) {
-		out, stderr, err := runExpr(t, "--help")
-		if err != nil {
-			t.Fatalf("Run() error = %v, want nil (exit status 0)", err)
-		}
-		if got, want := out, usage; got != want {
-			t.Errorf("Run() stdout = %q, want %q", got, want)
-		}
-		if got := stderr; got != "" {
-			t.Errorf("Run() stderr = %q, want empty", got)
-		}
-	})
-
-	t.Run("version", func(t *testing.T) {
-		out, stderr, err := runExpr(t, "--version")
-		if err != nil {
-			t.Fatalf("Run() error = %v, want nil (exit status 0)", err)
-		}
-		want := "expr (charm.land/snail/coreutils) " + coreutils.Version + "\nhttps://charm.land/snail\n"
-		if got := out; got != want {
-			t.Errorf("Run() stdout = %q, want %q", got, want)
-		}
-		if got := stderr; got != "" {
-			t.Errorf("Run() stderr = %q, want empty", got)
-		}
-	})
+	testutil.HelpVersion(t, New, "expr", usage)
 }
 
 func TestStopOnCanceledContext(t *testing.T) {
-	ctx, cancel := context.WithCancel(t.Context())
-	cancel()
-
-	stdout, stderr := new(bytes.Buffer), new(bytes.Buffer)
-	rt := &coreutils.Runtime{Stdout: stdout, Stderr: stderr}
-	err := New(rt).Run(ctx, "1", "+", "1")
-	if !errors.Is(err, context.Canceled) {
-		t.Errorf("Run() error = %v, want context.Canceled", err)
-	}
-	if got := stdout.String(); got != "" {
-		t.Errorf("Run() stdout = %q, want empty", got)
-	}
-	if got := stderr.String(); got != "" {
-		t.Errorf("Run() stderr = %q, want empty", got)
-	}
-}
-
-// errWriter fails every write with its error.
-type errWriter struct {
-	err error
-}
-
-func (w errWriter) Write([]byte) (int, error) {
-	return 0, w.err
+	testutil.Cancelled(t, New, nil, nil, "1", "+", "1")
 }
 
 func TestWriteError(t *testing.T) {
 	writeErr := errors.New("write error")
 	stderr := new(bytes.Buffer)
 	rt := &coreutils.Runtime{
-		Stdout: errWriter{err: writeErr},
+		Stdout: testutil.ErrorWriter{Err: writeErr},
 		Stderr: stderr,
 	}
 	err := New(rt).Run(t.Context(), "1", "+", "1")
@@ -1302,7 +1241,7 @@ func TestWriteError(t *testing.T) {
 		t.Errorf("Run() error = %v, want it to wrap the write error", err)
 	}
 	// GNU exits with EXPR_FAILURE on a failed write, through close_stdout.
-	if code := exitCode(t, err); code != 3 {
+	if code := testutil.ExitCode(t, err); code != 3 {
 		t.Errorf("Run() exit code = %d, want 3", code)
 	}
 	if got, want := stderr.String(), "expr: write error: write error\n"; got != want {

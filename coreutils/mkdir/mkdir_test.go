@@ -2,13 +2,11 @@ package mkdir
 
 import (
 	"bytes"
-	"context"
-	"errors"
-	"io"
 	"io/fs"
 	"testing"
 
 	"charm.land/snail/coreutils"
+	"charm.land/snail/coreutils/internal/testutil"
 	"charm.land/snail/fsx"
 )
 
@@ -25,29 +23,22 @@ type testCase struct {
 	wantExit int
 }
 
+// runCase runs one case, checking the modes of the directories it creates
+// as permissions, with the directory bit added.
 func runCase(t *testing.T, test testCase) {
 	t.Helper()
 
-	stdout := new(bytes.Buffer)
-	stderr := new(bytes.Buffer)
-	rt := &coreutils.Runtime{
-		Stdout: stdout,
-		Stderr: stderr,
-		FS:     test.files,
-		Umask:  test.umask,
-	}
-
-	err := New(rt).Run(t.Context(), test.args...)
-
-	if code := exitCode(t, err); code != test.wantExit {
-		t.Errorf("Run() exit code = %d, want %d (error = %v)", code, test.wantExit, err)
-	}
-	if got := stdout.String(); got != test.wantOut {
-		t.Errorf("Run() stdout = %q, want %q", got, test.wantOut)
-	}
-	if got := stderr.String(); got != test.wantErr {
-		t.Errorf("Run() stderr = %q, want %q", got, test.wantErr)
-	}
+	testutil.Once(t, New, testutil.Case{
+		Name:     test.name,
+		FS:       test.files,
+		Umask:    test.umask,
+		Args:     test.args,
+		Want:     test.wantOut,
+		WantErr:  test.wantErr,
+		WantExit: test.wantExit,
+		Present:  test.present,
+		Absent:   test.absent,
+	})
 
 	for name, wantMode := range test.want {
 		fi, err := fs.Stat(test.files, name)
@@ -59,29 +50,6 @@ func runCase(t *testing.T, test testCase) {
 			t.Errorf("%s mode = %v, want %v", name, got, want)
 		}
 	}
-	for _, name := range test.present {
-		if _, err := fs.Stat(test.files, name); err != nil {
-			t.Errorf("Stat(%q) error = %v, want it to still exist", name, err)
-		}
-	}
-	for _, name := range test.absent {
-		if _, err := fs.Stat(test.files, name); !errors.Is(err, fs.ErrNotExist) {
-			t.Errorf("Stat(%q) error = %v, want fs.ErrNotExist", name, err)
-		}
-	}
-}
-
-func exitCode(t *testing.T, err error) int {
-	t.Helper()
-
-	if err == nil {
-		return 0
-	}
-	var exitErr *coreutils.ExitError
-	if !errors.As(err, &exitErr) {
-		t.Fatalf("Run() error = %v, want *coreutils.ExitError", err)
-	}
-	return exitErr.Code
 }
 
 func TestRunDefaults(t *testing.T) {
@@ -498,37 +466,9 @@ func TestRunVerboseWorkDir(t *testing.T) {
 }
 
 func TestRunContext(t *testing.T) {
-	ctx, cancel := context.WithCancel(t.Context())
-	cancel()
-
-	rt := &coreutils.Runtime{Stderr: io.Discard, FS: fsx.MemFS{}}
-	err := New(rt).Run(ctx, "d")
-	if !errors.Is(err, context.Canceled) {
-		t.Errorf("Run() error = %v, want context.Canceled", err)
-	}
+	testutil.Cancelled(t, New, nil, fsx.MemFS{}, "d")
 }
 
 func TestHelpVersion(t *testing.T) {
-	t.Run("help", func(t *testing.T) {
-		stdout := new(bytes.Buffer)
-		rt := &coreutils.Runtime{Stdout: stdout, Stderr: new(bytes.Buffer)}
-		if err := New(rt).Run(t.Context(), "--help"); err != nil {
-			t.Fatalf("Run() error = %v, want nil (exit status 0)", err)
-		}
-		if got, want := stdout.String(), usage; got != want {
-			t.Errorf("Run() stdout = %q, want %q", got, want)
-		}
-	})
-
-	t.Run("version", func(t *testing.T) {
-		stdout := new(bytes.Buffer)
-		rt := &coreutils.Runtime{Stdout: stdout, Stderr: new(bytes.Buffer)}
-		if err := New(rt).Run(t.Context(), "--version"); err != nil {
-			t.Fatalf("Run() error = %v, want nil (exit status 0)", err)
-		}
-		want := "mkdir (charm.land/snail/coreutils) " + coreutils.Version + "\nhttps://charm.land/snail\n"
-		if got := stdout.String(); got != want {
-			t.Errorf("Run() stdout = %q, want %q", got, want)
-		}
-	})
+	testutil.HelpVersion(t, New, "mkdir", usage)
 }

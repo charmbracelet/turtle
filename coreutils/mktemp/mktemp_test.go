@@ -2,7 +2,6 @@ package mktemp
 
 import (
 	"bytes"
-	"context"
 	"errors"
 	"fmt"
 	"io/fs"
@@ -13,6 +12,7 @@ import (
 	"testing"
 
 	"charm.land/snail/coreutils"
+	"charm.land/snail/coreutils/internal/testutil"
 	"charm.land/snail/fsx"
 )
 
@@ -42,13 +42,13 @@ func runCase(t *testing.T, test testCase) {
 		FS:         test.files,
 		Umask:      test.umask,
 		WorkingDir: test.workingDir,
-		Environ:    func() []string { return environ(test.env) },
+		Environ:    func() []string { return testutil.Environ(test.env) },
 	}
 
 	before := keys(test.files)
 	err := New(rt).Run(t.Context(), test.args...)
 
-	if code := exitCode(t, err); code != test.wantExit {
+	if code := testutil.ExitCode(t, err); code != test.wantExit {
 		t.Errorf("Run() exit code = %d, want %d (error = %v)", code, test.wantExit, err)
 	}
 	got := strings.TrimSuffix(stderr.String(), "\n")
@@ -101,28 +101,6 @@ func runCase(t *testing.T, test testCase) {
 
 func keys(files fsx.MemFS) []string {
 	return slices.Sorted(maps.Keys(files))
-}
-
-// environ returns the test environment as a list of KEY=VALUE strings.
-func environ(values map[string]string) []string {
-	entries := make([]string, 0, len(values))
-	for name, value := range values {
-		entries = append(entries, name+"="+value)
-	}
-	return entries
-}
-
-func exitCode(t *testing.T, err error) int {
-	t.Helper()
-
-	if err == nil {
-		return 0
-	}
-	var exitErr *coreutils.ExitError
-	if !errors.As(err, &exitErr) {
-		t.Fatalf("Run() error = %v, want *coreutils.ExitError", err)
-	}
-	return exitErr.Code
 }
 
 func TestRunDefaults(t *testing.T) {
@@ -558,24 +536,7 @@ func TestRunWorkingDir(t *testing.T) {
 }
 
 func TestRunContextCanceled(t *testing.T) {
-	ctx, cancel := context.WithCancel(t.Context())
-	cancel()
-
-	stdout := new(bytes.Buffer)
-	stderr := new(bytes.Buffer)
-	rt := &coreutils.Runtime{
-		Stdout: stdout,
-		Stderr: stderr,
-		FS:     fsx.MemFS{},
-	}
-
-	err := New(rt).Run(ctx, "file.XXXX")
-	if !errors.Is(err, context.Canceled) {
-		t.Errorf("Run() error = %v, want context.Canceled", err)
-	}
-	if got := stderr.String(); got != "" {
-		t.Errorf("Run() stderr = %q, want empty", got)
-	}
+	testutil.Cancelled(t, New, nil, fsx.MemFS{}, "file.XXXX")
 }
 
 func TestTempDir(t *testing.T) {
@@ -593,7 +554,7 @@ func TestTempDir(t *testing.T) {
 	}
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			p := &Prog{Runtime: &coreutils.Runtime{Environ: func() []string { return environ(test.env) }}}
+			p := &Prog{Runtime: &coreutils.Runtime{Environ: func() []string { return testutil.Environ(test.env) }}}
 			if got := p.tempDir(); got != test.want {
 				t.Errorf("tempDir() = %q, want %q", got, test.want)
 			}
@@ -624,26 +585,5 @@ func TestXRun(t *testing.T) {
 }
 
 func TestHelpVersion(t *testing.T) {
-	t.Run("help", func(t *testing.T) {
-		stdout := new(bytes.Buffer)
-		rt := &coreutils.Runtime{Stdout: stdout, Stderr: new(bytes.Buffer)}
-		if err := New(rt).Run(t.Context(), "--help"); err != nil {
-			t.Fatalf("Run() error = %v, want nil (exit status 0)", err)
-		}
-		if got, want := stdout.String(), usage; got != want {
-			t.Errorf("Run() stdout = %q, want %q", got, want)
-		}
-	})
-
-	t.Run("version", func(t *testing.T) {
-		stdout := new(bytes.Buffer)
-		rt := &coreutils.Runtime{Stdout: stdout, Stderr: new(bytes.Buffer)}
-		if err := New(rt).Run(t.Context(), "--version"); err != nil {
-			t.Fatalf("Run() error = %v, want nil (exit status 0)", err)
-		}
-		want := "mktemp (charm.land/snail/coreutils) " + coreutils.Version + "\nhttps://charm.land/snail\n"
-		if got := stdout.String(); got != want {
-			t.Errorf("Run() stdout = %q, want %q", got, want)
-		}
-	})
+	testutil.HelpVersion(t, New, "mktemp", usage)
 }

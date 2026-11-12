@@ -3,43 +3,17 @@ package pwd
 import (
 	"bytes"
 	"errors"
-	"io"
 	"path/filepath"
 	"testing"
 
 	"charm.land/snail/coreutils"
+	"charm.land/snail/coreutils/internal/testutil"
 )
-
-type spyReader struct {
-	read bool
-}
-
-func (r *spyReader) Read([]byte) (int, error) {
-	r.read = true
-	return 0, io.EOF
-}
-
-type errorWriter struct {
-	err error
-}
-
-func (w errorWriter) Write([]byte) (int, error) {
-	return 0, w.err
-}
-
-// environ returns the test environment as a list of KEY=VALUE strings.
-func environ(values map[string]string) []string {
-	entries := make([]string, 0, len(values))
-	for name, value := range values {
-		entries = append(entries, name+"="+value)
-	}
-	return entries
-}
 
 func runPwd(t *testing.T, workDir string, env map[string]string, args ...string) (stdout, stderr string, err error) {
 	t.Helper()
 
-	stdin := &spyReader{}
+	stdin := &testutil.SpyReader{}
 	stdoutBuf := new(bytes.Buffer)
 	stderrBuf := new(bytes.Buffer)
 
@@ -48,27 +22,14 @@ func runPwd(t *testing.T, workDir string, env map[string]string, args ...string)
 		Stdout:     stdoutBuf,
 		Stderr:     stderrBuf,
 		WorkingDir: workDir,
-		Environ:    func() []string { return environ(env) },
+		Environ:    func() []string { return testutil.Environ(env) },
 	}
 	err = New(rt).Run(t.Context(), args...)
 
-	if stdin.read {
+	if stdin.Reads != 0 {
 		t.Error("Run() used stdin, want it untouched")
 	}
 	return stdoutBuf.String(), stderrBuf.String(), err
-}
-
-func exitCode(t *testing.T, err error) int {
-	t.Helper()
-
-	if err == nil {
-		return 0
-	}
-	var exitErr *coreutils.ExitError
-	if !errors.As(err, &exitErr) {
-		t.Fatalf("Run() error = %v, want *coreutils.ExitError", err)
-	}
-	return exitErr.Code
 }
 
 func TestRun(t *testing.T) {
@@ -285,7 +246,7 @@ func TestRun(t *testing.T) {
 		for _, test := range tests {
 			t.Run(test.name, func(t *testing.T) {
 				got, stderr, err := runPwd(t, test.workDir, nil, test.args...)
-				if code := exitCode(t, err); code != test.want {
+				if code := testutil.ExitCode(t, err); code != test.want {
 					t.Fatalf("Run() exit code = %d, want %d (error = %v)", code, test.want, err)
 				}
 				if got != "" {
@@ -303,7 +264,7 @@ func TestRunNilEnviron(t *testing.T) {
 	workDir := t.TempDir()
 
 	rt := &coreutils.Runtime{
-		Stdin:      &spyReader{},
+		Stdin:      &testutil.SpyReader{},
 		Stdout:     new(bytes.Buffer),
 		Stderr:     new(bytes.Buffer),
 		WorkingDir: workDir,
@@ -321,15 +282,14 @@ func TestRunWriteError(t *testing.T) {
 	writeErr := errors.New("write failed")
 
 	rt := &coreutils.Runtime{
-		Stdin:      &spyReader{},
-		Stdout:     errorWriter{err: writeErr},
+		Stdin:      &testutil.SpyReader{},
+		Stdout:     testutil.ErrorWriter{Err: writeErr},
 		Stderr:     new(bytes.Buffer),
 		WorkingDir: t.TempDir(),
-		Environ:    func() []string { return environ(nil) },
 	}
 	err := New(rt).Run(t.Context())
 
-	if code := exitCode(t, err); code != 1 {
+	if code := testutil.ExitCode(t, err); code != 1 {
 		t.Fatalf("Run() exit code = %d, want 1 (error = %v)", code, err)
 	}
 	if !errors.Is(err, writeErr) {
@@ -338,24 +298,5 @@ func TestRunWriteError(t *testing.T) {
 }
 
 func TestHelpVersion(t *testing.T) {
-	t.Run("help", func(t *testing.T) {
-		stdout, _, err := runPwd(t, "", nil, "--help")
-		if err != nil {
-			t.Fatalf("Run() error = %v, want nil (exit status 0)", err)
-		}
-		if got, want := stdout, usage; got != want {
-			t.Errorf("Run() stdout = %q, want %q", got, want)
-		}
-	})
-
-	t.Run("version", func(t *testing.T) {
-		stdout, _, err := runPwd(t, "", nil, "--version")
-		if err != nil {
-			t.Fatalf("Run() error = %v, want nil (exit status 0)", err)
-		}
-		want := "pwd (charm.land/snail/coreutils) " + coreutils.Version + "\nhttps://charm.land/snail\n"
-		if got := stdout; got != want {
-			t.Errorf("Run() stdout = %q, want %q", got, want)
-		}
-	})
+	testutil.HelpVersion(t, New, "pwd", usage)
 }

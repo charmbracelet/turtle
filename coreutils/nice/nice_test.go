@@ -7,6 +7,7 @@ import (
 	"testing"
 
 	"charm.land/snail/coreutils"
+	"charm.land/snail/coreutils/internal/testutil"
 )
 
 // execRecord records an invocation of the stub Exec, replying with a reply
@@ -204,7 +205,7 @@ func TestRunInvoke(t *testing.T) {
 			rec := &execRecord{status: test.status}
 			rt := newRuntime(rec, []string{"FOO=1"})
 			err := New(rt).Run(t.Context(), test.args...)
-			if code := exitCode(t, err); code != test.wantCode {
+			if code := testutil.ExitCode(t, err); code != test.wantCode {
 				t.Errorf("Run() exit code = %d, want %d", code, test.wantCode)
 			}
 			if !rec.called {
@@ -349,7 +350,7 @@ func TestRunUsageErrors(t *testing.T) {
 			rec := &execRecord{}
 			rt := newRuntime(rec, nil)
 			err := New(rt).Run(t.Context(), test.args...)
-			if code := exitCode(t, err); code != 125 {
+			if code := testutil.ExitCode(t, err); code != 125 {
 				t.Errorf("Run() exit code = %d, want 125", code)
 			}
 			if got := stderr(t, rt); got != test.wantErr {
@@ -391,7 +392,7 @@ func TestRunExecStatuses(t *testing.T) {
 			rec := &execRecord{status: test.status, err: test.err}
 			rt := newRuntime(rec, nil)
 			err := New(rt).Run(t.Context(), "cmd")
-			if code := exitCode(t, err); code != test.wantCode {
+			if code := testutil.ExitCode(t, err); code != test.wantCode {
 				t.Errorf("Run() exit code = %d, want %d", code, test.wantCode)
 			}
 			if got := stderr(t, rt); got != test.wantErr {
@@ -404,7 +405,7 @@ func TestRunExecStatuses(t *testing.T) {
 func TestRunNoExec(t *testing.T) {
 	rt := newRuntime(nil, nil)
 	err := New(rt).Run(t.Context(), "cmd")
-	if code := exitCode(t, err); code != 125 {
+	if code := testutil.ExitCode(t, err); code != 125 {
 		t.Errorf("Run() exit code = %d, want 125", code)
 	}
 	if got, want := stderr(t, rt), "nice: no command execution available\n"; got != want {
@@ -442,16 +443,7 @@ func TestRunContext(t *testing.T) {
 }
 
 func TestHelpVersion(t *testing.T) {
-	t.Run("help", func(t *testing.T) {
-		stdout := new(bytes.Buffer)
-		rt := &coreutils.Runtime{Stdout: stdout, Stderr: new(bytes.Buffer)}
-		if err := New(rt).Run(t.Context(), "--help"); err != nil {
-			t.Fatalf("Run() error = %v, want nil (exit status 0)", err)
-		}
-		if got, want := stdout.String(), usage; got != want {
-			t.Errorf("Run() stdout = %q, want %q", got, want)
-		}
-	})
+	testutil.HelpVersion(t, New, "nice", usage)
 
 	t.Run("help after an obsolescent adjustment", func(t *testing.T) {
 		stdout := new(bytes.Buffer)
@@ -464,15 +456,4 @@ func TestHelpVersion(t *testing.T) {
 		}
 	})
 
-	t.Run("version", func(t *testing.T) {
-		stdout := new(bytes.Buffer)
-		rt := &coreutils.Runtime{Stdout: stdout, Stderr: new(bytes.Buffer)}
-		if err := New(rt).Run(t.Context(), "--version"); err != nil {
-			t.Fatalf("Run() error = %v, want nil (exit status 0)", err)
-		}
-		want := "nice (charm.land/snail/coreutils) " + coreutils.Version + "\nhttps://charm.land/snail\n"
-		if got := stdout.String(); got != want {
-			t.Errorf("Run() stdout = %q, want %q", got, want)
-		}
-	})
 }
