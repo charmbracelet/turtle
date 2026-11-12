@@ -45,6 +45,17 @@ type Options struct {
 	// OnError reports an error met on a file of the traversal. The error it
 	// returns aborts the traversal, as the context cancellation does.
 	OnError func(name string, err error) error
+
+	// SkipEntry reports whether an entry of a directory, identified by the
+	// type its directory read reports alone, is left out of the traversal:
+	// it is neither stat'ed nor visited, and no error of it is reported.
+	// Only the entries below a starting point go through it; the starting
+	// point itself is always stat'ed as the options ask.
+	//
+	// When it's set, the traversal of directories follows the fs.WalkDir
+	// flow on errors as well: a directory entry whose stat fails is still
+	// entered, so the failure of reading it is reported too.
+	SkipEntry func(d fs.DirEntry) bool
 }
 
 // VisitFunc is called for every file of a traversal. name is the pathname
@@ -151,7 +162,7 @@ func (w *walker) descendDir(ctx context.Context, dir, fsDir string, fi fs.FileIn
 		// Only the directories of the current chain of ancestors count: a
 		// directory met again once its ancestor is left is a revisit, not a
 		// loop.
-		if id, ok := dirID(fi); ok {
+		if id, ok := DirID(fi); ok {
 			if first, seen := w.loops[id]; seen {
 				return w.opts.onError(dir, fmt.Errorf(
 					"file system loop detected; '%s' is part of the same file system loop as '%s'",
@@ -169,12 +180,25 @@ func (w *walker) descendDir(ctx context.Context, dir, fsDir string, fi fs.FileIn
 		if err := ctx.Err(); err != nil {
 			return err
 		}
-		child := joinPath(dir, entry.Name())
+		child := Join(dir, entry.Name())
 		fsChild := path.Join(fsDir, entry.Name())
+		if w.opts.SkipEntry != nil && w.opts.SkipEntry(entry) {
+			continue
+		}
 		cfi, err := Stat(w.fsys, w.opts.Follow, fsChild, false)
 		if err != nil {
 			if err := w.opts.onError(child, err); err != nil {
 				return err
+			}
+			if w.opts.SkipEntry != nil && entry.IsDir() {
+				// As fs.WalkDir's traversal does, a directory entry whose
+				// stat failed is still entered, so the failure of reading
+				// it surfaces too.
+				if _, err := fs.ReadDir(w.fsys, fsChild); err != nil {
+					if err := w.opts.onError(child, err); err != nil {
+						return err
+					}
+				}
 			}
 			continue
 		}
@@ -193,21 +217,39 @@ func (o Options) onError(name string, err error) error {
 	return o.OnError(name, err)
 }
 
-// joinPath concatenates a directory and an entry name, keeping a single
-// slash between them no matter how the directory was given.
-func joinPath(dir, name string) string {
+// Join concatenates a directory and an entry name, keeping a single slash
+// between them no matter how the directory was given.
+func Join(dir, name string) string {
 	if len(dir) > 0 && dir[len(dir)-1] == '/' {
 		return dir + name
 	}
 	return dir + "/" + name
 }
 
-// dirID returns what identifies a directory for loop detection, reporting
+// DirID returns what identifies a directory for loop detection, reporting
 // false when the file system reports nothing to identify it with.
-func dirID(fi fs.FileInfo) (string, bool) {
+func DirID(fi fs.FileInfo) (string, bool) {
 	st, ok := fileinfo.Stat(fi)
 	if !ok || st.Dev == 0 && st.Ino == 0 {
 		return "", false
 	}
 	return fmt.Sprintf("%d:%d", st.Dev, st.Ino), true
+}
+
+// ResolveLink follows the chain of symbolic links at name, returning the
+// path the last one points at. A name which is not a symbolic link, or a
+// broken or looping chain, is returned as it is.
+func ResolveLink(fsys fs.ReadLinkFS, name string) string {
+	for range 40 {
+		fi, err := fsys.Lstat(name)
+		if err != nil || fi.Mode()&fs.ModeSymlink == 0 {
+			return name
+		}
+		target, err := fsys.ReadLink(name)
+		if err != nil {
+			return name
+		}
+		name = path.Join(path.Dir(name), target)
+	}
+	return name
 }

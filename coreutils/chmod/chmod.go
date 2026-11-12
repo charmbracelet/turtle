@@ -5,14 +5,14 @@ import (
 	"context"
 	"fmt"
 	"io/fs"
-	"path"
-	"strings"
 
 	"charm.land/snail/coreutils"
 	"charm.land/snail/coreutils/internal/filemode"
 	"charm.land/snail/coreutils/internal/getopt"
 	"charm.land/snail/coreutils/internal/patherr"
 	"charm.land/snail/coreutils/internal/stdopts"
+	"charm.land/snail/coreutils/internal/verbose"
+	"charm.land/snail/coreutils/internal/walk"
 )
 
 // Prog is the chmod core utility.
@@ -117,7 +117,7 @@ func (p *Prog) chmod(ctx context.Context, name string, spec ModeSpec, opts optio
 	failed := false
 
 	report := func(walked string, err error) {
-		stdopts.Errorf(p.Runtime, "chmod", "%s: %v", display(name, resolved, walked), patherr.Unwrap(err))
+		stdopts.Errorf(p.Runtime, "chmod", "%s: %v", verbose.Display(name, resolved, walked), patherr.Unwrap(err))
 		failed = true
 	}
 
@@ -133,75 +133,46 @@ func (p *Prog) chmod(ctx context.Context, name string, spec ModeSpec, opts optio
 	}
 
 	// The operand itself is followed, like -H does: a symbolic link to a
-	// directory walks the tree it points at.
-	root := p.resolveLink(resolved)
+	// directory walks the tree it points at. The links found below it are
+	// never followed.
+	root := walk.ResolveLink(p.FS, resolved)
 
-	err := fs.WalkDir(p.FS, root, func(walked string, d fs.DirEntry, err error) error {
-		if err := ctx.Err(); err != nil {
-			return err
-		}
-		if err != nil {
-			report(walked, err)
-			if d == nil || d.IsDir() {
-				return fs.SkipDir
+	err := walk.Walk(ctx, p.FS, walk.Options{
+		Follow:   'H',
+		MaxDepth: -1,
+		SkipEntry: func(d fs.DirEntry) bool {
+			// The symbolic links found below the operand are ignored,
+			// known by their type from the directory read, so no error of
+			// stat'ing one is reported.
+			return d.Type()&fs.ModeSymlink != 0
+		},
+		OnError: func(walked string, err error) error {
+			if ctx.Err() != nil {
+				return ctx.Err()
 			}
+			report(walked, err)
 			return nil
+		},
+	}, root, root, func(walked, fsName string, fi fs.FileInfo, depth int) (bool, error) {
+		if fi.Mode()&fs.ModeSymlink != 0 {
+			// Only the operand reaches here as a link, when the file it
+			// points at can't be reached: the stat the walk starts from
+			// reports it.
+			if depth == 0 {
+				_, err := fs.Stat(p.FS, fsName)
+				report(walked, err)
+			}
+			return false, nil
 		}
-		// The symbolic links found below the operand are ignored.
-		if walked != root && p.link(walked, d) {
-			return nil
-		}
-		fi, err := d.Info()
-		if err == nil {
-			err = p.apply(walked, display(name, root, walked), spec, umask, fi, opts.verbosity)
-		}
-		if err != nil {
+		if err := p.apply(fsName, verbose.Display(name, root, walked), spec, umask, fi, opts.verbosity); err != nil {
 			report(walked, err)
 		}
-		return nil
+		return true, nil
 	})
 	if err != nil {
 		return false, err
 	}
 	return failed, nil
-}
-
-// lstatFS is the Lstat subset that the fsx file systems implement, which
-// describes a name without following a final symbolic link.
-type lstatFS interface {
-	Lstat(name string) (fs.FileInfo, error)
-}
-
-// resolveLink follows the symbolic links at name, returning the path the
-// last one points at. A name which is not a symbolic link, or a broken or
-// looping chain, is returned as it is.
-func (p *Prog) resolveLink(name string) string {
-	lfs, ok := p.FS.(lstatFS)
-	if !ok {
-		return name
-	}
-	for range 40 {
-		fi, err := lfs.Lstat(name)
-		if err != nil || fi.Mode()&fs.ModeSymlink == 0 {
-			return name
-		}
-		target, err := p.FS.ReadLink(name)
-		if err != nil {
-			return name
-		}
-		name = path.Join(path.Dir(name), target)
-	}
-	return name
-}
-
-// link reports whether name is a symbolic link, without following it.
-func (p *Prog) link(name string, d fs.DirEntry) bool {
-	if fsys, ok := p.FS.(lstatFS); ok {
-		if fi, err := fsys.Lstat(name); err == nil {
-			return fi.Mode()&fs.ModeSymlink != 0
-		}
-	}
-	return d.Type()&fs.ModeSymlink != 0
 }
 
 // apply changes the mode of the file at name, shown as given in diagnostics,
@@ -218,7 +189,7 @@ func (p *Prog) apply(name, shown string, spec ModeSpec, umask fs.FileMode, fi fs
 
 // describe reports how the mode of a file changed, or was retained.
 func (p *Prog) describe(name string, old, mode fs.FileMode, verbosity int) {
-	if verbosity == quiet || (verbosity == changesOnly && old == mode) {
+	if verbosity == verbose.Quiet || (verbosity == verbose.ChangesOnly && old == mode) {
 		return
 	}
 	if old != mode {
@@ -229,25 +200,6 @@ func (p *Prog) describe(name string, old, mode fs.FileMode, verbosity int) {
 	fmt.Fprintf(p.Stdout, "mode of '%s' retained as %04o (%s)\n",
 		name, filemode.Octal(mode), modeString(mode))
 }
-
-// display returns the path to show in diagnostics: the operand as given, with
-// any sub-path walked below it appended.
-func display(operand, resolved, walked string) string {
-	if walked == resolved {
-		return operand
-	}
-	if rel, ok := strings.CutPrefix(walked, resolved+"/"); ok {
-		return path.Join(operand, rel)
-	}
-	return path.Join(operand, walked)
-}
-
-// The verbosity levels of a run, selected by -c and -v.
-const (
-	quiet = iota
-	changesOnly
-	noisy
-)
 
 // longOptions maps the long options of chmod to the characters they stand
 // for.
@@ -283,8 +235,8 @@ const optReference rune = 0x100 + iota
 // options holds what a run of chmod selects.
 type options struct {
 	recursive bool
-	// verbosity is one of quiet, changesOnly and noisy; the last of -c and
-	// -v given wins.
+	// verbosity is one of verbose.Quiet, verbose.ChangesOnly and
+	// verbose.Noisy; the last of -c and -v given wins.
 	verbosity int
 	// reference names the file whose mode is used instead of a mode operand,
 	// or is nil without --reference.
@@ -300,9 +252,9 @@ func parseFlags(args []string) (options, []string, error) {
 		case 'R':
 			opts.recursive = true
 		case 'c':
-			opts.verbosity = changesOnly
+			opts.verbosity = verbose.ChangesOnly
 		case 'v':
-			opts.verbosity = noisy
+			opts.verbosity = verbose.Noisy
 		case optReference:
 			opts.reference = &value
 		default:

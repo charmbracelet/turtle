@@ -13,6 +13,8 @@ import (
 	"charm.land/snail/coreutils/internal/getopt"
 	"charm.land/snail/coreutils/internal/patherr"
 	"charm.land/snail/coreutils/internal/stdopts"
+	"charm.land/snail/coreutils/internal/verbose"
+	"charm.land/snail/coreutils/internal/walk"
 	"charm.land/snail/fsx"
 )
 
@@ -285,7 +287,7 @@ func (r *run) change(name, shown string, fi fs.FileInfo) error {
 		return nil
 	}
 	if old == r.gid {
-		if r.opts.verbosity == noisy {
+		if r.opts.verbosity == verbose.Noisy {
 			fmt.Fprintf(r.p.Stdout, "group of '%s' retained as %d\n", shown, r.gid)
 		}
 		return nil
@@ -293,7 +295,7 @@ func (r *run) change(name, shown string, fi fs.FileInfo) error {
 	if err := r.chowner.Chown(name, -1, r.gid); err != nil {
 		return err
 	}
-	if r.opts.verbosity >= changesOnly {
+	if r.opts.verbosity >= verbose.ChangesOnly {
 		fmt.Fprintf(r.p.Stdout, "changed group of '%s' from %d to %d\n", shown, old, r.gid)
 	}
 	return nil
@@ -310,27 +312,9 @@ func (r *run) report(shown string, err error) {
 // referent returns the path and info of the file that the symbolic link at
 // name points at.
 func (p *Prog) referent(name string) (string, fs.FileInfo, error) {
-	resolved := p.resolveLink(name)
+	resolved := walk.ResolveLink(p.FS, name)
 	fi, err := fs.Stat(p.FS, resolved)
 	return resolved, fi, err
-}
-
-// resolveLink follows the symbolic links at name, returning the path the
-// last one points at. A name which is not a symbolic link, or a broken or
-// looping chain, is returned as it is.
-func (p *Prog) resolveLink(name string) string {
-	for range 40 {
-		fi, err := p.FS.Lstat(name)
-		if err != nil || fi.Mode()&fs.ModeSymlink == 0 {
-			return name
-		}
-		target, err := p.FS.ReadLink(name)
-		if err != nil {
-			return name
-		}
-		name = path.Join(path.Dir(name), target)
-	}
-	return name
 }
 
 // parseGroup resolves a group operand, a group name or a numeric group ID.
@@ -359,13 +343,6 @@ func parseGroup(s string) (int, error) {
 	}
 	return gid, nil
 }
-
-// The verbosity levels of a run, selected by -c and -v.
-const (
-	quiet = iota
-	changesOnly
-	noisy
-)
 
 // How a run treats a symbolic link: the default dereferences it unless -R
 // walks, --dereference always does, and -h never.
@@ -437,8 +414,8 @@ type options struct {
 	// of -h and --dereference given wins.
 	dereference int
 	silence     bool
-	// verbosity is one of quiet, changesOnly and noisy; the last of -c and
-	// -v given wins.
+	// verbosity is one of verbose.Quiet, verbose.ChangesOnly and
+	// verbose.Noisy; the last of -c and -v given wins.
 	verbosity int
 	// reference names the file whose group is used instead of a group
 	// operand, or is nil without --reference.
@@ -462,9 +439,9 @@ func parseFlags(args []string) (options, []string, error) {
 		case 'f':
 			opts.silence = true
 		case 'c':
-			opts.verbosity = changesOnly
+			opts.verbosity = verbose.ChangesOnly
 		case 'v':
-			opts.verbosity = noisy
+			opts.verbosity = verbose.Noisy
 		case 'h':
 			opts.dereference = linkItself
 		case optDereference:
