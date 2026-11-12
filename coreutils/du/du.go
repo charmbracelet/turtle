@@ -22,7 +22,6 @@ package du
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"io/fs"
 	"math"
@@ -145,9 +144,8 @@ func (r *runner) operand(ctx context.Context, name string) error {
 			if ctx.Err() != nil {
 				return ctx.Err()
 			}
-			if perr, ok := errors.AsType[*fs.PathError](err); ok &&
-				(perr.Op == "readdirent" || perr.Op == "readdir") {
-				stdopts.Errorf(r.p.Runtime, "du", "cannot read directory '%s': %v", name, perr.Err)
+			if msg, isDirErr := walk.DirError(name, err); isDirErr {
+				stdopts.Errorf(r.p.Runtime, "du", "%s", msg)
 			} else {
 				stdopts.Errorf(r.p.Runtime, "du", "cannot access '%s': %v", name, patherr.Unwrap(err))
 			}

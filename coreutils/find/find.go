@@ -118,12 +118,10 @@ func (p *Prog) Run(ctx context.Context, args ...string) error {
 				if opts.ignoreRace && errors.Is(err, fs.ErrNotExist) {
 					return nil
 				}
-				if perr, ok := errors.AsType[*fs.PathError](err); ok {
-					if perr.Op == "readdirent" || perr.Op == "readdir" {
-						stdopts.Errorf(p.Runtime, "find", "cannot read directory '%s': %v", name, perr.Err)
-					} else {
-						stdopts.Errorf(p.Runtime, "find", "'%s': %v", name, perr.Err)
-					}
+				if msg, isDirErr := walk.DirError(name, err); isDirErr {
+					stdopts.Errorf(p.Runtime, "find", "%s", msg)
+				} else if perr, ok := errors.AsType[*fs.PathError](err); ok {
+					stdopts.Errorf(p.Runtime, "find", "'%s': %v", name, perr.Err)
 				} else {
 					stdopts.Errorf(p.Runtime, "find", "%v", err)
 				}

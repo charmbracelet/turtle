@@ -97,6 +97,17 @@ func Stat(fsys fs.FS, follow byte, name string, operand bool) (fs.FileInfo, erro
 	return fs.Lstat(fsys, name)
 }
 
+// DirError reports whether err is the failure of reading the entries of
+// the directory name, with the message of the diagnostic the walking
+// utilities write for such a failure.
+func DirError(name string, err error) (msg string, isDirErr bool) {
+	perr, ok := errors.AsType[*fs.PathError](err)
+	if !ok || perr.Op != "readdirent" && perr.Op != "readdir" {
+		return "", false
+	}
+	return fmt.Sprintf("cannot read directory '%s': %v", name, perr.Err), true
+}
+
 // walker holds the state of one traversal.
 type walker struct {
 	fsys    fs.FS
