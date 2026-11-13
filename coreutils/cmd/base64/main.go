@@ -2,8 +2,8 @@
 package main
 
 import (
-	"charm.land/turtle/coreutils/base64"
 	"charm.land/turtle/coreutils/internal/cmdutil"
+	"charm.land/turtle/coreutils/programs/base64"
 )
 
 func main() {

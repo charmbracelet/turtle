@@ -3,7 +3,7 @@ package main
 
 import (
 	"charm.land/turtle/coreutils/internal/cmdutil"
-	"charm.land/turtle/coreutils/mktemp"
+	"charm.land/turtle/coreutils/programs/mktemp"
 )
 
 func main() {

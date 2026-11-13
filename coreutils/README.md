@@ -2,6 +2,10 @@
 
 A Go implementation of the Unix core utilities.
 
+Utility implementations live in `programs/`, with their standalone command
+wrappers in `cmd/`. For example, `cat` is imported as
+`charm.land/turtle/coreutils/programs/cat`.
+
 This is not meant to be perfect ports of each coreutil. Instead, it's meant to
 have "good enough" compatibility to be embbeded in Go applications, usually when
 running a shell interpreter.

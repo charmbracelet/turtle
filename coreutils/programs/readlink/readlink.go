@@ -16,7 +16,7 @@ import (
 	"charm.land/turtle/coreutils/internal/getopt"
 	"charm.land/turtle/coreutils/internal/patherr"
 	"charm.land/turtle/coreutils/internal/stdopts"
-	"charm.land/turtle/coreutils/realpath"
+	"charm.land/turtle/coreutils/programs/realpath"
 )
 
 // Prog is the readlink core utility.

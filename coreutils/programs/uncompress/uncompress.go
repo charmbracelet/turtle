@@ -1,14 +1,14 @@
-// Package gunzip implements the gunzip command.
-package gunzip
+// Package uncompress implements the uncompress command.
+package uncompress
 
 import (
 	"charm.land/turtle/coreutils"
-	"charm.land/turtle/coreutils/gzip"
+	"charm.land/turtle/coreutils/programs/compress"
 )
 
 // New returns a program which restores compressed files.
 func New(rt *coreutils.Runtime) coreutils.Program {
-	return gzip.Gunzip(rt)
+	return compress.Uncompress(rt)
 }
 
 var _ coreutils.NewFunc = New

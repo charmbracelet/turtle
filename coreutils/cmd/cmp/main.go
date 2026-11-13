@@ -2,8 +2,8 @@
 package main
 
 import (
-	"charm.land/turtle/coreutils/cmp"
 	"charm.land/turtle/coreutils/internal/cmdutil"
+	"charm.land/turtle/coreutils/programs/cmp"
 )
 
 func main() {
