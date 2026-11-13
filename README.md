@@ -1,24 +1,35 @@
 # charm.land/turtle
 
-Turtle is a collection of shell tools and libraries in Go.
+🐢 Turtle is a collection of shell tools and libraries in Go,
+brought to you by [Charm][charm].
 
-> [!IMPORTANT]
-> This is a new repository so most stuff in here is a Work in Progress :tm:
+## [charm.land/turtle/coreutils](/coreutils#readme)
 
-## [charm.land/turtle/coreutils](/coreutils)
+A Go implementation of the Unix core utilities.
 
-A brand-new implementation of coreutils in Go. I'm aiming for POSIX compatibility
-first, potentially following-up with GNU extensions later.
+* Mostly compatible with POSIX and GNU
+* Importable Go packages
+* Isolated state (including filesystem)
+* Zero dependencies
+* Pluggable into Go [shell interpreters][mvdan]
+* Used by [Crush][crush], [Task][task] and soon others!
 
-This was built to be importable as Go module to be used on shell interpreters
-like [mvdan.cc/sh](https://github.com/mvdan/sh). This shell interpreter is used
-on projects like [Task](https://github.com/go-task/task) and
-[Crush](https://github.com/charmbracelet/crush).
+## [charm.land/turtle/fsx](/fsx#readme)
 
-## [charm.land/turtle/fsx](/fsx)
+A filesystem abstraction for Go. Built to power the core utilities module,
+but generic enough to be useful to many other projects.
 
-A superset interface of [`io/fs.FS`](https://pkg.go.dev/io/fs#FS) that also
-supports more functionality. The original interface from the Go standard library
-is read-only.
+* A superset interface of the standard library's
+  [`io/fs.FS`](https://pkg.go.dev/io/fs#FS)
+* Extends the stdlib's interface to support write operations like: write,
+  rename, remove, chmod, mkdir and others
+* Default implementations:
+  * System (delegates to real FS)
+  * Memory FS
+  * [`os.Root`][osroot] wrapper
 
-This was built to make the coreutils module possible.
+[charm]: https://charm.land
+[mvdan]: https://github.com/mvdan/sh
+[crush]: https://github.com/charmbracelet/crush
+[task]: https://taskfile.dev
+[osroot]: https://pkg.go.dev/os#Root
