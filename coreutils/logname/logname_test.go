@@ -7,7 +7,7 @@ import (
 	"io"
 	"testing"
 
-	"charm.land/snail/coreutils"
+	"charm.land/turtle/coreutils"
 )
 
 // errWriter fails every write with its error.
@@ -163,7 +163,7 @@ func TestHelpVersion(t *testing.T) {
 			}
 			want := map[string]string{
 				"--help":    usage,
-				"--version": "logname (charm.land/snail/coreutils) " + coreutils.Version + "\nhttps://charm.land/snail\n",
+				"--version": "logname (charm.land/turtle/coreutils) " + coreutils.Version + "\nhttps://charm.land/turtle\n",
 			}[arg]
 			if got := stdout.String(); got != want {
 				t.Errorf("Run() stdout = %q, want %q", got, want)

@@ -4,9 +4,9 @@ import (
 	"io/fs"
 	"time"
 
-	"charm.land/snail/coreutils/internal/fileinfo"
-	"charm.land/snail/coreutils/internal/filemode"
-	"charm.land/snail/fsx"
+	"charm.land/turtle/coreutils/internal/fileinfo"
+	"charm.land/turtle/coreutils/internal/filemode"
+	"charm.land/turtle/fsx"
 )
 
 // fileStat holds the information a file is written with, gathered from what

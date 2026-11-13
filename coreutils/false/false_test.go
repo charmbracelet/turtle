@@ -6,7 +6,7 @@ import (
 	"io"
 	"testing"
 
-	"charm.land/snail/coreutils"
+	"charm.land/turtle/coreutils"
 )
 
 type spyReader struct {
@@ -80,7 +80,7 @@ func TestHelpVersion(t *testing.T) {
 		{
 			name: "version",
 			arg:  "--version",
-			want: "false (charm.land/snail/coreutils) " + coreutils.Version + "\nhttps://charm.land/snail\n",
+			want: "false (charm.land/turtle/coreutils) " + coreutils.Version + "\nhttps://charm.land/turtle\n",
 		},
 	}
 

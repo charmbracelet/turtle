@@ -16,8 +16,8 @@ import (
 	"path"
 	"time"
 
-	"charm.land/snail/coreutils"
-	"charm.land/snail/fsx"
+	"charm.land/turtle/coreutils"
+	"charm.land/turtle/fsx"
 )
 
 // Algorithm is a compression algorithm the utilities know about.

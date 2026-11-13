@@ -11,8 +11,8 @@ import (
 	"testing"
 	"time"
 
-	"charm.land/snail/coreutils"
-	"charm.land/snail/fsx"
+	"charm.land/turtle/coreutils"
+	"charm.land/turtle/fsx"
 )
 
 // fakeNew returns a program that copies its standard input to its standard

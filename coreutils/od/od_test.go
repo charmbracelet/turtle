@@ -8,8 +8,8 @@ import (
 	"strings"
 	"testing"
 
-	"charm.land/snail/coreutils"
-	"charm.land/snail/fsx"
+	"charm.land/turtle/coreutils"
+	"charm.land/turtle/fsx"
 )
 
 type odTest struct {
@@ -729,7 +729,7 @@ func TestHelpVersion(t *testing.T) {
 		if err := New(rt).Run(t.Context(), "--version"); err != nil {
 			t.Fatalf("Run() error = %v, want nil (exit status 0)", err)
 		}
-		want := "od (charm.land/snail/coreutils) " + coreutils.Version + "\nhttps://charm.land/snail\n"
+		want := "od (charm.land/turtle/coreutils) " + coreutils.Version + "\nhttps://charm.land/turtle\n"
 		if got := stdout.String(); got != want {
 			t.Errorf("Run() stdout = %q, want %q", got, want)
 		}

@@ -6,7 +6,7 @@ import (
 	"strings"
 	"testing"
 
-	"charm.land/snail/coreutils"
+	"charm.land/turtle/coreutils"
 )
 
 func TestSplitOperands(t *testing.T) {

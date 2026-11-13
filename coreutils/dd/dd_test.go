@@ -10,10 +10,10 @@ import (
 	"testing"
 	"time"
 
-	"charm.land/snail/coreutils"
-	"charm.land/snail/coreutils/internal/testutil"
+	"charm.land/turtle/coreutils"
+	"charm.land/turtle/coreutils/internal/testutil"
 
-	"charm.land/snail/fsx"
+	"charm.land/turtle/fsx"
 )
 
 // plainReader hides the Seek method of the reader it wraps, standing for a
@@ -1014,7 +1014,7 @@ func TestRunStandardOptions(t *testing.T) {
 		{
 			Name: "version",
 			Args: []string{"--version"},
-			Want: fmt.Sprintf("dd (charm.land/snail/coreutils) %s\nhttps://charm.land/snail\n",
+			Want: fmt.Sprintf("dd (charm.land/turtle/coreutils) %s\nhttps://charm.land/turtle\n",
 				coreutils.Version),
 		},
 		{

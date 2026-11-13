@@ -11,10 +11,10 @@ import (
 	"strings"
 	"time"
 
-	"charm.land/snail/coreutils/internal/ctxio"
-	"charm.land/snail/coreutils/internal/patherr"
-	"charm.land/snail/coreutils/internal/stdopts"
-	"charm.land/snail/coreutils/internal/strftime"
+	"charm.land/turtle/coreutils/internal/ctxio"
+	"charm.land/turtle/coreutils/internal/patherr"
+	"charm.land/turtle/coreutils/internal/stdopts"
+	"charm.land/turtle/coreutils/internal/strftime"
 )
 
 // printer paginates and prints the input files.

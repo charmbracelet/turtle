@@ -7,8 +7,8 @@ import (
 	"syscall"
 	"testing"
 
-	"charm.land/snail/coreutils/internal/testutil"
-	"charm.land/snail/fsx"
+	"charm.land/turtle/coreutils/internal/testutil"
+	"charm.land/turtle/fsx"
 )
 
 // statFS describes the files of a memory file system with the identity a

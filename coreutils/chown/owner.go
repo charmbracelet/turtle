@@ -6,7 +6,7 @@ import (
 	"strconv"
 	"strings"
 
-	"charm.land/snail/coreutils/internal/verbose"
+	"charm.land/turtle/coreutils/internal/verbose"
 )
 
 // ownership is what a chown run sets: the numeric user and group IDs, with

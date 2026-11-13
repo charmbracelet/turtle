@@ -13,10 +13,10 @@ import (
 	"testing"
 	"time"
 
-	"charm.land/snail/coreutils"
-	"charm.land/snail/coreutils/internal/fileinfo"
-	"charm.land/snail/coreutils/internal/testutil"
-	"charm.land/snail/fsx"
+	"charm.land/turtle/coreutils"
+	"charm.land/turtle/coreutils/internal/fileinfo"
+	"charm.land/turtle/coreutils/internal/testutil"
+	"charm.land/turtle/fsx"
 )
 
 // ownerID and groupID are owner identifiers no system of the supported
@@ -770,7 +770,7 @@ func TestRunStdOptions(t *testing.T) {
 		{
 			Name:     "writes the version for --version",
 			Args:     []string{"--version"},
-			Want:     "stat (charm.land/snail/coreutils) " + coreutils.Version + "\nhttps://charm.land/snail\n",
+			Want:     "stat (charm.land/turtle/coreutils) " + coreutils.Version + "\nhttps://charm.land/turtle\n",
 			WantExit: 0,
 		},
 	})

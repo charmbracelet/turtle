@@ -15,14 +15,14 @@ import (
 	"os"
 	"strings"
 
-	"charm.land/snail/coreutils"
-	"charm.land/snail/coreutils/internal/basex"
-	"charm.land/snail/coreutils/internal/filemode"
-	"charm.land/snail/coreutils/internal/getopt"
-	"charm.land/snail/coreutils/internal/input"
-	"charm.land/snail/coreutils/internal/patherr"
-	"charm.land/snail/coreutils/internal/stdopts"
-	"charm.land/snail/coreutils/internal/uux"
+	"charm.land/turtle/coreutils"
+	"charm.land/turtle/coreutils/internal/basex"
+	"charm.land/turtle/coreutils/internal/filemode"
+	"charm.land/turtle/coreutils/internal/getopt"
+	"charm.land/turtle/coreutils/internal/input"
+	"charm.land/turtle/coreutils/internal/patherr"
+	"charm.land/turtle/coreutils/internal/stdopts"
+	"charm.land/turtle/coreutils/internal/uux"
 )
 
 // Prog is the uudecode core utility.

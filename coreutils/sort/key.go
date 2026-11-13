@@ -9,7 +9,7 @@ import (
 	"unicode"
 	"unicode/utf8"
 
-	"charm.land/snail/coreutils/internal/textutil"
+	"charm.land/turtle/coreutils/internal/textutil"
 )
 
 // sortLine is an input line with the byte ranges of its keys.

@@ -12,8 +12,8 @@ import (
 	"io"
 	"strings"
 
-	"charm.land/snail/coreutils"
-	"charm.land/snail/coreutils/internal/numparse"
+	"charm.land/turtle/coreutils"
+	"charm.land/turtle/coreutils/internal/numparse"
 )
 
 // Prog is the echo core utility.

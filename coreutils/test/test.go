@@ -13,10 +13,10 @@ import (
 	"io/fs"
 	"os"
 
-	"charm.land/snail/coreutils"
-	"charm.land/snail/coreutils/internal/numparse"
-	"charm.land/snail/coreutils/internal/stdopts"
-	"charm.land/snail/fsx"
+	"charm.land/turtle/coreutils"
+	"charm.land/turtle/coreutils/internal/numparse"
+	"charm.land/turtle/coreutils/internal/stdopts"
+	"charm.land/turtle/fsx"
 )
 
 // Prog is the test core utility.

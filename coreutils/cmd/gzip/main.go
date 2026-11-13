@@ -2,8 +2,8 @@
 package main
 
 import (
-	"charm.land/snail/coreutils/gzip"
-	"charm.land/snail/coreutils/internal/cmdutil"
+	"charm.land/turtle/coreutils/gzip"
+	"charm.land/turtle/coreutils/internal/cmdutil"
 )
 
 func main() {

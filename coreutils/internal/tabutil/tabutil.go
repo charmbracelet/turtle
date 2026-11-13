@@ -9,7 +9,7 @@ import (
 	"strconv"
 	"strings"
 
-	"charm.land/snail/coreutils/internal/numparse"
+	"charm.land/turtle/coreutils/internal/numparse"
 )
 
 // Stops holds the tab stops of a line, counted in columns from its start: a

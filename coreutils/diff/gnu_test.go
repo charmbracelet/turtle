@@ -4,9 +4,9 @@ import (
 	"strings"
 	"testing"
 
-	"charm.land/snail/coreutils"
-	"charm.land/snail/coreutils/internal/testutil"
-	"charm.land/snail/fsx"
+	"charm.land/turtle/coreutils"
+	"charm.land/turtle/coreutils/internal/testutil"
+	"charm.land/turtle/fsx"
 )
 
 // gnuFS holds the fixtures of the GNU extensions:
@@ -934,7 +934,7 @@ func TestRunVersionOption(t *testing.T) {
 	testutil.Once(t, New, testutil.Case{
 		Name: "-v",
 		Args: []string{"-v"},
-		Want: "diff (charm.land/snail/coreutils) " + coreutils.Version + "\nhttps://charm.land/snail\n",
+		Want: "diff (charm.land/turtle/coreutils) " + coreutils.Version + "\nhttps://charm.land/turtle\n",
 	})
 }
 

@@ -26,10 +26,10 @@ import (
 	"fmt"
 	"io/fs"
 
-	"charm.land/snail/coreutils"
-	"charm.land/snail/coreutils/internal/getopt"
-	"charm.land/snail/coreutils/internal/patherr"
-	"charm.land/snail/coreutils/internal/stdopts"
+	"charm.land/turtle/coreutils"
+	"charm.land/turtle/coreutils/internal/getopt"
+	"charm.land/turtle/coreutils/internal/patherr"
+	"charm.land/turtle/coreutils/internal/stdopts"
 )
 
 // Prog is the stat core utility.

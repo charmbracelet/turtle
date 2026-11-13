@@ -13,9 +13,9 @@ import (
 	"strconv"
 	"strings"
 
-	"charm.land/snail/coreutils"
-	"charm.land/snail/coreutils/internal/getopt"
-	"charm.land/snail/coreutils/internal/stdopts"
+	"charm.land/turtle/coreutils"
+	"charm.land/turtle/coreutils/internal/getopt"
+	"charm.land/turtle/coreutils/internal/stdopts"
 )
 
 // Prog is the nice core utility.

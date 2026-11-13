@@ -12,9 +12,9 @@ import (
 	"testing"
 	"time"
 
-	"charm.land/snail/coreutils"
-	"charm.land/snail/coreutils/internal/testutil"
-	"charm.land/snail/fsx"
+	"charm.land/turtle/coreutils"
+	"charm.land/turtle/coreutils/internal/testutil"
+	"charm.land/turtle/fsx"
 )
 
 // testFS holds the fixtures used by the tests:
@@ -919,7 +919,7 @@ func TestGzipInfo(t *testing.T) {
 		if res.exit != 0 {
 			t.Errorf("exit = %d, want 0", res.exit)
 		}
-		if !strings.HasPrefix(res.stdout, "zcat (charm.land/snail/coreutils)") {
+		if !strings.HasPrefix(res.stdout, "zcat (charm.land/turtle/coreutils)") {
 			t.Errorf("stdout = %q, want it to name the program", res.stdout)
 		}
 	})
@@ -961,7 +961,7 @@ func TestHelpVersion(t *testing.T) {
 			if res.exit != 0 {
 				t.Fatalf("exit = %d, want 0 (%s)", res.exit, res.stderr)
 			}
-			want := test.name + " (charm.land/snail/coreutils) " + coreutils.Version + "\nhttps://charm.land/snail\n"
+			want := test.name + " (charm.land/turtle/coreutils) " + coreutils.Version + "\nhttps://charm.land/turtle\n"
 			if got := res.stdout; got != want {
 				t.Errorf("stdout = %q, want %q", got, want)
 			}
@@ -973,7 +973,7 @@ func TestHelpVersion(t *testing.T) {
 			if res.exit != 0 {
 				t.Fatalf("exit = %d, want 0 (%s)", res.exit, res.stderr)
 			}
-			want := test.name + " (charm.land/snail/coreutils) " + coreutils.Version + "\nhttps://charm.land/snail\n"
+			want := test.name + " (charm.land/turtle/coreutils) " + coreutils.Version + "\nhttps://charm.land/turtle\n"
 			if got := res.stdout; got != want {
 				t.Errorf("stdout = %q, want %q", got, want)
 			}

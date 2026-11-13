@@ -9,9 +9,9 @@ import (
 	"runtime"
 	"testing"
 
-	"charm.land/snail/coreutils"
-	"charm.land/snail/coreutils/internal/testutil"
-	"charm.land/snail/fsx"
+	"charm.land/turtle/coreutils"
+	"charm.land/turtle/coreutils/internal/testutil"
+	"charm.land/turtle/fsx"
 )
 
 // dir returns the full mode of a directory with the given permission bits.

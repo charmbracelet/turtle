@@ -7,7 +7,7 @@ import (
 	"io/fs"
 	"time"
 
-	"charm.land/snail/fsx"
+	"charm.land/turtle/fsx"
 )
 
 // boom is the error the fakes fail with when no other one is given.

@@ -2,8 +2,8 @@
 package main
 
 import (
-	"charm.land/snail/coreutils/internal/cmdutil"
-	"charm.land/snail/coreutils/readlink"
+	"charm.land/turtle/coreutils/internal/cmdutil"
+	"charm.land/turtle/coreutils/readlink"
 )
 
 func main() {

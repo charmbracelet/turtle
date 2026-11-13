@@ -9,8 +9,8 @@ import (
 	"io"
 	"maps"
 
-	"charm.land/snail/coreutils"
-	"charm.land/snail/coreutils/internal/getopt"
+	"charm.land/turtle/coreutils"
+	"charm.land/turtle/coreutils/internal/getopt"
 )
 
 // The runes which --help and --version map to. They're kept well above the
@@ -33,7 +33,7 @@ const Tail = `      --help
 
 // VersionText returns the version text a utility writes for --version.
 func VersionText(prog string) string {
-	return fmt.Sprintf("%s (charm.land/snail/coreutils) %s\nhttps://charm.land/snail\n",
+	return fmt.Sprintf("%s (charm.land/turtle/coreutils) %s\nhttps://charm.land/turtle\n",
 		prog, coreutils.Version)
 }
 

@@ -5,7 +5,7 @@ package du
 import (
 	"testing"
 
-	"charm.land/snail/coreutils/internal/testutil"
+	"charm.land/turtle/coreutils/internal/testutil"
 )
 
 // On Windows the operands may name their files with backslashes, which are

@@ -17,12 +17,12 @@ import (
 	"io"
 	"unicode/utf8"
 
-	"charm.land/snail/coreutils"
+	"charm.land/turtle/coreutils"
 
-	"charm.land/snail/coreutils/internal/charset"
-	"charm.land/snail/coreutils/internal/ctxio"
-	"charm.land/snail/coreutils/internal/getopt"
-	"charm.land/snail/coreutils/internal/stdopts"
+	"charm.land/turtle/coreutils/internal/charset"
+	"charm.land/turtle/coreutils/internal/ctxio"
+	"charm.land/turtle/coreutils/internal/getopt"
+	"charm.land/turtle/coreutils/internal/stdopts"
 )
 
 // chunkSize is how many bytes of the input are read at a time, which is also

@@ -9,8 +9,8 @@ import (
 	"strings"
 	"testing"
 
-	"charm.land/snail/coreutils"
-	"charm.land/snail/coreutils/internal/testutil"
+	"charm.land/turtle/coreutils"
+	"charm.land/turtle/coreutils/internal/testutil"
 )
 
 const (
@@ -576,19 +576,19 @@ func TestRun(t *testing.T) {
 				name:    "--version prints the version text",
 				args:    []string{"--version"},
 				environ: environ,
-				want:    "which (charm.land/snail/coreutils) " + coreutils.Version + "\nhttps://charm.land/snail\n",
+				want:    "which (charm.land/turtle/coreutils) " + coreutils.Version + "\nhttps://charm.land/turtle\n",
 			},
 			{
 				name:    "-v means --version",
 				args:    []string{"-v"},
 				environ: environ,
-				want:    "which (charm.land/snail/coreutils) " + coreutils.Version + "\nhttps://charm.land/snail\n",
+				want:    "which (charm.land/turtle/coreutils) " + coreutils.Version + "\nhttps://charm.land/turtle\n",
 			},
 			{
 				name:    "-V means --version",
 				args:    []string{"-V"},
 				environ: environ,
-				want:    "which (charm.land/snail/coreutils) " + coreutils.Version + "\nhttps://charm.land/snail\n",
+				want:    "which (charm.land/turtle/coreutils) " + coreutils.Version + "\nhttps://charm.land/turtle\n",
 			},
 			{
 				name:     "an invalid short option is a usage error",

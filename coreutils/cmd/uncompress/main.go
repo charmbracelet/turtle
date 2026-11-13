@@ -3,8 +3,8 @@
 package main
 
 import (
-	"charm.land/snail/coreutils/internal/cmdutil"
-	"charm.land/snail/coreutils/uncompress"
+	"charm.land/turtle/coreutils/internal/cmdutil"
+	"charm.land/turtle/coreutils/uncompress"
 )
 
 func main() {

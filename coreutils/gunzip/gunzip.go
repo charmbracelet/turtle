@@ -2,8 +2,8 @@
 package gunzip
 
 import (
-	"charm.land/snail/coreutils"
-	"charm.land/snail/coreutils/gzip"
+	"charm.land/turtle/coreutils"
+	"charm.land/turtle/coreutils/gzip"
 )
 
 // New returns a program which restores compressed files.

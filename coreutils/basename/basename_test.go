@@ -7,8 +7,8 @@ import (
 	"strings"
 	"testing"
 
-	"charm.land/snail/coreutils"
-	"charm.land/snail/coreutils/internal/testutil"
+	"charm.land/turtle/coreutils"
+	"charm.land/turtle/coreutils/internal/testutil"
 )
 
 func runBasename(t *testing.T, args ...string) (string, error) {
@@ -646,7 +646,7 @@ func TestHelpVersion(t *testing.T) {
 		if err != nil {
 			t.Fatalf("Run() error = %v, want nil (exit status 0)", err)
 		}
-		want := "basename (charm.land/snail/coreutils) " + coreutils.Version + "\nhttps://charm.land/snail\n"
+		want := "basename (charm.land/turtle/coreutils) " + coreutils.Version + "\nhttps://charm.land/turtle\n"
 		if got := stdout; got != want {
 			t.Errorf("Run() stdout = %q, want %q", got, want)
 		}

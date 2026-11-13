@@ -3,7 +3,7 @@ package chmod
 import (
 	"io/fs"
 
-	"charm.land/snail/coreutils/internal/filemode"
+	"charm.land/turtle/coreutils/internal/filemode"
 )
 
 // ModeSpec computes the new mode of a file from its current mode, whether

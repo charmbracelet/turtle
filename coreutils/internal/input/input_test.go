@@ -7,8 +7,8 @@ import (
 	"strings"
 	"testing"
 
-	"charm.land/snail/coreutils"
-	"charm.land/snail/fsx"
+	"charm.land/turtle/coreutils"
+	"charm.land/turtle/fsx"
 )
 
 func TestNew(t *testing.T) {

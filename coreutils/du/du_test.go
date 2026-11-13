@@ -4,8 +4,8 @@ import (
 	"io/fs"
 	"testing"
 
-	"charm.land/snail/coreutils/internal/testutil"
-	"charm.land/snail/fsx"
+	"charm.land/turtle/coreutils/internal/testutil"
+	"charm.land/turtle/fsx"
 )
 
 // tree is a hierarchy of a two-block file, a one-block one, and a

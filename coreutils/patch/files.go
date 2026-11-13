@@ -6,7 +6,7 @@ import (
 	"io/fs"
 	"os"
 
-	"charm.land/snail/coreutils/internal/diff"
+	"charm.land/turtle/coreutils/internal/diff"
 )
 
 // runner holds the state of one patch run shared by every patch.

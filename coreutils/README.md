@@ -1,4 +1,4 @@
-# charm.land/snail/coreutils
+# charm.land/turtle/coreutils
 
 A Go implementation of the Unix core utilities.
 

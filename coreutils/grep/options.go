@@ -8,7 +8,7 @@ import (
 	"strconv"
 	"strings"
 
-	"charm.land/snail/coreutils/internal/glob"
+	"charm.land/turtle/coreutils/internal/glob"
 )
 
 // options holds the options of a search.

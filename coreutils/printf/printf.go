@@ -10,9 +10,9 @@ import (
 	"strconv"
 	"strings"
 
-	"charm.land/snail/coreutils"
-	"charm.land/snail/coreutils/internal/numparse"
-	"charm.land/snail/coreutils/internal/printfmt"
+	"charm.land/turtle/coreutils"
+	"charm.land/turtle/coreutils/internal/numparse"
+	"charm.land/turtle/coreutils/internal/printfmt"
 )
 
 // Prog is the printf core utility.

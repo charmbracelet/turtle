@@ -2,8 +2,8 @@
 package uncompress
 
 import (
-	"charm.land/snail/coreutils"
-	"charm.land/snail/coreutils/compress"
+	"charm.land/turtle/coreutils"
+	"charm.land/turtle/coreutils/compress"
 )
 
 // New returns a program which restores compressed files.

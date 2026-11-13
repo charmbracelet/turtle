@@ -8,10 +8,10 @@ import (
 	"math"
 	"time"
 
-	"charm.land/snail/coreutils"
-	"charm.land/snail/coreutils/internal/durationparse"
-	"charm.land/snail/coreutils/internal/getopt"
-	"charm.land/snail/coreutils/internal/stdopts"
+	"charm.land/turtle/coreutils"
+	"charm.land/turtle/coreutils/internal/durationparse"
+	"charm.land/turtle/coreutils/internal/getopt"
+	"charm.land/turtle/coreutils/internal/stdopts"
 )
 
 // Prog is the sleep core utility.

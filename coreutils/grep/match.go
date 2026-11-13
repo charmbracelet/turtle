@@ -5,8 +5,8 @@ import (
 	"regexp"
 	"strings"
 
-	"charm.land/snail/coreutils/internal/bre"
-	"charm.land/snail/coreutils/internal/ere"
+	"charm.land/turtle/coreutils/internal/bre"
+	"charm.land/turtle/coreutils/internal/ere"
 )
 
 // matcher reports whether a line is selected by the patterns, and where the

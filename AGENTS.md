@@ -1,9 +1,9 @@
-# charm.land/snail
+# charm.land/turtle
 
 This repository is a collection of tools and libraries for Go.
 
 * Each sub-project is a separate Go module, in the form of
-  `charm.land/snail/{proj}` where `proj` is a sub-directory of this repository.
+  `charm.land/turtle/{proj}` where `proj` is a sub-directory of this repository.
 
 ## Guidelines
 
@@ -25,7 +25,7 @@ This repository is a collection of tools and libraries for Go.
   change and add more.
 * Use `t.Context()` for contexts in tests, instead of `context.Background()`.
 
-## charm.land/snail/fsx
+## charm.land/turtle/fsx
 
 * This is meant to be a Go package which is a superset of the existing `io/fs`
   interface from the Go standard library.
@@ -43,7 +43,7 @@ This repository is a collection of tools and libraries for Go.
   need to use functions like `filepath.Join` to make all functions respect the
   given base directory (like a "working directory").
 * The main use case for this project will be empowering the next project
-  described below: `charm.land/snail/coreutils`.
+  described below: `charm.land/turtle/coreutils`.
 
 The main `fsx.FS` interface embeds `fs.FS` from the standard library plus the
 extra functionality, split into multiple smaller interfaces:
@@ -69,18 +69,18 @@ embedded in `fsx.FS`.
 Each of these interfaces covers one group of write-like operations, so
 callers and implementations can depend on only what they need.
 
-## charm.land/snail/coreutils
+## charm.land/turtle/coreutils
 
 This Go module will hold the implementation of many coreutils in Go.
 
-* We'll have a common Go interface in the root (`charm.land/snail/coreutils`)
+* We'll have a common Go interface in the root (`charm.land/turtle/coreutils`)
   that every coreutil will need to implement.
 * We'll also have in root a type called `NewFunc` with a function signature all
   coreutils should respect for their `{package}.New` functions.
 * The package that will hold every implementation will be in
-  `charm.land/snail/coreutils/{prog}`.
+  `charm.land/turtle/coreutils/{prog}`.
 * For every coreutils we'll also have a respective `main` package in
-  `charm.land/snail/coreutils/cmd/{prog}`. This `main` package will just be a
+  `charm.land/turtle/coreutils/cmd/{prog}`. This `main` package will just be a
   thin wrapper around the respective coreutil implementation.
 * We should have extensive tests for every behavior, based on the coreutils
   specification.
@@ -130,20 +130,20 @@ Code style guidelines:
 * Be sure to read `coreutils/coreutils.go` to understand how the shared
   interface work. We might need to add some small bits of functionality there
   as we progress.
-* All the `main` files in `charm.land/snail/coreutils/cmd/{proj}/` should be
+* All the `main` files in `charm.land/turtle/coreutils/cmd/{proj}/` should be
   called `main.go` and be a thin wrapper around the implementation.
 * `main` packages should delegate to `cmdutil.Main` from
-  `charm.land/snail/coreutils/internal/cmdutil`, which builds the `Runtime`,
+  `charm.land/turtle/coreutils/internal/cmdutil`, which builds the `Runtime`,
   runs the utility and maps errors to exit statuses.
 * The implementation of a coreutil should be a `Prog` struct with at least
   `Runtime` as one of the fields. It should have a `{package}.New` function
-  respecting the `charm.land/snail/coreutils.NewFunc` signature to return `Prog`.
+  respecting the `charm.land/turtle/coreutils.NewFunc` signature to return `Prog`.
 * Respect the `context.Context` given to `Run`. Long operations (like reading
   input) should check it periodically and return the context error as-is when
   it's done, so callers can interrupt them and use `errors.Is`.
 * We should use as much as possible of the standard library, and avoid external
   dependencies, even for tests.
-* Option parsing belongs to `charm.land/snail/coreutils/internal/getopt`, which
+* Option parsing belongs to `charm.land/turtle/coreutils/internal/getopt`, which
   implements the POSIX syntax and its diagnostics: grouped single-character
   options, option-arguments attached or in the next argument, `--` ending the
   options, parsing stopping at the first operand, and long options accepted
@@ -153,7 +153,7 @@ Code style guidelines:
   options at all.)
 * The GNU common options `--help` and `--version` are shared: every utility
   which takes options calls `stdopts.Check` from
-  `charm.land/snail/coreutils/internal/stdopts` at the top of its `Run`, with
+  `charm.land/turtle/coreutils/internal/stdopts` at the top of its `Run`, with
   its `getopt.Set` and its usage text, a `usage` string constant following
   the GNU layout and describing only what the utility implements. The two
   standard entries close the text, set apart from the aligned option table

@@ -7,8 +7,8 @@ import (
 	"runtime"
 	"testing"
 
-	"charm.land/snail/coreutils"
-	"charm.land/snail/coreutils/internal/testutil"
+	"charm.land/turtle/coreutils"
+	"charm.land/turtle/coreutils/internal/testutil"
 )
 
 // runCase runs a single case, also checking that dirname never reads the
@@ -394,7 +394,7 @@ func TestHelpVersion(t *testing.T) {
 		runCase(t, testutil.Case{
 			Name: "version",
 			Args: []string{"--version"},
-			Want: "dirname (charm.land/snail/coreutils) " + coreutils.Version + "\nhttps://charm.land/snail\n",
+			Want: "dirname (charm.land/turtle/coreutils) " + coreutils.Version + "\nhttps://charm.land/turtle\n",
 		})
 	})
 }

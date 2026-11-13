@@ -13,9 +13,9 @@ import (
 	"testing"
 	"time"
 
-	"charm.land/snail/coreutils"
-	"charm.land/snail/coreutils/internal/testutil"
-	"charm.land/snail/fsx"
+	"charm.land/turtle/coreutils"
+	"charm.land/turtle/coreutils/internal/testutil"
+	"charm.land/turtle/fsx"
 )
 
 // fakeClock replies with the scripted times in order, recording the calls.
@@ -473,7 +473,7 @@ func TestHelpVersion(t *testing.T) {
 		if err := New(rt).Run(t.Context(), "--version"); err != nil {
 			t.Fatalf("Run() error = %v, want nil (exit status 0)", err)
 		}
-		want := "time (charm.land/snail/coreutils) " + coreutils.Version + "\nhttps://charm.land/snail\n"
+		want := "time (charm.land/turtle/coreutils) " + coreutils.Version + "\nhttps://charm.land/turtle\n"
 		if got := stdout(t, rt); got != want {
 			t.Errorf("Run() stdout = %q, want %q", got, want)
 		}

@@ -9,8 +9,8 @@ import (
 	"context"
 	"crypto/sha256"
 
-	"charm.land/snail/coreutils"
-	"charm.land/snail/coreutils/internal/digest"
+	"charm.land/turtle/coreutils"
+	"charm.land/turtle/coreutils/internal/digest"
 )
 
 // Prog is the sha224sum core utility.

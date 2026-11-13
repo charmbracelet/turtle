@@ -14,13 +14,13 @@ import (
 	"strconv"
 	"unicode/utf8"
 
-	"charm.land/snail/coreutils"
+	"charm.land/turtle/coreutils"
 
-	"charm.land/snail/coreutils/internal/getopt"
-	"charm.land/snail/coreutils/internal/input"
-	"charm.land/snail/coreutils/internal/patherr"
-	"charm.land/snail/coreutils/internal/stdopts"
-	"charm.land/snail/coreutils/internal/textutil"
+	"charm.land/turtle/coreutils/internal/getopt"
+	"charm.land/turtle/coreutils/internal/input"
+	"charm.land/turtle/coreutils/internal/patherr"
+	"charm.land/turtle/coreutils/internal/stdopts"
+	"charm.land/turtle/coreutils/internal/textutil"
 )
 
 // Prog is the fold core utility.

@@ -6,7 +6,7 @@ import (
 	"errors"
 	"os"
 
-	"charm.land/snail/coreutils"
+	"charm.land/turtle/coreutils"
 )
 
 // Main runs the utility built by new against the process arguments, exiting

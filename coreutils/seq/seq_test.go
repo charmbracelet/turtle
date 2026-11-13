@@ -7,8 +7,8 @@ import (
 	"strings"
 	"testing"
 
-	"charm.land/snail/coreutils"
-	"charm.land/snail/coreutils/internal/testutil"
+	"charm.land/turtle/coreutils"
+	"charm.land/turtle/coreutils/internal/testutil"
 )
 
 // runSeq runs seq with the given arguments, returning its standard output and
@@ -675,7 +675,7 @@ func TestHelpVersion(t *testing.T) {
 		if err != nil {
 			t.Fatalf("Run() error = %v, want nil (exit status 0)", err)
 		}
-		want := "seq (charm.land/snail/coreutils) " + coreutils.Version + "\nhttps://charm.land/snail\n"
+		want := "seq (charm.land/turtle/coreutils) " + coreutils.Version + "\nhttps://charm.land/turtle\n"
 		if stdout != want {
 			t.Errorf("Run() stdout = %q, want %q", stdout, want)
 		}

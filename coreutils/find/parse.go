@@ -10,14 +10,14 @@ import (
 	"strings"
 	"time"
 
-	"charm.land/snail/coreutils"
+	"charm.land/turtle/coreutils"
 
-	"charm.land/snail/coreutils/internal/bre"
-	"charm.land/snail/coreutils/internal/ere"
-	"charm.land/snail/coreutils/internal/filemode"
-	"charm.land/snail/coreutils/internal/glob"
-	"charm.land/snail/coreutils/internal/gnudate"
-	"charm.land/snail/coreutils/internal/walk"
+	"charm.land/turtle/coreutils/internal/bre"
+	"charm.land/turtle/coreutils/internal/ere"
+	"charm.land/turtle/coreutils/internal/filemode"
+	"charm.land/turtle/coreutils/internal/glob"
+	"charm.land/turtle/coreutils/internal/gnudate"
+	"charm.land/turtle/coreutils/internal/walk"
 )
 
 // parseExpr parses the tokens of the expression of find.

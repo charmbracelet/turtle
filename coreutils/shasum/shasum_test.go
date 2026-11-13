@@ -5,9 +5,9 @@ import (
 	"strings"
 	"testing"
 
-	"charm.land/snail/coreutils"
-	"charm.land/snail/coreutils/internal/testutil"
-	"charm.land/snail/fsx"
+	"charm.land/turtle/coreutils"
+	"charm.land/turtle/coreutils/internal/testutil"
+	"charm.land/turtle/fsx"
 )
 
 // The digests of "hello\n", as the algorithms compute them.
@@ -260,8 +260,8 @@ func TestHelpVersion(t *testing.T) {
 		if got := stderr.String(); got != "" {
 			t.Errorf("Run() stderr = %q, want empty", got)
 		}
-		want := "shasum (charm.land/snail/coreutils) " + coreutils.Version +
-			"\nhttps://charm.land/snail\n"
+		want := "shasum (charm.land/turtle/coreutils) " + coreutils.Version +
+			"\nhttps://charm.land/turtle\n"
 		if got := stdout.String(); got != want {
 			t.Errorf("Run() stdout = %q, want %q", got, want)
 		}

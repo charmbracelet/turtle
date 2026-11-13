@@ -9,13 +9,13 @@ import (
 	"strings"
 	"time"
 
-	"charm.land/snail/coreutils/internal/fileinfo"
-	"charm.land/snail/coreutils/internal/filemode"
-	"charm.land/snail/coreutils/internal/printfmt"
-	"charm.land/snail/coreutils/internal/sizefmt"
-	"charm.land/snail/coreutils/internal/strftime"
+	"charm.land/turtle/coreutils/internal/fileinfo"
+	"charm.land/turtle/coreutils/internal/filemode"
+	"charm.land/turtle/coreutils/internal/printfmt"
+	"charm.land/turtle/coreutils/internal/sizefmt"
+	"charm.land/turtle/coreutils/internal/strftime"
 
-	"charm.land/snail/fsx"
+	"charm.land/turtle/fsx"
 )
 
 // ctimeFormat is the date and time format the bare %a, %c and %t directives

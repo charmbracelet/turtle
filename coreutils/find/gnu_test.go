@@ -7,7 +7,7 @@ import (
 	"testing"
 	"time"
 
-	"charm.land/snail/fsx"
+	"charm.land/turtle/fsx"
 )
 
 func TestRunDepthLimits(t *testing.T) {

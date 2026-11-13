@@ -17,8 +17,8 @@ import (
 	"syscall"
 	"time"
 
-	"charm.land/snail/coreutils/internal/term"
-	"charm.land/snail/fsx"
+	"charm.land/turtle/coreutils/internal/term"
+	"charm.land/turtle/fsx"
 )
 
 //go:embed version.txt

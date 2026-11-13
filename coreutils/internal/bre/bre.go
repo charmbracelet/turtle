@@ -10,8 +10,8 @@ import (
 	"regexp"
 	"strings"
 
-	"charm.land/snail/coreutils/internal/bracket"
-	"charm.land/snail/coreutils/internal/rex"
+	"charm.land/turtle/coreutils/internal/bracket"
+	"charm.land/turtle/coreutils/internal/rex"
 )
 
 // Compile parses pattern as a POSIX basic regular expression and returns the
