@@ -9,7 +9,7 @@ import (
 	"io/fs"
 	"path"
 
-	"charm.land/snail/coreutils/internal/fileinfo"
+	"charm.land/turtle/coreutils/internal/fileinfo"
 )
 
 // Options holds how a traversal walks the hierarchy below a starting point.

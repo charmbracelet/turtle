@@ -7,7 +7,7 @@ import (
 	"slices"
 	"testing"
 
-	"charm.land/snail/coreutils"
+	"charm.land/turtle/coreutils"
 )
 
 func TestRunExitStatus(t *testing.T) {

@@ -4,9 +4,9 @@ import (
 	"fmt"
 	"strconv"
 
-	"charm.land/snail/coreutils/internal/getopt"
-	"charm.land/snail/coreutils/internal/sizefmt"
-	"charm.land/snail/coreutils/internal/stdopts"
+	"charm.land/turtle/coreutils/internal/getopt"
+	"charm.land/turtle/coreutils/internal/sizefmt"
+	"charm.land/turtle/coreutils/internal/stdopts"
 )
 
 // followMode is how symbolic links are followed.

@@ -8,8 +8,8 @@ import (
 	"strings"
 	"unicode/utf8"
 
-	"charm.land/snail/coreutils/internal/bracket"
-	"charm.land/snail/coreutils/internal/bre"
+	"charm.land/turtle/coreutils/internal/bracket"
+	"charm.land/turtle/coreutils/internal/bre"
 )
 
 // address is the address of an editing command: the last line of the input,

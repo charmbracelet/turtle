@@ -8,10 +8,10 @@ import (
 	"strings"
 	"testing"
 
-	"charm.land/snail/coreutils"
-	"charm.land/snail/coreutils/internal/testutil"
-	"charm.land/snail/coreutils/uudecode"
-	"charm.land/snail/fsx"
+	"charm.land/turtle/coreutils"
+	"charm.land/turtle/coreutils/internal/testutil"
+	"charm.land/turtle/coreutils/uudecode"
+	"charm.land/turtle/fsx"
 )
 
 // testFS holds the fixtures used by the tests:
@@ -329,7 +329,7 @@ func TestHelpVersion(t *testing.T) {
 		{
 			"version",
 			[]string{"--version"},
-			"uuencode (charm.land/snail/coreutils) " + coreutils.Version + "\nhttps://charm.land/snail\n",
+			"uuencode (charm.land/turtle/coreutils) " + coreutils.Version + "\nhttps://charm.land/turtle\n",
 		},
 	}
 	for _, test := range tests {

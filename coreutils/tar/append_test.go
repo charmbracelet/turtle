@@ -6,8 +6,8 @@ import (
 	"testing"
 	"time"
 
-	"charm.land/snail/coreutils/internal/testutil"
-	"charm.land/snail/fsx"
+	"charm.land/turtle/coreutils/internal/testutil"
+	"charm.land/turtle/fsx"
 )
 
 var newTime = oldTime.Add(time.Hour)

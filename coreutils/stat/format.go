@@ -7,11 +7,11 @@ import (
 	"strings"
 	"time"
 
-	"charm.land/snail/coreutils/internal/filemode"
-	"charm.land/snail/coreutils/internal/printfmt"
-	"charm.land/snail/coreutils/internal/stdopts"
-	"charm.land/snail/coreutils/internal/strftime"
-	"charm.land/snail/coreutils/internal/usernames"
+	"charm.land/turtle/coreutils/internal/filemode"
+	"charm.land/turtle/coreutils/internal/printfmt"
+	"charm.land/turtle/coreutils/internal/stdopts"
+	"charm.land/turtle/coreutils/internal/strftime"
+	"charm.land/turtle/coreutils/internal/usernames"
 )
 
 // The formats of a run: the default ones of the files and the file systems,

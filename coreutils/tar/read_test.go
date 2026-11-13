@@ -9,8 +9,8 @@ import (
 	"testing"
 	"time"
 
-	"charm.land/snail/coreutils/internal/testutil"
-	"charm.land/snail/fsx"
+	"charm.land/turtle/coreutils/internal/testutil"
+	"charm.land/turtle/fsx"
 )
 
 // fixture returns an archive holding a file, a directory and a nested file.

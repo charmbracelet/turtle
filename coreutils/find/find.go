@@ -14,17 +14,17 @@ import (
 	"strings"
 	"time"
 
-	"charm.land/snail/coreutils"
+	"charm.land/turtle/coreutils"
 
-	"charm.land/snail/coreutils/internal/fileinfo"
-	"charm.land/snail/coreutils/internal/getopt"
-	"charm.land/snail/coreutils/internal/input"
-	"charm.land/snail/coreutils/internal/numparse"
-	"charm.land/snail/coreutils/internal/output"
-	"charm.land/snail/coreutils/internal/patherr"
-	"charm.land/snail/coreutils/internal/stdopts"
-	"charm.land/snail/coreutils/internal/usernames"
-	"charm.land/snail/coreutils/internal/walk"
+	"charm.land/turtle/coreutils/internal/fileinfo"
+	"charm.land/turtle/coreutils/internal/getopt"
+	"charm.land/turtle/coreutils/internal/input"
+	"charm.land/turtle/coreutils/internal/numparse"
+	"charm.land/turtle/coreutils/internal/output"
+	"charm.land/turtle/coreutils/internal/patherr"
+	"charm.land/turtle/coreutils/internal/stdopts"
+	"charm.land/turtle/coreutils/internal/usernames"
+	"charm.land/turtle/coreutils/internal/walk"
 )
 
 // Prog is the find core utility.

@@ -14,10 +14,10 @@ import (
 	"strings"
 	"time"
 
-	"charm.land/snail/coreutils/internal/ctxio"
-	"charm.land/snail/coreutils/internal/fsop"
-	"charm.land/snail/coreutils/internal/stdopts"
-	"charm.land/snail/fsx"
+	"charm.land/turtle/coreutils/internal/ctxio"
+	"charm.land/turtle/coreutils/internal/fsop"
+	"charm.land/turtle/coreutils/internal/stdopts"
+	"charm.land/turtle/fsx"
 )
 
 // extract restores the entries of the archive into the file system, filtered

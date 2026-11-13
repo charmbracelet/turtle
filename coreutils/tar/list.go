@@ -8,7 +8,7 @@ import (
 	"io"
 	"strconv"
 
-	"charm.land/snail/coreutils/internal/fsop"
+	"charm.land/turtle/coreutils/internal/fsop"
 )
 
 // list writes the names of the entries of the archive to the standard

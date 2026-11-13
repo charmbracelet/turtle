@@ -9,19 +9,19 @@ import (
 	"strings"
 	"testing"
 
-	"charm.land/snail/coreutils"
+	"charm.land/turtle/coreutils"
 )
 
 // sample is the system information the tests stub in place of the host's.
 var sample = fields{
-	sysname:          "SnailOS",
+	sysname:          "TurtleOS",
 	nodename:         "shell.example.org",
-	release:          "1.2.3-snail",
-	version:          "#1 SMP Snail Jul 5 10:00:00 UTC 2026",
-	machine:          "snail64",
-	processor:        "snail-isa",
-	hardwarePlatform: "snail-platform",
-	osName:           "GNU/Snail",
+	release:          "1.2.3-turtle",
+	version:          "#1 SMP Turtle Jul 5 10:00:00 UTC 2026",
+	machine:          "turtle64",
+	processor:        "turtle-isa",
+	hardwarePlatform: "turtle-platform",
+	osName:           "GNU/Turtle",
 }
 
 // unknownProcessor is the sample without the processor type and the
@@ -68,8 +68,8 @@ func run(t *testing.T, f fields, collectErr error, args ...string) (code int, st
 
 // line joins the sample pieces the way -a writes them.
 const (
-	allLine   = "SnailOS shell.example.org 1.2.3-snail #1 SMP Snail Jul 5 10:00:00 UTC 2026 snail64 snail-isa snail-platform GNU/Snail\n"
-	posixLine = "SnailOS shell.example.org 1.2.3-snail #1 SMP Snail Jul 5 10:00:00 UTC 2026 snail64\n"
+	allLine   = "TurtleOS shell.example.org 1.2.3-turtle #1 SMP Turtle Jul 5 10:00:00 UTC 2026 turtle64 turtle-isa turtle-platform GNU/Turtle\n"
+	posixLine = "TurtleOS shell.example.org 1.2.3-turtle #1 SMP Turtle Jul 5 10:00:00 UTC 2026 turtle64\n"
 )
 
 func TestRun(t *testing.T) {
@@ -83,17 +83,17 @@ func TestRun(t *testing.T) {
 	}{
 		{
 			name: "no options print the system name",
-			out:  "SnailOS\n",
+			out:  "TurtleOS\n",
 		},
 		{
 			name: "a double dash alone prints the system name",
 			args: []string{"--"},
-			out:  "SnailOS\n",
+			out:  "TurtleOS\n",
 		},
 		{
 			name: "-s prints the system name",
 			args: []string{"-s"},
-			out:  "SnailOS\n",
+			out:  "TurtleOS\n",
 		},
 		{
 			name: "-n prints the node name",
@@ -103,17 +103,17 @@ func TestRun(t *testing.T) {
 		{
 			name: "-r prints the release",
 			args: []string{"-r"},
-			out:  "1.2.3-snail\n",
+			out:  "1.2.3-turtle\n",
 		},
 		{
 			name: "-v prints the version",
 			args: []string{"-v"},
-			out:  "#1 SMP Snail Jul 5 10:00:00 UTC 2026\n",
+			out:  "#1 SMP Turtle Jul 5 10:00:00 UTC 2026\n",
 		},
 		{
 			name: "-m prints the machine",
 			args: []string{"-m"},
-			out:  "snail64\n",
+			out:  "turtle64\n",
 		},
 		{
 			name: "options after a double dash are operands",
@@ -124,27 +124,27 @@ func TestRun(t *testing.T) {
 		{
 			name: "a double dash ends the options",
 			args: []string{"-s", "--"},
-			out:  "SnailOS\n",
+			out:  "TurtleOS\n",
 		},
 		{
 			name: "grouped options keep the specified order",
 			args: []string{"-nr"},
-			out:  "shell.example.org 1.2.3-snail\n",
+			out:  "shell.example.org 1.2.3-turtle\n",
 		},
 		{
 			name: "the arguments order doesn't change the output order",
 			args: []string{"-rn"},
-			out:  "shell.example.org 1.2.3-snail\n",
+			out:  "shell.example.org 1.2.3-turtle\n",
 		},
 		{
 			name: "grouped options with the version and machine",
 			args: []string{"-vm"},
-			out:  "#1 SMP Snail Jul 5 10:00:00 UTC 2026 snail64\n",
+			out:  "#1 SMP Turtle Jul 5 10:00:00 UTC 2026 turtle64\n",
 		},
 		{
 			name: "repeated options print their information once",
 			args: []string{"-mnm"},
-			out:  "shell.example.org snail64\n",
+			out:  "shell.example.org turtle64\n",
 		},
 		{
 			name: "the POSIX set of options",
@@ -154,7 +154,7 @@ func TestRun(t *testing.T) {
 		{
 			name: "-s with a subset of options",
 			args: []string{"-s", "-r", "-m"},
-			out:  "SnailOS 1.2.3-snail snail64\n",
+			out:  "TurtleOS 1.2.3-turtle turtle64\n",
 		},
 		{
 			name: "-a prints all of the POSIX information",
@@ -170,13 +170,13 @@ func TestRun(t *testing.T) {
 			name:   "-a omits the processor and hardware platform when unknown",
 			fields: &unknownProcessor,
 			args:   []string{"-a"},
-			out:    "SnailOS shell.example.org 1.2.3-snail #1 SMP Snail Jul 5 10:00:00 UTC 2026 snail64 GNU/Snail\n",
+			out:    "TurtleOS shell.example.org 1.2.3-turtle #1 SMP Turtle Jul 5 10:00:00 UTC 2026 turtle64 GNU/Turtle\n",
 		},
 		{
 			name:   "-a omits any unavailable field",
 			fields: &emptyNodename,
 			args:   []string{"-a"},
-			out:    "SnailOS 1.2.3-snail #1 SMP Snail Jul 5 10:00:00 UTC 2026 snail64 snail-isa snail-platform GNU/Snail\n",
+			out:    "TurtleOS 1.2.3-turtle #1 SMP Turtle Jul 5 10:00:00 UTC 2026 turtle64 turtle-isa turtle-platform GNU/Turtle\n",
 		},
 		{
 			name:   "an unavailable field prints unknown alone",
@@ -187,27 +187,27 @@ func TestRun(t *testing.T) {
 		{
 			name: "-p prints the processor type",
 			args: []string{"-p"},
-			out:  "snail-isa\n",
+			out:  "turtle-isa\n",
 		},
 		{
 			name: "-i prints the hardware platform",
 			args: []string{"-i"},
-			out:  "snail-platform\n",
+			out:  "turtle-platform\n",
 		},
 		{
 			name: "-o prints the operating system",
 			args: []string{"-o"},
-			out:  "GNU/Snail\n",
+			out:  "GNU/Turtle\n",
 		},
 		{
 			name: "grouped GNU options",
 			args: []string{"-pi"},
-			out:  "snail-isa snail-platform\n",
+			out:  "turtle-isa turtle-platform\n",
 		},
 		{
 			name: "the GNU options follow the machine",
 			args: []string{"-mpio"},
-			out:  "snail64 snail-isa snail-platform GNU/Snail\n",
+			out:  "turtle64 turtle-isa turtle-platform GNU/Turtle\n",
 		},
 		{
 			name:   "-p prints unknown when the processor type is unavailable",
@@ -230,7 +230,7 @@ func TestRun(t *testing.T) {
 		{
 			name: "a long option for every short one",
 			args: []string{"--kernel-name", "--nodename", "--kernel-release"},
-			out:  "SnailOS shell.example.org 1.2.3-snail\n",
+			out:  "TurtleOS shell.example.org 1.2.3-turtle\n",
 		},
 		{
 			name: "--all",
@@ -240,27 +240,27 @@ func TestRun(t *testing.T) {
 		{
 			name: "--machine",
 			args: []string{"--machine"},
-			out:  "snail64\n",
+			out:  "turtle64\n",
 		},
 		{
 			name: "--processor",
 			args: []string{"--processor"},
-			out:  "snail-isa\n",
+			out:  "turtle-isa\n",
 		},
 		{
 			name: "--hardware-platform",
 			args: []string{"--hardware-platform"},
-			out:  "snail-platform\n",
+			out:  "turtle-platform\n",
 		},
 		{
 			name: "--operating-system",
 			args: []string{"--operating-system"},
-			out:  "GNU/Snail\n",
+			out:  "GNU/Turtle\n",
 		},
 		{
 			name: "--kernel-version",
 			args: []string{"--kernel-version"},
-			out:  "#1 SMP Snail Jul 5 10:00:00 UTC 2026\n",
+			out:  "#1 SMP Turtle Jul 5 10:00:00 UTC 2026\n",
 		},
 		{
 			name: "an invalid option",
@@ -404,8 +404,8 @@ func TestHelpVersion(t *testing.T) {
 		{
 			name: "version",
 			args: []string{"--version"},
-			out: "uname (charm.land/snail/coreutils) " + coreutils.Version +
-				"\nhttps://charm.land/snail\n",
+			out: "uname (charm.land/turtle/coreutils) " + coreutils.Version +
+				"\nhttps://charm.land/turtle\n",
 		},
 		{
 			name: "help before an invalid option",

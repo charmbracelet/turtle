@@ -13,12 +13,12 @@ import (
 	"strings"
 	"time"
 
-	"charm.land/snail/coreutils/internal/fileinfo"
-	"charm.land/snail/coreutils/internal/filemode"
-	"charm.land/snail/coreutils/internal/patherr"
+	"charm.land/turtle/coreutils/internal/fileinfo"
+	"charm.land/turtle/coreutils/internal/filemode"
+	"charm.land/turtle/coreutils/internal/patherr"
 
-	"charm.land/snail/coreutils/internal/stdopts"
-	"charm.land/snail/fsx"
+	"charm.land/turtle/coreutils/internal/stdopts"
+	"charm.land/turtle/fsx"
 )
 
 // file is one file of the traversal, with the names the traversal uses.

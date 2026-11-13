@@ -13,8 +13,8 @@ import (
 	"crypto/sha256"
 	"crypto/sha512"
 
-	"charm.land/snail/coreutils"
-	"charm.land/snail/coreutils/internal/digest"
+	"charm.land/turtle/coreutils"
+	"charm.land/turtle/coreutils/internal/digest"
 )
 
 // Prog is the shasum core utility.

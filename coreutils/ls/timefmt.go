@@ -4,7 +4,7 @@ import (
 	"strings"
 	"time"
 
-	"charm.land/snail/coreutils/internal/strftime"
+	"charm.land/turtle/coreutils/internal/strftime"
 )
 
 // timeStyle is how the long format writes a timestamp: the strftime format

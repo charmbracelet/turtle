@@ -5,8 +5,8 @@ import (
 	"strings"
 	"testing"
 
-	"charm.land/snail/coreutils"
-	"charm.land/snail/coreutils/gzip"
+	"charm.land/turtle/coreutils"
+	"charm.land/turtle/coreutils/gzip"
 )
 
 func TestUsageError(t *testing.T) {
@@ -43,7 +43,7 @@ func TestHelpVersion(t *testing.T) {
 		if err := New(rt).Run(t.Context(), "--version"); err != nil {
 			t.Fatalf("Run() error = %v, want nil", err)
 		}
-		want := "gunzip (charm.land/snail/coreutils) " + coreutils.Version + "\nhttps://charm.land/snail\n"
+		want := "gunzip (charm.land/turtle/coreutils) " + coreutils.Version + "\nhttps://charm.land/turtle\n"
 		if got := stdout.String(); got != want {
 			t.Errorf("stdout = %q, want %q", got, want)
 		}

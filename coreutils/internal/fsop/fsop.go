@@ -12,8 +12,8 @@ import (
 	"strings"
 	"time"
 
-	"charm.land/snail/coreutils"
-	"charm.land/snail/fsx"
+	"charm.land/turtle/coreutils"
+	"charm.land/turtle/fsx"
 )
 
 // Pair is a source and a destination: the paths the file system knows them

@@ -5,8 +5,8 @@ import (
 	"strings"
 	"testing"
 
-	"charm.land/snail/coreutils"
-	"charm.land/snail/coreutils/internal/getopt"
+	"charm.land/turtle/coreutils"
+	"charm.land/turtle/coreutils/internal/getopt"
 )
 
 const usage = "Usage: prog [OPTION]... [FILE]...\nDo something.\n"
@@ -34,7 +34,7 @@ func TestCheck(t *testing.T) {
 			name:     "version",
 			args:     []string{"--version"},
 			handled:  true,
-			contains: "(charm.land/snail/coreutils)",
+			contains: "(charm.land/turtle/coreutils)",
 		},
 		{
 			name:     "after other options",
@@ -76,7 +76,7 @@ func TestCheck(t *testing.T) {
 			name:     "first one wins",
 			args:     []string{"--version", "--help"},
 			handled:  true,
-			contains: "(charm.land/snail/coreutils)",
+			contains: "(charm.land/turtle/coreutils)",
 		},
 		{
 			name:     "empty arguments",
@@ -109,7 +109,7 @@ func TestVersion(t *testing.T) {
 	if done, err := Check(rt, "prog", usage, getopt.Set{}, []string{"--version"}); !done || err != nil {
 		t.Fatalf("Check() = %v, %v, want true, nil", done, err)
 	}
-	want := "prog (charm.land/snail/coreutils) " + coreutils.Version + "\nhttps://charm.land/snail\n"
+	want := "prog (charm.land/turtle/coreutils) " + coreutils.Version + "\nhttps://charm.land/turtle\n"
 	if got := stdout.String(); got != want {
 		t.Errorf("stdout = %q, want %q", got, want)
 	}

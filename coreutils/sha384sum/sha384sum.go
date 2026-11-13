@@ -9,8 +9,8 @@ import (
 	"context"
 	"crypto/sha512"
 
-	"charm.land/snail/coreutils"
-	"charm.land/snail/coreutils/internal/digest"
+	"charm.land/turtle/coreutils"
+	"charm.land/turtle/coreutils/internal/digest"
 )
 
 // Prog is the sha384sum core utility.

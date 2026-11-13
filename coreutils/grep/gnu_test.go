@@ -7,8 +7,8 @@ import (
 	"io/fs"
 	"testing"
 
-	"charm.land/snail/coreutils"
-	"charm.land/snail/fsx"
+	"charm.land/turtle/coreutils"
+	"charm.land/turtle/fsx"
 )
 
 func TestRunRecursive(t *testing.T) {

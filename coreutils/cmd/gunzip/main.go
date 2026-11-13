@@ -2,8 +2,8 @@
 package main
 
 import (
-	"charm.land/snail/coreutils/gunzip"
-	"charm.land/snail/coreutils/internal/cmdutil"
+	"charm.land/turtle/coreutils/gunzip"
+	"charm.land/turtle/coreutils/internal/cmdutil"
 )
 
 func main() {

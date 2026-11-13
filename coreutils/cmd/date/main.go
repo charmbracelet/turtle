@@ -2,8 +2,8 @@
 package main
 
 import (
-	"charm.land/snail/coreutils/date"
-	"charm.land/snail/coreutils/internal/cmdutil"
+	"charm.land/turtle/coreutils/date"
+	"charm.land/turtle/coreutils/internal/cmdutil"
 )
 
 func main() {

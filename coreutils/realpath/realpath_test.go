@@ -10,9 +10,9 @@ import (
 	"strings"
 	"testing"
 
-	"charm.land/snail/coreutils"
-	"charm.land/snail/coreutils/internal/testutil"
-	"charm.land/snail/fsx"
+	"charm.land/turtle/coreutils"
+	"charm.land/turtle/coreutils/internal/testutil"
+	"charm.land/turtle/fsx"
 )
 
 // tree returns a working directory with files, directories and symbolic
@@ -678,7 +678,7 @@ func TestCommonOptions(t *testing.T) {
 		if err := New(rt).Run(t.Context(), "--version"); err != nil {
 			t.Fatalf("Run() error = %v", err)
 		}
-		if out := stdout.String(); !strings.Contains(out, "realpath (charm.land/snail/coreutils)") {
+		if out := stdout.String(); !strings.Contains(out, "realpath (charm.land/turtle/coreutils)") {
 			t.Errorf("Run() stdout = %q, want the version line", out)
 		}
 	})

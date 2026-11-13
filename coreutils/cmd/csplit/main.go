@@ -2,8 +2,8 @@
 package main
 
 import (
-	"charm.land/snail/coreutils/csplit"
-	"charm.land/snail/coreutils/internal/cmdutil"
+	"charm.land/turtle/coreutils/csplit"
+	"charm.land/turtle/coreutils/internal/cmdutil"
 )
 
 func main() {

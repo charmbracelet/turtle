@@ -7,9 +7,9 @@ import (
 	"strings"
 	"testing"
 
-	"charm.land/snail/coreutils"
-	"charm.land/snail/coreutils/gzip"
-	"charm.land/snail/fsx"
+	"charm.land/turtle/coreutils"
+	"charm.land/turtle/coreutils/gzip"
+	"charm.land/turtle/fsx"
 )
 
 // testFS holds the fixtures used by the tests.
@@ -351,7 +351,7 @@ func TestHelpVersion(t *testing.T) {
 			if code != 0 {
 				t.Fatalf("exit = %d, want 0 (%s)", code, stderr)
 			}
-			want := test.name + " (charm.land/snail/coreutils) " + coreutils.Version + "\nhttps://charm.land/snail\n"
+			want := test.name + " (charm.land/turtle/coreutils) " + coreutils.Version + "\nhttps://charm.land/turtle\n"
 			if got := stdout; got != want {
 				t.Errorf("stdout = %q, want %q", got, want)
 			}

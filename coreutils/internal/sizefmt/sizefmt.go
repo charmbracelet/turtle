@@ -8,7 +8,7 @@ import (
 	"strconv"
 	"strings"
 
-	"charm.land/snail/coreutils/internal/sizeparse"
+	"charm.land/turtle/coreutils/internal/sizeparse"
 )
 
 // Spec describes how a size is written: as the count of the units of a

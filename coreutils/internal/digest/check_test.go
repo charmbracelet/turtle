@@ -5,8 +5,8 @@ import (
 	"strings"
 	"testing"
 
-	"charm.land/snail/coreutils/internal/testutil"
-	"charm.land/snail/fsx"
+	"charm.land/turtle/coreutils/internal/testutil"
+	"charm.land/turtle/fsx"
 )
 
 // checksumLine builds a checksum line as the utility writes it, with the

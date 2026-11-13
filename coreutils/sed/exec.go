@@ -13,11 +13,11 @@ import (
 	"unicode"
 	"unicode/utf8"
 
-	"charm.land/snail/coreutils/internal/output"
-	"charm.land/snail/coreutils/internal/patherr"
-	"charm.land/snail/coreutils/internal/stdopts"
-	"charm.land/snail/coreutils/internal/textutil"
-	"charm.land/snail/fsx"
+	"charm.land/turtle/coreutils/internal/output"
+	"charm.land/turtle/coreutils/internal/patherr"
+	"charm.land/turtle/coreutils/internal/stdopts"
+	"charm.land/turtle/coreutils/internal/textutil"
+	"charm.land/turtle/fsx"
 )
 
 // lDefaultWidth is the column at which the l command folds long lines, when

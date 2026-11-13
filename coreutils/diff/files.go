@@ -11,7 +11,7 @@ import (
 	"strings"
 	"time"
 
-	"charm.land/snail/coreutils/internal/diff"
+	"charm.land/turtle/coreutils/internal/diff"
 )
 
 // pair holds the two files of one comparison: their names as written to the

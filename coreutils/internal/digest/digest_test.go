@@ -11,9 +11,9 @@ import (
 	"strings"
 	"testing"
 
-	"charm.land/snail/coreutils"
-	"charm.land/snail/coreutils/internal/testutil"
-	"charm.land/snail/fsx"
+	"charm.land/turtle/coreutils"
+	"charm.land/turtle/coreutils/internal/testutil"
+	"charm.land/turtle/fsx"
 )
 
 // The algorithms of the utilities, built by the tests as the utilities
@@ -524,8 +524,8 @@ func TestHelpVersion(t *testing.T) {
 				if got := stderr.String(); got != "" {
 					t.Errorf("Run() stderr = %q, want empty", got)
 				}
-				want := test.name + " (charm.land/snail/coreutils) " + coreutils.Version +
-					"\nhttps://charm.land/snail\n"
+				want := test.name + " (charm.land/turtle/coreutils) " + coreutils.Version +
+					"\nhttps://charm.land/turtle\n"
 				if got := stdout.String(); got != want {
 					t.Errorf("Run() stdout = %q, want %q", got, want)
 				}

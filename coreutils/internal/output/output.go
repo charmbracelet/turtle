@@ -8,8 +8,8 @@ import (
 	"io"
 	"os"
 
-	"charm.land/snail/coreutils"
-	"charm.land/snail/coreutils/internal/ctxio"
+	"charm.land/turtle/coreutils"
+	"charm.land/turtle/coreutils/internal/ctxio"
 )
 
 // Create opens name for writing, truncating it when it exists, with the

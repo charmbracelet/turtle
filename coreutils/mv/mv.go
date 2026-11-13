@@ -23,14 +23,14 @@ import (
 	"slices"
 	"strings"
 
-	"charm.land/snail/coreutils"
+	"charm.land/turtle/coreutils"
 
-	"charm.land/snail/coreutils/internal/ctxio"
-	"charm.land/snail/coreutils/internal/filemode"
-	"charm.land/snail/coreutils/internal/fsop"
-	"charm.land/snail/coreutils/internal/getopt"
-	"charm.land/snail/coreutils/internal/patherr"
-	"charm.land/snail/coreutils/internal/stdopts"
+	"charm.land/turtle/coreutils/internal/ctxio"
+	"charm.land/turtle/coreutils/internal/filemode"
+	"charm.land/turtle/coreutils/internal/fsop"
+	"charm.land/turtle/coreutils/internal/getopt"
+	"charm.land/turtle/coreutils/internal/patherr"
+	"charm.land/turtle/coreutils/internal/stdopts"
 )
 
 // Prog is the mv core utility.

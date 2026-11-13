@@ -9,13 +9,13 @@ import (
 	"path"
 	"strconv"
 
-	"charm.land/snail/coreutils"
-	"charm.land/snail/coreutils/internal/getopt"
-	"charm.land/snail/coreutils/internal/patherr"
-	"charm.land/snail/coreutils/internal/stdopts"
-	"charm.land/snail/coreutils/internal/verbose"
-	"charm.land/snail/coreutils/internal/walk"
-	"charm.land/snail/fsx"
+	"charm.land/turtle/coreutils"
+	"charm.land/turtle/coreutils/internal/getopt"
+	"charm.land/turtle/coreutils/internal/patherr"
+	"charm.land/turtle/coreutils/internal/stdopts"
+	"charm.land/turtle/coreutils/internal/verbose"
+	"charm.land/turtle/coreutils/internal/walk"
+	"charm.land/turtle/fsx"
 )
 
 // Prog is the chgrp core utility.

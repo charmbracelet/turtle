@@ -13,13 +13,13 @@ import (
 	"io"
 	"io/fs"
 
-	"charm.land/snail/coreutils"
+	"charm.land/turtle/coreutils"
 
-	"charm.land/snail/coreutils/internal/ctxio"
-	"charm.land/snail/coreutils/internal/getopt"
-	outio "charm.land/snail/coreutils/internal/output"
-	"charm.land/snail/coreutils/internal/patherr"
-	"charm.land/snail/coreutils/internal/stdopts"
+	"charm.land/turtle/coreutils/internal/ctxio"
+	"charm.land/turtle/coreutils/internal/getopt"
+	outio "charm.land/turtle/coreutils/internal/output"
+	"charm.land/turtle/coreutils/internal/patherr"
+	"charm.land/turtle/coreutils/internal/stdopts"
 )
 
 // Prog is the tee core utility.

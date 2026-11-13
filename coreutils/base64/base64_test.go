@@ -8,9 +8,9 @@ import (
 	"strings"
 	"testing"
 
-	"charm.land/snail/coreutils"
-	"charm.land/snail/coreutils/internal/testutil"
-	"charm.land/snail/fsx"
+	"charm.land/turtle/coreutils"
+	"charm.land/turtle/coreutils/internal/testutil"
+	"charm.land/turtle/fsx"
 )
 
 // testFS holds the fixtures used by the tests:
@@ -686,8 +686,8 @@ func TestHelpVersion(t *testing.T) {
 		if got := stderr.String(); got != "" {
 			t.Errorf("Run() stderr = %q, want empty", got)
 		}
-		want := "base64 (charm.land/snail/coreutils) " + coreutils.Version +
-			"\nhttps://charm.land/snail\n"
+		want := "base64 (charm.land/turtle/coreutils) " + coreutils.Version +
+			"\nhttps://charm.land/turtle\n"
 		if got := stdout.String(); got != want {
 			t.Errorf("Run() stdout = %q, want %q", got, want)
 		}

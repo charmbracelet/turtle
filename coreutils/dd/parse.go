@@ -6,7 +6,7 @@ import (
 	"strconv"
 	"strings"
 
-	"charm.land/snail/coreutils/internal/sizeparse"
+	"charm.land/turtle/coreutils/internal/sizeparse"
 )
 
 // options holds the operands of one dd invocation, as parsed.

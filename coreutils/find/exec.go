@@ -6,8 +6,8 @@ import (
 	"path"
 	"strings"
 
-	"charm.land/snail/coreutils"
-	"charm.land/snail/coreutils/internal/stdopts"
+	"charm.land/turtle/coreutils"
+	"charm.land/turtle/coreutils/internal/stdopts"
 )
 
 // runExec runs one utility invocation, reporting its exit status. A failure

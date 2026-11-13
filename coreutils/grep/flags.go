@@ -4,9 +4,9 @@ import (
 	"fmt"
 	"strings"
 
-	"charm.land/snail/coreutils/internal/getopt"
-	"charm.land/snail/coreutils/internal/glob"
-	"charm.land/snail/coreutils/internal/stdopts"
+	"charm.land/turtle/coreutils/internal/getopt"
+	"charm.land/turtle/coreutils/internal/glob"
+	"charm.land/turtle/coreutils/internal/stdopts"
 )
 
 // Long options with no short form stand for private runes.

@@ -4,9 +4,9 @@ import (
 	"fmt"
 	"strconv"
 
-	"charm.land/snail/coreutils/internal/getopt"
-	"charm.land/snail/coreutils/internal/sizefmt"
-	"charm.land/snail/coreutils/internal/stdopts"
+	"charm.land/turtle/coreutils/internal/getopt"
+	"charm.land/turtle/coreutils/internal/sizefmt"
+	"charm.land/turtle/coreutils/internal/stdopts"
 )
 
 // optMaxDepth is a rune which no short option can reach, so --max-depth has

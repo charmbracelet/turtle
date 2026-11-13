@@ -12,8 +12,8 @@ import (
 	"testing"
 	"time"
 
-	"charm.land/snail/coreutils"
-	"charm.land/snail/fsx"
+	"charm.land/turtle/coreutils"
+	"charm.land/turtle/fsx"
 )
 
 // Case is one case of a table-driven test: the inputs the Runtime is built
@@ -246,7 +246,7 @@ func HelpVersion(t *testing.T, new coreutils.NewFunc, prog, usage string) {
 		if err := new(rt).Run(t.Context(), "--version"); err != nil {
 			t.Fatalf("Run() error = %v, want nil (exit status 0)", err)
 		}
-		want := prog + " (charm.land/snail/coreutils) " + coreutils.Version + "\nhttps://charm.land/snail\n"
+		want := prog + " (charm.land/turtle/coreutils) " + coreutils.Version + "\nhttps://charm.land/turtle\n"
 		if got := stdout.String(); got != want {
 			t.Errorf("Run() stdout = %q, want %q", got, want)
 		}

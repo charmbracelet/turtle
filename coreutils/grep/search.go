@@ -9,8 +9,8 @@ import (
 	"io"
 	"io/fs"
 
-	"charm.land/snail/coreutils/internal/ctxio"
-	"charm.land/snail/coreutils/internal/textutil"
+	"charm.land/turtle/coreutils/internal/ctxio"
+	"charm.land/turtle/coreutils/internal/textutil"
 )
 
 // searchInput is one input of a search: the standard input, a file operand,

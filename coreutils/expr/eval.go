@@ -8,7 +8,7 @@ import (
 	"strings"
 	"unicode/utf8"
 
-	"charm.land/snail/coreutils/internal/bre"
+	"charm.land/turtle/coreutils/internal/bre"
 )
 
 // value is the result of an expression or one of its operands: a string,

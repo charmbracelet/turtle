@@ -7,10 +7,10 @@ import (
 	"strconv"
 	"strings"
 
-	"charm.land/snail/coreutils/internal/cnum"
-	"charm.land/snail/coreutils/internal/getopt"
-	"charm.land/snail/coreutils/internal/sizeparse"
-	"charm.land/snail/coreutils/internal/stdopts"
+	"charm.land/turtle/coreutils/internal/cnum"
+	"charm.land/turtle/coreutils/internal/getopt"
+	"charm.land/turtle/coreutils/internal/sizeparse"
+	"charm.land/turtle/coreutils/internal/stdopts"
 )
 
 // The long options of od which have no short form stand for private runes.

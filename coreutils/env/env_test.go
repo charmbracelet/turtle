@@ -11,8 +11,8 @@ import (
 	"slices"
 	"testing"
 
-	"charm.land/snail/coreutils"
-	"charm.land/snail/fsx"
+	"charm.land/turtle/coreutils"
+	"charm.land/turtle/fsx"
 )
 
 // execRecord records an invocation of the stub Exec.
@@ -784,7 +784,7 @@ func TestHelpVersion(t *testing.T) {
 		if err := New(rt).Run(t.Context(), "--version"); err != nil {
 			t.Fatalf("Run() error = %v, want nil (exit status 0)", err)
 		}
-		want := "env (charm.land/snail/coreutils) " + coreutils.Version + "\nhttps://charm.land/snail\n"
+		want := "env (charm.land/turtle/coreutils) " + coreutils.Version + "\nhttps://charm.land/turtle\n"
 		if got := stdout.String(); got != want {
 			t.Errorf("Run() stdout = %q, want %q", got, want)
 		}

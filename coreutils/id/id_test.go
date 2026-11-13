@@ -13,7 +13,7 @@ import (
 	"strings"
 	"testing"
 
-	"charm.land/snail/coreutils"
+	"charm.land/turtle/coreutils"
 )
 
 // sample is the identity the tests stub in place of the host's.
@@ -593,7 +593,7 @@ func TestHelpVersion(t *testing.T) {
 				t.Fatalf("Run() error = %v, want nil (exit status 0)", err)
 			}
 			want := fmt.Sprintf(
-				"id (charm.land/snail/coreutils) %s\nhttps://charm.land/snail\n",
+				"id (charm.land/turtle/coreutils) %s\nhttps://charm.land/turtle\n",
 				coreutils.Version)
 			if opt == "--help" {
 				want = usage

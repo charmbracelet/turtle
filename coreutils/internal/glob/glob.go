@@ -8,7 +8,7 @@ import (
 	"regexp"
 	"strings"
 
-	"charm.land/snail/coreutils/internal/bracket"
+	"charm.land/turtle/coreutils/internal/bracket"
 )
 
 // Compile compiles a pattern into a regular expression that reports whether

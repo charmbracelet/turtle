@@ -10,9 +10,9 @@ import (
 	"time"
 	"unicode"
 
-	"charm.land/snail/coreutils/internal/fileinfo"
-	"charm.land/snail/coreutils/internal/filemode"
-	"charm.land/snail/fsx"
+	"charm.land/turtle/coreutils/internal/fileinfo"
+	"charm.land/turtle/coreutils/internal/filemode"
+	"charm.land/turtle/fsx"
 )
 
 // list writes a listing of entries, preceded by the total number of blocks

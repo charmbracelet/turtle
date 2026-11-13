@@ -7,8 +7,8 @@ import (
 	"errors"
 	"io"
 
-	"charm.land/snail/coreutils"
-	"charm.land/snail/coreutils/internal/ctxio"
+	"charm.land/turtle/coreutils"
+	"charm.land/turtle/coreutils/internal/ctxio"
 )
 
 // Input is one input operand: a pathname, or the standard input.

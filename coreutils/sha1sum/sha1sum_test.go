@@ -5,10 +5,10 @@ import (
 	"strings"
 	"testing"
 
-	"charm.land/snail/coreutils"
-	"charm.land/snail/coreutils/internal/digest"
-	"charm.land/snail/coreutils/internal/testutil"
-	"charm.land/snail/fsx"
+	"charm.land/turtle/coreutils"
+	"charm.land/turtle/coreutils/internal/digest"
+	"charm.land/turtle/coreutils/internal/testutil"
+	"charm.land/turtle/fsx"
 )
 
 // helloDigest is the SHA1 digest of "hello\n".
@@ -96,8 +96,8 @@ func TestHelpVersion(t *testing.T) {
 		if got := stderr.String(); got != "" {
 			t.Errorf("Run() stderr = %q, want empty", got)
 		}
-		want := "sha1sum (charm.land/snail/coreutils) " + coreutils.Version +
-			"\nhttps://charm.land/snail\n"
+		want := "sha1sum (charm.land/turtle/coreutils) " + coreutils.Version +
+			"\nhttps://charm.land/turtle\n"
 		if got := stdout.String(); got != want {
 			t.Errorf("Run() stdout = %q, want %q", got, want)
 		}

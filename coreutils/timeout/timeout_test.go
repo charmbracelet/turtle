@@ -11,8 +11,8 @@ import (
 	"testing"
 	"time"
 
-	"charm.land/snail/coreutils"
-	"charm.land/snail/coreutils/internal/testutil"
+	"charm.land/turtle/coreutils"
+	"charm.land/turtle/coreutils/internal/testutil"
 )
 
 // errKilled is the error an execution reports for the child process killed
@@ -863,7 +863,7 @@ func TestVersion(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Run() error = %v, want nil", err)
 	}
-	if !strings.HasPrefix(stdout, "timeout (charm.land/snail/coreutils) ") {
+	if !strings.HasPrefix(stdout, "timeout (charm.land/turtle/coreutils) ") {
 		t.Errorf("Run() stdout = %q", stdout)
 	}
 }

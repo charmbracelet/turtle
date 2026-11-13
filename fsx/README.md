@@ -1,4 +1,4 @@
-# charm.land/snail/fsx
+# charm.land/turtle/fsx
 
 A superset of [`io/fs.FS`](https://pkg.go.dev/io/fs#FS) that also supports
 writing.
@@ -80,7 +80,7 @@ are seen by the other.
 
 ## Why?
 
-This module was built to make [charm.land/snail/coreutils](/coreutils) possible.
+This module was built to make [charm.land/turtle/coreutils](/coreutils) possible.
 Read-only file systems aren't enough to implement utilities like `touch`,
 `mkdir` or `cp`, while keeping an `io/fs` compatible interface allows the
 utilities to run isolated from the real file system, including on tests.

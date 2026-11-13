@@ -4,9 +4,9 @@ import (
 	"strings"
 	"testing"
 
-	"charm.land/snail/coreutils/internal/diff"
-	"charm.land/snail/coreutils/internal/testutil"
-	"charm.land/snail/fsx"
+	"charm.land/turtle/coreutils/internal/diff"
+	"charm.land/turtle/coreutils/internal/testutil"
+	"charm.land/turtle/fsx"
 )
 
 // unifiedPatch builds the unified patch that turns a into b, like diff -u

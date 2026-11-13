@@ -6,8 +6,8 @@ import (
 	"path/filepath"
 	"testing"
 
-	"charm.land/snail/coreutils"
-	"charm.land/snail/coreutils/internal/testutil"
+	"charm.land/turtle/coreutils"
+	"charm.land/turtle/coreutils/internal/testutil"
 )
 
 func runPwd(t *testing.T, workDir string, env map[string]string, args ...string) (stdout, stderr string, err error) {

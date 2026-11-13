@@ -9,10 +9,10 @@ import (
 	"strings"
 	"testing"
 
-	"charm.land/snail/coreutils"
-	"charm.land/snail/coreutils/internal/testutil"
-	"charm.land/snail/coreutils/uuencode"
-	"charm.land/snail/fsx"
+	"charm.land/turtle/coreutils"
+	"charm.land/turtle/coreutils/internal/testutil"
+	"charm.land/turtle/coreutils/uuencode"
+	"charm.land/turtle/fsx"
 )
 
 // The historical file holds the output of uuencode for "hello", and the
@@ -459,7 +459,7 @@ func TestHelpVersion(t *testing.T) {
 		{
 			"version",
 			[]string{"--version"},
-			"uudecode (charm.land/snail/coreutils) " + coreutils.Version + "\nhttps://charm.land/snail\n",
+			"uudecode (charm.land/turtle/coreutils) " + coreutils.Version + "\nhttps://charm.land/turtle\n",
 		},
 	}
 	for _, test := range tests {

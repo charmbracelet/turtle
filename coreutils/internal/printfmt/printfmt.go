@@ -10,7 +10,7 @@ import (
 	"strings"
 	"unicode/utf8"
 
-	"charm.land/snail/coreutils/internal/numparse"
+	"charm.land/turtle/coreutils/internal/numparse"
 )
 
 // Spec is the argument number, flags, width and precision of a conversion

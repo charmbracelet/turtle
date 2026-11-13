@@ -8,7 +8,7 @@ import (
 	"strings"
 	"time"
 
-	"charm.land/snail/coreutils/internal/numparse"
+	"charm.land/turtle/coreutils/internal/numparse"
 )
 
 // Parse parses the GNU date string s relative to base, interpreting zoneless

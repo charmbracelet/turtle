@@ -6,8 +6,8 @@ import (
 	"runtime"
 	"testing"
 
-	"charm.land/snail/coreutils/internal/testutil"
-	"charm.land/snail/fsx"
+	"charm.land/turtle/coreutils/internal/testutil"
+	"charm.land/turtle/fsx"
 )
 
 type testCase struct {

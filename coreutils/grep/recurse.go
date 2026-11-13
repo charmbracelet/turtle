@@ -6,9 +6,9 @@ import (
 	"io/fs"
 	"strings"
 
-	"charm.land/snail/coreutils/internal/patherr"
-	"charm.land/snail/coreutils/internal/stdopts"
-	"charm.land/snail/coreutils/internal/walk"
+	"charm.land/turtle/coreutils/internal/patherr"
+	"charm.land/turtle/coreutils/internal/stdopts"
+	"charm.land/turtle/coreutils/internal/walk"
 )
 
 // errQuit stops the recursion once -q has found a match.

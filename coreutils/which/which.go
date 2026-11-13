@@ -15,9 +15,9 @@ import (
 	"runtime"
 	"strings"
 
-	"charm.land/snail/coreutils"
-	"charm.land/snail/coreutils/internal/getopt"
-	"charm.land/snail/coreutils/internal/stdopts"
+	"charm.land/turtle/coreutils"
+	"charm.land/turtle/coreutils/internal/getopt"
+	"charm.land/turtle/coreutils/internal/stdopts"
 )
 
 // defaultPath is the search path used when PATH is unset, matching the
