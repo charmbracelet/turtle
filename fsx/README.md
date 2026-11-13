@@ -19,7 +19,8 @@ The main interface, `fsx.FS`, embeds `io/fs.FS` plus:
   `os.Chown`, where a uid or gid of -1 means to not change that value.
 - `MkdirFS`: `Mkdir` creates a new directory, like `os.Mkdir`.
 - `RemoveFS`: `Remove` removes a file or an empty directory, like
-  `os.Remove`.
+  `os.Remove`, returning `fsx.ErrNotEmpty` when the directory still holds
+  entries.
 - `RenameFS`: `Rename` renames a file, moving it between directories, like
   `os.Rename`.
 - `LinkFS`: `Link` creates a new name for an existing file, like `os.Link`.
@@ -34,6 +35,11 @@ reason, and `fsx.SeekFile` is a file whose offset can be changed, like
 `os.File`. The latter isn't embedded into the other interfaces because not every
 file is seekable, like pipes: callers should check for it and fall back to
 reading sequentially when it isn't implemented.
+
+`fsx.SyncFS` flushes any data a file system still holds with `Sync`, like
+`sync(2)`. Both implementations support it, but it isn't embedded into
+`fsx.FS` either, because not every file system can be flushed, like a network
+one: callers should check for it and treat its absence as a successful no-op.
 
 More operations will be added incrementally as we need them.
 
@@ -54,6 +60,10 @@ fsys := fsx.MemFS{
 	"file.txt": {Data: []byte("contents")},
 }
 ```
+
+Besides `Data`, a `MemFile` sets the `Mode`, `ModTime`, `Uid` and `Gid` of
+the entry. Its access time starts as the modification time, and is otherwise
+only changed by `Chtimes`.
 
 Directories are implicit: a name of the form "dir/file" makes "dir" statable
 as a directory.
