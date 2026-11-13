@@ -2,8 +2,8 @@
 package main
 
 import (
-	"charm.land/turtle/coreutils/cut"
 	"charm.land/turtle/coreutils/internal/cmdutil"
+	"charm.land/turtle/coreutils/programs/cut"
 )
 
 func main() {

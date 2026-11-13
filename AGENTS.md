@@ -78,7 +78,7 @@ This Go module will hold the implementation of many coreutils in Go.
 * We'll also have in root a type called `NewFunc` with a function signature all
   coreutils should respect for their `{package}.New` functions.
 * The package that will hold every implementation will be in
-  `charm.land/turtle/coreutils/{prog}`.
+  `charm.land/turtle/coreutils/programs/{prog}`.
 * For every coreutils we'll also have a respective `main` package in
   `charm.land/turtle/coreutils/cmd/{prog}`. This `main` package will just be a
   thin wrapper around the respective coreutil implementation.

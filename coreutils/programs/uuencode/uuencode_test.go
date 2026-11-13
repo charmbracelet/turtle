@@ -10,7 +10,7 @@ import (
 
 	"charm.land/turtle/coreutils"
 	"charm.land/turtle/coreutils/internal/testutil"
-	"charm.land/turtle/coreutils/uudecode"
+	"charm.land/turtle/coreutils/programs/uudecode"
 	"charm.land/turtle/fsx"
 )
 

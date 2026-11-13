@@ -3,7 +3,7 @@ package main
 
 import (
 	"charm.land/turtle/coreutils/internal/cmdutil"
-	"charm.land/turtle/coreutils/zcat"
+	"charm.land/turtle/coreutils/programs/zcat"
 )
 
 func main() {

@@ -3,7 +3,7 @@ package main
 
 import (
 	"charm.land/turtle/coreutils/internal/cmdutil"
-	"charm.land/turtle/coreutils/sha256sum"
+	"charm.land/turtle/coreutils/programs/sha256sum"
 )
 
 func main() {

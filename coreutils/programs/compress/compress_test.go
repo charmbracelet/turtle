@@ -8,7 +8,7 @@ import (
 	"testing"
 
 	"charm.land/turtle/coreutils"
-	"charm.land/turtle/coreutils/gzip"
+	"charm.land/turtle/coreutils/programs/gzip"
 	"charm.land/turtle/fsx"
 )
 

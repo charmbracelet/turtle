@@ -3,7 +3,7 @@ package main
 
 import (
 	"charm.land/turtle/coreutils/internal/cmdutil"
-	"charm.land/turtle/coreutils/uniq"
+	"charm.land/turtle/coreutils/programs/uniq"
 )
 
 func main() {

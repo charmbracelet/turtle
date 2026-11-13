@@ -3,7 +3,7 @@ package main
 
 import (
 	"charm.land/turtle/coreutils/internal/cmdutil"
-	"charm.land/turtle/coreutils/test"
+	"charm.land/turtle/coreutils/programs/test"
 )
 
 func main() {

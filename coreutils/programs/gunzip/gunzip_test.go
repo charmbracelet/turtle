@@ -6,7 +6,7 @@ import (
 	"testing"
 
 	"charm.land/turtle/coreutils"
-	"charm.land/turtle/coreutils/gzip"
+	"charm.land/turtle/coreutils/programs/gzip"
 )
 
 func TestUsageError(t *testing.T) {

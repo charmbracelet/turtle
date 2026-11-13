@@ -11,7 +11,7 @@ import (
 
 	"charm.land/turtle/coreutils"
 	"charm.land/turtle/coreutils/internal/testutil"
-	"charm.land/turtle/coreutils/uuencode"
+	"charm.land/turtle/coreutils/programs/uuencode"
 	"charm.land/turtle/fsx"
 )
 

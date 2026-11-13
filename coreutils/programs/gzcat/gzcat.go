@@ -3,7 +3,7 @@ package gzcat
 
 import (
 	"charm.land/turtle/coreutils"
-	"charm.land/turtle/coreutils/gzip"
+	"charm.land/turtle/coreutils/programs/gzip"
 )
 
 // New returns a program which writes restored files to standard output.

@@ -3,7 +3,7 @@ package main
 
 import (
 	"charm.land/turtle/coreutils/internal/cmdutil"
-	"charm.land/turtle/coreutils/sha512sum"
+	"charm.land/turtle/coreutils/programs/sha512sum"
 )
 
 func main() {

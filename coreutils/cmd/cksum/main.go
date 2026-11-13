@@ -2,8 +2,8 @@
 package main
 
 import (
-	"charm.land/turtle/coreutils/cksum"
 	"charm.land/turtle/coreutils/internal/cmdutil"
+	"charm.land/turtle/coreutils/programs/cksum"
 )
 
 func main() {

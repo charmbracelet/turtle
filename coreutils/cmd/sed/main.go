@@ -3,7 +3,7 @@ package main
 
 import (
 	"charm.land/turtle/coreutils/internal/cmdutil"
-	"charm.land/turtle/coreutils/sed"
+	"charm.land/turtle/coreutils/programs/sed"
 )
 
 func main() {
