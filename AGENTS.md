@@ -55,7 +55,6 @@ type FS interface {
     WriteFS
     ChtimesFS
     ChmodFS
-    ChownFS
     MkdirFS
     RemoveFS
     RenameFS
@@ -63,6 +62,9 @@ type FS interface {
     SymlinkFS
 }
 ```
+
+`ChownFS` is an optional capability, checked with a type assertion instead of
+embedded in `fsx.FS`.
 
 Each of these interfaces covers one group of write-like operations, so
 callers and implementations can depend on only what they need.

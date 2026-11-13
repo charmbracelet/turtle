@@ -110,8 +110,8 @@ type SyncFS interface {
 	Sync() error
 }
 
-// FS is the main interface of this package, which embeds `io/fs.FS` from the
-// stdlib and all the extra interfaces that we added to this package.
+// FS combines fs.FS with the common write operations. ChownFS and SyncFS are
+// optional capabilities, checked with type assertions.
 type FS interface {
 	fs.FS
 	WriteFS
