@@ -15,8 +15,6 @@ The main interface, `fsx.FS`, embeds `io/fs.FS` plus:
   `os.OpenFile`.
 - `ChtimesFS`: `Chtimes` sets the access and modification times of a file.
 - `ChmodFS`: `Chmod` changes the file mode bits of a file, like `os.Chmod`.
-- `ChownFS`: `Chown` changes the numeric owner and group of a file, like
-  `os.Chown`, where a uid or gid of -1 means to not change that value.
 - `MkdirFS`: `Mkdir` creates a new directory, like `os.Mkdir`.
 - `RemoveFS`: `Remove` removes a file or an empty directory, like
   `os.Remove`, returning `fsx.ErrNotEmpty` when the directory still holds
@@ -36,21 +34,28 @@ reason, and `fsx.SeekFile` is a file whose offset can be changed, like
 file is seekable, like pipes: callers should check for it and fall back to
 reading sequentially when it isn't implemented.
 
+`fsx.ChownFS` changes the numeric owner and group of a file, like `os.Chown`,
+where a uid or gid of -1 means to not change that value. It isn't embedded into
+`fsx.FS`: callers should check for it before relying on ownership changes. The
+provided implementations support it.
+
 `fsx.SyncFS` flushes any data a file system still holds with `Sync`, like
-`sync(2)`. Both implementations support it, but it isn't embedded into
-`fsx.FS` either, because not every file system can be flushed, like a network
-one: callers should check for it and treat its absence as a successful no-op.
+`sync(2)`. `OsFS` and `MemFS` support it, but it isn't embedded into `fsx.FS`
+either, because not every file system can be flushed, like a network one:
+callers should check for it and treat its absence as a successful no-op.
 
 More operations will be added incrementally as we need them.
 
 ## Implementations
 
-Two implementations are available:
+Three implementations are available:
 
 - `fsx.OsFS(dir)` operates on the operating system's file system. Names are
   resolved inside `dir`, which works like a working directory, except that
   absolute paths are used as given. An empty `dir` means the current working
   directory of the process.
+- `fsx.RootFS(root)` adapts an `os.Root`. Operations are confined to the root
+  using `os.Root` semantics. The caller retains ownership and must close it.
 - `fsx.MemFS` is an in-memory file system, meant mostly for writing tests of
   code that uses this package. Files are seeded with a map literal, like in
   `testing/fstest.MapFS`:
