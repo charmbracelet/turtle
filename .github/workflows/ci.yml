@@ -1,0 +1,56 @@
+name: ci
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  test:
+    name: ${{ matrix.module }} (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [blacksmith-2vcpu-ubuntu-2404-arm, blacksmith-6vcpu-macos-latest, blacksmith-2vcpu-windows-2025]
+        module: [coreutils, fsx]
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v5.1.0
+
+      - name: Setup Mise
+        uses: jdx/mise-action@v2.4.4
+
+      - name: Cache Go
+        uses: actions/setup-go@v7.1.0
+        with:
+          go-version: ''
+          cache: true
+
+      - name: Test
+        run: go test ./...
+        working-directory: ${{ matrix.module }}
+
+  lint:
+    runs-on: blacksmith-2vcpu-ubuntu-2404-arm
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v5.1.0
+
+      - name: Setup Mise
+        uses: jdx/mise-action@v2.4.4
+
+      - name: Cache Go
+        uses: actions/setup-go@v7.1.0
+        with:
+          go-version: ''
+          cache: true
+
+      - name: Check formatting, vetting and modernization
+        run: |
+          task lint
+          if [ -n "$(git status --porcelain)" ]; then
+            git diff
+            echo "::error::Unformatted or non-modernized code found, run 'task lint' and commit the changes."
+            exit 1
+          fi
