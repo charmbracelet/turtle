@@ -3,7 +3,7 @@
 🐢 Turtle is a collection of shell tools and libraries in Go,
 brought to you by [Charm][charm].
 
-## [charm.land/turtle/coreutils](/coreutils#readme)
+## [charm.land/turtle/coreutils](/coreutils/README.md)
 
 A Go implementation of the Unix core utilities.
 
@@ -14,7 +14,7 @@ A Go implementation of the Unix core utilities.
 * Pluggable into Go [shell interpreters][mvdan]
 * Used by [Crush][crush], [Task][task] and soon others!
 
-## [charm.land/turtle/fsx](/fsx#readme)
+## [charm.land/turtle/fsx](/fsx/README.md)
 
 A filesystem abstraction for Go. Built to power the core utilities module,
 but generic enough to be useful to many other projects.

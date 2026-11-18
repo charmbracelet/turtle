@@ -36,7 +36,7 @@ Things that this implementation does that it's important for us:
   separator, etc.)
 * Complete state isolation:
   * stdin / stdout / stderr
-  * File system (via [`charm.land/turtle/fsx`](/fsx#readme))
+  * File system (via [`charm.land/turtle/fsx`](/fsx/README.md))
   * Working directory
   * Environment variables
   * Hooks for the utilities that runs other programs (`timeout`, `xargs`, etc.)

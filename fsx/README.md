@@ -83,7 +83,7 @@ are seen by the other.
 
 ## Why?
 
-This module was built to make [charm.land/turtle/coreutils](/coreutils#readme)
+This module was built to make [charm.land/turtle/coreutils](/coreutils/README.md)
 possible. Read-only file systems aren't enough to implement utilities like
 `touch`, `mkdir` or `cp`, while keeping an `io/fs` compatible interface allows
 the utilities to run isolated from the real file system, including on tests.
