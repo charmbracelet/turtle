@@ -21,7 +21,7 @@ tasks:
         task: exec
         vars:
           MODULE: '{{.ITEM}}'
-          CMD: go test ./...
+          CMD: go test -count=1 ./...
 
   cover:
     desc: Run tests with coverage for all modules
