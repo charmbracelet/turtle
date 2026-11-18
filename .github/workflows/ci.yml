@@ -33,6 +33,7 @@ jobs:
         with:
           go-version: ''
           cache: true
+          cache-dependency-path: ${{ matrix.module }}/go.mod
 
       - name: Test
         run: go test ./...
@@ -52,6 +53,7 @@ jobs:
         with:
           go-version: ''
           cache: true
+          cache-dependency-path: '**/go.mod'
 
       - name: Check formatting, vetting and modernization
         run: |
