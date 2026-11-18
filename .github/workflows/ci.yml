@@ -8,12 +8,19 @@ on:
 jobs:
   test:
     name: ${{ matrix.module }} (${{ matrix.os }})
-    runs-on: ${{ matrix.os }}
+    runs-on: ${{ matrix.runner }}
     strategy:
       fail-fast: false
       matrix:
-        os: [blacksmith-2vcpu-ubuntu-2404-arm, blacksmith-6vcpu-macos-latest, blacksmith-2vcpu-windows-2025]
+        os: [linux, macos, windows]
         module: [coreutils, fsx]
+        include:
+          - os: linux
+            runner: blacksmith-2vcpu-ubuntu-2404-arm
+          - os: macos
+            runner: blacksmith-6vcpu-macos-latest
+          - os: windows
+            runner: blacksmith-2vcpu-windows-2025
     steps:
       - name: Checkout
         uses: actions/checkout@v5.1.0
