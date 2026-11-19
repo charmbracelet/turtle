@@ -21,7 +21,7 @@ tasks:
         task: exec
         vars:
           MODULE: '{{.ITEM}}'
-          CMD: go test -count=1 ./...
+          CMD: go test -count=1 -race ./...
 
   cover:
     desc: Run tests with coverage for all modules
@@ -30,7 +30,7 @@ tasks:
         task: exec
         vars:
           MODULE: '{{.ITEM}}'
-          CMD: go test -cover ./...
+          CMD: go test -count=1 -cover ./...
 
   fmt:
     desc: Format all Go code

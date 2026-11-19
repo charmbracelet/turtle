@@ -36,7 +36,7 @@ jobs:
           cache-dependency-path: ${{ matrix.module }}/go.mod
 
       - name: Test
-        run: go test -count=1 ./...
+        run: go test -count=1 -race ./...
         working-directory: ${{ matrix.module }}
 
   lint:
