@@ -546,7 +546,7 @@ func TestRunInvokeRealUtility(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	rt := coreutils.OsRuntime()
+	rt := coreutils.OsRuntime("")
 	out := new(bytes.Buffer)
 	rt.Stdout = out
 	if err := New(rt).Run(t.Context(), "FOO=fromenv", "PATH="+dir, "myutil"); err != nil {

@@ -87,14 +87,20 @@ type Runtime struct {
 	ExecUsage ExecUsageFunc
 }
 
-// OsRuntime returns a Runtime wired to the real operating system.
-//
-// WorkingDir is left empty when the current directory can't be determined, so
-// relative paths still resolve through the process.
-func OsRuntime() *Runtime {
-	wd, err := os.Getwd()
-	if err != nil {
-		wd = ""
+// OsRuntime returns a Runtime wired to the real operating system, using
+// workingDir as the working directory. An empty workingDir means the current
+// working directory, which is left empty when it can't be determined. A
+// relative workingDir is made absolute when possible.
+func OsRuntime(workingDir string) *Runtime {
+	wd := workingDir
+	if wd == "" {
+		var err error
+		wd, err = os.Getwd()
+		if err != nil {
+			wd = ""
+		}
+	} else if abs, err := filepath.Abs(wd); err == nil {
+		wd = abs
 	}
 	rt := &Runtime{
 		Stdin:      os.Stdin,
