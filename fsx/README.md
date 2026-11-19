@@ -7,6 +7,51 @@ The file system interface from the Go standard library is read-only. This
 package embeds it and extends it with write-like operations, keeping the read
 side fully compatible with the stdlib.
 
+## Example
+
+The same file system value supports writes and the standard library's read
+helpers. `OsFS("")` resolves relative names in the current working directory
+of the process:
+
+```go
+package main
+
+import (
+    "fmt"
+    "io"
+    "io/fs"
+    "log"
+    "os"
+
+    "charm.land/turtle/fsx"
+)
+
+func main() {
+    const workingDir = "" // empty means current
+
+    fsys := fsx.OsFS(workingDir)
+    flags := os.O_CREATE | os.O_WRONLY | os.O_TRUNC
+    f, err := fsys.OpenFile("hello.txt", flags, 0o644)
+    if err != nil {
+        log.Fatal(err)
+    }
+    defer f.Close()
+
+    if _, err := io.WriteString(f, "hello, world\n"); err != nil {
+        log.Fatal(err)
+    }
+    contents, err := fs.ReadFile(fsys, "hello.txt")
+    if err != nil {
+        log.Fatal(err)
+    }
+    fmt.Print(string(contents))
+}
+```
+
+To execute the same operations in memory, replace `OsFS` with an empty
+`fsx.MemFS{}`. Files can also be seeded when constructing the map, as shown
+below.
+
 ## Interfaces
 
 ### `fsx.FS`
@@ -65,7 +110,7 @@ Three implementations are available:
 
 ```go
 fsys := fsx.MemFS{
-	"file.txt": {Data: []byte("contents")},
+    "file.txt": {Data: []byte("contents")},
 }
 ```
 

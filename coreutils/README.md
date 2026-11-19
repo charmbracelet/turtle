@@ -6,7 +6,45 @@ The intention is not to aim for 100% compatibility, but have something still
 powerful and flexible enough to be imported by other Go programs, in particular
 when using a [shell interpreter][mvdan].
 
-Structure:
+## Example
+
+`OsRuntime` wires utilities to the operating system, including the standard
+streams, environment and file system. An empty directory argument uses the
+current working directory of the process:
+
+```go
+package main
+
+import (
+    "context"
+    "log"
+
+    "charm.land/turtle/coreutils"
+    "charm.land/turtle/coreutils/programs/cp"
+    "charm.land/turtle/coreutils/programs/mv"
+)
+
+func main() {
+    const workingDir = "" // empty means current
+
+    rt := coreutils.OsRuntime(workingDir)
+    ctx := context.Background()
+
+    if err := cp.New(rt).Run(ctx, "input.txt", "copy.txt"); err != nil {
+        log.Fatal(err)
+    }
+    if err := mv.New(rt).Run(ctx, "copy.txt", "archive.txt"); err != nil {
+        log.Fatal(err)
+    }
+}
+```
+
+For custom or in-memory execution, instantiate a `Runtime` directly, setting
+`FS` to an [`fsx.MemFS`](/fsx/README.md) and providing any desired standard
+streams, working directory or environment. Utilities use the state in their
+runtime, so no process-wide changes are needed.
+
+## Structure
 
 * `charm.land/turtle/coreutils`: base program interface and other types
 * `charm.land/turtle/coreutils/cmd/*`: `main` packages; compile to to get the
