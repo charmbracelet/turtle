@@ -188,7 +188,6 @@ We also document [deviations](DEVIATIONS.md) from the POSIX and GNU specs.
 | System / Process | `date`* | Print or set the date and time | [✅](spec/posix/date.md) | [✅](spec/gnu/date-invocation.md) |
 | System / Process | `env` | Run a command in a modified environment | [✅](spec/posix/env.md) | [✅](spec/gnu/env-invocation.md) |
 | System / Process | `id`* | Print user and group IDs | [✅](spec/posix/id.md) | [✅](spec/gnu/id-invocation.md) |
-| System / Process | `kill` | Send a signal to processes | [❌](spec/posix/kill.md) | ❌ |
 | System / Process | `logname`* | Print the user's login name | [✅](spec/posix/logname.md) | [✅](spec/gnu/logname-invocation.md) |
 | System / Process | `nice`* | Run a command with modified priority | [✅](spec/posix/nice.md) | [✅](spec/gnu/nice-invocation.md) |
 | System / Process | `nohup`* | Run a command immune to hangups | [✅](spec/posix/nohup.md) | [✅](spec/gnu/nohup-invocation.md) |
@@ -197,11 +196,6 @@ We also document [deviations](DEVIATIONS.md) from the POSIX and GNU specs.
 | System / Process | `timeout`* | Run a command with a time limit | [✅](spec/posix/timeout.md) | [✅](spec/gnu/timeout-invocation.md) |
 | System / Process | `uname`* | Print system information | [✅](spec/posix/uname.md) | [✅](spec/gnu/uname-invocation.md) |
 | System / Process | `who` | Print who is logged in | [❌](spec/posix/who.md) | [❌](spec/gnu/who-invocation.md) |
-| Terminal | `stty` | Set the options for a terminal | [❌](spec/posix/stty.md) | [❌](spec/gnu/stty-invocation.md) |
-| Terminal | `tput` | Query terminal capabilities | [❌](spec/posix/tput.md) | ❌ |
-| Terminal | `tabs` | Set terminal tab stops | [❌](spec/posix/tabs.md) | ❌ |
-| Terminal | `tty` | Print the terminal's file name | [❌](spec/posix/tty.md) | [❌](spec/gnu/tty-invocation.md) |
-| Terminal | `more` | Page through text files | [❌](spec/posix/more.md) | ❌ |
 | Encoding / Archive | `iconv` | Convert text between character encodings | [❌](spec/posix/iconv.md) | ❌ |
 | Encoding / Archive | `compress`* | Compress files | [✅](spec/posix/compress.md) | ❌ |
 | Encoding / Archive | `uncompress` | Decompress files | [✅](spec/posix/uncompress.md) | ❌ |
