@@ -1,11 +1,19 @@
 # charm.land/turtle/fsx
 
+[![Go Reference](https://pkg.go.dev/badge/charm.land/turtle/fsx.svg)](https://pkg.go.dev/charm.land/turtle/fsx)
+
 A superset of [`io/fs.FS`](https://pkg.go.dev/io/fs#FS) that also supports
 write-like operations.
 
 The file system interface from the Go standard library is read-only. This
 package embeds it and extends it with write-like operations, keeping the read
 side fully compatible with the stdlib.
+
+## Installation
+
+```bash
+go install charm.land/turtle/fsx@latest
+```
 
 ## Example
 

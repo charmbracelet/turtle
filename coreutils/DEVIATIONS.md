@@ -1,11 +1,11 @@
 # Deviations
 
-## chgrp
+### chgrp
 
 * Reports the changed and retained groups by their numeric identifiers in
   the `-v` and `-c` messages, where GNU uses the names.
 
-## chgrp and chown
+### chgrp and chown
 
 * Leave the symbolic links their `-h` option and the `-P` recursion act on
   alone instead of changing their ownership: the file system interface has
@@ -16,7 +16,7 @@
   `setuid` and `setgid` bits are cleared by the file system when it does
   so, not by the utilities.
 
-## chown
+### chown
 
 * Writes only the errno line when a change fails under `-v` and `-c`, where
   GNU adds a line naming the previous and wanted owner; its group-only
@@ -25,12 +25,12 @@
   errors; and usage errors exit 2, like `chmod` exits them here, where GNU
   exits 1.
 
-## cksum
+### cksum
 
 * Takes its algorithms from the standard library, so `blake2b` and `sm3`
   are missing, and it doesn't verify checksums with `-c`.
 
-## cmp
+### cmp
 
 * The first-difference message says `byte`, as GNU does outside the POSIX
   locale, instead of the POSIX `char`, and with `-b` the byte values follow
@@ -46,7 +46,7 @@
   cmp does, where GNU reports the two inputs as identical without reading
   them; POSIX leaves this case undefined.
 
-## compress
+### compress
 
 * Doesn't implement the LZW algorithm (the POSIX default, with its `.Z`
   suffix) yet. Compression with `-g` or `-m gzip`/`-m deflate` works.
@@ -56,12 +56,12 @@
 * Doesn't prompt before overwriting on a terminal or check for multiple
   hard links.
 
-## cp
+### cp
 
 * Doesn't implement the backup options (`-b`, `-S`), `-l`, `-s`, `-x` or
   `--parents`, and `--update=WHEN` takes only the plain `-u` form.
 
-## date
+### date
 
 * Can't set the system date: its settime operand (`mmddhhmm[[cc]yy]`) is
   parsed to diagnose invalid dates, but setting the clock fails, since the
@@ -69,7 +69,7 @@
 * The GNU `-r` (`--reference`) option, which displays the modification time
   of a file, is also supported.
 
-## dd
+### dd
 
 * Implements the conversions and operands of the POSIX specification, plus
   the GNU `status=` levels, the `fullblock` and `append` flags and the
@@ -85,7 +85,7 @@
   output with `seek` is null-filled.
 * Block sizes are capped at 2^31-1.
 
-## diff
+### diff
 
 * Compares files line by line with the POSIX options and the GNU output
   formats: normal, context, unified, ed, forward-ed, RCS, merged `#ifdef`,
@@ -107,7 +107,7 @@
   print with second precision in the local zone, where GNU can add
   nanoseconds.
 
-## du
+### du
 
 * Counts a file by its size rounded up to 512-byte blocks when the file
   system reports none, as `ls` does, and deduplicates hard links only when
@@ -117,7 +117,7 @@
   `--inodes`, `--threshold`, `--exclude`, `--time`, `--files0-from` and
   `DU_BLOCK_SIZE`) are not implemented.
 
-## expr
+### expr
 
 * The arithmetic is 64-bit, so operands or results beyond int64 fail with
   exit status 3 ('Numerical result out of range'), where GNU computes
@@ -128,7 +128,7 @@
 * String comparisons order bytewise, in the C locale, like the other
   utilities here.
 
-## find
+### find
 
 * Doesn't implement `-fstype` and `-context`, which need file system
   knowledge no runtime reports, and no birth time, which makes `-newerXY`
@@ -150,7 +150,7 @@
   pathnames instead of the system's `ARG_MAX` limit, and `-nouser` and
   `-nogroup` consult the user and group databases of the host system.
 
-## grep
+### grep
 
 * Doesn't implement backreferences in BREs, nor `-P`, which would need an
   engine beyond the one of the standard library.
@@ -167,7 +167,7 @@
   manual, closing every span with a reset and a clear to the end of line,
   which the `ne` capability omits.
 
-## id
+### id
 
 * The identity is the host process's, through the standard library's
   `os/user` and `os` packages, so the real and effective IDs are the same
@@ -184,20 +184,20 @@
   reports are printed in their place, and the supplementary groups are
   unavailable and omitted.
 
-## join
+### join
 
 * Compares its join fields in the bytewise collating sequence of the C
   locale, the one the `sort` and `comm` of this project use: no utility
   here implements the collating sequences of other locales, so keys which
   only another `LC_COLLATE` makes equal stay different.
 
-## logname
+### logname
 
 * Takes the name from the `LOGNAME` environment variable, against the POSIX
   note that it be ignored, since the isolated runtime exposes no login
   session to query.
 
-## ls
+### ls
 
 * Doesn't implement the color output (`--color`, with the `LS_COLORS` setup
   of `dircolors`), the hyperlinks (`--hyperlink`), the Emacs dired mode
@@ -218,7 +218,7 @@
   are written in units of 1024 bytes, with `POSIXLY_CORRECT` turning back
   to 512.
 
-## nice
+### nice
 
 * Parses and validates the niceness adjustment, but it is never applied,
   since the runtime cannot change the scheduling priority.
@@ -228,7 +228,7 @@
 * With no utility operand, nice reports a usage error, where GNU would
   print the current niceness, which the runtime exposes no way to read.
 
-## nohup
+### nohup
 
 * The hangup immunity is a no-op, since the runtime cannot block or ignore
   the signals of the utility it runs.
@@ -243,7 +243,7 @@
   125, the status GNU uses without `POSIXLY_CORRECT`, where POSIX requires
   127.
 
-## od
+### od
 
 * Takes the type sizes of an x86-64 GNU system: 16-byte integers are
   rejected and a 16-byte float is the x87 80-bit long double, read from the
@@ -259,7 +259,7 @@
   `-H`, `-h`, `-I`, `-L`, `-O` and `-X`) are not taken.
 * The input is read whole before it is formatted, rather than streamed.
 
-## patch
+### patch
 
 * Applies unified and context diffs with all the POSIX options except `-D`,
   `-e` and `-n`, which wait for `#ifdef` marks and the ed and normal diff
@@ -268,7 +268,7 @@
   go to standard error instead of standard output, and already applied
   hunks are ignored instead of saved to the reject file.
 
-## pr
+### pr
 
 * `-p` is accepted but ignored: the output is never a terminal for a
   library caller, so there is nothing to pause for.
@@ -282,14 +282,14 @@
 * `pr -W width -w width` is equivalent to `pr -W width -J`, matching the
   option translation of GNU pr, not its documentation.
 
-## readlink
+### readlink
 
 * Canonicalizes through the same resolver of `realpath`, so the file system
   caveats of that section apply.
 * With `-n` given with multiple operands it warns on the standard error and
   prints no delimiters at all.
 
-## realpath
+### realpath
 
 * Resolves through the runtime file system, so with a memory one the
   canonical names stay relative to the file system's root, and a leading
@@ -303,7 +303,7 @@
   the usage table here splits them, as the hanging layout takes one option
   per line.
 
-## sed
+### sed
 
 * Supports BRE and ERE (`-E`) patterns, but not backreferences (`\1` to
   `\9`) in patterns, nor the multi-character collating symbols of bracket
@@ -330,14 +330,14 @@
   link; a dangling link is reported as an input file that can't be read
   rather than edited as an empty file.
 
-## shasum
+### shasum
 
 * Follows the Perl script of the `Digest::SHA` distribution, but it doesn't
   take its `-U` (Universal Newlines) and `-0` (BITS) modes.
 * When verifying, it hashes with the algorithm `-a` selects, instead of the
   one each checksum line implies.
 
-## shuf
+### shuf
 
 * Consumes the bytes of `--random-source` as it needs them, so the same
   source is deterministic, but the permutation can differ from GNU's for
@@ -348,7 +348,7 @@
   `memory exhausted`.
 * The overflow diagnostics lack GNU's errno suffixes.
 
-## stat
+### stat
 
 * Prints `?` for every file system statistic of `-f` except the name, since
   the file system interface reports no statfs data.
@@ -361,13 +361,13 @@
   and `+` flags of printf are not applied, and `--cached` is accepted and
   does nothing.
 
-## sync
+### sync
 
 * Flushes through the runtime file system, so the whole system is only
   flushed when the FS maps the real one, and the `-d` and `-f` flags
   degrade to the closest operation the platform offers.
 
-## tar
+### tar
 
 * Supports the `-c`, `-r`, `-t`, `-u` and `-x` operations and the `-b`,
   `-e`, `-f`, `-h`, `-m`, `-o`, `-p`, `-v` and `-w` options, in both the
@@ -379,7 +379,7 @@
   the standard input or output (or the name in the `TAPE` environment
   variable) when `-f` is not given.
 
-## tee
+### tee
 
 * Implements `-p` and `--output-error` with their four modes, telling a
   pipe from a regular output by the file type the runtime reports, so
@@ -394,7 +394,7 @@
   runtime, and the mode of `--output-error` must be given whole, without
   the unambiguous abbreviations GNU accepts.
 
-## time
+### time
 
 * The runtime reports the resource usage of the executed children as
   cumulative `getrusage(RUSAGE_CHILDREN)` snapshots, so the average
@@ -412,7 +412,7 @@
 * The percentage of `%P` is computed from the full time durations, which
   records more precision than GNU's truncated math.
 
-## timeout
+### timeout
 
 * Cannot signal process groups: `-s/--signal` is validated and reported
   with `-v`, but the only stop mechanism is the cancellation of the child's
@@ -430,7 +430,7 @@
   to one nanosecond, so it still times out, where GNU would keep a tiny
   positive interval.
 
-## uname
+### uname
 
 * The processor type (`-p`) is never reported and prints `unknown` (as GNU
   on Linux does); the hardware platform (`-i`) repeats the machine name, as
@@ -445,7 +445,7 @@
 * On Android, `-o` reports `Android`.
 * GNU 9.12's `-A/--all-labeled` is not implemented.
 
-## which
+### which
 
 * Models no aliases or shell functions, so `--read-alias`, `--skip-alias`,
   `--read-functions` and `--skip-functions` are accepted and ignored.
@@ -457,7 +457,7 @@
 * Without `HOME`, the tilde options are inactive; without `PATH`, the
   diagnostic reports the default search path instead of GNU's `(null)`.
 
-## whoami
+### whoami
 
 * Takes the name from the `USER` or `LOGNAME` environment variables, since
   the isolated runtime exposes no user database.
