@@ -168,7 +168,7 @@ func TestRunTextCommands(t *testing.T) {
 			Name: "a file that can't be read is treated as empty",
 			// Opening a directory succeeds but reading it fails, which sed
 			// reports as if the file were empty.
-			FS:    fsx.MemFS{"r.txt": {Mode: fs.ModeDir | 0o755}},
+			FS:    fsx.MemoryFS{"r.txt": {Mode: fs.ModeDir | 0o755}},
 			Stdin: strings.NewReader("a\n"),
 			Args:  []string{"1r r.txt"},
 			Want:  "a\n",

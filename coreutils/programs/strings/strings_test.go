@@ -16,7 +16,7 @@ func TestRun(t *testing.T) {
 		name     string
 		args     []string
 		stdin    io.Reader
-		files    fsx.MemFS
+		files    fsx.MemoryFS
 		want     string
 		wantErr  string
 		wantCode int
@@ -29,49 +29,49 @@ func TestRun(t *testing.T) {
 		{
 			name:  "scan entire input with offsets",
 			args:  []string{"-a", "-t", "x", "-n2", "file"},
-			files: fsx.MemFS{"file": {Data: []byte("\x01abc\x00xy")}},
+			files: fsx.MemoryFS{"file": {Data: []byte("\x01abc\x00xy")}},
 			want:  "1 abc\n5 xy\n",
 		},
 		{
 			name:  "decimal offsets",
 			args:  []string{"-td", "-n", "2", "file"},
-			files: fsx.MemFS{"file": {Data: []byte("\x01ab\ncd")}},
+			files: fsx.MemoryFS{"file": {Data: []byte("\x01ab\ncd")}},
 			want:  "1 ab\n4 cd\n",
 		},
 		{
 			name:  "octal offsets",
 			args:  []string{"-to", "-n", "2", "file"},
-			files: fsx.MemFS{"file": {Data: []byte("\x01ab\x00cd")}},
+			files: fsx.MemoryFS{"file": {Data: []byte("\x01ab\x00cd")}},
 			want:  "1 ab\n4 cd\n",
 		},
 		{
 			name:  "print-file-name prefix",
 			args:  []string{"-f", "file"},
-			files: fsx.MemFS{"file": {Data: []byte("\x01abcd\x00hello")}},
+			files: fsx.MemoryFS{"file": {Data: []byte("\x01abcd\x00hello")}},
 			want:  "file: abcd\nfile: hello\n",
 		},
 		{
 			name:  "print-file-name long option",
 			args:  []string{"--print-file-name", "file"},
-			files: fsx.MemFS{"file": {Data: []byte("\x01abcd\x00hello")}},
+			files: fsx.MemoryFS{"file": {Data: []byte("\x01abcd\x00hello")}},
 			want:  "file: abcd\nfile: hello\n",
 		},
 		{
 			name:  "print-file-name with offsets",
 			args:  []string{"-f", "-t", "x", "-n2", "file"},
-			files: fsx.MemFS{"file": {Data: []byte("\x01ab\x00cd")}},
+			files: fsx.MemoryFS{"file": {Data: []byte("\x01ab\x00cd")}},
 			want:  "file: 1 ab\nfile: 4 cd\n",
 		},
 		{
 			name:  "print-file-name for each file",
 			args:  []string{"-f", "-n2", "a", "b"},
-			files: fsx.MemFS{"a": {Data: []byte("ab")}, "b": {Data: []byte("cd")}},
+			files: fsx.MemoryFS{"a": {Data: []byte("ab")}, "b": {Data: []byte("cd")}},
 			want:  "a: ab\nb: cd\n",
 		},
 		{
 			name:  "no file name prefix without f with multiple files",
 			args:  []string{"-n2", "a", "b"},
-			files: fsx.MemFS{"a": {Data: []byte("ab")}, "b": {Data: []byte("cd")}},
+			files: fsx.MemoryFS{"a": {Data: []byte("ab")}, "b": {Data: []byte("cd")}},
 			want:  "ab\ncd\n",
 		},
 		{
@@ -83,25 +83,25 @@ func TestRun(t *testing.T) {
 		{
 			name:  "o option is an alias for t o",
 			args:  []string{"-o", "-n2", "file"},
-			files: fsx.MemFS{"file": {Data: []byte("\x01ab\x00\x00\x00\x00\x00\x00cd")}},
+			files: fsx.MemoryFS{"file": {Data: []byte("\x01ab\x00\x00\x00\x00\x00\x00cd")}},
 			want:  "1 ab\n11 cd\n",
 		},
 		{
 			name:  "t after o overrides it",
 			args:  []string{"-o", "-td", "-n2", "file"},
-			files: fsx.MemFS{"file": {Data: []byte("\x01ab\x00\x00\x00\x00\x00\x00cd")}},
+			files: fsx.MemoryFS{"file": {Data: []byte("\x01ab\x00\x00\x00\x00\x00\x00cd")}},
 			want:  "1 ab\n9 cd\n",
 		},
 		{
 			name:  "o after t overrides it",
 			args:  []string{"-td", "-o", "-n2", "file"},
-			files: fsx.MemFS{"file": {Data: []byte("\x01ab\x00\x00\x00\x00\x00\x00cd")}},
+			files: fsx.MemoryFS{"file": {Data: []byte("\x01ab\x00\x00\x00\x00\x00\x00cd")}},
 			want:  "1 ab\n11 cd\n",
 		},
 		{
 			name:  "grouped f and o",
 			args:  []string{"-fo", "-n2", "file"},
-			files: fsx.MemFS{"file": {Data: []byte("\x01ab\x00\x00\x00\x00\x00\x00cd")}},
+			files: fsx.MemoryFS{"file": {Data: []byte("\x01ab\x00\x00\x00\x00\x00\x00cd")}},
 			want:  "file: 1 ab\nfile: 11 cd\n",
 		},
 		{
@@ -119,7 +119,7 @@ func TestRun(t *testing.T) {
 		{
 			name:     "missing file",
 			args:     []string{"missing"},
-			files:    fsx.MemFS{},
+			files:    fsx.MemoryFS{},
 			wantErr:  "strings: missing: file does not exist\n",
 			wantCode: 1,
 		},

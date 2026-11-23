@@ -11,8 +11,8 @@ import (
 	"time"
 )
 
-func TestMemFSOpen(t *testing.T) {
-	fsys := MemFS{
+func TestMemoryFSOpen(t *testing.T) {
+	fsys := MemoryFS{
 		"file.txt":      {Data: []byte("hello")},
 		"dir":           {Mode: fs.ModeDir},
 		"sub/inner.txt": {Data: []byte("inner")},
@@ -69,8 +69,8 @@ func TestMemFSOpen(t *testing.T) {
 		if fi.IsDir() {
 			t.Error("IsDir() = true, want false")
 		}
-		if _, ok := fi.Sys().(*MemFile); !ok {
-			t.Errorf("Sys() = %T, want *MemFile", fi.Sys())
+		if _, ok := fi.Sys().(*MemoryFile); !ok {
+			t.Errorf("Sys() = %T, want *MemoryFile", fi.Sys())
 		}
 	})
 
@@ -121,14 +121,14 @@ func TestMemFSOpen(t *testing.T) {
 	})
 
 	t.Run("nil filesystem", func(t *testing.T) {
-		var nilFS MemFS
+		var nilFS MemoryFS
 		if _, err := nilFS.Open("file.txt"); !errors.Is(err, fs.ErrNotExist) {
 			t.Errorf("Open() error = %v, want fs.ErrNotExist", err)
 		}
 	})
 }
 
-func assertDir(t *testing.T, fsys MemFS, name string) {
+func assertDir(t *testing.T, fsys MemoryFS, name string) {
 	t.Helper()
 
 	f, err := fsys.Open(name)
@@ -149,9 +149,9 @@ func assertDir(t *testing.T, fsys MemFS, name string) {
 	}
 }
 
-func TestMemFSWrite(t *testing.T) {
+func TestMemoryFSWrite(t *testing.T) {
 	t.Run("creates a file with the given permissions", func(t *testing.T) {
-		fsys := MemFS{}
+		fsys := MemoryFS{}
 
 		f, err := fsys.OpenFile("new.txt", os.O_CREATE|os.O_WRONLY, 0o644)
 		if err != nil {
@@ -174,7 +174,7 @@ func TestMemFSWrite(t *testing.T) {
 	})
 
 	t.Run("keeps the contents when the file already exists", func(t *testing.T) {
-		fsys := MemFS{"file.txt": {Data: []byte("hello")}}
+		fsys := MemoryFS{"file.txt": {Data: []byte("hello")}}
 
 		f, err := fsys.OpenFile("file.txt", os.O_CREATE|os.O_WRONLY, 0o644)
 		if err != nil {
@@ -188,7 +188,7 @@ func TestMemFSWrite(t *testing.T) {
 	})
 
 	t.Run("truncates with O_TRUNC", func(t *testing.T) {
-		fsys := MemFS{"file.txt": {Data: []byte("hello")}}
+		fsys := MemoryFS{"file.txt": {Data: []byte("hello")}}
 
 		f, err := fsys.OpenFile("file.txt", os.O_WRONLY|os.O_TRUNC, 0o644)
 		if err != nil {
@@ -202,7 +202,7 @@ func TestMemFSWrite(t *testing.T) {
 	})
 
 	t.Run("appends with O_APPEND", func(t *testing.T) {
-		fsys := MemFS{"log.txt": {Data: []byte("one")}}
+		fsys := MemoryFS{"log.txt": {Data: []byte("one")}}
 
 		f, err := fsys.OpenFile("log.txt", os.O_WRONLY|os.O_APPEND, 0o644)
 		if err != nil {
@@ -219,7 +219,7 @@ func TestMemFSWrite(t *testing.T) {
 	})
 
 	t.Run("reads what was written", func(t *testing.T) {
-		fsys := MemFS{}
+		fsys := MemoryFS{}
 
 		f, err := fsys.OpenFile("file.txt", os.O_CREATE|os.O_RDWR, 0o644)
 		if err != nil {
@@ -237,7 +237,7 @@ func TestMemFSWrite(t *testing.T) {
 
 	t.Run("updates the modification time on write", func(t *testing.T) {
 		old := time.Date(2020, 1, 1, 0, 0, 0, 0, time.UTC)
-		fsys := MemFS{"file.txt": {Data: []byte("hello"), ModTime: old}}
+		fsys := MemoryFS{"file.txt": {Data: []byte("hello"), ModTime: old}}
 
 		f, err := fsys.OpenFile("file.txt", os.O_WRONLY|os.O_APPEND, 0o644)
 		if err != nil {
@@ -260,7 +260,7 @@ func TestMemFSWrite(t *testing.T) {
 	})
 
 	t.Run("creates with O_EXCL", func(t *testing.T) {
-		fsys := MemFS{}
+		fsys := MemoryFS{}
 
 		f, err := fsys.OpenFile("file.txt", os.O_CREATE|os.O_EXCL|os.O_WRONLY, 0o644)
 		if err != nil {
@@ -277,7 +277,7 @@ func TestMemFSWrite(t *testing.T) {
 	})
 
 	t.Run("creates through a dangling symbolic link", func(t *testing.T) {
-		fsys := MemFS{"link": {Data: []byte("file.txt"), Mode: fs.ModeSymlink}}
+		fsys := MemoryFS{"link": {Data: []byte("file.txt"), Mode: fs.ModeSymlink}}
 
 		f, err := fsys.OpenFile("link", os.O_CREATE|os.O_WRONLY, 0o644)
 		if err != nil {
@@ -296,77 +296,77 @@ func TestMemFSWrite(t *testing.T) {
 	t.Run("errors", func(t *testing.T) {
 		tests := []struct {
 			name    string
-			fsys    MemFS
+			fsys    MemoryFS
 			path    string
 			flag    int
 			wantErr error
 		}{
 			{
 				name:    "missing without O_CREATE",
-				fsys:    MemFS{},
+				fsys:    MemoryFS{},
 				path:    "missing.txt",
 				flag:    os.O_WRONLY,
 				wantErr: fs.ErrNotExist,
 			},
 			{
 				name:    "missing parent directory",
-				fsys:    MemFS{},
+				fsys:    MemoryFS{},
 				path:    "sub/file.txt",
 				flag:    os.O_CREATE | os.O_WRONLY,
 				wantErr: fs.ErrNotExist,
 			},
 			{
 				name:    "O_EXCL on an existing file",
-				fsys:    MemFS{"file.txt": {Data: []byte("hello")}},
+				fsys:    MemoryFS{"file.txt": {Data: []byte("hello")}},
 				path:    "file.txt",
 				flag:    os.O_CREATE | os.O_EXCL | os.O_WRONLY,
 				wantErr: fs.ErrExist,
 			},
 			{
 				name:    "O_EXCL on an existing directory",
-				fsys:    MemFS{"sub/inner.txt": {Data: []byte("inner")}},
+				fsys:    MemoryFS{"sub/inner.txt": {Data: []byte("inner")}},
 				path:    "sub",
 				flag:    os.O_CREATE | os.O_EXCL | os.O_WRONLY,
 				wantErr: fs.ErrExist,
 			},
 			{
 				name:    "O_EXCL on a dangling symbolic link",
-				fsys:    MemFS{"link": {Data: []byte("missing.txt"), Mode: fs.ModeSymlink}},
+				fsys:    MemoryFS{"link": {Data: []byte("missing.txt"), Mode: fs.ModeSymlink}},
 				path:    "link",
 				flag:    os.O_CREATE | os.O_EXCL | os.O_WRONLY,
 				wantErr: fs.ErrExist,
 			},
 			{
 				name:    "O_EXCL on a symbolic link to a file",
-				fsys:    MemFS{"file.txt": {Data: []byte("hello")}, "link": {Data: []byte("file.txt"), Mode: fs.ModeSymlink}},
+				fsys:    MemoryFS{"file.txt": {Data: []byte("hello")}, "link": {Data: []byte("file.txt"), Mode: fs.ModeSymlink}},
 				path:    "link",
 				flag:    os.O_CREATE | os.O_EXCL | os.O_WRONLY,
 				wantErr: fs.ErrExist,
 			},
 			{
 				name:    "O_EXCL on a symbolic link that loops",
-				fsys:    MemFS{"loop": {Data: []byte("loop"), Mode: fs.ModeSymlink}},
+				fsys:    MemoryFS{"loop": {Data: []byte("loop"), Mode: fs.ModeSymlink}},
 				path:    "loop",
 				flag:    os.O_CREATE | os.O_EXCL | os.O_WRONLY,
 				wantErr: fs.ErrExist,
 			},
 			{
 				name:    "creating a file where a directory is",
-				fsys:    MemFS{"sub/inner.txt": {Data: []byte("inner")}},
+				fsys:    MemoryFS{"sub/inner.txt": {Data: []byte("inner")}},
 				path:    "sub",
 				flag:    os.O_CREATE | os.O_WRONLY,
 				wantErr: fs.ErrInvalid,
 			},
 			{
 				name:    "writing to a directory",
-				fsys:    MemFS{"dir": {Mode: fs.ModeDir}},
+				fsys:    MemoryFS{"dir": {Mode: fs.ModeDir}},
 				path:    "dir",
 				flag:    os.O_WRONLY,
 				wantErr: fs.ErrInvalid,
 			},
 			{
 				name:    "invalid path",
-				fsys:    MemFS{},
+				fsys:    MemoryFS{},
 				path:    "../file.txt",
 				flag:    os.O_CREATE | os.O_WRONLY,
 				wantErr: fs.ErrInvalid,
@@ -390,7 +390,7 @@ func TestMemFSWrite(t *testing.T) {
 	})
 
 	t.Run("creates a file inside an existing directory", func(t *testing.T) {
-		fsys := MemFS{"sub/inner.txt": {Data: []byte("inner")}}
+		fsys := MemoryFS{"sub/inner.txt": {Data: []byte("inner")}}
 
 		f, err := fsys.OpenFile("sub/new.txt", os.O_CREATE|os.O_WRONLY, 0o644)
 		if err != nil {
@@ -407,9 +407,9 @@ func TestMemFSWrite(t *testing.T) {
 	})
 }
 
-func TestMemFSFileHandleErrors(t *testing.T) {
+func TestMemoryFSFileHandleErrors(t *testing.T) {
 	t.Run("read on a write-only handle", func(t *testing.T) {
-		fsys := MemFS{"file.txt": {Data: []byte("hello")}}
+		fsys := MemoryFS{"file.txt": {Data: []byte("hello")}}
 
 		f, err := fsys.OpenFile("file.txt", os.O_WRONLY, 0o644)
 		if err != nil {
@@ -423,7 +423,7 @@ func TestMemFSFileHandleErrors(t *testing.T) {
 	})
 
 	t.Run("write on a read-only handle", func(t *testing.T) {
-		fsys := MemFS{"file.txt": {Data: []byte("hello")}}
+		fsys := MemoryFS{"file.txt": {Data: []byte("hello")}}
 
 		f, err := fsys.OpenFile("file.txt", os.O_RDONLY, 0o644)
 		if err != nil {
@@ -437,7 +437,7 @@ func TestMemFSFileHandleErrors(t *testing.T) {
 	})
 
 	t.Run("operations after close", func(t *testing.T) {
-		fsys := MemFS{"file.txt": {Data: []byte("hello")}}
+		fsys := MemoryFS{"file.txt": {Data: []byte("hello")}}
 
 		f, err := fsys.OpenFile("file.txt", os.O_RDWR, 0o644)
 		if err != nil {
@@ -461,12 +461,12 @@ func TestMemFSFileHandleErrors(t *testing.T) {
 	})
 }
 
-func TestMemFSChtimes(t *testing.T) {
+func TestMemoryFSChtimes(t *testing.T) {
 	atime := time.Date(2020, 1, 2, 3, 4, 5, 0, time.UTC)
 	mtime := time.Date(2021, 6, 7, 8, 9, 10, 0, time.UTC)
 
 	t.Run("sets both times", func(t *testing.T) {
-		fsys := MemFS{"file.txt": {Data: []byte("hello")}}
+		fsys := MemoryFS{"file.txt": {Data: []byte("hello")}}
 
 		if err := fsys.Chtimes("file.txt", atime, mtime); err != nil {
 			t.Fatalf("Chtimes() error = %v", err)
@@ -485,7 +485,7 @@ func TestMemFSChtimes(t *testing.T) {
 	})
 
 	t.Run("access time defaults to the modification time", func(t *testing.T) {
-		fsys := MemFS{"file.txt": {Data: []byte("hello"), ModTime: mtime}}
+		fsys := MemoryFS{"file.txt": {Data: []byte("hello"), ModTime: mtime}}
 
 		fi, err := fs.Stat(fsys, "file.txt")
 		if err != nil {
@@ -497,7 +497,7 @@ func TestMemFSChtimes(t *testing.T) {
 	})
 
 	t.Run("ignores implicit directories", func(t *testing.T) {
-		fsys := MemFS{"sub/inner.txt": {Data: []byte("inner")}}
+		fsys := MemoryFS{"sub/inner.txt": {Data: []byte("inner")}}
 
 		if err := fsys.Chtimes("sub", atime, mtime); err != nil {
 			t.Errorf("Chtimes() error = %v, want nil", err)
@@ -507,12 +507,12 @@ func TestMemFSChtimes(t *testing.T) {
 	t.Run("errors", func(t *testing.T) {
 		tests := []struct {
 			name    string
-			fsys    MemFS
+			fsys    MemoryFS
 			path    string
 			wantErr error
 		}{
-			{"missing file", MemFS{}, "missing.txt", fs.ErrNotExist},
-			{"invalid path", MemFS{}, "../file.txt", fs.ErrInvalid},
+			{"missing file", MemoryFS{}, "missing.txt", fs.ErrNotExist},
+			{"invalid path", MemoryFS{}, "../file.txt", fs.ErrInvalid},
 		}
 		for _, test := range tests {
 			t.Run(test.name, func(t *testing.T) {
@@ -524,8 +524,8 @@ func TestMemFSChtimes(t *testing.T) {
 	})
 }
 
-func TestMemFSReadDir(t *testing.T) {
-	fsys := MemFS{
+func TestMemoryFSReadDir(t *testing.T) {
+	fsys := MemoryFS{
 		"file.txt":      {Data: []byte("hello")},
 		"dir":           {Mode: fs.ModeDir | 0o700},
 		"sub/inner.txt": {Data: []byte("inner")},
@@ -600,7 +600,7 @@ func TestMemFSReadDir(t *testing.T) {
 	})
 }
 
-func dirNames(t *testing.T, fsys MemFS, name string) []string {
+func dirNames(t *testing.T, fsys MemoryFS, name string) []string {
 	t.Helper()
 
 	entries, err := fsys.ReadDir(name)
@@ -614,9 +614,9 @@ func dirNames(t *testing.T, fsys MemFS, name string) []string {
 	return names
 }
 
-func TestMemFSChmod(t *testing.T) {
+func TestMemoryFSChmod(t *testing.T) {
 	t.Run("changes the permission bits", func(t *testing.T) {
-		fsys := MemFS{"file.txt": {Data: []byte("hello"), Mode: 0o644}}
+		fsys := MemoryFS{"file.txt": {Data: []byte("hello"), Mode: 0o644}}
 
 		if err := fsys.Chmod("file.txt", 0o755); err != nil {
 			t.Fatalf("Chmod() error = %v", err)
@@ -631,7 +631,7 @@ func TestMemFSChmod(t *testing.T) {
 	})
 
 	t.Run("clears the special bits", func(t *testing.T) {
-		fsys := MemFS{"file.txt": {Data: []byte("hello"), Mode: 0o755 | fs.ModeSetuid | fs.ModeSticky}}
+		fsys := MemoryFS{"file.txt": {Data: []byte("hello"), Mode: 0o755 | fs.ModeSetuid | fs.ModeSticky}}
 
 		if err := fsys.Chmod("file.txt", 0o755); err != nil {
 			t.Fatalf("Chmod() error = %v", err)
@@ -646,7 +646,7 @@ func TestMemFSChmod(t *testing.T) {
 	})
 
 	t.Run("sets the special bits", func(t *testing.T) {
-		fsys := MemFS{"file.txt": {Data: []byte("hello"), Mode: 0o755}}
+		fsys := MemoryFS{"file.txt": {Data: []byte("hello"), Mode: 0o755}}
 
 		if err := fsys.Chmod("file.txt", 0o755|fs.ModeSetgid); err != nil {
 			t.Fatalf("Chmod() error = %v", err)
@@ -661,7 +661,7 @@ func TestMemFSChmod(t *testing.T) {
 	})
 
 	t.Run("keeps the file type", func(t *testing.T) {
-		fsys := MemFS{"dir": {Mode: fs.ModeDir | 0o755}}
+		fsys := MemoryFS{"dir": {Mode: fs.ModeDir | 0o755}}
 
 		if err := fsys.Chmod("dir", 0o700); err != nil {
 			t.Fatalf("Chmod() error = %v", err)
@@ -676,7 +676,7 @@ func TestMemFSChmod(t *testing.T) {
 	})
 
 	t.Run("makes an implicit directory explicit", func(t *testing.T) {
-		fsys := MemFS{"dir/file.txt": {Data: []byte("hello")}}
+		fsys := MemoryFS{"dir/file.txt": {Data: []byte("hello")}}
 
 		if err := fsys.Chmod("dir", 0o700); err != nil {
 			t.Fatalf("Chmod() error = %v", err)
@@ -693,14 +693,14 @@ func TestMemFSChmod(t *testing.T) {
 	t.Run("errors", func(t *testing.T) {
 		tests := []struct {
 			name    string
-			fsys    MemFS
+			fsys    MemoryFS
 			path    string
 			wantErr error
 		}{
-			{"missing file", MemFS{}, "missing.txt", fs.ErrNotExist},
-			{"missing file in a directory", MemFS{}, "dir/missing.txt", fs.ErrNotExist},
-			{"absolute path", MemFS{}, "/file.txt", fs.ErrInvalid},
-			{"empty path", MemFS{}, "", fs.ErrInvalid},
+			{"missing file", MemoryFS{}, "missing.txt", fs.ErrNotExist},
+			{"missing file in a directory", MemoryFS{}, "dir/missing.txt", fs.ErrNotExist},
+			{"absolute path", MemoryFS{}, "/file.txt", fs.ErrInvalid},
+			{"empty path", MemoryFS{}, "", fs.ErrInvalid},
 			{"nil filesystem", nil, "file.txt", fs.ErrInvalid},
 		}
 		for _, test := range tests {
@@ -713,9 +713,9 @@ func TestMemFSChmod(t *testing.T) {
 	})
 }
 
-func TestMemFSChown(t *testing.T) {
+func TestMemoryFSChown(t *testing.T) {
 	t.Run("changes the uid and gid", func(t *testing.T) {
-		fsys := MemFS{"file.txt": {Data: []byte("hello"), Uid: 1, Gid: 2}}
+		fsys := MemoryFS{"file.txt": {Data: []byte("hello"), Uid: 1, Gid: 2}}
 
 		if err := fsys.Chown("file.txt", 1000, 2000); err != nil {
 			t.Fatalf("Chown() error = %v", err)
@@ -734,7 +734,7 @@ func TestMemFSChown(t *testing.T) {
 	})
 
 	t.Run("keeps an ID given as -1", func(t *testing.T) {
-		fsys := MemFS{"file.txt": {Data: []byte("hello"), Uid: 7, Gid: 8}}
+		fsys := MemoryFS{"file.txt": {Data: []byte("hello"), Uid: 7, Gid: 8}}
 
 		if err := fsys.Chown("file.txt", -1, 9); err != nil {
 			t.Fatalf("Chown() error = %v", err)
@@ -745,7 +745,7 @@ func TestMemFSChown(t *testing.T) {
 	})
 
 	t.Run("ignores implicit directories", func(t *testing.T) {
-		fsys := MemFS{"dir/file.txt": {Data: []byte("hello")}}
+		fsys := MemoryFS{"dir/file.txt": {Data: []byte("hello")}}
 
 		if err := fsys.Chown("dir", 1000, 1000); err != nil {
 			t.Errorf("Chown() error = %v, want nil", err)
@@ -755,14 +755,14 @@ func TestMemFSChown(t *testing.T) {
 	t.Run("errors", func(t *testing.T) {
 		tests := []struct {
 			name    string
-			fsys    MemFS
+			fsys    MemoryFS
 			path    string
 			wantErr error
 		}{
-			{"missing file", MemFS{}, "missing.txt", fs.ErrNotExist},
-			{"missing file in a directory", MemFS{}, "dir/missing.txt", fs.ErrNotExist},
-			{"absolute path", MemFS{}, "/file.txt", fs.ErrInvalid},
-			{"empty path", MemFS{}, "", fs.ErrInvalid},
+			{"missing file", MemoryFS{}, "missing.txt", fs.ErrNotExist},
+			{"missing file in a directory", MemoryFS{}, "dir/missing.txt", fs.ErrNotExist},
+			{"absolute path", MemoryFS{}, "/file.txt", fs.ErrInvalid},
+			{"empty path", MemoryFS{}, "", fs.ErrInvalid},
 		}
 		for _, test := range tests {
 			t.Run(test.name, func(t *testing.T) {
@@ -792,9 +792,9 @@ func TestOwner(t *testing.T) {
 	})
 }
 
-func TestMemFSMkdir(t *testing.T) {
+func TestMemoryFSMkdir(t *testing.T) {
 	t.Run("creates a directory with the given permissions", func(t *testing.T) {
-		fsys := MemFS{}
+		fsys := MemoryFS{}
 
 		if err := fsys.Mkdir("dir", 0o755); err != nil {
 			t.Fatalf("Mkdir() error = %v", err)
@@ -810,7 +810,7 @@ func TestMemFSMkdir(t *testing.T) {
 	})
 
 	t.Run("drops the special bits from the permissions", func(t *testing.T) {
-		fsys := MemFS{}
+		fsys := MemoryFS{}
 
 		if err := fsys.Mkdir("dir", 0o755|fs.ModeSetgid); err != nil {
 			t.Fatalf("Mkdir() error = %v", err)
@@ -826,7 +826,7 @@ func TestMemFSMkdir(t *testing.T) {
 	})
 
 	t.Run("creates a directory inside an implicit one", func(t *testing.T) {
-		fsys := MemFS{"sub/inner.txt": {Data: []byte("inner")}}
+		fsys := MemoryFS{"sub/inner.txt": {Data: []byte("inner")}}
 
 		if err := fsys.Mkdir("sub/dir", 0o700); err != nil {
 			t.Fatalf("Mkdir() error = %v", err)
@@ -835,7 +835,7 @@ func TestMemFSMkdir(t *testing.T) {
 	})
 
 	t.Run("creates a directory inside an explicit one", func(t *testing.T) {
-		fsys := MemFS{"dir": {Mode: fs.ModeDir | 0o755}}
+		fsys := MemoryFS{"dir": {Mode: fs.ModeDir | 0o755}}
 
 		if err := fsys.Mkdir("dir/new", 0o700); err != nil {
 			t.Fatalf("Mkdir() error = %v", err)
@@ -846,19 +846,19 @@ func TestMemFSMkdir(t *testing.T) {
 	t.Run("errors", func(t *testing.T) {
 		tests := []struct {
 			name    string
-			fsys    MemFS
+			fsys    MemoryFS
 			path    string
 			wantErr error
 		}{
-			{"existing file", MemFS{"file.txt": {Data: []byte("hello")}}, "file.txt", fs.ErrExist},
-			{"existing directory", MemFS{"dir": {Mode: fs.ModeDir}}, "dir", fs.ErrExist},
-			{"existing implicit directory", MemFS{"sub/inner.txt": {Data: []byte("inner")}}, "sub", fs.ErrExist},
-			{"root", MemFS{}, ".", fs.ErrExist},
-			{"missing parent", MemFS{}, "sub/dir", fs.ErrNotExist},
-			{"parent is a file", MemFS{"file.txt": {Data: []byte("hello")}}, "file.txt/sub", errNotDir},
-			{"invalid path", MemFS{}, "../dir", fs.ErrInvalid},
-			{"absolute path", MemFS{}, "/dir", fs.ErrInvalid},
-			{"empty path", MemFS{}, "", fs.ErrInvalid},
+			{"existing file", MemoryFS{"file.txt": {Data: []byte("hello")}}, "file.txt", fs.ErrExist},
+			{"existing directory", MemoryFS{"dir": {Mode: fs.ModeDir}}, "dir", fs.ErrExist},
+			{"existing implicit directory", MemoryFS{"sub/inner.txt": {Data: []byte("inner")}}, "sub", fs.ErrExist},
+			{"root", MemoryFS{}, ".", fs.ErrExist},
+			{"missing parent", MemoryFS{}, "sub/dir", fs.ErrNotExist},
+			{"parent is a file", MemoryFS{"file.txt": {Data: []byte("hello")}}, "file.txt/sub", errNotDir},
+			{"invalid path", MemoryFS{}, "../dir", fs.ErrInvalid},
+			{"absolute path", MemoryFS{}, "/dir", fs.ErrInvalid},
+			{"empty path", MemoryFS{}, "", fs.ErrInvalid},
 			{"nil filesystem", nil, "dir", fs.ErrInvalid},
 		}
 		for _, test := range tests {
@@ -871,9 +871,9 @@ func TestMemFSMkdir(t *testing.T) {
 	})
 }
 
-func TestMemFSRemove(t *testing.T) {
+func TestMemoryFSRemove(t *testing.T) {
 	t.Run("removes a file", func(t *testing.T) {
-		fsys := MemFS{"file.txt": {Data: []byte("hello")}}
+		fsys := MemoryFS{"file.txt": {Data: []byte("hello")}}
 
 		if err := fsys.Remove("file.txt"); err != nil {
 			t.Fatalf("Remove() error = %v", err)
@@ -884,7 +884,7 @@ func TestMemFSRemove(t *testing.T) {
 	})
 
 	t.Run("removes an empty directory", func(t *testing.T) {
-		fsys := MemFS{"dir": {Mode: fs.ModeDir}}
+		fsys := MemoryFS{"dir": {Mode: fs.ModeDir}}
 
 		if err := fsys.Remove("dir"); err != nil {
 			t.Fatalf("Remove() error = %v", err)
@@ -895,7 +895,7 @@ func TestMemFSRemove(t *testing.T) {
 	})
 
 	t.Run("removes a symbolic link instead of its target", func(t *testing.T) {
-		fsys := MemFS{
+		fsys := MemoryFS{
 			"file.txt": {Data: []byte("hello")},
 			"sym.txt":  {Data: []byte("file.txt"), Mode: fs.ModeSymlink},
 		}
@@ -910,7 +910,7 @@ func TestMemFSRemove(t *testing.T) {
 	})
 
 	t.Run("removes through a symbolic link to a directory", func(t *testing.T) {
-		fsys := MemFS{
+		fsys := MemoryFS{
 			"dir/file.txt": {Data: []byte("hello")},
 			"link":         {Data: []byte("dir"), Mode: fs.ModeSymlink},
 		}
@@ -926,20 +926,20 @@ func TestMemFSRemove(t *testing.T) {
 	t.Run("errors", func(t *testing.T) {
 		tests := []struct {
 			name    string
-			fsys    MemFS
+			fsys    MemoryFS
 			path    string
 			wantErr error
 		}{
-			{"missing file", MemFS{}, "missing.txt", fs.ErrNotExist},
-			{"non-empty implicit directory", MemFS{"dir/inner.txt": {Data: []byte("inner")}}, "dir", ErrNotEmpty},
+			{"missing file", MemoryFS{}, "missing.txt", fs.ErrNotExist},
+			{"non-empty implicit directory", MemoryFS{"dir/inner.txt": {Data: []byte("inner")}}, "dir", ErrNotEmpty},
 			{
 				"non-empty explicit directory",
-				MemFS{"dir": {Mode: fs.ModeDir}, "dir/inner.txt": {Data: []byte("inner")}},
+				MemoryFS{"dir": {Mode: fs.ModeDir}, "dir/inner.txt": {Data: []byte("inner")}},
 				"dir",
 				ErrNotEmpty,
 			},
-			{"root", MemFS{}, ".", fs.ErrInvalid},
-			{"invalid path", MemFS{}, "../dir", fs.ErrInvalid},
+			{"root", MemoryFS{}, ".", fs.ErrInvalid},
+			{"invalid path", MemoryFS{}, "../dir", fs.ErrInvalid},
 			{"nil filesystem", nil, "file.txt", fs.ErrNotExist},
 		}
 		for _, test := range tests {
@@ -952,11 +952,11 @@ func TestMemFSRemove(t *testing.T) {
 	})
 }
 
-func TestMemFSRename(t *testing.T) {
+func TestMemoryFSRename(t *testing.T) {
 	oldTime := time.Date(2001, 2, 3, 4, 5, 6, 0, time.UTC)
 
 	t.Run("renames a file", func(t *testing.T) {
-		fsys := MemFS{"file.txt": {Data: []byte("hello"), Mode: 0o604, ModTime: oldTime}}
+		fsys := MemoryFS{"file.txt": {Data: []byte("hello"), Mode: 0o604, ModTime: oldTime}}
 
 		if err := fsys.Rename("file.txt", "renamed.txt"); err != nil {
 			t.Fatalf("Rename() error = %v", err)
@@ -978,7 +978,7 @@ func TestMemFSRename(t *testing.T) {
 	})
 
 	t.Run("moves a file between directories", func(t *testing.T) {
-		fsys := MemFS{"dir/file.txt": {Data: []byte("hello")}, "other/keep.txt": {}}
+		fsys := MemoryFS{"dir/file.txt": {Data: []byte("hello")}, "other/keep.txt": {}}
 
 		if err := fsys.Rename("dir/file.txt", "other/file.txt"); err != nil {
 			t.Fatalf("Rename() error = %v", err)
@@ -988,7 +988,7 @@ func TestMemFSRename(t *testing.T) {
 	})
 
 	t.Run("renames a directory with its contents", func(t *testing.T) {
-		fsys := MemFS{
+		fsys := MemoryFS{
 			"dir":          {Mode: fs.ModeDir | 0o755},
 			"dir/file.txt": {Data: []byte("hello")},
 			"dir/sub":      {Mode: fs.ModeDir | 0o700},
@@ -1008,7 +1008,7 @@ func TestMemFSRename(t *testing.T) {
 	})
 
 	t.Run("renames an implicit directory", func(t *testing.T) {
-		fsys := MemFS{"dir/file.txt": {Data: []byte("hello")}}
+		fsys := MemoryFS{"dir/file.txt": {Data: []byte("hello")}}
 
 		if err := fsys.Rename("dir", "renamed"); err != nil {
 			t.Fatalf("Rename() error = %v", err)
@@ -1017,7 +1017,7 @@ func TestMemFSRename(t *testing.T) {
 	})
 
 	t.Run("replaces an existing file", func(t *testing.T) {
-		fsys := MemFS{"old.txt": {Data: []byte("new")}, "new.txt": {Data: []byte("old")}}
+		fsys := MemoryFS{"old.txt": {Data: []byte("new")}, "new.txt": {Data: []byte("old")}}
 
 		if err := fsys.Rename("old.txt", "new.txt"); err != nil {
 			t.Fatalf("Rename() error = %v", err)
@@ -1029,7 +1029,7 @@ func TestMemFSRename(t *testing.T) {
 	})
 
 	t.Run("replaces an empty directory", func(t *testing.T) {
-		fsys := MemFS{"dir/file.txt": {Data: []byte("hello")}, "empty": {Mode: fs.ModeDir}}
+		fsys := MemoryFS{"dir/file.txt": {Data: []byte("hello")}, "empty": {Mode: fs.ModeDir}}
 
 		if err := fsys.Rename("dir", "empty"); err != nil {
 			t.Fatalf("Rename() error = %v", err)
@@ -1038,7 +1038,7 @@ func TestMemFSRename(t *testing.T) {
 	})
 
 	t.Run("the same name is a no-op", func(t *testing.T) {
-		fsys := MemFS{"file.txt": {Data: []byte("hello")}}
+		fsys := MemoryFS{"file.txt": {Data: []byte("hello")}}
 
 		if err := fsys.Rename("file.txt", "file.txt"); err != nil {
 			t.Fatalf("Rename() error = %v", err)
@@ -1049,62 +1049,62 @@ func TestMemFSRename(t *testing.T) {
 	t.Run("errors", func(t *testing.T) {
 		tests := []struct {
 			name    string
-			fsys    MemFS
+			fsys    MemoryFS
 			oldName string
 			newName string
 			wantErr error
 		}{
-			{"missing file", MemFS{}, "missing.txt", "new.txt", fs.ErrNotExist},
+			{"missing file", MemoryFS{}, "missing.txt", "new.txt", fs.ErrNotExist},
 			{"nil filesystem", nil, "file.txt", "new.txt", fs.ErrNotExist},
-			{"root", MemFS{"file.txt": {}}, ".", "new.txt", fs.ErrInvalid},
-			{"new name is the root", MemFS{"file.txt": {}}, "file.txt", ".", fs.ErrInvalid},
-			{"invalid old path", MemFS{}, "../old", "new.txt", fs.ErrInvalid},
-			{"invalid new path", MemFS{"file.txt": {}}, "file.txt", "../new", fs.ErrInvalid},
+			{"root", MemoryFS{"file.txt": {}}, ".", "new.txt", fs.ErrInvalid},
+			{"new name is the root", MemoryFS{"file.txt": {}}, "file.txt", ".", fs.ErrInvalid},
+			{"invalid old path", MemoryFS{}, "../old", "new.txt", fs.ErrInvalid},
+			{"invalid new path", MemoryFS{"file.txt": {}}, "file.txt", "../new", fs.ErrInvalid},
 			{
 				"missing parent of the new name",
-				MemFS{"file.txt": {}},
+				MemoryFS{"file.txt": {}},
 				"file.txt",
 				"missing/new.txt",
 				fs.ErrNotExist,
 			},
 			{
 				"parent of the new name is a file",
-				MemFS{"file.txt": {}, "blocker": {Data: []byte("x")}},
+				MemoryFS{"file.txt": {}, "blocker": {Data: []byte("x")}},
 				"file.txt",
 				"blocker/new.txt",
 				errNotDir,
 			},
 			{
 				"file onto a directory",
-				MemFS{"file.txt": {Data: []byte("x")}, "dir/keep.txt": {}},
+				MemoryFS{"file.txt": {Data: []byte("x")}, "dir/keep.txt": {}},
 				"file.txt",
 				"dir",
 				errIsDir,
 			},
 			{
 				"directory onto a file",
-				MemFS{"dir/file.txt": {}, "file.txt": {Data: []byte("x")}},
+				MemoryFS{"dir/file.txt": {}, "file.txt": {Data: []byte("x")}},
 				"dir",
 				"file.txt",
 				errNotDir,
 			},
 			{
 				"directory onto a non-empty directory",
-				MemFS{"dir1/file.txt": {}, "dir2/keep.txt": {}},
+				MemoryFS{"dir1/file.txt": {}, "dir2/keep.txt": {}},
 				"dir1",
 				"dir2",
 				ErrNotEmpty,
 			},
 			{
 				"directory into itself",
-				MemFS{"dir/sub": {Mode: fs.ModeDir}},
+				MemoryFS{"dir/sub": {Mode: fs.ModeDir}},
 				"dir",
 				"dir/sub",
 				errInSelf,
 			},
 			{
 				"directory into a deeper subdirectory of itself",
-				MemFS{"dir/sub": {Mode: fs.ModeDir}},
+				MemoryFS{"dir/sub": {Mode: fs.ModeDir}},
 				"dir",
 				"dir/sub/name",
 				errInSelf,
@@ -1121,11 +1121,11 @@ func TestMemFSRename(t *testing.T) {
 	})
 }
 
-func TestMemFSSeek(t *testing.T) {
+func TestMemoryFSSeek(t *testing.T) {
 	openSeekable := func(t *testing.T, data string) SeekFile {
 		t.Helper()
 
-		f, err := MemFS{"file.txt": {Data: []byte(data)}}.Open("file.txt")
+		f, err := MemoryFS{"file.txt": {Data: []byte(data)}}.Open("file.txt")
 		if err != nil {
 			t.Fatalf("Open() error = %v", err)
 		}
@@ -1221,7 +1221,7 @@ func TestMemFSSeek(t *testing.T) {
 	})
 
 	t.Run("writes from the new offset", func(t *testing.T) {
-		fsys := MemFS{"file.txt": {Data: []byte("hello")}}
+		fsys := MemoryFS{"file.txt": {Data: []byte("hello")}}
 		f, err := fsys.OpenFile("file.txt", os.O_RDWR, 0)
 		if err != nil {
 			t.Fatalf("OpenFile() error = %v", err)
@@ -1248,9 +1248,9 @@ func TestAtimeNilFileInfo(t *testing.T) {
 	}
 }
 
-func TestMemFSLink(t *testing.T) {
+func TestMemoryFSLink(t *testing.T) {
 	t.Run("creates a second name for the same file", func(t *testing.T) {
-		fsys := MemFS{"file.txt": {Data: []byte("hello")}}
+		fsys := MemoryFS{"file.txt": {Data: []byte("hello")}}
 
 		if err := fsys.Link("file.txt", "link.txt"); err != nil {
 			t.Fatalf("Link() error = %v", err)
@@ -1271,7 +1271,7 @@ func TestMemFSLink(t *testing.T) {
 	})
 
 	t.Run("removing one name keeps the other", func(t *testing.T) {
-		fsys := MemFS{"file.txt": {Data: []byte("hello")}}
+		fsys := MemoryFS{"file.txt": {Data: []byte("hello")}}
 
 		if err := fsys.Link("file.txt", "link.txt"); err != nil {
 			t.Fatalf("Link() error = %v", err)
@@ -1283,7 +1283,7 @@ func TestMemFSLink(t *testing.T) {
 	})
 
 	t.Run("links a symbolic link as-is", func(t *testing.T) {
-		fsys := MemFS{
+		fsys := MemoryFS{
 			"file.txt": {Data: []byte("hello")},
 			"sym.txt":  {Data: []byte("file.txt"), Mode: fs.ModeSymlink},
 		}
@@ -1302,7 +1302,7 @@ func TestMemFSLink(t *testing.T) {
 	})
 
 	t.Run("links through a symbolic link to a directory", func(t *testing.T) {
-		fsys := MemFS{
+		fsys := MemoryFS{
 			"dir/file.txt": {Data: []byte("hello")},
 			"link":         {Data: []byte("dir"), Mode: fs.ModeSymlink},
 		}
@@ -1317,22 +1317,22 @@ func TestMemFSLink(t *testing.T) {
 	t.Run("errors", func(t *testing.T) {
 		tests := []struct {
 			name    string
-			fsys    MemFS
+			fsys    MemoryFS
 			oldName string
 			newName string
 			wantErr error
 		}{
-			{"missing source", MemFS{}, "missing.txt", "link.txt", fs.ErrNotExist},
+			{"missing source", MemoryFS{}, "missing.txt", "link.txt", fs.ErrNotExist},
 			{"nil filesystem", nil, "file.txt", "link.txt", fs.ErrNotExist},
-			{"source is a directory", MemFS{"dir/file.txt": {}}, "dir", "link.txt", fs.ErrPermission},
-			{"existing destination", MemFS{"file.txt": {}, "other.txt": {}}, "file.txt", "other.txt", fs.ErrExist},
-			{"destination is a directory", MemFS{"file.txt": {}, "dir/keep.txt": {}}, "file.txt", "dir", fs.ErrExist},
-			{"missing parent of the destination", MemFS{"file.txt": {}}, "file.txt", "missing/link.txt", fs.ErrNotExist},
-			{"parent of the destination is a file", MemFS{"file.txt": {}, "blocker": {}}, "file.txt", "blocker/link.txt", errNotDir},
-			{"source is the root", MemFS{"file.txt": {}}, ".", "link.txt", fs.ErrInvalid},
-			{"destination is the root", MemFS{"file.txt": {}}, "file.txt", ".", fs.ErrInvalid},
-			{"invalid source path", MemFS{}, "../file.txt", "link.txt", fs.ErrInvalid},
-			{"invalid destination path", MemFS{"file.txt": {}}, "file.txt", "../link.txt", fs.ErrInvalid},
+			{"source is a directory", MemoryFS{"dir/file.txt": {}}, "dir", "link.txt", fs.ErrPermission},
+			{"existing destination", MemoryFS{"file.txt": {}, "other.txt": {}}, "file.txt", "other.txt", fs.ErrExist},
+			{"destination is a directory", MemoryFS{"file.txt": {}, "dir/keep.txt": {}}, "file.txt", "dir", fs.ErrExist},
+			{"missing parent of the destination", MemoryFS{"file.txt": {}}, "file.txt", "missing/link.txt", fs.ErrNotExist},
+			{"parent of the destination is a file", MemoryFS{"file.txt": {}, "blocker": {}}, "file.txt", "blocker/link.txt", errNotDir},
+			{"source is the root", MemoryFS{"file.txt": {}}, ".", "link.txt", fs.ErrInvalid},
+			{"destination is the root", MemoryFS{"file.txt": {}}, "file.txt", ".", fs.ErrInvalid},
+			{"invalid source path", MemoryFS{}, "../file.txt", "link.txt", fs.ErrInvalid},
+			{"invalid destination path", MemoryFS{"file.txt": {}}, "file.txt", "../link.txt", fs.ErrInvalid},
 		}
 		for _, test := range tests {
 			t.Run(test.name, func(t *testing.T) {
@@ -1345,9 +1345,9 @@ func TestMemFSLink(t *testing.T) {
 	})
 }
 
-func TestMemFSSymlink(t *testing.T) {
+func TestMemoryFSSymlink(t *testing.T) {
 	t.Run("creates a link to an existing file", func(t *testing.T) {
-		fsys := MemFS{"file.txt": {Data: []byte("hello")}}
+		fsys := MemoryFS{"file.txt": {Data: []byte("hello")}}
 
 		if err := fsys.Symlink("file.txt", "sym.txt"); err != nil {
 			t.Fatalf("Symlink() error = %v", err)
@@ -1367,7 +1367,7 @@ func TestMemFSSymlink(t *testing.T) {
 	})
 
 	t.Run("creates a dangling link", func(t *testing.T) {
-		fsys := MemFS{}
+		fsys := MemoryFS{}
 
 		if err := fsys.Symlink("missing.txt", "sym.txt"); err != nil {
 			t.Fatalf("Symlink() error = %v", err)
@@ -1381,7 +1381,7 @@ func TestMemFSSymlink(t *testing.T) {
 	})
 
 	t.Run("follows a chain of links", func(t *testing.T) {
-		fsys := MemFS{"file.txt": {Data: []byte("hello")}}
+		fsys := MemoryFS{"file.txt": {Data: []byte("hello")}}
 
 		if err := fsys.Symlink("file.txt", "a.txt"); err != nil {
 			t.Fatalf("Symlink() error = %v", err)
@@ -1393,7 +1393,7 @@ func TestMemFSSymlink(t *testing.T) {
 	})
 
 	t.Run("follows a link in the middle of a path", func(t *testing.T) {
-		fsys := MemFS{"dir/file.txt": {Data: []byte("hello")}}
+		fsys := MemoryFS{"dir/file.txt": {Data: []byte("hello")}}
 
 		if err := fsys.Symlink("dir", "link"); err != nil {
 			t.Fatalf("Symlink() error = %v", err)
@@ -1413,7 +1413,7 @@ func TestMemFSSymlink(t *testing.T) {
 	})
 
 	t.Run("resolves a relative target from the link directory", func(t *testing.T) {
-		fsys := MemFS{"dir/file.txt": {Data: []byte("hello")}}
+		fsys := MemoryFS{"dir/file.txt": {Data: []byte("hello")}}
 
 		if err := fsys.Symlink("file.txt", "dir/sym.txt"); err != nil {
 			t.Fatalf("Symlink() error = %v", err)
@@ -1422,7 +1422,7 @@ func TestMemFSSymlink(t *testing.T) {
 	})
 
 	t.Run("creates a link through a symbolic link to a directory", func(t *testing.T) {
-		fsys := MemFS{
+		fsys := MemoryFS{
 			"dir/keep.txt": {Data: []byte("keep")},
 			"link":         {Data: []byte("dir"), Mode: fs.ModeSymlink},
 		}
@@ -1441,7 +1441,7 @@ func TestMemFSSymlink(t *testing.T) {
 	})
 
 	t.Run("writes through a link to its target", func(t *testing.T) {
-		fsys := MemFS{"file.txt": {Data: []byte("hello")}}
+		fsys := MemoryFS{"file.txt": {Data: []byte("hello")}}
 
 		if err := fsys.Symlink("file.txt", "sym.txt"); err != nil {
 			t.Fatalf("Symlink() error = %v", err)
@@ -1460,7 +1460,7 @@ func TestMemFSSymlink(t *testing.T) {
 	})
 
 	t.Run("creates the target of a dangling link", func(t *testing.T) {
-		fsys := MemFS{}
+		fsys := MemoryFS{}
 
 		if err := fsys.Symlink("target.txt", "sym.txt"); err != nil {
 			t.Fatalf("Symlink() error = %v", err)
@@ -1479,7 +1479,7 @@ func TestMemFSSymlink(t *testing.T) {
 	})
 
 	t.Run("reports a loop", func(t *testing.T) {
-		fsys := MemFS{}
+		fsys := MemoryFS{}
 
 		if err := fsys.Symlink("b.txt", "a.txt"); err != nil {
 			t.Fatalf("Symlink() error = %v", err)
@@ -1495,17 +1495,17 @@ func TestMemFSSymlink(t *testing.T) {
 	t.Run("errors", func(t *testing.T) {
 		tests := []struct {
 			name    string
-			fsys    MemFS
+			fsys    MemoryFS
 			newName string
 			wantErr error
 		}{
 			{"nil filesystem", nil, "sym.txt", fs.ErrInvalid},
-			{"existing destination", MemFS{"file.txt": {}}, "file.txt", fs.ErrExist},
-			{"destination is a directory", MemFS{"dir/keep.txt": {}}, "dir", fs.ErrExist},
-			{"missing parent of the destination", MemFS{}, "missing/sym.txt", fs.ErrNotExist},
-			{"parent of the destination is a file", MemFS{"blocker": {}}, "blocker/sym.txt", errNotDir},
-			{"destination is the root", MemFS{}, ".", fs.ErrInvalid},
-			{"invalid destination path", MemFS{}, "../sym.txt", fs.ErrInvalid},
+			{"existing destination", MemoryFS{"file.txt": {}}, "file.txt", fs.ErrExist},
+			{"destination is a directory", MemoryFS{"dir/keep.txt": {}}, "dir", fs.ErrExist},
+			{"missing parent of the destination", MemoryFS{}, "missing/sym.txt", fs.ErrNotExist},
+			{"parent of the destination is a file", MemoryFS{"blocker": {}}, "blocker/sym.txt", errNotDir},
+			{"destination is the root", MemoryFS{}, ".", fs.ErrInvalid},
+			{"invalid destination path", MemoryFS{}, "../sym.txt", fs.ErrInvalid},
 		}
 		for _, test := range tests {
 			t.Run(test.name, func(t *testing.T) {
@@ -1518,19 +1518,19 @@ func TestMemFSSymlink(t *testing.T) {
 	})
 }
 
-func TestMemFSReadLink(t *testing.T) {
+func TestMemoryFSReadLink(t *testing.T) {
 	tests := []struct {
 		name    string
-		fsys    MemFS
+		fsys    MemoryFS
 		path    string
 		want    string
 		wantErr error
 	}{
-		{"link", MemFS{"sym.txt": {Data: []byte("file.txt"), Mode: fs.ModeSymlink}}, "sym.txt", "file.txt", nil},
-		{"not a link", MemFS{"file.txt": {}}, "file.txt", "", fs.ErrInvalid},
-		{"directory", MemFS{"dir/file.txt": {}}, "dir", "", fs.ErrInvalid},
-		{"missing", MemFS{}, "missing.txt", "", fs.ErrNotExist},
-		{"invalid path", MemFS{}, "/file.txt", "", fs.ErrInvalid},
+		{"link", MemoryFS{"sym.txt": {Data: []byte("file.txt"), Mode: fs.ModeSymlink}}, "sym.txt", "file.txt", nil},
+		{"not a link", MemoryFS{"file.txt": {}}, "file.txt", "", fs.ErrInvalid},
+		{"directory", MemoryFS{"dir/file.txt": {}}, "dir", "", fs.ErrInvalid},
+		{"missing", MemoryFS{}, "missing.txt", "", fs.ErrNotExist},
+		{"invalid path", MemoryFS{}, "/file.txt", "", fs.ErrInvalid},
 	}
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
@@ -1545,8 +1545,8 @@ func TestMemFSReadLink(t *testing.T) {
 	}
 }
 
-func TestMemFSLstat(t *testing.T) {
-	fsys := MemFS{
+func TestMemoryFSLstat(t *testing.T) {
+	fsys := MemoryFS{
 		"file.txt":      {Data: []byte("hello"), Mode: 0o604},
 		"sym.txt":       {Data: []byte("file.txt"), Mode: fs.ModeSymlink},
 		"dangling.txt":  {Data: []byte("missing.txt"), Mode: fs.ModeSymlink},
@@ -1606,7 +1606,7 @@ func TestMemFSLstat(t *testing.T) {
 	})
 }
 
-func assertFile(t *testing.T, fsys MemFS, name, want string) {
+func assertFile(t *testing.T, fsys MemoryFS, name, want string) {
 	t.Helper()
 
 	got, err := fs.ReadFile(fsys, name)
@@ -1618,8 +1618,8 @@ func assertFile(t *testing.T, fsys MemFS, name, want string) {
 	}
 }
 
-func TestMemFSSync(t *testing.T) {
-	fsys := MemFS{}
+func TestMemoryFSSync(t *testing.T) {
+	fsys := MemoryFS{}
 
 	t.Run("the file system syncs", func(t *testing.T) {
 		if err := fsys.Sync(); err != nil {

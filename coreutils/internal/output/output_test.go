@@ -13,7 +13,7 @@ import (
 func TestCreate(t *testing.T) {
 	tests := []struct {
 		name     string
-		fsys     fsx.MemFS
+		fsys     fsx.MemoryFS
 		dir      string
 		umask    fs.FileMode
 		file     string
@@ -23,7 +23,7 @@ func TestCreate(t *testing.T) {
 	}{
 		{
 			name:     "creates the file with the umask masked permissions",
-			fsys:     fsx.MemFS{},
+			fsys:     fsx.MemoryFS{},
 			umask:    0o022,
 			file:     "out.txt",
 			data:     "hello",
@@ -32,7 +32,7 @@ func TestCreate(t *testing.T) {
 		},
 		{
 			name:     "no umask keeps the read and write permissions",
-			fsys:     fsx.MemFS{},
+			fsys:     fsx.MemoryFS{},
 			file:     "out.txt",
 			data:     "hello",
 			want:     "hello",
@@ -40,7 +40,7 @@ func TestCreate(t *testing.T) {
 		},
 		{
 			name:     "a full umask drops every permission",
-			fsys:     fsx.MemFS{},
+			fsys:     fsx.MemoryFS{},
 			umask:    0o777,
 			file:     "out.txt",
 			data:     "hello",
@@ -49,7 +49,7 @@ func TestCreate(t *testing.T) {
 		},
 		{
 			name: "truncates an existing file, keeping its permissions",
-			fsys: fsx.MemFS{
+			fsys: fsx.MemoryFS{
 				"out.txt": {Data: []byte("old contents"), Mode: 0o600},
 			},
 			file:     "out.txt",
@@ -59,7 +59,7 @@ func TestCreate(t *testing.T) {
 		},
 		{
 			name: "resolves the name from the working directory",
-			fsys: fsx.MemFS{
+			fsys: fsx.MemoryFS{
 				"dir/.keep": {},
 			},
 			dir:      "dir",
@@ -100,7 +100,7 @@ func TestCreate(t *testing.T) {
 func TestAppend(t *testing.T) {
 	tests := []struct {
 		name     string
-		fsys     fsx.MemFS
+		fsys     fsx.MemoryFS
 		umask    fs.FileMode
 		file     string
 		data     string
@@ -109,7 +109,7 @@ func TestAppend(t *testing.T) {
 	}{
 		{
 			name:     "creates the file with the umask masked permissions",
-			fsys:     fsx.MemFS{},
+			fsys:     fsx.MemoryFS{},
 			umask:    0o077,
 			file:     "out.txt",
 			data:     "hello",
@@ -118,7 +118,7 @@ func TestAppend(t *testing.T) {
 		},
 		{
 			name: "appends to an existing file, keeping its permissions",
-			fsys: fsx.MemFS{
+			fsys: fsx.MemoryFS{
 				"out.txt": {Data: []byte("old "), Mode: 0o640},
 			},
 			file:     "out.txt",
@@ -171,7 +171,7 @@ func TestNoFileSystem(t *testing.T) {
 
 func TestContextCancelled(t *testing.T) {
 	ctx, cancel := context.WithCancel(t.Context())
-	fsys := fsx.MemFS{}
+	fsys := fsx.MemoryFS{}
 	w, err := Create(&coreutils.Runtime{FS: fsys}, ctx, "out.txt")
 	if err != nil {
 		t.Fatalf("Create error = %v", err)

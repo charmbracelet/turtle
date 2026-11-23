@@ -24,7 +24,7 @@ func TestRun(t *testing.T) {
 	tests := []struct {
 		name     string
 		args     []string
-		files    fsx.MemFS
+		files    fsx.MemoryFS
 		want     string
 		wantErr  string
 		wantCode int
@@ -32,31 +32,31 @@ func TestRun(t *testing.T) {
 		{
 			name:  "default expression prints the hierarchy",
 			args:  []string{"dir"},
-			files: fsx.MemFS{"dir/a": {}, "dir/sub/b": {}},
+			files: fsx.MemoryFS{"dir/a": {}, "dir/sub/b": {}},
 			want:  "dir\ndir/a\ndir/sub\ndir/sub/b\n",
 		},
 		{
 			name:  "no path defaults to the working directory",
 			args:  []string{},
-			files: fsx.MemFS{"a": {}},
+			files: fsx.MemoryFS{"a": {}},
 			want:  ".\n./a\n",
 		},
 		{
 			name:  "more than one path",
 			args:  []string{"a", "b"},
-			files: fsx.MemFS{"a/x": {}, "b/y": {}},
+			files: fsx.MemoryFS{"a/x": {}, "b/y": {}},
 			want:  "a\na/x\nb\nb/y\n",
 		},
 		{
 			name:  "trailing slash of a path operand is kept",
 			args:  []string{"dir/"},
-			files: fsx.MemFS{"dir/a": {}},
+			files: fsx.MemoryFS{"dir/a": {}},
 			want:  "dir/\ndir/a\n",
 		},
 		{
 			name:     "missing path",
 			args:     []string{"missing"},
-			files:    fsx.MemFS{},
+			files:    fsx.MemoryFS{},
 			wantErr:  "find: 'missing': file does not exist\n",
 			wantCode: 1,
 		},
@@ -108,7 +108,7 @@ func TestRunName(t *testing.T) {
 	tests := []struct {
 		name     string
 		args     []string
-		files    fsx.MemFS
+		files    fsx.MemoryFS
 		want     string
 		wantErr  string
 		wantCode int
@@ -116,43 +116,43 @@ func TestRunName(t *testing.T) {
 		{
 			name:  "star pattern",
 			args:  []string{"dir", "-name", "*.txt"},
-			files: fsx.MemFS{"dir/a.txt": {}, "dir/b": {}, "dir/sub/c.txt": {}},
+			files: fsx.MemoryFS{"dir/a.txt": {}, "dir/b": {}, "dir/sub/c.txt": {}},
 			want:  "dir/a.txt\ndir/sub/c.txt\n",
 		},
 		{
 			name:  "question mark",
 			args:  []string{"dir", "-name", "a?c"},
-			files: fsx.MemFS{"dir/abc": {}, "dir/ac": {}, "dir/abbc": {}},
+			files: fsx.MemoryFS{"dir/abc": {}, "dir/ac": {}, "dir/abbc": {}},
 			want:  "dir/abc\n",
 		},
 		{
 			name:  "bracket expression",
 			args:  []string{"dir", "-name", "[ab]*"},
-			files: fsx.MemFS{"dir/a": {}, "dir/b": {}, "dir/c": {}},
+			files: fsx.MemoryFS{"dir/a": {}, "dir/b": {}, "dir/c": {}},
 			want:  "dir/a\ndir/b\n",
 		},
 		{
 			name:  "pattern matches the whole basename",
 			args:  []string{"dir", "-name", "b*"},
-			files: fsx.MemFS{"dir/abc": {}, "dir/b": {}},
+			files: fsx.MemoryFS{"dir/abc": {}, "dir/b": {}},
 			want:  "dir/b\n",
 		},
 		{
 			name:  "iname ignores case",
 			args:  []string{"dir", "-iname", "A*"},
-			files: fsx.MemFS{"dir/a": {}, "dir/B": {}},
+			files: fsx.MemoryFS{"dir/a": {}, "dir/B": {}},
 			want:  "dir/a\n",
 		},
 		{
 			name:  "dot is not special",
 			args:  []string{"dir", "-name", ".*"},
-			files: fsx.MemFS{"dir/.hidden": {}, "dir/a": {}},
+			files: fsx.MemoryFS{"dir/.hidden": {}, "dir/a": {}},
 			want:  "dir/.hidden\n",
 		},
 		{
 			name:  "expression without an action prints",
 			args:  []string{"dir", "-name", "a"},
-			files: fsx.MemFS{"dir/a": {}, "dir/b": {}},
+			files: fsx.MemoryFS{"dir/a": {}, "dir/b": {}},
 			want:  "dir/a\n",
 		},
 	}
@@ -167,7 +167,7 @@ func TestRunPath(t *testing.T) {
 	tests := []struct {
 		name     string
 		args     []string
-		files    fsx.MemFS
+		files    fsx.MemoryFS
 		want     string
 		wantErr  string
 		wantCode int
@@ -175,13 +175,13 @@ func TestRunPath(t *testing.T) {
 		{
 			name:  "star matches slashes",
 			args:  []string{"dir", "-path", "*sub*"},
-			files: fsx.MemFS{"dir/a": {}, "dir/sub/b": {}, "dir/sub/deep/c": {}},
+			files: fsx.MemoryFS{"dir/a": {}, "dir/sub/b": {}, "dir/sub/deep/c": {}},
 			want:  "dir/sub\ndir/sub/b\ndir/sub/deep\ndir/sub/deep/c\n",
 		},
 		{
 			name:  "whole path match",
 			args:  []string{"dir", "-path", "dir/*/b"},
-			files: fsx.MemFS{"dir/sub/b": {}, "dir/sub/deep/b": {}},
+			files: fsx.MemoryFS{"dir/sub/b": {}, "dir/sub/deep/b": {}},
 			want:  "dir/sub/b\ndir/sub/deep/b\n",
 		},
 	}
@@ -196,7 +196,7 @@ func TestRunType(t *testing.T) {
 	tests := []struct {
 		name     string
 		args     []string
-		files    fsx.MemFS
+		files    fsx.MemoryFS
 		want     string
 		wantErr  string
 		wantCode int
@@ -204,13 +204,13 @@ func TestRunType(t *testing.T) {
 		{
 			name:  "directories",
 			args:  []string{".", "-type", "d"},
-			files: fsx.MemFS{"dir/a": {}, "dir/sub/b": {}},
+			files: fsx.MemoryFS{"dir/a": {}, "dir/sub/b": {}},
 			want:  ".\n./dir\n./dir/sub\n",
 		},
 		{
 			name:  "regular files",
 			args:  []string{".", "-type", "f"},
-			files: fsx.MemFS{"dir/a": {}, "dir/sub/b": {}},
+			files: fsx.MemoryFS{"dir/a": {}, "dir/sub/b": {}},
 			want:  "./dir/a\n./dir/sub/b\n",
 		},
 		{
@@ -231,7 +231,7 @@ func TestRunTypeSymlink(t *testing.T) {
 	tests := []struct {
 		name     string
 		args     []string
-		files    fsx.MemFS
+		files    fsx.MemoryFS
 		want     string
 		wantErr  string
 		wantCode int
@@ -239,55 +239,55 @@ func TestRunTypeSymlink(t *testing.T) {
 		{
 			name:  "default doesn't follow links",
 			args:  []string{"d", "-type", "f"},
-			files: symlinkFS(t, "d/link", "a", fsx.MemFS{"d/a": {}}),
+			files: symlinkFS(t, "d/link", "a", fsx.MemoryFS{"d/a": {}}),
 			want:  "d/a\n",
 		},
 		{
 			name:  "default reports links as links",
 			args:  []string{"d", "-type", "l"},
-			files: symlinkFS(t, "d/link", "a", fsx.MemFS{"d/a": {}}),
+			files: symlinkFS(t, "d/link", "a", fsx.MemoryFS{"d/a": {}}),
 			want:  "d/link\n",
 		},
 		{
 			name:  "L follows links found during the traversal",
 			args:  []string{"-L", "d", "-type", "f"},
-			files: symlinkFS(t, "d/link", "a", fsx.MemFS{"d/a": {}}),
+			files: symlinkFS(t, "d/link", "a", fsx.MemoryFS{"d/a": {}}),
 			want:  "d/a\nd/link\n",
 		},
 		{
 			name:  "L follows a link to a directory",
 			args:  []string{"-L", "d"},
-			files: symlinkFS(t, "d/dirlink", "sub", fsx.MemFS{"d/sub/a": {}}),
+			files: symlinkFS(t, "d/dirlink", "sub", fsx.MemoryFS{"d/sub/a": {}}),
 			want:  "d\nd/dirlink\nd/dirlink/a\nd/sub\nd/sub/a\n",
 		},
 		{
 			name:  "H follows only the link given as a path",
 			args:  []string{"-H", "d/link"},
-			files: symlinkFS(t, "d/link", "a", fsx.MemFS{"d/a": {}}),
+			files: symlinkFS(t, "d/link", "a", fsx.MemoryFS{"d/a": {}}),
 			want:  "d/link\n",
 		},
 		{
 			name:  "L follows the link given as a path",
 			args:  []string{"-L", "d/link", "-type", "f"},
-			files: symlinkFS(t, "d/link", "a", fsx.MemFS{"d/a": {}}),
+			files: symlinkFS(t, "d/link", "a", fsx.MemoryFS{"d/a": {}}),
 			want:  "d/link\n",
 		},
 		{
 			name:  "a broken link is described as itself",
 			args:  []string{"-L", "d", "-type", "l"},
-			files: symlinkFS(t, "d/link", "missing", fsx.MemFS{"d/a": {}}),
+			files: symlinkFS(t, "d/link", "missing", fsx.MemoryFS{"d/a": {}}),
 			want:  "d/link\n",
 		},
 		{
 			name:  "P is the default",
 			args:  []string{"-P", "d", "-type", "l"},
-			files: symlinkFS(t, "d/link", "a", fsx.MemFS{"d/a": {}}),
+			files: symlinkFS(t, "d/link", "a", fsx.MemoryFS{"d/a": {}}),
 			want:  "d/link\n",
 		},
 		{
 			name:  "the last of H, L and P wins",
 			args:  []string{"-H", "-P", "d", "-type", "l"},
-			files: symlinkFS(t, "d/link", "a", fsx.MemFS{"d/a": {}}),
+			files: symlinkFS(t, "d/link", "a", fsx.MemoryFS{"d/a": {}}),
 			want:  "d/link\n",
 		},
 	}
@@ -302,7 +302,7 @@ func TestRunPruneDepth(t *testing.T) {
 	tests := []struct {
 		name     string
 		args     []string
-		files    fsx.MemFS
+		files    fsx.MemoryFS
 		want     string
 		wantErr  string
 		wantCode int
@@ -310,31 +310,31 @@ func TestRunPruneDepth(t *testing.T) {
 		{
 			name:  "prune skips a directory",
 			args:  []string{".", "-name", "sub", "-prune", "-o", "-print"},
-			files: fsx.MemFS{"a": {}, "sub/b": {}, "sub/deep/c": {}},
+			files: fsx.MemoryFS{"a": {}, "sub/b": {}, "sub/deep/c": {}},
 			want:  ".\n./a\n",
 		},
 		{
 			name:  "prune is true",
 			args:  []string{".", "-name", "sub", "-prune"},
-			files: fsx.MemFS{"a": {}, "sub/b": {}},
+			files: fsx.MemoryFS{"a": {}, "sub/b": {}},
 			want:  "./sub\n",
 		},
 		{
 			name:  "depth acts on the entries first",
 			args:  []string{".", "-depth"},
-			files: fsx.MemFS{"a": {}, "sub/b": {}},
+			files: fsx.MemoryFS{"a": {}, "sub/b": {}},
 			want:  "./a\n./sub/b\n./sub\n.\n",
 		},
 		{
 			name:  "depth applies even when not evaluated",
 			args:  []string{".", "-depth", "-name", "b"},
-			files: fsx.MemFS{"a": {}, "sub/b": {}},
+			files: fsx.MemoryFS{"a": {}, "sub/b": {}},
 			want:  "./sub/b\n",
 		},
 		{
 			name:  "prune has no effect with depth",
 			args:  []string{".", "-depth", "-name", "sub", "-prune", "-o", "-print"},
-			files: fsx.MemFS{"a": {}, "sub/b": {}},
+			files: fsx.MemoryFS{"a": {}, "sub/b": {}},
 			want:  "./a\n./sub/b\n.\n",
 		},
 	}
@@ -349,7 +349,7 @@ func TestRunPerm(t *testing.T) {
 	tests := []struct {
 		name     string
 		args     []string
-		files    fsx.MemFS
+		files    fsx.MemoryFS
 		want     string
 		wantErr  string
 		wantCode int
@@ -357,31 +357,31 @@ func TestRunPerm(t *testing.T) {
 		{
 			name:  "exact octal mode",
 			args:  []string{".", "-perm", "0600"},
-			files: fsx.MemFS{"a": {Mode: 0o600}, "b": {Mode: 0o640}},
+			files: fsx.MemoryFS{"a": {Mode: 0o600}, "b": {Mode: 0o640}},
 			want:  "./a\n",
 		},
 		{
 			name:  "any octal mode",
 			args:  []string{".", "-perm", "-040"},
-			files: fsx.MemFS{"a": {Mode: 0o640}, "b": {Mode: 0o600}},
+			files: fsx.MemoryFS{"a": {Mode: 0o640}, "b": {Mode: 0o600}},
 			want:  ".\n./a\n",
 		},
 		{
 			name:  "symbolic mode",
 			args:  []string{".", "-perm", "u+w"},
-			files: fsx.MemFS{"a": {Mode: 0o200}, "b": {Mode: 0o600}},
+			files: fsx.MemoryFS{"a": {Mode: 0o200}, "b": {Mode: 0o600}},
 			want:  "./a\n",
 		},
 		{
 			name:  "any symbolic mode",
 			args:  []string{".", "-perm", "-u+w"},
-			files: fsx.MemFS{"a": {Mode: 0o600}, "b": {Mode: 0o400}},
+			files: fsx.MemoryFS{"a": {Mode: 0o600}, "b": {Mode: 0o400}},
 			want:  ".\n./a\n",
 		},
 		{
 			name:  "special bits",
 			args:  []string{".", "-perm", "-2000"},
-			files: fsx.MemFS{"a": {Mode: 0o755 | fs.ModeSetgid}, "b": {Mode: 0o755}},
+			files: fsx.MemoryFS{"a": {Mode: 0o755 | fs.ModeSetgid}, "b": {Mode: 0o755}},
 			want:  "./a\n",
 		},
 		{
@@ -402,7 +402,7 @@ func TestRunLinksUserGroup(t *testing.T) {
 	tests := []struct {
 		name     string
 		args     []string
-		files    fsx.MemFS
+		files    fsx.MemoryFS
 		gate     string
 		want     string
 		wantErr  string
@@ -411,19 +411,19 @@ func TestRunLinksUserGroup(t *testing.T) {
 		{
 			name:  "link count defaults to one",
 			args:  []string{".", "-links", "1"},
-			files: fsx.MemFS{"a": {}},
+			files: fsx.MemoryFS{"a": {}},
 			want:  ".\n./a\n",
 		},
 		{
 			name:  "numeric user",
 			args:  []string{".", "-user", "4242"},
-			files: fsx.MemFS{"a": {Uid: 4242}, "b": {Uid: 0}},
+			files: fsx.MemoryFS{"a": {Uid: 4242}, "b": {Uid: 0}},
 			want:  "./a\n",
 		},
 		{
 			name:  "numeric group",
 			args:  []string{".", "-group", "4242"},
-			files: fsx.MemFS{"a": {Gid: 4242}, "b": {Gid: 0}},
+			files: fsx.MemoryFS{"a": {Gid: 4242}, "b": {Gid: 0}},
 			want:  "./a\n",
 		},
 		{
@@ -453,19 +453,19 @@ func TestRunNoUserNoGroup(t *testing.T) {
 	tests := []struct {
 		name  string
 		args  []string
-		files fsx.MemFS
+		files fsx.MemoryFS
 		want  string
 	}{
 		{
 			name:  "nouser",
 			args:  []string{".", "-nouser"},
-			files: fsx.MemFS{"a": {Uid: 424242}, "b": {Uid: 0}},
+			files: fsx.MemoryFS{"a": {Uid: 424242}, "b": {Uid: 0}},
 			want:  "./a\n",
 		},
 		{
 			name:  "nogroup",
 			args:  []string{".", "-nogroup"},
-			files: fsx.MemFS{"a": {Gid: 424242}, "b": {Gid: 0}},
+			files: fsx.MemoryFS{"a": {Gid: 424242}, "b": {Gid: 0}},
 			want:  "./a\n",
 		},
 	}
@@ -480,7 +480,7 @@ func TestRunSize(t *testing.T) {
 	tests := []struct {
 		name     string
 		args     []string
-		files    fsx.MemFS
+		files    fsx.MemoryFS
 		want     string
 		wantErr  string
 		wantCode int
@@ -488,25 +488,25 @@ func TestRunSize(t *testing.T) {
 		{
 			name:  "512-byte blocks",
 			args:  []string{".", "-size", "1"},
-			files: fsx.MemFS{"a": {Data: []byte("1234")}, "b": {Data: []byte(strings.Repeat("x", 512))}, "c": {Data: []byte(strings.Repeat("y", 513))}},
+			files: fsx.MemoryFS{"a": {Data: []byte("1234")}, "b": {Data: []byte(strings.Repeat("x", 512))}, "c": {Data: []byte(strings.Repeat("y", 513))}},
 			want:  "./a\n./b\n",
 		},
 		{
 			name:  "bytes with c",
 			args:  []string{".", "-size", "4c"},
-			files: fsx.MemFS{"a": {Data: []byte("1234")}, "b": {Data: []byte("123")}},
+			files: fsx.MemoryFS{"a": {Data: []byte("1234")}, "b": {Data: []byte("123")}},
 			want:  "./a\n",
 		},
 		{
 			name:  "more than",
 			args:  []string{".", "-size", "+1c"},
-			files: fsx.MemFS{"a": {Data: []byte("1234")}, "b": {Data: []byte("1")}},
+			files: fsx.MemoryFS{"a": {Data: []byte("1234")}, "b": {Data: []byte("1")}},
 			want:  "./a\n",
 		},
 		{
 			name:  "less than",
 			args:  []string{".", "-size", "-2c"},
-			files: fsx.MemFS{"a": {Data: []byte("1234")}, "b": {Data: []byte("1")}},
+			files: fsx.MemoryFS{"a": {Data: []byte("1234")}, "b": {Data: []byte("1")}},
 			want:  ".\n./b\n",
 		},
 		{
@@ -524,7 +524,7 @@ func TestRunSize(t *testing.T) {
 }
 
 func TestRunTimes(t *testing.T) {
-	files := fsx.MemFS{
+	files := fsx.MemoryFS{
 		"a": {ModTime: testNow.Add(-48 * time.Hour)},
 		"b": {ModTime: testNow.Add(-12 * time.Hour)},
 	}
@@ -558,7 +558,7 @@ func TestRunNewer(t *testing.T) {
 	tests := []struct {
 		name     string
 		args     []string
-		files    fsx.MemFS
+		files    fsx.MemoryFS
 		want     string
 		wantErr  string
 		wantCode int
@@ -566,13 +566,13 @@ func TestRunNewer(t *testing.T) {
 		{
 			name:  "modified more recently",
 			args:  []string{".", "-newer", "ref"},
-			files: fsx.MemFS{"ref": {ModTime: testNow.Add(-48 * time.Hour)}, "a": {ModTime: testNow.Add(-24 * time.Hour)}, "b": {ModTime: testNow.Add(-72 * time.Hour)}},
+			files: fsx.MemoryFS{"ref": {ModTime: testNow.Add(-48 * time.Hour)}, "a": {ModTime: testNow.Add(-24 * time.Hour)}, "b": {ModTime: testNow.Add(-72 * time.Hour)}},
 			want:  "./a\n",
 		},
 		{
 			name:     "missing reference file",
 			args:     []string{".", "-newer", "missing"},
-			files:    fsx.MemFS{"a": {}},
+			files:    fsx.MemoryFS{"a": {}},
 			wantErr:  "find: cannot stat 'missing': file does not exist\nTry 'find --help' for more information.\n",
 			wantCode: 1,
 		},
@@ -588,7 +588,7 @@ func TestRunOperators(t *testing.T) {
 	tests := []struct {
 		name     string
 		args     []string
-		files    fsx.MemFS
+		files    fsx.MemoryFS
 		want     string
 		wantErr  string
 		wantCode int
@@ -596,43 +596,43 @@ func TestRunOperators(t *testing.T) {
 		{
 			name:  "negation",
 			args:  []string{".", "!", "-name", "b"},
-			files: fsx.MemFS{"a": {}, "b": {}},
+			files: fsx.MemoryFS{"a": {}, "b": {}},
 			want:  ".\n./a\n",
 		},
 		{
 			name:  "explicit and",
 			args:  []string{".", "-name", "a", "-a", "-type", "f"},
-			files: fsx.MemFS{"a": {}, "b": {}},
+			files: fsx.MemoryFS{"a": {}, "b": {}},
 			want:  "./a\n",
 		},
 		{
 			name:  "or",
 			args:  []string{".", "-name", "a", "-o", "-name", "b"},
-			files: fsx.MemFS{"a": {}, "b": {}, "c": {}},
+			files: fsx.MemoryFS{"a": {}, "b": {}, "c": {}},
 			want:  "./a\n./b\n",
 		},
 		{
 			name:  "and binds tighter than or",
 			args:  []string{".", "-name", "a", "-o", "-name", "b", "-a", "-type", "d"},
-			files: fsx.MemFS{"a": {}, "b": {}, "dir/b": {}},
+			files: fsx.MemoryFS{"a": {}, "b": {}, "dir/b": {}},
 			want:  "./a\n",
 		},
 		{
 			name:  "parentheses group",
 			args:  []string{".", "(", "-name", "a", "-o", "-name", "b", ")", "-type", "f"},
-			files: fsx.MemFS{"a": {}, "dir/b": {}},
+			files: fsx.MemoryFS{"a": {}, "dir/b": {}},
 			want:  "./a\n./dir/b\n",
 		},
 		{
 			name:  "parentheses token",
 			args:  []string{".", "(", "-name", "a", "-o", "-name", "b", ")", "-type", "f"},
-			files: fsx.MemFS{"a": {}, "dir/b": {}},
+			files: fsx.MemoryFS{"a": {}, "dir/b": {}},
 			want:  "./a\n./dir/b\n",
 		},
 		{
 			name:  "negated group",
 			args:  []string{".", "!", "(", "-name", "a", "-o", "-name", "b", ")"},
-			files: fsx.MemFS{"a": {}, "c": {}},
+			files: fsx.MemoryFS{"a": {}, "c": {}},
 			want:  ".\n./c\n",
 		},
 	}
@@ -646,7 +646,7 @@ func TestRunOperators(t *testing.T) {
 func TestRunExec(t *testing.T) {
 	t.Run("one invocation per file", func(t *testing.T) {
 		var calls []string
-		files := fsx.MemFS{"a": {}, "b": {}}
+		files := fsx.MemoryFS{"a": {}, "b": {}}
 		exec := func(_ context.Context, opts coreutils.ExecOpts) (int, error) {
 			calls = append(calls, opts.Name+" "+strings.Join(opts.Args, " "))
 			return 0, nil
@@ -660,7 +660,7 @@ func TestRunExec(t *testing.T) {
 
 	t.Run("embedded braces are replaced", func(t *testing.T) {
 		var calls []string
-		files := fsx.MemFS{"a": {}}
+		files := fsx.MemoryFS{"a": {}}
 		exec := func(_ context.Context, opts coreutils.ExecOpts) (int, error) {
 			calls = append(calls, opts.Name+" "+strings.Join(opts.Args, " "))
 			return 0, nil
@@ -672,7 +672,7 @@ func TestRunExec(t *testing.T) {
 	})
 
 	t.Run("a nonzero status makes the primary false", func(t *testing.T) {
-		files := fsx.MemFS{"a": {}}
+		files := fsx.MemoryFS{"a": {}}
 		exec := func(context.Context, coreutils.ExecOpts) (int, error) {
 			return 1, nil
 		}
@@ -681,7 +681,7 @@ func TestRunExec(t *testing.T) {
 
 	t.Run("aggregating form", func(t *testing.T) {
 		var calls []string
-		files := fsx.MemFS{"a": {}, "b": {}}
+		files := fsx.MemoryFS{"a": {}, "b": {}}
 		exec := func(_ context.Context, opts coreutils.ExecOpts) (int, error) {
 			calls = append(calls, opts.Name+" "+strings.Join(opts.Args, " "))
 			return 0, nil
@@ -693,7 +693,7 @@ func TestRunExec(t *testing.T) {
 	})
 
 	t.Run("aggregating form failure exits nonzero", func(t *testing.T) {
-		files := fsx.MemFS{"a": {}}
+		files := fsx.MemoryFS{"a": {}}
 		exec := func(context.Context, coreutils.ExecOpts) (int, error) {
 			return 1, nil
 		}
@@ -701,19 +701,19 @@ func TestRunExec(t *testing.T) {
 	})
 
 	t.Run("no execution available", func(t *testing.T) {
-		files := fsx.MemFS{"a": {}}
+		files := fsx.MemoryFS{"a": {}}
 		runTest(t, []string{".", "-exec", "echo", "{}", ";"}, files, nil, nil, "",
 			"find: no command execution available\nfind: no command execution available\n", 1)
 	})
 
 	t.Run("missing terminator", func(t *testing.T) {
-		runTest(t, []string{".", "-exec", "echo"}, fsx.MemFS{}, nil, nil, "",
+		runTest(t, []string{".", "-exec", "echo"}, fsx.MemoryFS{}, nil, nil, "",
 			"find: missing argument to '-exec'\nTry 'find --help' for more information.\n", 1)
 	})
 }
 
 func TestRunOk(t *testing.T) {
-	files := fsx.MemFS{"a": {}, "b": {}}
+	files := fsx.MemoryFS{"a": {}, "b": {}}
 
 	t.Run("affirmative response runs the utility", func(t *testing.T) {
 		var calls []string
@@ -742,7 +742,7 @@ func TestRunOk(t *testing.T) {
 }
 
 func TestRunPrint0(t *testing.T) {
-	files := fsx.MemFS{"a": {}, "sub/b": {}}
+	files := fsx.MemoryFS{"a": {}, "sub/b": {}}
 	runTest(t, []string{".", "-print0"}, files, nil, nil, ".\x00./a\x00./sub\x00./sub/b\x00", "", 0)
 }
 
@@ -752,7 +752,7 @@ func TestRunCancellation(t *testing.T) {
 	prog := New(&coreutils.Runtime{
 		Stdout: io.Discard,
 		Stderr: io.Discard,
-		FS:     fsx.MemFS{"a": {}},
+		FS:     fsx.MemoryFS{"a": {}},
 	})
 	if err := prog.Run(ctx, "."); !errors.Is(err, context.Canceled) {
 		t.Fatalf("Run() error = %v, want context.Canceled", err)
@@ -817,7 +817,7 @@ func TestCompilePattern(t *testing.T) {
 
 // symlinkFS returns files with a symbolic link added, failing the test when
 // it can't be created.
-func symlinkFS(t *testing.T, newName, oldName string, files fsx.MemFS) fsx.MemFS {
+func symlinkFS(t *testing.T, newName, oldName string, files fsx.MemoryFS) fsx.MemoryFS {
 	t.Helper()
 	if err := files.Symlink(oldName, newName); err != nil {
 		t.Fatalf("Symlink(%q, %q) error = %v", oldName, newName, err)
@@ -827,7 +827,7 @@ func symlinkFS(t *testing.T, newName, oldName string, files fsx.MemFS) fsx.MemFS
 
 // runTest runs find with the given arguments and compares its output, its
 // standard error and its exit status.
-func runTest(t *testing.T, args []string, files fsx.MemFS, stdin io.Reader, exec coreutils.ExecFunc, want, wantErr string, wantCode int) {
+func runTest(t *testing.T, args []string, files fsx.MemoryFS, stdin io.Reader, exec coreutils.ExecFunc, want, wantErr string, wantCode int) {
 	t.Helper()
 	stdout := new(bytes.Buffer)
 	stderr := new(bytes.Buffer)
@@ -858,7 +858,7 @@ func runTest(t *testing.T, args []string, files fsx.MemFS, stdin io.Reader, exec
 }
 
 // runTestErr is runTest, returning the standard error for inspection.
-func runTestErr(t *testing.T, args []string, files fsx.MemFS, stdin io.Reader, exec coreutils.ExecFunc) string {
+func runTestErr(t *testing.T, args []string, files fsx.MemoryFS, stdin io.Reader, exec coreutils.ExecFunc) string {
 	t.Helper()
 	stderr := new(bytes.Buffer)
 	runtime := &coreutils.Runtime{
@@ -878,7 +878,7 @@ func TestRunWorkingDir(t *testing.T) {
 	runtime := &coreutils.Runtime{
 		Stdout:     stdout,
 		Stderr:     io.Discard,
-		FS:         fsx.MemFS{"base/dir/a": {}},
+		FS:         fsx.MemoryFS{"base/dir/a": {}},
 		WorkingDir: "base",
 		Clock:      func() time.Time { return testNow },
 	}
@@ -904,7 +904,7 @@ func TestRunMountXdev(t *testing.T) {
 	}
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			runTest(t, test.args, fsx.MemFS{"a": {}, "sub/b": {}}, nil, nil,
+			runTest(t, test.args, fsx.MemoryFS{"a": {}, "sub/b": {}}, nil, nil,
 				".\n./a\n./sub\n./sub/b\n", "", 0)
 		})
 	}
@@ -922,7 +922,7 @@ func TestRunLoopDetection(t *testing.T) {
 	runtime := &coreutils.Runtime{
 		Stdout: io.Discard,
 		Stderr: stderr,
-		FS:     fsx.OsFS(dir),
+		FS:     fsx.SystemFS(dir),
 	}
 	err := New(runtime).Run(t.Context(), "-L", ".")
 	exitErr, ok := errors.AsType[*coreutils.ExitError](err)
@@ -946,7 +946,7 @@ func TestRunSelfReferentialSymlink(t *testing.T) {
 	runtime := &coreutils.Runtime{
 		Stdout: io.Discard,
 		Stderr: stderr,
-		FS:     fsx.OsFS(dir),
+		FS:     fsx.SystemFS(dir),
 	}
 	err := New(runtime).Run(t.Context(), "-L", ".")
 	exitErr, ok := errors.AsType[*coreutils.ExitError](err)

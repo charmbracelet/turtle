@@ -21,8 +21,8 @@ import (
 //	bin.dat:       "\x00\x01\x02\x03\x04\x05"
 //	"-m":          "x"
 //	sub/inner.txt: "inner\n"
-func testFS() fsx.MemFS {
-	return fsx.MemFS{
+func testFS() fsx.MemoryFS {
+	return fsx.MemoryFS{
 		"hello.txt":     {Data: []byte("hello"), Mode: 0o644},
 		"empty.txt":     {Data: []byte(""), Mode: 0o600},
 		"bin.dat":       {Data: []byte{0, 1, 2, 3, 4, 5}, Mode: 0o750},

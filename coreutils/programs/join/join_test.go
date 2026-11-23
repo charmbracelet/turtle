@@ -37,7 +37,7 @@ func (w *cancelWriter) Write(b []byte) (int, error) {
 //	fax.txt:        the fax example of the specification
 //	case1.txt, case2.txt: join fields differing in case, for -i
 //	caserep1.txt, caserep2.txt: repeated join fields differing in case
-var files = fsx.MemFS{
+var files = fsx.MemoryFS{
 	"f1.txt":       {Data: []byte("a 1\nb 2\nc 3\n")},
 	"f2.txt":       {Data: []byte("a x\nb y\nd z\n")},
 	"keys1.txt":    {Data: []byte("1 a\n2 b\n")},
@@ -495,7 +495,7 @@ func TestRunIOErrors(t *testing.T) {
 		rt := &coreutils.Runtime{
 			Stdout: stdout,
 			Stderr: new(bytes.Buffer),
-			FS: fsx.MemFS{
+			FS: fsx.MemoryFS{
 				"left.txt":  {Data: []byte("a 1\nb 2\nc 3\nd 4\n")},
 				"empty.txt": {Data: nil},
 			},
@@ -512,19 +512,19 @@ func TestRunIOErrors(t *testing.T) {
 
 // withFiles returns a copy of the fixture files plus the ones the arguments
 // of the test need, with their contents set for a single line join.
-func withFiles(base fsx.MemFS, args ...string) fsx.MemFS {
-	fsys := fsx.MemFS{}
+func withFiles(base fsx.MemoryFS, args ...string) fsx.MemoryFS {
+	fsys := fsx.MemoryFS{}
 	for name, f := range base {
-		fsys[name] = &fsx.MemFile{Data: append([]byte(nil), f.Data...)}
+		fsys[name] = &fsx.MemoryFile{Data: append([]byte(nil), f.Data...)}
 	}
-	fsys["colons1.txt"] = &fsx.MemFile{Data: []byte("a:1\n")}
-	fsys["colons2.txt"] = &fsx.MemFile{Data: []byte("a:x\n")}
-	fsys["empty1.txt"] = &fsx.MemFile{Data: []byte("\nfoo a\n")}
-	fsys["empty2.txt"] = &fsx.MemFile{Data: []byte("\nbar b\n")}
-	fsys["accents1.txt"] = &fsx.MemFile{Data: []byte("aé1\n")}
-	fsys["accents2.txt"] = &fsx.MemFile{Data: []byte("aéx\n")}
-	fsys["icasekeys1.txt"] = &fsx.MemFile{Data: []byte("1 A\n2 B\n")}
-	fsys["icasekeys2.txt"] = &fsx.MemFile{Data: []byte("a x\nb y\n")}
+	fsys["colons1.txt"] = &fsx.MemoryFile{Data: []byte("a:1\n")}
+	fsys["colons2.txt"] = &fsx.MemoryFile{Data: []byte("a:x\n")}
+	fsys["empty1.txt"] = &fsx.MemoryFile{Data: []byte("\nfoo a\n")}
+	fsys["empty2.txt"] = &fsx.MemoryFile{Data: []byte("\nbar b\n")}
+	fsys["accents1.txt"] = &fsx.MemoryFile{Data: []byte("aé1\n")}
+	fsys["accents2.txt"] = &fsx.MemoryFile{Data: []byte("aéx\n")}
+	fsys["icasekeys1.txt"] = &fsx.MemoryFile{Data: []byte("1 A\n2 B\n")}
+	fsys["icasekeys2.txt"] = &fsx.MemoryFile{Data: []byte("a x\nb y\n")}
 	return fsys
 }
 

@@ -17,8 +17,8 @@ import (
 
 // tree returns a working directory with files, directories and symbolic
 // links the tests resolve.
-func tree() fsx.MemFS {
-	return fsx.MemFS{
+func tree() fsx.MemoryFS {
+	return fsx.MemoryFS{
 		"work/a.txt":                           {Data: []byte("hello")},
 		"work/d/keep.txt":                      {},
 		"work/x/b.txt":                         {Data: []byte("b")},
@@ -347,7 +347,7 @@ func TestRunStrip(t *testing.T) {
 		},
 		{
 			Name: "with -m no existing file is touched at all",
-			FS:   fsx.MemFS{"work/none": {Data: []byte("a.txt"), Mode: fs.ModeSymlink}},
+			FS:   fsx.MemoryFS{"work/none": {Data: []byte("a.txt"), Mode: fs.ModeSymlink}},
 			Dir:  "work",
 			Args: []string{"-sm", "none/missing/../x"},
 			// The link would resolve to a.txt, which is not a
@@ -370,7 +370,7 @@ func TestRunLogical(t *testing.T) {
 	tests := []testutil.Case{
 		{
 			Name: "the parent applies to the logical name",
-			FS: fsx.MemFS{
+			FS: fsx.MemoryFS{
 				"work/x/real.txt": {Data: []byte("x")},
 				"work/link-d":     {Data: []byte("x"), Mode: fs.ModeSymlink},
 			},
@@ -380,7 +380,7 @@ func TestRunLogical(t *testing.T) {
 		},
 		{
 			Name: "the physical mode still requires the component to exist",
-			FS: fsx.MemFS{
+			FS: fsx.MemoryFS{
 				"work/x/real.txt": {Data: []byte("x")},
 				"work/link-d":     {Data: []byte("x"), Mode: fs.ModeSymlink},
 			},
@@ -863,7 +863,7 @@ func TestRunRootBase(t *testing.T) {
 				rt := &coreutils.Runtime{
 					Stdout:     stdout,
 					Stderr:     stderr,
-					FS:         fsx.OsFS(""),
+					FS:         fsx.SystemFS(""),
 					WorkingDir: dir,
 				}
 				if err := New(rt).Run(t.Context(), test.args...); err != nil {

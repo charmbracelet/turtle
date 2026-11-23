@@ -29,8 +29,8 @@ var modTime = time.Date(2020, 1, 2, 3, 4, 5, 0, time.Local)
 //	long.txt:   80 "x" characters
 //	odd.txt:    "a\nb\nc\nd\ne\n" (5 lines)
 //	sub/inner.txt: "inner\n"
-func testFS() fsx.MemFS {
-	return fsx.MemFS{
+func testFS() fsx.MemoryFS {
+	return fsx.MemoryFS{
 		"lorem.txt":     {Data: []byte("lorem\nipsum\ndolor\n"), ModTime: modTime},
 		"blanks.txt":    {Data: []byte("a\n\n\nb\n"), ModTime: modTime},
 		"seven.txt":     {Data: []byte("1\n2\n3\n4\n5\n6\n7\n"), ModTime: modTime},

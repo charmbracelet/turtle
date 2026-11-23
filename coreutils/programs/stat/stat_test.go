@@ -30,8 +30,8 @@ const (
 func dirMode(perm fs.FileMode) fs.FileMode { return fs.ModeDir | perm }
 
 // link returns a symbolic entry pointing at target.
-func link(target string) *fsx.MemFile {
-	return &fsx.MemFile{Data: []byte(target), Mode: fs.ModeSymlink | 0o777}
+func link(target string) *fsx.MemoryFile {
+	return &fsx.MemoryFile{Data: []byte(target), Mode: fs.ModeSymlink | 0o777}
 }
 
 // modTime is the modification time the tests write their files with.
@@ -43,7 +43,7 @@ func utc() map[string]string { return map[string]string{"TZ": "UTC"} }
 
 // withFiles fills the cases without files of their own with the files of
 // the table, so a table shares one file system.
-func withFiles(tests []testutil.Case, files fsx.MemFS) []testutil.Case {
+func withFiles(tests []testutil.Case, files fsx.MemoryFS) []testutil.Case {
 	for i := range tests {
 		if tests[i].FS == nil {
 			tests[i].FS = files
@@ -56,7 +56,7 @@ func TestRunDefault(t *testing.T) {
 	testutil.Run(t, New, []testutil.Case{
 		{
 			Name:    "writes the fields of a regular file",
-			FS:      fsx.MemFS{"file.txt": {Data: []byte("hello"), Mode: 0o644, ModTime: modTime, Uid: ownerID, Gid: groupID}},
+			FS:      fsx.MemoryFS{"file.txt": {Data: []byte("hello"), Mode: 0o644, ModTime: modTime, Uid: ownerID, Gid: groupID}},
 			Environ: testutil.Environ(utc()),
 			Args:    []string{"file.txt"},
 			Want: "  File: file.txt\n" +
@@ -70,7 +70,7 @@ func TestRunDefault(t *testing.T) {
 		},
 		{
 			Name:    "writes the fields of a directory",
-			FS:      fsx.MemFS{"dir": {Mode: dirMode(0o755), ModTime: modTime, Uid: ownerID, Gid: groupID}},
+			FS:      fsx.MemoryFS{"dir": {Mode: dirMode(0o755), ModTime: modTime, Uid: ownerID, Gid: groupID}},
 			Environ: testutil.Environ(utc()),
 			Args:    []string{"dir"},
 			Want: "  File: dir\n" +
@@ -84,7 +84,7 @@ func TestRunDefault(t *testing.T) {
 		},
 		{
 			Name: "writes the fields of every operand, a newline each",
-			FS: fsx.MemFS{
+			FS: fsx.MemoryFS{
 				"a.txt": {Data: []byte("a"), Mode: 0o644, ModTime: modTime, Uid: ownerID, Gid: groupID},
 				"b.txt": {Data: []byte("bb"), Mode: 0o600, ModTime: modTime, Uid: ownerID, Gid: groupID},
 			},
@@ -109,7 +109,7 @@ func TestRunDefault(t *testing.T) {
 		},
 		{
 			Name: "resolves an operand against the working directory",
-			FS: fsx.MemFS{
+			FS: fsx.MemoryFS{
 				"work/file.txt": {Data: []byte("hello"), Mode: 0o644, ModTime: modTime, Uid: ownerID, Gid: groupID},
 			},
 			Dir:     "work",
@@ -126,14 +126,14 @@ func TestRunDefault(t *testing.T) {
 		},
 		{
 			Name:    "resolves an operand with dot components",
-			FS:      fsx.MemFS{"file.txt": {Data: []byte("hello"), Mode: 0o644, ModTime: modTime}},
+			FS:      fsx.MemoryFS{"file.txt": {Data: []byte("hello"), Mode: 0o644, ModTime: modTime}},
 			Environ: testutil.Environ(utc()),
 			Args:    []string{"-c", "%n %F", "./file.txt"},
 			Want:    "./file.txt regular file\n",
 		},
 		{
 			Name:    "resolves an operand naming a directory by its trailing separator",
-			FS:      fsx.MemFS{"dir": {Mode: dirMode(0o755), ModTime: modTime}},
+			FS:      fsx.MemoryFS{"dir": {Mode: dirMode(0o755), ModTime: modTime}},
 			Environ: testutil.Environ(utc()),
 			Args:    []string{"-c", "%n %F", "dir/"},
 			Want:    "dir/ directory\n",
@@ -142,7 +142,7 @@ func TestRunDefault(t *testing.T) {
 }
 
 func TestRunFormatDirectives(t *testing.T) {
-	files := fsx.MemFS{
+	files := fsx.MemoryFS{
 		"file.txt": {Data: []byte("hello"), Mode: 0o644, ModTime: modTime, Uid: ownerID, Gid: groupID},
 		"dir":      {Mode: dirMode(0o755), ModTime: modTime, Uid: ownerID, Gid: groupID},
 		"empty":    {ModTime: modTime},
@@ -182,7 +182,7 @@ func TestRunFormatDirectives(t *testing.T) {
 		{Name: "inode number", Args: []string{"-c", "%i", "file.txt"}, Want: "0\n"},
 		{Name: "file name", Args: []string{"-c", "%n", "file.txt"}, Want: "file.txt\n"},
 		{Name: "quoted file name left alone", Args: []string{"-c", "%Qn", "file.txt"}, Want: "file.txt\n"},
-		{Name: "quoted file name with spaces", Args: []string{"-c", "%Qn", "a b"}, FS: fsx.MemFS{"a b": {}}, Want: "'a b'\n"},
+		{Name: "quoted file name with spaces", Args: []string{"-c", "%Qn", "a b"}, FS: fsx.MemoryFS{"a b": {}}, Want: "'a b'\n"},
 		{Name: "access time hint", Args: []string{"-c", "%o", "file.txt"}, Want: "512\n"},
 		{Name: "size", Args: []string{"-c", "%s", "file.txt"}, Want: "5\n"},
 		{Name: "size of an empty file", Args: []string{"-c", "%s", "empty"}, Want: "0\n"},
@@ -220,40 +220,40 @@ func TestRunFormatDirectives(t *testing.T) {
 		{Name: "seconds with a precision", Args: []string{"-c", "%.3Y", "file.txt"}, Want: "1700000000.500\n"},
 		{Name: "seconds with a bare period", Args: []string{"-c", "%.Y", "file.txt"}, Want: "1700000000.500000000\n"},
 		{
-			Name: "seconds before the Epoch", FS: fsx.MemFS{"old": {ModTime: time.Unix(-2, 750000000)}},
+			Name: "seconds before the Epoch", FS: fsx.MemoryFS{"old": {ModTime: time.Unix(-2, 750000000)}},
 			Args: []string{"-c", "%.3Y", "old"}, Want: "-1.250\n",
 		},
 		{
-			Name: "whole seconds before the Epoch", FS: fsx.MemFS{"old": {ModTime: time.Unix(-3, 0)}},
+			Name: "whole seconds before the Epoch", FS: fsx.MemoryFS{"old": {ModTime: time.Unix(-3, 0)}},
 			Args: []string{"-c", "%.3Y", "old"}, Want: "-3.000\n",
 		},
 		{
-			Name: "fractional seconds before the Epoch are floored", FS: fsx.MemFS{"old": {ModTime: time.Unix(-2, 748100000)}},
+			Name: "fractional seconds before the Epoch are floored", FS: fsx.MemoryFS{"old": {ModTime: time.Unix(-2, 748100000)}},
 			Args: []string{"-c", "%.1Y", "old"}, Want: "-1.3\n",
 		},
 		{
-			Name: "a precision beyond the nanoseconds is zero padded", FS: fsx.MemFS{"file.txt": {Data: []byte("hello"), Mode: 0o644, ModTime: modTime}},
+			Name: "a precision beyond the nanoseconds is zero padded", FS: fsx.MemoryFS{"file.txt": {Data: []byte("hello"), Mode: 0o644, ModTime: modTime}},
 			Args: []string{"-c", "%.20Y", "file.txt"},
 			Want: "1700000000.50000000000000000000\n",
 		},
 		{
-			Name: "a precision beyond the nanoseconds of a second before the Epoch", FS: fsx.MemFS{"old": {ModTime: time.Unix(-2, 748100000)}},
+			Name: "a precision beyond the nanoseconds of a second before the Epoch", FS: fsx.MemoryFS{"old": {ModTime: time.Unix(-2, 748100000)}},
 			Args: []string{"-c", "%.20Y", "old"}, Want: "-1.25190000000000000000\n",
 		},
 		{
-			Name: "a precision beyond the nanoseconds is floored before the Epoch", FS: fsx.MemFS{"old": {ModTime: time.Unix(-2, 748100000)}},
+			Name: "a precision beyond the nanoseconds is floored before the Epoch", FS: fsx.MemoryFS{"old": {ModTime: time.Unix(-2, 748100000)}},
 			Args: []string{"-c", "%.25Y", "old"}, Want: "-1.2519000000000000000000000\n",
 		},
 		{
-			Name: "an exact tenth before the Epoch is kept", FS: fsx.MemFS{"old": {ModTime: time.Unix(-2, 800000000)}},
+			Name: "an exact tenth before the Epoch is kept", FS: fsx.MemoryFS{"old": {ModTime: time.Unix(-2, 800000000)}},
 			Args: []string{"-c", "%.1Y", "old"}, Want: "-1.2\n",
 		},
 		{
-			Name: "a fraction of a second before the Epoch is floored", FS: fsx.MemFS{"old": {ModTime: time.Unix(-1, 250000000)}},
+			Name: "a fraction of a second before the Epoch is floored", FS: fsx.MemoryFS{"old": {ModTime: time.Unix(-1, 250000000)}},
 			Args: []string{"-c", "%.1Y", "old"}, Want: "-0.8\n",
 		},
 		{
-			Name: "a second before the Epoch within a hundredth", FS: fsx.MemFS{"old": {ModTime: time.Unix(-1, 950000000)}},
+			Name: "a second before the Epoch within a hundredth", FS: fsx.MemoryFS{"old": {ModTime: time.Unix(-1, 950000000)}},
 			Args: []string{"-c", "%.2Y", "old"}, Want: "-0.05\n",
 		},
 		{
@@ -339,7 +339,7 @@ func (f *fakeInfo) IsDir() bool        { return f.mode.IsDir() }
 func (f *fakeInfo) Sys() any           { return f.sys }
 
 func TestRunPrintf(t *testing.T) {
-	files := fsx.MemFS{"file.txt": {Data: []byte("hello"), Mode: 0o644, ModTime: modTime}}
+	files := fsx.MemoryFS{"file.txt": {Data: []byte("hello"), Mode: 0o644, ModTime: modTime}}
 	testutil.Run(t, New, []testutil.Case{
 		{
 			Name: "writes no trailing newline",
@@ -424,21 +424,21 @@ func TestRunTerse(t *testing.T) {
 	testutil.Run(t, New, []testutil.Case{
 		{
 			Name: "writes one line of fields per file",
-			FS:   fsx.MemFS{"file.txt": {Data: []byte("hello"), Mode: 0o644, ModTime: modTime, Uid: ownerID, Gid: groupID}},
+			FS:   fsx.MemoryFS{"file.txt": {Data: []byte("hello"), Mode: 0o644, ModTime: modTime, Uid: ownerID, Gid: groupID}},
 			Args: []string{"-t", "file.txt"},
 			Want: "file.txt 5 1 81a4 54321 54322 0 0 1 0 0 " +
 				"1700000000 1700000000 1700000000 0 512\n",
 		},
 		{
 			Name: "quotes names that need it",
-			FS:   fsx.MemFS{"a b": {Mode: 0o644, ModTime: modTime, Uid: ownerID, Gid: groupID}},
+			FS:   fsx.MemoryFS{"a b": {Mode: 0o644, ModTime: modTime, Uid: ownerID, Gid: groupID}},
 			Args: []string{"-t", "a b"},
 			Want: "'a b' 0 0 81a4 54321 54322 0 0 1 0 0 " +
 				"1700000000 1700000000 1700000000 0 512\n",
 		},
 		{
 			Name: "gives way to an explicit format",
-			FS:   fsx.MemFS{"file.txt": {Mode: 0o644, ModTime: modTime}},
+			FS:   fsx.MemoryFS{"file.txt": {Mode: 0o644, ModTime: modTime}},
 			Args: []string{"-t", "-c", "%n", "file.txt"},
 			Want: "file.txt\n",
 		},
@@ -449,7 +449,7 @@ func TestRunFileSystem(t *testing.T) {
 	testutil.Run(t, New, []testutil.Case{
 		{
 			Name: "writes the file system fields it doesn't know as marks",
-			FS:   fsx.MemFS{"file.txt": {Data: []byte("hello"), Mode: 0o644, ModTime: modTime}},
+			FS:   fsx.MemoryFS{"file.txt": {Data: []byte("hello"), Mode: 0o644, ModTime: modTime}},
 			Args: []string{"-f", "file.txt"},
 			Want: "  File: file.txt\n" +
 				"    ID: ? Namelen: ? Type: ?\n" +
@@ -459,25 +459,25 @@ func TestRunFileSystem(t *testing.T) {
 		},
 		{
 			Name: "writes the terse fields of the file system",
-			FS:   fsx.MemFS{"file.txt": {Data: []byte("hello"), Mode: 0o644, ModTime: modTime}},
+			FS:   fsx.MemoryFS{"file.txt": {Data: []byte("hello"), Mode: 0o644, ModTime: modTime}},
 			Args: []string{"-f", "-t", "file.txt"},
 			Want: "file.txt ? ? ? ? ? ? ? ? ? ?\n",
 		},
 		{
 			Name: "reports the file name only when asked for",
-			FS:   fsx.MemFS{"file.txt": {Data: []byte("hello"), Mode: 0o644, ModTime: modTime}},
+			FS:   fsx.MemoryFS{"file.txt": {Data: []byte("hello"), Mode: 0o644, ModTime: modTime}},
 			Args: []string{"-f", "-c", "%n %s", "file.txt"},
 			Want: "file.txt ?\n",
 		},
 		{
 			Name: "follows a link to the file system it is on",
-			FS:   fsx.MemFS{"file.txt": {Data: []byte("hello"), Mode: 0o644, ModTime: modTime}, "ln": link("file.txt")},
+			FS:   fsx.MemoryFS{"file.txt": {Data: []byte("hello"), Mode: 0o644, ModTime: modTime}, "ln": link("file.txt")},
 			Args: []string{"-f", "-c", "%n", "ln"},
 			Want: "ln\n",
 		},
 		{
 			Name:     "diagnoses a missing file",
-			FS:       fsx.MemFS{},
+			FS:       fsx.MemoryFS{},
 			Args:     []string{"-f", "gone"},
 			WantErr:  "stat: cannot read file system information for 'gone': file does not exist\n",
 			WantExit: 1,
@@ -486,7 +486,7 @@ func TestRunFileSystem(t *testing.T) {
 }
 
 func TestRunSymlinks(t *testing.T) {
-	files := fsx.MemFS{
+	files := fsx.MemoryFS{
 		"file.txt": {Data: []byte("hello"), Mode: 0o644, ModTime: modTime, Uid: ownerID, Gid: groupID},
 		"dir":      {Mode: dirMode(0o755), ModTime: modTime, Uid: ownerID, Gid: groupID},
 		"tofile":   link("file.txt"),
@@ -534,7 +534,7 @@ func TestRunSymlinks(t *testing.T) {
 		},
 		{
 			Name: "quotes the link and its target",
-			FS:   fsx.MemFS{"a b": link("c d")},
+			FS:   fsx.MemoryFS{"a b": link("c d")},
 			Args: []string{"-c", "%N", "a b"},
 			Want: "'a b' -> 'c d'\n",
 		},
@@ -551,28 +551,28 @@ func TestRunQuoting(t *testing.T) {
 	type entry struct {
 		name  string
 		style string
-		files fsx.MemFS
+		files fsx.MemoryFS
 		args  []string
 		want  string
 	}
 	tests := []entry{
-		{name: "literal", style: "literal", files: fsx.MemFS{"a b": {}}, args: []string{"-c", "%Qn", "a b"}, want: "a b\n"},
-		{name: "shell", style: "shell", files: fsx.MemFS{"a b": {}}, args: []string{"-c", "%Qn", "a b"}, want: "'a b'\n"},
-		{name: "shell leaves a plain name", style: "shell", files: fsx.MemFS{"ab": {}}, args: []string{"-c", "%Qn", "ab"}, want: "ab\n"},
-		{name: "shell-always", style: "shell-always", files: fsx.MemFS{"ab": {}}, args: []string{"-c", "%Qn", "ab"}, want: "'ab'\n"},
-		{name: "shell-escape leaves a plain name", style: "shell-escape", files: fsx.MemFS{"ab": {}}, args: []string{"-c", "%Qn", "ab"}, want: "ab\n"},
+		{name: "literal", style: "literal", files: fsx.MemoryFS{"a b": {}}, args: []string{"-c", "%Qn", "a b"}, want: "a b\n"},
+		{name: "shell", style: "shell", files: fsx.MemoryFS{"a b": {}}, args: []string{"-c", "%Qn", "a b"}, want: "'a b'\n"},
+		{name: "shell leaves a plain name", style: "shell", files: fsx.MemoryFS{"ab": {}}, args: []string{"-c", "%Qn", "ab"}, want: "ab\n"},
+		{name: "shell-always", style: "shell-always", files: fsx.MemoryFS{"ab": {}}, args: []string{"-c", "%Qn", "ab"}, want: "'ab'\n"},
+		{name: "shell-escape leaves a plain name", style: "shell-escape", files: fsx.MemoryFS{"ab": {}}, args: []string{"-c", "%Qn", "ab"}, want: "ab\n"},
 		{
 			name: "shell-escape dollar quotes a control character", style: "shell-escape",
-			files: fsx.MemFS{"a\tb": {}}, args: []string{"-c", "%Qn", "a\tb"}, want: "$'a\\tb'\n",
+			files: fsx.MemoryFS{"a\tb": {}}, args: []string{"-c", "%Qn", "a\tb"}, want: "$'a\\tb'\n",
 		},
-		{name: "shell-escape-always", style: "shell-escape-always", files: fsx.MemFS{"ab": {}}, args: []string{"-c", "%Qn", "ab"}, want: "'ab'\n"},
-		{name: "c", style: "c", files: fsx.MemFS{"a\tb": {}}, args: []string{"-c", "%Qn", "a\tb"}, want: `"a\tb"` + "\n"},
-		{name: "c leaves a space alone", style: "c", files: fsx.MemFS{"a b": {}}, args: []string{"-c", "%Qn", "a b"}, want: `"a b"` + "\n"},
-		{name: "c-maybe leaves a plain name", style: "c-maybe", files: fsx.MemFS{"ab": {}}, args: []string{"-c", "%Qn", "ab"}, want: "ab\n"},
-		{name: "c-maybe quotes a control character", style: "c-maybe", files: fsx.MemFS{"a\tb": {}}, args: []string{"-c", "%Qn", "a\tb"}, want: `"a\tb"` + "\n"},
-		{name: "escape", style: "escape", files: fsx.MemFS{"a\tb": {}}, args: []string{"-c", "%Qn", "a\tb"}, want: "a\\tb\n"},
-		{name: "locale", style: "locale", files: fsx.MemFS{"a\tb": {}}, args: []string{"-c", "%Qn", "a\tb"}, want: "‘a\\tb’\n"},
-		{name: "clocale", style: "clocale", files: fsx.MemFS{"a\tb": {}}, args: []string{"-c", "%Qn", "a\tb"}, want: "“a\\tb”\n"},
+		{name: "shell-escape-always", style: "shell-escape-always", files: fsx.MemoryFS{"ab": {}}, args: []string{"-c", "%Qn", "ab"}, want: "'ab'\n"},
+		{name: "c", style: "c", files: fsx.MemoryFS{"a\tb": {}}, args: []string{"-c", "%Qn", "a\tb"}, want: `"a\tb"` + "\n"},
+		{name: "c leaves a space alone", style: "c", files: fsx.MemoryFS{"a b": {}}, args: []string{"-c", "%Qn", "a b"}, want: `"a b"` + "\n"},
+		{name: "c-maybe leaves a plain name", style: "c-maybe", files: fsx.MemoryFS{"ab": {}}, args: []string{"-c", "%Qn", "ab"}, want: "ab\n"},
+		{name: "c-maybe quotes a control character", style: "c-maybe", files: fsx.MemoryFS{"a\tb": {}}, args: []string{"-c", "%Qn", "a\tb"}, want: `"a\tb"` + "\n"},
+		{name: "escape", style: "escape", files: fsx.MemoryFS{"a\tb": {}}, args: []string{"-c", "%Qn", "a\tb"}, want: "a\\tb\n"},
+		{name: "locale", style: "locale", files: fsx.MemoryFS{"a\tb": {}}, args: []string{"-c", "%Qn", "a\tb"}, want: "‘a\\tb’\n"},
+		{name: "clocale", style: "clocale", files: fsx.MemoryFS{"a\tb": {}}, args: []string{"-c", "%Qn", "a\tb"}, want: "“a\\tb”\n"},
 	}
 	for _, test := range tests {
 		t.Run(test.want, func(t *testing.T) {
@@ -591,13 +591,13 @@ func TestRunQuotingDefault(t *testing.T) {
 	testutil.Run(t, New, []testutil.Case{
 		{
 			Name: "quotes a control character by default",
-			FS:   fsx.MemFS{"a\tb": {}},
+			FS:   fsx.MemoryFS{"a\tb": {}},
 			Args: []string{"-c", "%Qn", "a\tb"},
 			Want: "$'a\\tb'\n",
 		},
 		{
 			Name:     "warns about an invalid style and keeps the default",
-			FS:       fsx.MemFS{"a b": {}},
+			FS:       fsx.MemoryFS{"a b": {}},
 			Environ:  testutil.Environ(map[string]string{"QUOTING_STYLE": "weird"}),
 			Args:     []string{"-c", "%Qn", "a b"},
 			Want:     "'a b'\n",
@@ -636,62 +636,62 @@ func TestRunErrors(t *testing.T) {
 	testutil.Run(t, New, []testutil.Case{
 		{
 			Name:     "needs an operand",
-			FS:       fsx.MemFS{"file.txt": {}},
+			FS:       fsx.MemoryFS{"file.txt": {}},
 			WantErr:  "stat: missing operand\nTry 'stat --help' for more information.\n",
 			WantExit: 2,
 		},
 		{
 			Name:     "rejects an unknown short option",
-			FS:       fsx.MemFS{"file.txt": {}},
+			FS:       fsx.MemoryFS{"file.txt": {}},
 			Args:     []string{"-x", "file.txt"},
 			WantErr:  "stat: invalid option -- 'x'\nTry 'stat --help' for more information.\n",
 			WantExit: 2,
 		},
 		{
 			Name:     "rejects an unknown option in a group",
-			FS:       fsx.MemFS{"file.txt": {}},
+			FS:       fsx.MemoryFS{"file.txt": {}},
 			Args:     []string{"-tx", "file.txt"},
 			WantErr:  "stat: invalid option -- 'x'\nTry 'stat --help' for more information.\n",
 			WantExit: 2,
 		},
 		{
 			Name:     "rejects an unknown long option",
-			FS:       fsx.MemFS{"file.txt": {}},
+			FS:       fsx.MemoryFS{"file.txt": {}},
 			Args:     []string{"--frobnicate", "file.txt"},
 			WantErr:  "stat: unrecognized option '--frobnicate'\nTry 'stat --help' for more information.\n",
 			WantExit: 2,
 		},
 		{
 			Name:     "needs the argument of --format",
-			FS:       fsx.MemFS{"file.txt": {}},
+			FS:       fsx.MemoryFS{"file.txt": {}},
 			Args:     []string{"--format"},
 			WantErr:  "stat: option '--format' requires an argument\nTry 'stat --help' for more information.\n",
 			WantExit: 2,
 		},
 		{
 			Name:     "needs the argument of -c",
-			FS:       fsx.MemFS{"file.txt": {}},
+			FS:       fsx.MemoryFS{"file.txt": {}},
 			Args:     []string{"-c"},
 			WantErr:  "stat: option requires an argument -- 'c'\nTry 'stat --help' for more information.\n",
 			WantExit: 2,
 		},
 		{
 			Name:     "rejects an invalid --cached value",
-			FS:       fsx.MemFS{"file.txt": {}},
+			FS:       fsx.MemoryFS{"file.txt": {}},
 			Args:     []string{"--cached=sometimes", "file.txt"},
 			WantErr:  "stat: invalid argument 'sometimes' for '--cached'\nTry 'stat --help' for more information.\n",
 			WantExit: 2,
 		},
 		{
 			Name:     "takes a fatal invalid directive with flags",
-			FS:       fsx.MemFS{"file.txt": {}},
+			FS:       fsx.MemoryFS{"file.txt": {}},
 			Args:     []string{"-c", "%5%", "file.txt"},
 			WantErr:  "stat: '%5%': invalid directive\n",
 			WantExit: 1,
 		},
 		{
 			Name:     "writes the text before an invalid directive",
-			FS:       fsx.MemFS{"file.txt": {}},
+			FS:       fsx.MemoryFS{"file.txt": {}},
 			Args:     []string{"-c", "abc%5%", "file.txt"},
 			Want:     "abc",
 			WantErr:  "stat: '%5%': invalid directive\n",
@@ -699,21 +699,21 @@ func TestRunErrors(t *testing.T) {
 		},
 		{
 			Name:     "diagnoses a directive the format ends within",
-			FS:       fsx.MemFS{"file.txt": {}},
+			FS:       fsx.MemoryFS{"file.txt": {}},
 			Args:     []string{"-c", "%5", "file.txt"},
 			WantErr:  "stat: '%5': invalid directive\n",
 			WantExit: 1,
 		},
 		{
 			Name:     "rejects an argument given to a flag option",
-			FS:       fsx.MemFS{"file.txt": {}},
+			FS:       fsx.MemoryFS{"file.txt": {}},
 			Args:     []string{"--terse=1", "file.txt"},
 			WantErr:  "stat: option '--terse=1' doesn't allow an argument\nTry 'stat --help' for more information.\n",
 			WantExit: 2,
 		},
 		{
 			Name:     "diagnoses a missing file and goes on",
-			FS:       fsx.MemFS{"file.txt": {Data: []byte("hello"), Mode: 0o644, ModTime: modTime}},
+			FS:       fsx.MemoryFS{"file.txt": {Data: []byte("hello"), Mode: 0o644, ModTime: modTime}},
 			Args:     []string{"-c", "%n", "gone", "file.txt"},
 			Want:     "file.txt\n",
 			WantErr:  "stat: cannot stat 'gone': file does not exist\n",
@@ -721,7 +721,7 @@ func TestRunErrors(t *testing.T) {
 		},
 		{
 			Name:     "reports an invalid zero-length file name",
-			FS:       fsx.MemFS{"file.txt": {}},
+			FS:       fsx.MemoryFS{"file.txt": {}},
 			Args:     []string{""},
 			WantErr:  "stat: invalid zero-length file name\n",
 			WantExit: 1,
@@ -736,7 +736,7 @@ func TestRunErrors(t *testing.T) {
 }
 
 func TestRunCachedOption(t *testing.T) {
-	files := fsx.MemFS{"file.txt": {Data: []byte("hello"), Mode: 0o644, ModTime: modTime}}
+	files := fsx.MemoryFS{"file.txt": {Data: []byte("hello"), Mode: 0o644, ModTime: modTime}}
 	testutil.Run(t, New, []testutil.Case{
 		{
 			Name: "accepts the modes of --cached",
@@ -746,7 +746,7 @@ func TestRunCachedOption(t *testing.T) {
 		},
 		{
 			Name: "ends the options at --",
-			FS:   fsx.MemFS{"-weird": {Data: []byte("hello"), Mode: 0o644, ModTime: modTime}},
+			FS:   fsx.MemoryFS{"-weird": {Data: []byte("hello"), Mode: 0o644, ModTime: modTime}},
 			Args: []string{"-c", "%n", "--", "-weird"},
 			Want: "-weird\n",
 		},
@@ -780,7 +780,7 @@ func TestRunContext(t *testing.T) {
 	rt := &coreutils.Runtime{
 		Stdout: new(bytes.Buffer),
 		Stderr: new(bytes.Buffer),
-		FS:     fsx.MemFS{"file.txt": {Data: []byte("hello"), Mode: 0o644, ModTime: modTime}},
+		FS:     fsx.MemoryFS{"file.txt": {Data: []byte("hello"), Mode: 0o644, ModTime: modTime}},
 	}
 	ctx, cancel := context.WithCancel(t.Context())
 	cancel()
@@ -796,14 +796,14 @@ func TestRunTimezone(t *testing.T) {
 	testutil.Run(t, New, []testutil.Case{
 		{
 			Name:    "writes the timestamps in the zone TZ names",
-			FS:      fsx.MemFS{"file.txt": {Data: []byte("hello"), Mode: 0o644, ModTime: modTime}},
+			FS:      fsx.MemoryFS{"file.txt": {Data: []byte("hello"), Mode: 0o644, ModTime: modTime}},
 			Environ: testutil.Environ(map[string]string{"TZ": "America/New_York"}),
 			Args:    []string{"-c", "%x", "file.txt"},
 			Want:    "2023-11-14 17:13:20.500000000 -0500\n",
 		},
 		{
 			Name:    "falls back to the local zone for an unknown TZ",
-			FS:      fsx.MemFS{"file.txt": {Data: []byte("hello"), Mode: 0o644, ModTime: modTime}},
+			FS:      fsx.MemoryFS{"file.txt": {Data: []byte("hello"), Mode: 0o644, ModTime: modTime}},
 			Environ: testutil.Environ(map[string]string{"TZ": "Nowhere/Bad"}),
 			Args:    []string{"-c", "%Y", "file.txt"},
 			Want:    "1700000000\n",
@@ -815,13 +815,13 @@ func TestRunUsersAndGroups(t *testing.T) {
 	testutil.Run(t, New, []testutil.Case{
 		{
 			Name: "reports UNKNOWN for an owner without a name",
-			FS:   fsx.MemFS{"file.txt": {Data: []byte("hello"), Mode: 0o644, ModTime: modTime, Uid: ownerID, Gid: groupID}},
+			FS:   fsx.MemoryFS{"file.txt": {Data: []byte("hello"), Mode: 0o644, ModTime: modTime, Uid: ownerID, Gid: groupID}},
 			Args: []string{"-c", "%U %G", "file.txt"},
 			Want: "UNKNOWN UNKNOWN\n",
 		},
 		{
 			Name: "reports the owner a system names",
-			FS:   fsx.MemFS{"file.txt": {Data: []byte("hello"), Mode: 0o644, ModTime: modTime, Uid: 0}},
+			FS:   fsx.MemoryFS{"file.txt": {Data: []byte("hello"), Mode: 0o644, ModTime: modTime, Uid: 0}},
 			Args: func() []string {
 				return []string{"-c", "%u %U", "file.txt"}
 			}(),
@@ -834,7 +834,7 @@ func TestRunUsersAndGroups(t *testing.T) {
 		},
 		{
 			Name: "reports the owners of a file without owner information as zero",
-			FS:   fsx.MemFS{"file.txt": {Data: []byte("hello"), Mode: 0o644, ModTime: modTime}},
+			FS:   fsx.MemoryFS{"file.txt": {Data: []byte("hello"), Mode: 0o644, ModTime: modTime}},
 			Args: []string{"-c", "%u %g", "file.txt"},
 			Want: "0 0\n",
 		},
@@ -850,7 +850,7 @@ func TestRunRealFiles(t *testing.T) {
 	testutil.Run(t, New, []testutil.Case{
 		{
 			Name:    "reports the size and type of a real file",
-			FS:      fsx.OsFS(""),
+			FS:      fsx.SystemFS(""),
 			Dir:     dir,
 			Environ: testutil.Environ(utc()),
 			Args:    []string{"-c", "%n %s %F", "file.txt"},
@@ -861,7 +861,7 @@ func TestRunRealFiles(t *testing.T) {
 		testutil.Run(t, New, []testutil.Case{
 			{
 				Name:    "reports the inode and device of a real file",
-				FS:      fsx.OsFS(""),
+				FS:      fsx.SystemFS(""),
 				Dir:     dir,
 				Environ: testutil.Environ(utc()),
 				Args:    []string{"-c", "%i %D %d", "file.txt"},
@@ -890,7 +890,7 @@ func TestRunWindowsOperands(t *testing.T) {
 	testutil.Run(t, New, []testutil.Case{
 		{
 			Name:    "takes the operands with Windows separators",
-			FS:      fsx.MemFS{"dir/file.txt": {Data: []byte("hello"), Mode: 0o644, ModTime: modTime}},
+			FS:      fsx.MemoryFS{"dir/file.txt": {Data: []byte("hello"), Mode: 0o644, ModTime: modTime}},
 			Environ: testutil.Environ(utc()),
 			Args:    []string{"-c", "%n %s", `dir\file.txt`},
 			Want:    `dir\file.txt 5` + "\n",

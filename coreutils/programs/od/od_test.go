@@ -16,7 +16,7 @@ type odTest struct {
 	name     string
 	args     []string
 	stdin    io.Reader
-	files    fsx.MemFS
+	files    fsx.MemoryFS
 	want     string
 	wantErr  string
 	wantCode int
@@ -59,43 +59,43 @@ func TestRun(t *testing.T) {
 		{
 			name:  "byte octal type and no addresses",
 			args:  []string{"-A", "n", "-t", "o1", "file"},
-			files: fsx.MemFS{"file": {Data: []byte{1, 2, 255}}},
+			files: fsx.MemoryFS{"file": {Data: []byte{1, 2, 255}}},
 			want:  " 001 002 377\n",
 		},
 		{
 			name:  "character escapes",
 			args:  []string{"-A", "n", "-tc", "file"},
-			files: fsx.MemFS{"file": {Data: []byte{'A', 0, '\n', 0x7f}}},
+			files: fsx.MemoryFS{"file": {Data: []byte{'A', 0, '\n', 0x7f}}},
 			want:  "   A  \\0  \\n 177\n",
 		},
 		{
 			name:  "named characters",
 			args:  []string{"-A", "n", "-ta", "file"},
-			files: fsx.MemFS{"file": {Data: []byte{0, 32, 65}}},
+			files: fsx.MemoryFS{"file": {Data: []byte{0, 32, 65}}},
 			want:  " nul  sp   A\n",
 		},
 		{
 			name:  "named characters ignore the high-order bit",
 			args:  []string{"-A", "n", "-ta", "file"},
-			files: fsx.MemFS{"file": {Data: []byte{0x80, 0xff, 'A' | 0x80}}},
+			files: fsx.MemoryFS{"file": {Data: []byte{0x80, 0xff, 'A' | 0x80}}},
 			want:  " nul del   A\n",
 		},
 		{
 			name:  "hexadecimal addresses are 6 digits wide",
 			args:  []string{"-A", "x", "-t", "x2", "file"},
-			files: fsx.MemFS{"file": {Data: []byte{0x34, 0x12, 0xff, 0xff}}},
+			files: fsx.MemoryFS{"file": {Data: []byte{0x34, 0x12, 0xff, 0xff}}},
 			want:  "000000 1234 ffff\n000004\n",
 		},
 		{
 			name:  "skip and count parse prefixes",
 			args:  []string{"-A", "d", "-j", "0x1", "-N", "02", "-t", "o1", "file"},
-			files: fsx.MemFS{"file": {Data: []byte{1, 2, 3, 4, 5}}},
+			files: fsx.MemoryFS{"file": {Data: []byte{1, 2, 3, 4, 5}}},
 			want:  "0000001 002 003\n0000003\n",
 		},
 		{
 			name:     "skip past end is an error",
 			args:     []string{"-j", "5", "file"},
-			files:    fsx.MemFS{"file": {Data: []byte{1, 2}}},
+			files:    fsx.MemoryFS{"file": {Data: []byte{1, 2}}},
 			wantErr:  "od: cannot skip past end of combined input\n",
 			wantCode: 1,
 		},
@@ -170,13 +170,13 @@ func TestRun(t *testing.T) {
 		{
 			name:  "an operand which looks like an option stays one",
 			args:  []string{"a", "-w"},
-			files: fsx.MemFS{"a": {Data: []byte{1}}, "-w": {Data: []byte{2}}},
+			files: fsx.MemoryFS{"a": {Data: []byte{1}}, "-w": {Data: []byte{2}}},
 			want:  "0000000 001001\n0000002\n",
 		},
 		{
 			name:  "an operand after -- stays one",
 			args:  []string{"--", "-w"},
-			files: fsx.MemFS{"-w": {Data: []byte{1}}},
+			files: fsx.MemoryFS{"-w": {Data: []byte{1}}},
 			want:  "0000000 000001\n0000001\n",
 		},
 	})
@@ -190,7 +190,7 @@ func TestRunWidth(t *testing.T) {
 		{
 			name:  "-w alone means 32 bytes and keeps the operand",
 			args:  []string{"-w", "file"},
-			files: fsx.MemFS{"file": {Data: bytes.Repeat([]byte{'A'}, 40)}},
+			files: fsx.MemoryFS{"file": {Data: bytes.Repeat([]byte{'A'}, 40)}},
 			want:  per32,
 		},
 		{
@@ -263,7 +263,7 @@ func TestRunEndian(t *testing.T) {
 		{
 			name:  "--endian hides the offset operand",
 			args:  []string{"--endian=little", "file", "10"},
-			files: fsx.MemFS{"file": {Data: []byte{1, 2}}, "10": {Data: []byte{3, 4}}},
+			files: fsx.MemoryFS{"file": {Data: []byte{1, 2}}, "10": {Data: []byte{3, 4}}},
 			want:  "0000000 001001 002003\n0000004\n",
 		},
 		{
@@ -467,7 +467,7 @@ func TestRunStrings(t *testing.T) {
 		{
 			name:  "the operand of --strings stays a file",
 			args:  []string{"--strings", "file"},
-			files: fsx.MemFS{"file": {Data: []byte("hello\x00")}},
+			files: fsx.MemoryFS{"file": {Data: []byte("hello\x00")}},
 			want:  "0000000 hello\n",
 		},
 		{
@@ -529,31 +529,31 @@ func TestRunTraditional(t *testing.T) {
 		{
 			name:  "an offset with a plus",
 			args:  []string{"file", "+10"},
-			files: fsx.MemFS{"file": {Data: digits(12)}},
+			files: fsx.MemoryFS{"file": {Data: digits(12)}},
 			want:  "0000010 004410 005412\n0000014\n",
 		},
 		{
 			name:  "an offset with a digit",
 			args:  []string{"file", "10"},
-			files: fsx.MemFS{"file": {Data: digits(12)}},
+			files: fsx.MemoryFS{"file": {Data: digits(12)}},
 			want:  "0000010 004410 005412\n0000014\n",
 		},
 		{
 			name:  "a decimal offset with a dot",
 			args:  []string{"file", "8."},
-			files: fsx.MemFS{"file": {Data: digits(12)}},
+			files: fsx.MemoryFS{"file": {Data: digits(12)}},
 			want:  "0000010 004410 005412\n0000014\n",
 		},
 		{
 			name:  "a hexadecimal offset",
 			args:  []string{"file", "+0x8"},
-			files: fsx.MemFS{"file": {Data: digits(12)}},
+			files: fsx.MemoryFS{"file": {Data: digits(12)}},
 			want:  "0000010 004410 005412\n0000014\n",
 		},
 		{
 			name:  "an offset in blocks",
 			args:  []string{"file", "1b"},
-			files: fsx.MemFS{"file": {Data: at512}},
+			files: fsx.MemoryFS{"file": {Data: at512}},
 			want:  "0001000 004410 005412\n0001004\n",
 		},
 		{
@@ -565,13 +565,13 @@ func TestRunTraditional(t *testing.T) {
 		{
 			name:  "one numeric operand is a file",
 			args:  []string{"10"},
-			files: fsx.MemFS{"10": {Data: []byte{1, 2, 3}}},
+			files: fsx.MemoryFS{"10": {Data: []byte{1, 2, 3}}},
 			want:  "0000000 001001 000003\n0000003\n",
 		},
 		{
 			name: "modern options hide the offset operand",
 			args: []string{"-A", "n", "file", "10"},
-			files: fsx.MemFS{
+			files: fsx.MemoryFS{
 				"file": {Data: []byte{1, 2, 3, 4}},
 				"10":   {Data: []byte{5, 6, 7, 8}},
 			},
@@ -580,7 +580,7 @@ func TestRunTraditional(t *testing.T) {
 		{
 			name:  "a label follows the offset",
 			args:  []string{"--traditional", "file", "10", "20"},
-			files: fsx.MemFS{"file": {Data: digits(12)}},
+			files: fsx.MemoryFS{"file": {Data: digits(12)}},
 			want:  "0000010 (0000020) 004410 005412\n0000014 (0000024)\n",
 		},
 		{
@@ -598,7 +598,7 @@ func TestRunTraditional(t *testing.T) {
 		{
 			name:  "the label sets the indent of the other type lines",
 			args:  []string{"-t", "o2x2", "--traditional", "file", "10", "20"},
-			files: fsx.MemFS{"file": {Data: digits(12)}},
+			files: fsx.MemoryFS{"file": {Data: digits(12)}},
 			want: "0000010 (0000020) 004410 005412\n" +
 				strings.Repeat(" ", 20) + "0908   0b0a\n" +
 				"0000014 (0000024)\n",
@@ -614,13 +614,13 @@ func TestRunTraditional(t *testing.T) {
 		{
 			name:  "three operands without --traditional are files",
 			args:  []string{"a", "b", "c"},
-			files: fsx.MemFS{"a": {Data: []byte{1}}, "b": {Data: []byte{2}}, "c": {Data: []byte{3}}},
+			files: fsx.MemoryFS{"a": {Data: []byte{1}}, "b": {Data: []byte{2}}, "c": {Data: []byte{3}}},
 			want:  "0000000 001001 000003\n0000003\n",
 		},
 		{
 			name:     "two files with --traditional are rejected",
 			args:     []string{"--traditional", "f1", "f2"},
-			files:    fsx.MemFS{"f1": {Data: []byte{1}}, "f2": {Data: []byte{2}}},
+			files:    fsx.MemoryFS{"f1": {Data: []byte{1}}, "f2": {Data: []byte{2}}},
 			wantErr:  "od: extra operand 'f2'\nod: compatibility mode supports at most one file\nTry 'od --help' for more information.\n",
 			wantCode: 1,
 		},

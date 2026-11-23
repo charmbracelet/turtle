@@ -24,8 +24,8 @@ import (
 //	empty.txt:     ""
 //	"-s":          "aa bb\n" (a file named like an option)
 //	sub/inner.txt: "abcdefghi\n"
-func testFS() fsx.MemFS {
-	return fsx.MemFS{
+func testFS() fsx.MemoryFS {
+	return fsx.MemoryFS{
 		"long.txt":      {Data: []byte(strings.Repeat("a", 90) + "\n")},
 		"tabs.txt":      {Data: []byte("ab\tcd\n")},
 		"cr.txt":        {Data: []byte("abc\rdef\n")},
@@ -389,7 +389,7 @@ func TestRunErrors(t *testing.T) {
 		},
 		{
 			Name:     "directory operand",
-			FS:       fsx.MemFS{"dir": {Mode: fs.ModeDir}},
+			FS:       fsx.MemoryFS{"dir": {Mode: fs.ModeDir}},
 			Args:     []string{"dir"},
 			WantErr:  "fold: dir: invalid argument\n",
 			WantExit: 1,

@@ -34,7 +34,7 @@ func renderPatch(name1, name2, a, b string, unified bool) string {
 }
 
 // checkFile asserts the contents of a file of the test file system.
-func checkFile(t *testing.T, fsys fsx.MemFS, name, want string) {
+func checkFile(t *testing.T, fsys fsx.MemoryFS, name, want string) {
 	t.Helper()
 
 	f, ok := fsys[name]
@@ -48,7 +48,7 @@ func checkFile(t *testing.T, fsys fsx.MemFS, name, want string) {
 }
 
 // checkMissing asserts that no file of the given name exists.
-func checkMissing(t *testing.T, fsys fsx.MemFS, name string) {
+func checkMissing(t *testing.T, fsys fsx.MemoryFS, name string) {
 	t.Helper()
 
 	if _, ok := fsys[name]; ok {
@@ -140,9 +140,9 @@ func TestRunApply(t *testing.T) {
 	}
 	for _, test := range tests {
 		t.Run(test.Name, func(t *testing.T) {
-			fsys := fsx.MemFS{"f": {Data: []byte(test.Contents)}}
+			fsys := fsx.MemoryFS{"f": {Data: []byte(test.Contents)}}
 			if strings.Contains(test.Name, "from a file") {
-				fsys["p.patch"] = &fsx.MemFile{Data: []byte(test.Patch)}
+				fsys["p.patch"] = &fsx.MemoryFile{Data: []byte(test.Patch)}
 			}
 			testutil.Once(t, New, testutil.Case{
 				Name:     test.Name,
@@ -161,7 +161,7 @@ func TestRunMultiFile(t *testing.T) {
 	patch := unifiedPatch("a/f", "b/f", "1\n2\n3\n", "1\nx\n3\n") +
 		"diff -u a/g b/g\n" +
 		unifiedPatch("a/g", "b/g", "q\nw\n", "q\nz\n")
-	fsys := fsx.MemFS{
+	fsys := fsx.MemoryFS{
 		"f": {Data: []byte("1\n2\n3\n")},
 		"g": {Data: []byte("q\nw\n")},
 	}
@@ -177,7 +177,7 @@ func TestRunMultiFile(t *testing.T) {
 
 func TestRunSearch(t *testing.T) {
 	t.Run("hunk moved by added lines", func(t *testing.T) {
-		fsys := fsx.MemFS{"f": {Data: []byte("z\ny\n1\n2\n3\n4\n5\n")}}
+		fsys := fsx.MemoryFS{"f": {Data: []byte("z\ny\n1\n2\n3\n4\n5\n")}}
 		testutil.Once(t, New, testutil.Case{
 			Name: "offset",
 			Stdin: strings.NewReader(unifiedPatch("f", "f",
@@ -190,7 +190,7 @@ func TestRunSearch(t *testing.T) {
 	})
 
 	t.Run("hunk matching with fuzz", func(t *testing.T) {
-		fsys := fsx.MemFS{"f": {Data: []byte("1\n2\n3\n4\n9\n")}}
+		fsys := fsx.MemoryFS{"f": {Data: []byte("1\n2\n3\n4\n9\n")}}
 		testutil.Once(t, New, testutil.Case{
 			Name: "fuzz",
 			Stdin: strings.NewReader(unifiedPatch("f", "f",
@@ -203,7 +203,7 @@ func TestRunSearch(t *testing.T) {
 	})
 
 	t.Run("blank amounts ignored with -l", func(t *testing.T) {
-		fsys := fsx.MemFS{"f": {Data: []byte("1\n2 \n3\n")}}
+		fsys := fsx.MemoryFS{"f": {Data: []byte("1\n2 \n3\n")}}
 		testutil.Once(t, New, testutil.Case{
 			Name: "blank",
 			Stdin: strings.NewReader(unifiedPatch("f", "f",
@@ -218,7 +218,7 @@ func TestRunSearch(t *testing.T) {
 
 func TestRunRejects(t *testing.T) {
 	t.Run("failed hunk saved to the reject file", func(t *testing.T) {
-		fsys := fsx.MemFS{"f": {Data: []byte("1\n9\n3\n")}}
+		fsys := fsx.MemoryFS{"f": {Data: []byte("1\n9\n3\n")}}
 		testutil.Once(t, New, testutil.Case{
 			Name: "reject",
 			Stdin: strings.NewReader(unifiedPatch("f", "f",
@@ -233,7 +233,7 @@ func TestRunRejects(t *testing.T) {
 	})
 
 	t.Run("context rejects keep the context format", func(t *testing.T) {
-		fsys := fsx.MemFS{"f": {Data: []byte("1\n9\n3\n")}}
+		fsys := fsx.MemoryFS{"f": {Data: []byte("1\n9\n3\n")}}
 		testutil.Once(t, New, testutil.Case{
 			Name: "context reject",
 			Stdin: strings.NewReader(contextPatch("f", "f",
@@ -247,7 +247,7 @@ func TestRunRejects(t *testing.T) {
 	})
 
 	t.Run("reject file of the -r option", func(t *testing.T) {
-		fsys := fsx.MemFS{"f": {Data: []byte("1\n9\n3\n")}}
+		fsys := fsx.MemoryFS{"f": {Data: []byte("1\n9\n3\n")}}
 		testutil.Once(t, New, testutil.Case{
 			Name: "custom reject file",
 			Stdin: strings.NewReader(unifiedPatch("f", "f",
@@ -265,7 +265,7 @@ func TestRunReversed(t *testing.T) {
 	patch := unifiedPatch("f", "f", "1\n2\n3\n", "1\nx\n3\n")
 
 	t.Run("the -R option applies backwards", func(t *testing.T) {
-		fsys := fsx.MemFS{"f": {Data: []byte("1\nx\n3\n")}}
+		fsys := fsx.MemoryFS{"f": {Data: []byte("1\nx\n3\n")}}
 		testutil.Once(t, New, testutil.Case{
 			Name:     "reverse",
 			Stdin:    strings.NewReader(patch),
@@ -278,7 +278,7 @@ func TestRunReversed(t *testing.T) {
 	})
 
 	t.Run("an applied patch skipped without -N", func(t *testing.T) {
-		fsys := fsx.MemFS{"f": {Data: []byte("1\nx\n3\n")}}
+		fsys := fsx.MemoryFS{"f": {Data: []byte("1\nx\n3\n")}}
 		testutil.Once(t, New, testutil.Case{
 			Name:     "skipped",
 			Stdin:    strings.NewReader(patch),
@@ -291,7 +291,7 @@ func TestRunReversed(t *testing.T) {
 	})
 
 	t.Run("an applied patch skipped with -N", func(t *testing.T) {
-		fsys := fsx.MemFS{"f": {Data: []byte("1\nx\n3\n")}}
+		fsys := fsx.MemoryFS{"f": {Data: []byte("1\nx\n3\n")}}
 		testutil.Once(t, New, testutil.Case{
 			Name:     "-N",
 			Stdin:    strings.NewReader(patch),
@@ -304,7 +304,7 @@ func TestRunReversed(t *testing.T) {
 	})
 
 	t.Run("the prompt applying backwards", func(t *testing.T) {
-		fsys := fsx.MemFS{"f": {Data: []byte("1\nx\n3\n")}, "p.patch": {Data: []byte(patch)}}
+		fsys := fsx.MemoryFS{"f": {Data: []byte("1\nx\n3\n")}, "p.patch": {Data: []byte(patch)}}
 		testutil.Once(t, New, testutil.Case{
 			Name:     "prompt yes",
 			Stdin:    strings.NewReader("y\n"),
@@ -317,7 +317,7 @@ func TestRunReversed(t *testing.T) {
 	})
 
 	t.Run("the prompt refusing to apply backwards", func(t *testing.T) {
-		fsys := fsx.MemFS{"f": {Data: []byte("1\nx\n3\n")}, "p.patch": {Data: []byte(patch)}}
+		fsys := fsx.MemoryFS{"f": {Data: []byte("1\nx\n3\n")}, "p.patch": {Data: []byte(patch)}}
 		testutil.Once(t, New, testutil.Case{
 			Name:     "prompt no",
 			Stdin:    strings.NewReader("n\n"),
@@ -334,7 +334,7 @@ func TestRunNames(t *testing.T) {
 	patch := unifiedPatch("a/b/f", "c/b/f", "1\n2\n3\n", "1\nx\n3\n")
 
 	t.Run("the basename by default", func(t *testing.T) {
-		fsys := fsx.MemFS{"f": {Data: []byte("1\n2\n3\n")}}
+		fsys := fsx.MemoryFS{"f": {Data: []byte("1\n2\n3\n")}}
 		testutil.Once(t, New, testutil.Case{
 			Name:    "basename",
 			Stdin:   strings.NewReader(patch),
@@ -345,7 +345,7 @@ func TestRunNames(t *testing.T) {
 	})
 
 	t.Run("components stripped with -p", func(t *testing.T) {
-		fsys := fsx.MemFS{"b/f": {Data: []byte("1\n2\n3\n")}}
+		fsys := fsx.MemoryFS{"b/f": {Data: []byte("1\n2\n3\n")}}
 		testutil.Once(t, New, testutil.Case{
 			Name:    "p1",
 			Stdin:   strings.NewReader(patch),
@@ -357,7 +357,7 @@ func TestRunNames(t *testing.T) {
 	})
 
 	t.Run("the whole path with -p0", func(t *testing.T) {
-		fsys := fsx.MemFS{"a/b/f": {Data: []byte("1\n2\n3\n")}}
+		fsys := fsx.MemoryFS{"a/b/f": {Data: []byte("1\n2\n3\n")}}
 		testutil.Once(t, New, testutil.Case{
 			Name:    "p0",
 			Stdin:   strings.NewReader(patch),
@@ -369,7 +369,7 @@ func TestRunNames(t *testing.T) {
 	})
 
 	t.Run("the directory of the -d option", func(t *testing.T) {
-		fsys := fsx.MemFS{"sub/f": {Data: []byte("1\n2\n3\n")}}
+		fsys := fsx.MemoryFS{"sub/f": {Data: []byte("1\n2\n3\n")}}
 		testutil.Once(t, New, testutil.Case{
 			Name:    "d",
 			Stdin:   strings.NewReader(unifiedPatch("f", "f", "1\n2\n3\n", "1\nx\n3\n")),
@@ -381,7 +381,7 @@ func TestRunNames(t *testing.T) {
 	})
 
 	t.Run("a missing file asked for interactively", func(t *testing.T) {
-		fsys := fsx.MemFS{"f": {Data: []byte("1\n2\n3\n")}, "p.patch": {Data: []byte(unifiedPatch("nope", "nope", "1\n2\n3\n", "1\nx\n3\n"))}}
+		fsys := fsx.MemoryFS{"f": {Data: []byte("1\n2\n3\n")}, "p.patch": {Data: []byte(unifiedPatch("nope", "nope", "1\n2\n3\n", "1\nx\n3\n"))}}
 		testutil.Once(t, New, testutil.Case{
 			Name:    "prompt for a name",
 			Stdin:   strings.NewReader("f\n"),
@@ -395,7 +395,7 @@ func TestRunNames(t *testing.T) {
 
 func TestRunCreateDelete(t *testing.T) {
 	t.Run("a new file from /dev/null", func(t *testing.T) {
-		fsys := fsx.MemFS{}
+		fsys := fsx.MemoryFS{}
 		testutil.Once(t, New, testutil.Case{
 			Name: "creation",
 			Stdin: strings.NewReader("--- /dev/null\t2026-01-02 03:04:05 +0000\n" +
@@ -408,7 +408,7 @@ func TestRunCreateDelete(t *testing.T) {
 	})
 
 	t.Run("a file taken away to /dev/null", func(t *testing.T) {
-		fsys := fsx.MemFS{"f": {Data: []byte("1\n2\n3\n")}}
+		fsys := fsx.MemoryFS{"f": {Data: []byte("1\n2\n3\n")}}
 		testutil.Once(t, New, testutil.Case{
 			Name: "deletion",
 			Stdin: strings.NewReader("--- f\t2026-01-02 03:04:05 +0000\n" +
@@ -425,7 +425,7 @@ func TestRunBackupOutput(t *testing.T) {
 	patch := unifiedPatch("f", "f", "1\n2\n3\n", "1\nx\n3\n")
 
 	t.Run("backup with -b", func(t *testing.T) {
-		fsys := fsx.MemFS{"f": {Data: []byte("1\n2\n3\n")}}
+		fsys := fsx.MemoryFS{"f": {Data: []byte("1\n2\n3\n")}}
 		testutil.Once(t, New, testutil.Case{
 			Name:    "backup",
 			Stdin:   strings.NewReader(patch),
@@ -438,7 +438,7 @@ func TestRunBackupOutput(t *testing.T) {
 	})
 
 	t.Run("output to another file with -o", func(t *testing.T) {
-		fsys := fsx.MemFS{"f": {Data: []byte("1\n2\n3\n")}}
+		fsys := fsx.MemoryFS{"f": {Data: []byte("1\n2\n3\n")}}
 		testutil.Once(t, New, testutil.Case{
 			Name:    "output",
 			Stdin:   strings.NewReader(patch),
@@ -451,7 +451,7 @@ func TestRunBackupOutput(t *testing.T) {
 	})
 
 	t.Run("the backup of an output file with -b and -o", func(t *testing.T) {
-		fsys := fsx.MemFS{"f": {Data: []byte("1\n2\n3\n")}, "out.txt": {Data: []byte("old\n")}}
+		fsys := fsx.MemoryFS{"f": {Data: []byte("1\n2\n3\n")}, "out.txt": {Data: []byte("old\n")}}
 		testutil.Once(t, New, testutil.Case{
 			Name:    "output backup",
 			Stdin:   strings.NewReader(patch),
@@ -464,7 +464,7 @@ func TestRunBackupOutput(t *testing.T) {
 	})
 
 	t.Run("versions of one file concatenated with -o", func(t *testing.T) {
-		fsys := fsx.MemFS{"f": {Data: []byte("1\n2\n3\n")}}
+		fsys := fsx.MemoryFS{"f": {Data: []byte("1\n2\n3\n")}}
 		patches := unifiedPatch("f", "f", "1\n2\n3\n", "1\nx\n3\n") +
 			unifiedPatch("f", "f", "1\nx\n3\n", "1\ny\n3\n")
 		testutil.Once(t, New, testutil.Case{
@@ -484,7 +484,7 @@ func TestRunErrors(t *testing.T) {
 		{
 			Name:     "garbage input",
 			Stdin:    strings.NewReader("just some text\n"),
-			FS:       fsx.MemFS{"f": {Data: []byte("1\n2\n3\n")}},
+			FS:       fsx.MemoryFS{"f": {Data: []byte("1\n2\n3\n")}},
 			Args:     []string{"f"},
 			WantErr:  "patch: only garbage was found in the patch input\n",
 			WantExit: 2,
@@ -492,7 +492,7 @@ func TestRunErrors(t *testing.T) {
 		{
 			Name:     "missing file to patch",
 			Stdin:    strings.NewReader(patch),
-			FS:       fsx.MemFS{"f": {Data: []byte("1\n2\n3\n")}},
+			FS:       fsx.MemoryFS{"f": {Data: []byte("1\n2\n3\n")}},
 			Args:     []string{"nope"},
 			WantErr:  "patch: can't find file to patch: nope\n",
 			WantExit: 2,
@@ -500,7 +500,7 @@ func TestRunErrors(t *testing.T) {
 		{
 			Name:     "extra operand",
 			Stdin:    strings.NewReader(patch),
-			FS:       fsx.MemFS{"f": {Data: []byte("1\n2\n3\n")}},
+			FS:       fsx.MemoryFS{"f": {Data: []byte("1\n2\n3\n")}},
 			Args:     []string{"f", "g"},
 			WantErr:  "patch: extra operand 'g'\nTry 'patch --help' for more information.\n",
 			WantExit: 2,
@@ -508,7 +508,7 @@ func TestRunErrors(t *testing.T) {
 		{
 			Name:     "invalid option",
 			Stdin:    strings.NewReader(patch),
-			FS:       fsx.MemFS{"f": {Data: []byte("1\n2\n3\n")}},
+			FS:       fsx.MemoryFS{"f": {Data: []byte("1\n2\n3\n")}},
 			Args:     []string{"-x", "f"},
 			WantErr:  "patch: invalid option -- 'x'\nTry 'patch --help' for more information.\n",
 			WantExit: 2,
@@ -516,7 +516,7 @@ func TestRunErrors(t *testing.T) {
 		{
 			Name:     "conflicting formats",
 			Stdin:    strings.NewReader(patch),
-			FS:       fsx.MemFS{"f": {Data: []byte("1\n2\n3\n")}},
+			FS:       fsx.MemoryFS{"f": {Data: []byte("1\n2\n3\n")}},
 			Args:     []string{"-c", "-u", "f"},
 			WantErr:  "patch: options -c and -u are incompatible\nTry 'patch --help' for more information.\n",
 			WantExit: 2,
@@ -524,7 +524,7 @@ func TestRunErrors(t *testing.T) {
 		{
 			Name:     "invalid -p argument",
 			Stdin:    strings.NewReader(patch),
-			FS:       fsx.MemFS{"f": {Data: []byte("1\n2\n3\n")}},
+			FS:       fsx.MemoryFS{"f": {Data: []byte("1\n2\n3\n")}},
 			Args:     []string{"-p", "x", "f"},
 			WantErr:  "patch: invalid -p argument 'x'\nTry 'patch --help' for more information.\n",
 			WantExit: 2,
@@ -532,7 +532,7 @@ func TestRunErrors(t *testing.T) {
 		{
 			Name:     "malformed patch",
 			Stdin:    strings.NewReader("@@ -x +1 @@\n"),
-			FS:       fsx.MemFS{"f": {Data: []byte("1\n2\n3\n")}},
+			FS:       fsx.MemoryFS{"f": {Data: []byte("1\n2\n3\n")}},
 			Args:     []string{"f"},
 			WantErr:  "patch: malformed patch at line 1: missing line number\n",
 			WantExit: 2,
@@ -542,7 +542,7 @@ func TestRunErrors(t *testing.T) {
 }
 
 func TestRunContext(t *testing.T) {
-	fsys := fsx.MemFS{"f": {Data: []byte("1\n2\n3\n")}}
+	fsys := fsx.MemoryFS{"f": {Data: []byte("1\n2\n3\n")}}
 
 	t.Run("cancelled before running", func(t *testing.T) {
 		testutil.Cancelled(t, New, strings.NewReader("patch\n"), fsys, "f")

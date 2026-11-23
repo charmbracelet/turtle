@@ -19,8 +19,8 @@ import (
 //	regex.txt:  "foo\nbar\nfoobar\n"
 //	nonl.txt:   "lorem\nipsum" (no trailing newline)
 //	empty.txt:  ""
-func testFS() fsx.MemFS {
-	return fsx.MemFS{
+func testFS() fsx.MemoryFS {
+	return fsx.MemoryFS{
 		"lorem.txt":  {Data: []byte("lorem\nipsum\ndolor\n")},
 		"blanks.txt": {Data: []byte("a\n\n\nb\n\n\n\nc\n")},
 		"pages.txt":  {Data: []byte("\\:\\:\\:\nh1\nh2\n\\:\\:\nb1\n\nb3\n\\:\nf1\nf2\n")},
@@ -257,7 +257,7 @@ func TestRunSections(t *testing.T) {
 		},
 		{
 			Name: "numbering is not reset between files",
-			FS: fsx.MemFS{
+			FS: fsx.MemoryFS{
 				"page1.txt": {Data: []byte("\\:\\:\\:\nh1\n\\:\\:\nb1\n")},
 				"page2.txt": {Data: []byte("\\:\\:\nb2\n")},
 			},

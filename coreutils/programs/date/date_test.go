@@ -24,7 +24,7 @@ var refTime = time.Date(2020, 3, 1, 12, 30, 0, 0, time.UTC)
 
 type testCase struct {
 	name     string
-	fsys     fsx.MemFS
+	fsys     fsx.MemoryFS
 	env      map[string]string
 	stdin    io.Reader
 	args     []string
@@ -122,69 +122,69 @@ func TestRun(t *testing.T) {
 		{
 			name: "the format of the touch -t times",
 			args: []string{"-r", "ref.txt", "+%Y%m%d%H%M.%S"},
-			fsys: fsx.MemFS{"ref.txt": {Data: []byte("x"), ModTime: refTime}},
+			fsys: fsx.MemoryFS{"ref.txt": {Data: []byte("x"), ModTime: refTime}},
 			want: "202003011230.00\n",
 		},
 		{
 			name: "the modification time of the -r file",
 			args: []string{"-r", "ref.txt"},
-			fsys: fsx.MemFS{"ref.txt": {Data: []byte("x"), ModTime: refTime}},
+			fsys: fsx.MemoryFS{"ref.txt": {Data: []byte("x"), ModTime: refTime}},
 			want: "Sun Mar  1 12:30:00 UTC 2020\n",
 		},
 		{
 			name: "the -r option with its argument glued",
 			args: []string{"-rref.txt"},
-			fsys: fsx.MemFS{"ref.txt": {Data: []byte("x"), ModTime: refTime}},
+			fsys: fsx.MemoryFS{"ref.txt": {Data: []byte("x"), ModTime: refTime}},
 			want: "Sun Mar  1 12:30:00 UTC 2020\n",
 		},
 		{
 			name: "the --reference long option",
 			args: []string{"--reference", "ref.txt"},
-			fsys: fsx.MemFS{"ref.txt": {Data: []byte("x"), ModTime: refTime}},
+			fsys: fsx.MemoryFS{"ref.txt": {Data: []byte("x"), ModTime: refTime}},
 			want: "Sun Mar  1 12:30:00 UTC 2020\n",
 		},
 		{
 			name: "the --reference long option with an attached argument",
 			args: []string{"--reference=ref.txt"},
-			fsys: fsx.MemFS{"ref.txt": {Data: []byte("x"), ModTime: refTime}},
+			fsys: fsx.MemoryFS{"ref.txt": {Data: []byte("x"), ModTime: refTime}},
 			want: "Sun Mar  1 12:30:00 UTC 2020\n",
 		},
 		{
 			name: "the -r file in a subdirectory",
 			args: []string{"-r", "sub/ref.txt"},
-			fsys: fsx.MemFS{"sub/ref.txt": {Data: []byte("x"), ModTime: refTime}},
+			fsys: fsx.MemoryFS{"sub/ref.txt": {Data: []byte("x"), ModTime: refTime}},
 			want: "Sun Mar  1 12:30:00 UTC 2020\n",
 		},
 		{
 			name: "the -r file with a format operand",
 			args: []string{"-r", "ref.txt", "+%Y"},
-			fsys: fsx.MemFS{"ref.txt": {Data: []byte("x"), ModTime: refTime}},
+			fsys: fsx.MemoryFS{"ref.txt": {Data: []byte("x"), ModTime: refTime}},
 			want: "2020\n",
 		},
 		{
 			name: "the -r file with -u",
 			args: []string{"-ur", "ref.txt"},
-			fsys: fsx.MemFS{"ref.txt": {Data: []byte("x"), ModTime: refTime}},
+			fsys: fsx.MemoryFS{"ref.txt": {Data: []byte("x"), ModTime: refTime}},
 			want: "Sun Mar  1 12:30:00 UTC 2020\n",
 		},
 		{
 			name:     "the -r option with an empty argument",
 			args:     []string{"-r", ""},
-			fsys:     fsx.MemFS{},
+			fsys:     fsx.MemoryFS{},
 			wantErr:  "date: failed to get timestamp of '': file does not exist\n",
 			wantExit: 1,
 		},
 		{
 			name:     "the --reference option with an empty attached argument",
 			args:     []string{"--reference="},
-			fsys:     fsx.MemFS{},
+			fsys:     fsx.MemoryFS{},
 			wantErr:  "date: failed to get timestamp of '': file does not exist\n",
 			wantExit: 1,
 		},
 		{
 			name:     "a -r file which does not exist",
 			args:     []string{"-r", "missing.txt"},
-			fsys:     fsx.MemFS{},
+			fsys:     fsx.MemoryFS{},
 			wantErr:  "date: failed to get timestamp of 'missing.txt': file does not exist\n",
 			wantExit: 1,
 		},
@@ -649,21 +649,21 @@ func TestRunDateOption(t *testing.T) {
 		{
 			name:     "-d with -r",
 			args:     []string{"-d", "2020-01-01", "-r", "ref.txt"},
-			fsys:     fsx.MemFS{"ref.txt": {Data: []byte("x"), ModTime: refTime}},
+			fsys:     fsx.MemoryFS{"ref.txt": {Data: []byte("x"), ModTime: refTime}},
 			wantErr:  "date: the options to specify dates for printing are mutually exclusive\nTry 'date --help' for more information.\n",
 			wantExit: 1,
 		},
 		{
 			name:     "-d with -f",
 			args:     []string{"-d", "2020-01-01", "-f", "dates.txt"},
-			fsys:     fsx.MemFS{"dates.txt": {Data: []byte("2020-01-01\n")}},
+			fsys:     fsx.MemoryFS{"dates.txt": {Data: []byte("2020-01-01\n")}},
 			wantErr:  "date: the options to specify dates for printing are mutually exclusive\nTry 'date --help' for more information.\n",
 			wantExit: 1,
 		},
 		{
 			name:     "-r with -f",
 			args:     []string{"-r", "ref.txt", "-f", "dates.txt"},
-			fsys:     fsx.MemFS{"ref.txt": {Data: []byte("x"), ModTime: refTime}, "dates.txt": {Data: []byte("2020-01-01\n")}},
+			fsys:     fsx.MemoryFS{"ref.txt": {Data: []byte("x"), ModTime: refTime}, "dates.txt": {Data: []byte("2020-01-01\n")}},
 			wantErr:  "date: the options to specify dates for printing are mutually exclusive\nTry 'date --help' for more information.\n",
 			wantExit: 1,
 		},
@@ -681,31 +681,31 @@ func TestRunFileOption(t *testing.T) {
 		{
 			name: "one date per line",
 			args: []string{"-f", "dates.txt"},
-			fsys: fsx.MemFS{"dates.txt": {Data: []byte("2020-01-01\n2021-02-03\n")}},
+			fsys: fsx.MemoryFS{"dates.txt": {Data: []byte("2020-01-01\n2021-02-03\n")}},
 			want: "Wed Jan  1 00:00:00 UTC 2020\nWed Feb  3 00:00:00 UTC 2021\n",
 		},
 		{
 			name: "the format operand applies to every line",
 			args: []string{"-f", "dates.txt", "+%Y-%m-%d"},
-			fsys: fsx.MemFS{"dates.txt": {Data: []byte("2020-01-01\n2021-02-03\n")}},
+			fsys: fsx.MemoryFS{"dates.txt": {Data: []byte("2020-01-01\n2021-02-03\n")}},
 			want: "2020-01-01\n2021-02-03\n",
 		},
 		{
 			name: "the --file long option",
 			args: []string{"--file=dates.txt"},
-			fsys: fsx.MemFS{"dates.txt": {Data: []byte("2020-01-01\n")}},
+			fsys: fsx.MemoryFS{"dates.txt": {Data: []byte("2020-01-01\n")}},
 			want: "Wed Jan  1 00:00:00 UTC 2020\n",
 		},
 		{
 			name: "a relative line",
 			args: []string{"-f", "dates.txt"},
-			fsys: fsx.MemFS{"dates.txt": {Data: []byte("yesterday\n")}},
+			fsys: fsx.MemoryFS{"dates.txt": {Data: []byte("yesterday\n")}},
 			want: "Mon Jun 25 00:00:00 UTC 1990\n",
 		},
 		{
 			name: "the last line without a newline",
 			args: []string{"-f", "dates.txt"},
-			fsys: fsx.MemFS{"dates.txt": {Data: []byte("2020-01-01")}},
+			fsys: fsx.MemoryFS{"dates.txt": {Data: []byte("2020-01-01")}},
 			want: "Wed Jan  1 00:00:00 UTC 2020\n",
 		},
 		{
@@ -717,7 +717,7 @@ func TestRunFileOption(t *testing.T) {
 		{
 			name:     "an invalid line, after the valid ones were printed",
 			args:     []string{"-f", "dates.txt"},
-			fsys:     fsx.MemFS{"dates.txt": {Data: []byte("2020-01-01\nbogus\n2020-02-02\n")}},
+			fsys:     fsx.MemoryFS{"dates.txt": {Data: []byte("2020-01-01\nbogus\n2020-02-02\n")}},
 			want:     "Wed Jan  1 00:00:00 UTC 2020\nSun Feb  2 00:00:00 UTC 2020\n",
 			wantErr:  "date: invalid date 'bogus'\n",
 			wantExit: 1,
@@ -725,13 +725,13 @@ func TestRunFileOption(t *testing.T) {
 		{
 			name: "an empty line is the beginning of today",
 			args: []string{"-f", "dates.txt"},
-			fsys: fsx.MemFS{"dates.txt": {Data: []byte("2020-01-01\n\n")}},
+			fsys: fsx.MemoryFS{"dates.txt": {Data: []byte("2020-01-01\n\n")}},
 			want: "Wed Jan  1 00:00:00 UTC 2020\nTue Jun 26 00:00:00 UTC 1990\n",
 		},
 		{
 			name:     "a file which does not exist",
 			args:     []string{"-f", "missing.txt"},
-			fsys:     fsx.MemFS{},
+			fsys:     fsx.MemoryFS{},
 			wantErr:  "date: missing.txt: file does not exist\n",
 			wantExit: 1,
 		},

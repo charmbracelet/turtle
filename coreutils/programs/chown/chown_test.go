@@ -70,18 +70,18 @@ func testGroupID(id string) (*user.Group, error) {
 }
 
 // file is a regular file owned by the given IDs.
-func file(uid, gid int) *fsx.MemFile {
-	return &fsx.MemFile{Uid: uid, Gid: gid}
+func file(uid, gid int) *fsx.MemoryFile {
+	return &fsx.MemoryFile{Uid: uid, Gid: gid}
 }
 
 // dir is a directory owned by the given IDs.
-func dir(uid, gid int) *fsx.MemFile {
-	return &fsx.MemFile{Mode: fs.ModeDir | 0o755, Uid: uid, Gid: gid}
+func dir(uid, gid int) *fsx.MemoryFile {
+	return &fsx.MemoryFile{Mode: fs.ModeDir | 0o755, Uid: uid, Gid: gid}
 }
 
 // link is a symbolic link owned by the given IDs.
-func link(target string, uid, gid int) *fsx.MemFile {
-	return &fsx.MemFile{Data: []byte(target), Mode: fs.ModeSymlink | 0o777, Uid: uid, Gid: gid}
+func link(target string, uid, gid int) *fsx.MemoryFile {
+	return &fsx.MemoryFile{Data: []byte(target), Mode: fs.ModeSymlink | 0o777, Uid: uid, Gid: gid}
 }
 
 // owner is the ownership a file is expected to have.
@@ -102,7 +102,7 @@ type testCase struct {
 	WantExit int
 
 	Hook       func(*Prog)
-	Files      fsx.MemFS
+	Files      fsx.MemoryFS
 	WantOwners map[string]owner
 }
 
@@ -166,43 +166,43 @@ func TestRunOwner(t *testing.T) {
 	runTests(t, []testCase{
 		{
 			Name:       "sets the owner by name",
-			Files:      fsx.MemFS{"file.txt": file(1000, 1000)},
+			Files:      fsx.MemoryFS{"file.txt": file(1000, 1000)},
 			Args:       []string{"bob", "file.txt"},
 			WantOwners: map[string]owner{"file.txt": {1001, 1000}},
 		},
 		{
 			Name:       "sets the owner by numeric ID",
-			Files:      fsx.MemFS{"file.txt": file(1000, 1000)},
+			Files:      fsx.MemoryFS{"file.txt": file(1000, 1000)},
 			Args:       []string{"1001", "file.txt"},
 			WantOwners: map[string]owner{"file.txt": {1001, 1000}},
 		},
 		{
 			Name:       "a + prefixed owner is forced numeric",
-			Files:      fsx.MemFS{"file.txt": file(1000, 1000)},
+			Files:      fsx.MemoryFS{"file.txt": file(1000, 1000)},
 			Args:       []string{"+1001", "file.txt"},
 			WantOwners: map[string]owner{"file.txt": {1001, 1000}},
 		},
 		{
 			Name:       "sets the owner of every file",
-			Files:      fsx.MemFS{"a.txt": file(1000, 1000), "b.txt": file(1000, 1000)},
+			Files:      fsx.MemoryFS{"a.txt": file(1000, 1000), "b.txt": file(1000, 1000)},
 			Args:       []string{"0", "a.txt", "b.txt"},
 			WantOwners: map[string]owner{"a.txt": {0, 1000}, "b.txt": {0, 1000}},
 		},
 		{
 			Name:       "keeps the group",
-			Files:      fsx.MemFS{"file.txt": file(1000, 1001)},
+			Files:      fsx.MemoryFS{"file.txt": file(1000, 1001)},
 			Args:       []string{"0", "file.txt"},
 			WantOwners: map[string]owner{"file.txt": {0, 1001}},
 		},
 		{
 			Name:       "changes a directory",
-			Files:      fsx.MemFS{"d": dir(1000, 1000)},
+			Files:      fsx.MemoryFS{"d": dir(1000, 1000)},
 			Args:       []string{"0", "d"},
 			WantOwners: map[string]owner{"d": {0, 1000}},
 		},
 		{
 			Name:       "an unknown user is an error",
-			Files:      fsx.MemFS{"file.txt": file(1000, 1000)},
+			Files:      fsx.MemoryFS{"file.txt": file(1000, 1000)},
 			Args:       []string{"nosuch", "file.txt"},
 			WantOwners: map[string]owner{"file.txt": {1000, 1000}},
 			WantErr:    "chown: invalid user: \"nosuch\"\n",
@@ -210,7 +210,7 @@ func TestRunOwner(t *testing.T) {
 		},
 		{
 			Name:       "a + prefixed non numeric owner is an error",
-			Files:      fsx.MemFS{"file.txt": file(1000, 1000)},
+			Files:      fsx.MemoryFS{"file.txt": file(1000, 1000)},
 			Args:       []string{"+x", "file.txt"},
 			WantOwners: map[string]owner{"file.txt": {1000, 1000}},
 			WantErr:    "chown: invalid user: \"+x\"\n",
@@ -218,14 +218,14 @@ func TestRunOwner(t *testing.T) {
 		},
 		{
 			Name:       "a numeric owner that names a user wins as the name",
-			Files:      fsx.MemFS{"file.txt": file(0, 0)},
+			Files:      fsx.MemoryFS{"file.txt": file(0, 0)},
 			Args:       []string{"1000", "file.txt"},
 			Hook:       numericNameUser,
 			WantOwners: map[string]owner{"file.txt": {500, 0}},
 		},
 		{
 			Name:       "+ forces the numeric interpretation",
-			Files:      fsx.MemFS{"file.txt": file(0, 0)},
+			Files:      fsx.MemoryFS{"file.txt": file(0, 0)},
 			Args:       []string{"+1000", "file.txt"},
 			Hook:       numericNameUser,
 			WantOwners: map[string]owner{"file.txt": {1000, 0}},
@@ -273,61 +273,61 @@ func TestRunOwnerGroup(t *testing.T) {
 	runTests(t, []testCase{
 		{
 			Name:       "sets the owner and group by names",
-			Files:      fsx.MemFS{"file.txt": file(1000, 1000)},
+			Files:      fsx.MemoryFS{"file.txt": file(1000, 1000)},
 			Args:       []string{"bob:devs", "file.txt"},
 			WantOwners: map[string]owner{"file.txt": {1001, 1001}},
 		},
 		{
 			Name:       "sets the owner and group by numeric IDs",
-			Files:      fsx.MemFS{"file.txt": file(1000, 1000)},
+			Files:      fsx.MemoryFS{"file.txt": file(1000, 1000)},
 			Args:       []string{"1001:1000", "file.txt"},
 			WantOwners: map[string]owner{"file.txt": {1001, 1000}},
 		},
 		{
 			Name:       "sets only the group",
-			Files:      fsx.MemFS{"file.txt": file(1000, 1000)},
+			Files:      fsx.MemoryFS{"file.txt": file(1000, 1000)},
 			Args:       []string{":devs", "file.txt"},
 			WantOwners: map[string]owner{"file.txt": {1000, 1001}},
 		},
 		{
 			Name:       "owner: sets the login group of the owner",
-			Files:      fsx.MemFS{"file.txt": file(1001, 1001)},
+			Files:      fsx.MemoryFS{"file.txt": file(1001, 1001)},
 			Args:       []string{"alice:", "file.txt"},
 			WantOwners: map[string]owner{"file.txt": {1000, 1000}},
 		},
 		{
 			Name:       "a numeric group is accepted",
-			Files:      fsx.MemFS{"file.txt": file(1000, 1000)},
+			Files:      fsx.MemoryFS{"file.txt": file(1000, 1000)},
 			Args:       []string{":1001", "file.txt"},
 			WantOwners: map[string]owner{"file.txt": {1000, 1001}},
 		},
 		{
 			Name:       ":+ forces the numeric interpretation",
-			Files:      fsx.MemFS{"file.txt": file(1000, 1000)},
+			Files:      fsx.MemoryFS{"file.txt": file(1000, 1000)},
 			Args:       []string{":+1001", "file.txt"},
 			WantOwners: map[string]owner{"file.txt": {1000, 1001}},
 		},
 		{
 			Name:       "changes every file",
-			Files:      fsx.MemFS{"a.txt": file(1000, 1000), "b.txt": file(1001, 1001)},
+			Files:      fsx.MemoryFS{"a.txt": file(1000, 1000), "b.txt": file(1001, 1001)},
 			Args:       []string{":0", "a.txt", "b.txt"},
 			WantOwners: map[string]owner{"a.txt": {1000, 0}, "b.txt": {1001, 0}},
 		},
 		{
 			Name:       "a lone colon changes nothing",
-			Files:      fsx.MemFS{"file.txt": file(1000, 1000)},
+			Files:      fsx.MemoryFS{"file.txt": file(1000, 1000)},
 			Args:       []string{":", "file.txt"},
 			WantOwners: map[string]owner{"file.txt": {1000, 1000}},
 		},
 		{
 			Name:       "an empty operand changes nothing",
-			Files:      fsx.MemFS{"file.txt": file(1000, 1000)},
+			Files:      fsx.MemoryFS{"file.txt": file(1000, 1000)},
 			Args:       []string{"", "file.txt"},
 			WantOwners: map[string]owner{"file.txt": {1000, 1000}},
 		},
 		{
 			Name:       "owner: with a numeric owner is invalid",
-			Files:      fsx.MemFS{"file.txt": file(1000, 1000)},
+			Files:      fsx.MemoryFS{"file.txt": file(1000, 1000)},
 			Args:       []string{"1001:", "file.txt"},
 			WantOwners: map[string]owner{"file.txt": {1000, 1000}},
 			WantErr:    "chown: invalid spec: \"1001:\"\n",
@@ -335,7 +335,7 @@ func TestRunOwnerGroup(t *testing.T) {
 		},
 		{
 			Name:       "owner: with an unknown user is invalid",
-			Files:      fsx.MemFS{"file.txt": file(1000, 1000)},
+			Files:      fsx.MemoryFS{"file.txt": file(1000, 1000)},
 			Args:       []string{"nosuch:", "file.txt"},
 			WantOwners: map[string]owner{"file.txt": {1000, 1000}},
 			WantErr:    "chown: invalid spec: \"nosuch:\"\n",
@@ -343,7 +343,7 @@ func TestRunOwnerGroup(t *testing.T) {
 		},
 		{
 			Name:       "an unknown group with an owner is invalid",
-			Files:      fsx.MemFS{"file.txt": file(1000, 1000)},
+			Files:      fsx.MemoryFS{"file.txt": file(1000, 1000)},
 			Args:       []string{"bob:nosuch", "file.txt"},
 			WantOwners: map[string]owner{"file.txt": {1000, 1000}},
 			WantErr:    "chown: invalid group: \"bob:nosuch\"\n",
@@ -351,7 +351,7 @@ func TestRunOwnerGroup(t *testing.T) {
 		},
 		{
 			Name:       "an unknown group alone is invalid",
-			Files:      fsx.MemFS{"file.txt": file(1000, 1000)},
+			Files:      fsx.MemoryFS{"file.txt": file(1000, 1000)},
 			Args:       []string{":nosuch", "file.txt"},
 			WantOwners: map[string]owner{"file.txt": {1000, 1000}},
 			WantErr:    "chown: invalid group: \":nosuch\"\n",
@@ -359,7 +359,7 @@ func TestRunOwnerGroup(t *testing.T) {
 		},
 		{
 			Name:       "a group spec with another colon is invalid",
-			Files:      fsx.MemFS{"file.txt": file(1000, 1000)},
+			Files:      fsx.MemoryFS{"file.txt": file(1000, 1000)},
 			Args:       []string{"alice:devs:x", "file.txt"},
 			WantOwners: map[string]owner{"file.txt": {1000, 1000}},
 			WantErr:    "chown: invalid group: \"alice:devs:x\"\n",
@@ -367,7 +367,7 @@ func TestRunOwnerGroup(t *testing.T) {
 		},
 		{
 			Name:       "an unknown user with a group is invalid",
-			Files:      fsx.MemFS{"file.txt": file(1000, 1000)},
+			Files:      fsx.MemoryFS{"file.txt": file(1000, 1000)},
 			Args:       []string{"nosuch:devs", "file.txt"},
 			WantOwners: map[string]owner{"file.txt": {1000, 1000}},
 			WantErr:    "chown: invalid user: \"nosuch:devs\"\n",
@@ -375,14 +375,14 @@ func TestRunOwnerGroup(t *testing.T) {
 		},
 		{
 			Name:       "a numeric group that names a group wins as the name",
-			Files:      fsx.MemFS{"file.txt": file(0, 0)},
+			Files:      fsx.MemoryFS{"file.txt": file(0, 0)},
 			Args:       []string{":1000", "file.txt"},
 			Hook:       numericNameGroup,
 			WantOwners: map[string]owner{"file.txt": {0, 500}},
 		},
 		{
 			Name:       ":+ forces the numeric interpretation of the group",
-			Files:      fsx.MemFS{"file.txt": file(0, 0)},
+			Files:      fsx.MemoryFS{"file.txt": file(0, 0)},
 			Args:       []string{":+1000", "file.txt"},
 			Hook:       numericNameGroup,
 			WantOwners: map[string]owner{"file.txt": {0, 1000}},
@@ -391,8 +391,8 @@ func TestRunOwnerGroup(t *testing.T) {
 }
 
 // tree is a small hierarchy owned by alice, rebuilt by the callers.
-func tree() fsx.MemFS {
-	return fsx.MemFS{
+func tree() fsx.MemoryFS {
+	return fsx.MemoryFS{
 		"dir":           dir(1000, 1000),
 		"dir/a.txt":     file(1000, 1000),
 		"dir/sub":       dir(1000, 1000),
@@ -415,7 +415,7 @@ func TestRunRecursive(t *testing.T) {
 		},
 		{
 			Name:       "R on a plain file works like without R",
-			Files:      fsx.MemFS{"file.txt": file(1000, 1000)},
+			Files:      fsx.MemoryFS{"file.txt": file(1000, 1000)},
 			Args:       []string{"-R", "0:0", "file.txt"},
 			WantOwners: map[string]owner{"file.txt": {0, 0}},
 		},
@@ -432,7 +432,7 @@ func TestRunRecursive(t *testing.T) {
 		},
 		{
 			Name:       "R keeps going after a missing file",
-			Files:      fsx.MemFS{"file.txt": file(1000, 1000)},
+			Files:      fsx.MemoryFS{"file.txt": file(1000, 1000)},
 			Args:       []string{"-R", "0:0", "missing", "file.txt"},
 			WantOwners: map[string]owner{"file.txt": {0, 0}},
 			WantErr:    "chown: cannot access 'missing': file does not exist\n",
@@ -440,7 +440,7 @@ func TestRunRecursive(t *testing.T) {
 		},
 		{
 			Name: "R does not change what a link of the walk points at",
-			Files: fsx.MemFS{
+			Files: fsx.MemoryFS{
 				"dir":      dir(1000, 1000),
 				"dir/link": link("out", 1000, 1000),
 				"out":      file(1000, 1000),
@@ -454,7 +454,7 @@ func TestRunRecursive(t *testing.T) {
 		},
 		{
 			Name: "R leaves a dangling link of the walk alone",
-			Files: fsx.MemFS{
+			Files: fsx.MemoryFS{
 				"dir":      dir(1000, 1000),
 				"dir/link": link("missing", 1000, 1000),
 			},
@@ -466,7 +466,7 @@ func TestRunRecursive(t *testing.T) {
 		},
 		{
 			Name: "R follows a link operand to a directory, like -H",
-			Files: fsx.MemFS{
+			Files: fsx.MemoryFS{
 				"dir":       dir(1000, 1000),
 				"dir/a.txt": file(1000, 1000),
 				"dlink":     link("dir", 1000, 1000),
@@ -480,7 +480,7 @@ func TestRunRecursive(t *testing.T) {
 		},
 		{
 			Name: "R does not follow a link operand without -H or -L",
-			Files: fsx.MemFS{
+			Files: fsx.MemoryFS{
 				"dir":       dir(1000, 1000),
 				"dir/a.txt": file(1000, 1000),
 				"dlink":     link("dir", 1000, 1000),
@@ -494,7 +494,7 @@ func TestRunRecursive(t *testing.T) {
 		},
 		{
 			Name: "H follows a link operand to a plain file",
-			Files: fsx.MemFS{
+			Files: fsx.MemoryFS{
 				"file.txt": file(1000, 1000),
 				"flink":    link("file.txt", 1000, 1000),
 			},
@@ -506,7 +506,7 @@ func TestRunRecursive(t *testing.T) {
 		},
 		{
 			Name: "H dereferences the links of the walk without traversing them",
-			Files: fsx.MemFS{
+			Files: fsx.MemoryFS{
 				"dir":      dir(1000, 1000),
 				"dir/link": link("../out", 1000, 1000),
 				"out":      file(1000, 1000),
@@ -520,7 +520,7 @@ func TestRunRecursive(t *testing.T) {
 		},
 		{
 			Name: "h leaves the links of the walk alone with H",
-			Files: fsx.MemFS{
+			Files: fsx.MemoryFS{
 				"dir":      dir(1000, 1000),
 				"dir/link": link("../out", 1000, 1000),
 				"out":      file(1000, 1000),
@@ -534,7 +534,7 @@ func TestRunRecursive(t *testing.T) {
 		},
 		{
 			Name: "L follows the links of the walk",
-			Files: fsx.MemFS{
+			Files: fsx.MemoryFS{
 				"dir":      dir(1000, 1000),
 				"dir/link": link("../out", 1000, 1000),
 				"out":      file(1000, 1000),
@@ -548,7 +548,7 @@ func TestRunRecursive(t *testing.T) {
 		},
 		{
 			Name: "L traverses a link to a directory of the walk",
-			Files: fsx.MemFS{
+			Files: fsx.MemoryFS{
 				"dir":       dir(1000, 1000),
 				"dir/sub":   dir(1000, 1000),
 				"dir/sub/b": file(1000, 1000),
@@ -564,7 +564,7 @@ func TestRunRecursive(t *testing.T) {
 		},
 		{
 			Name:       "L reports a dangling link of the walk",
-			Files:      fsx.MemFS{"dir": dir(1000, 1000), "dir/link": link("missing", 1000, 1000)},
+			Files:      fsx.MemoryFS{"dir": dir(1000, 1000), "dir/link": link("missing", 1000, 1000)},
 			Args:       []string{"-R", "-L", "0:0", "dir"},
 			WantOwners: map[string]owner{"dir": {0, 0}, "dir/link": {1000, 1000}},
 			WantErr:    "chown: cannot dereference 'dir/link': file does not exist\n",
@@ -572,7 +572,7 @@ func TestRunRecursive(t *testing.T) {
 		},
 		{
 			Name: "L refuses a tree with a cyclic link",
-			Files: fsx.MemFS{
+			Files: fsx.MemoryFS{
 				"d":    dir(1000, 1000),
 				"d/f":  file(1000, 1000),
 				"d/up": link(".", 1000, 1000),
@@ -597,8 +597,8 @@ func TestRunRecursive(t *testing.T) {
 }
 
 func TestRunNoDereference(t *testing.T) {
-	linked := func() fsx.MemFS {
-		return fsx.MemFS{
+	linked := func() fsx.MemoryFS {
+		return fsx.MemoryFS{
 			"file.txt": file(1000, 1000),
 			"link":     link("file.txt", 1000, 1000),
 		}
@@ -652,13 +652,13 @@ func TestRunNoDereference(t *testing.T) {
 		},
 		{
 			Name:       "h still changes a regular file",
-			Files:      fsx.MemFS{"file.txt": file(1000, 1000)},
+			Files:      fsx.MemoryFS{"file.txt": file(1000, 1000)},
 			Args:       []string{"-h", "0:0", "file.txt"},
 			WantOwners: map[string]owner{"file.txt": {0, 0}},
 		},
 		{
 			Name:  "a chain of links is followed to the file",
-			Files: fsx.MemFS{"file.txt": file(1000, 1000), "l2": link("file.txt", 1000, 1000), "l1": link("l2", 1000, 1000)},
+			Files: fsx.MemoryFS{"file.txt": file(1000, 1000), "l2": link("file.txt", 1000, 1000), "l1": link("l2", 1000, 1000)},
 			Args:  []string{"0:0", "l1"},
 			WantOwners: map[string]owner{
 				"file.txt": {0, 0},
@@ -668,7 +668,7 @@ func TestRunNoDereference(t *testing.T) {
 		},
 		{
 			Name:       "a dangling link is an error by default",
-			Files:      fsx.MemFS{"dangling": link("missing", 1000, 1000)},
+			Files:      fsx.MemoryFS{"dangling": link("missing", 1000, 1000)},
 			Args:       []string{"0:0", "dangling"},
 			WantOwners: map[string]owner{"dangling": {1000, 1000}},
 			WantErr:    "chown: cannot dereference 'dangling': file does not exist\n",
@@ -676,7 +676,7 @@ func TestRunNoDereference(t *testing.T) {
 		},
 		{
 			Name:       "a dangling link is left alone with -h",
-			Files:      fsx.MemFS{"dangling": link("missing", 1000, 1000)},
+			Files:      fsx.MemoryFS{"dangling": link("missing", 1000, 1000)},
 			Args:       []string{"-h", "0:0", "dangling"},
 			WantOwners: map[string]owner{"dangling": {1000, 1000}},
 		},
@@ -687,102 +687,102 @@ func TestRunVerbose(t *testing.T) {
 	runTests(t, []testCase{
 		{
 			Name:       "v reports a change of owner",
-			Files:      fsx.MemFS{"file.txt": file(1000, 1000)},
+			Files:      fsx.MemoryFS{"file.txt": file(1000, 1000)},
 			Args:       []string{"-v", "bob", "file.txt"},
 			WantOwners: map[string]owner{"file.txt": {1001, 1000}},
 			Want:       "changed ownership of 'file.txt' from alice to bob\n",
 		},
 		{
 			Name:       "v reports a change of owner and group",
-			Files:      fsx.MemFS{"file.txt": file(1000, 1000)},
+			Files:      fsx.MemoryFS{"file.txt": file(1000, 1000)},
 			Args:       []string{"-v", "bob:devs", "file.txt"},
 			WantOwners: map[string]owner{"file.txt": {1001, 1001}},
 			Want:       "changed ownership of 'file.txt' from alice:staff to bob:devs\n",
 		},
 		{
 			Name:       "v reports a change of group",
-			Files:      fsx.MemFS{"file.txt": file(1000, 1000)},
+			Files:      fsx.MemoryFS{"file.txt": file(1000, 1000)},
 			Args:       []string{"-v", ":devs", "file.txt"},
 			WantOwners: map[string]owner{"file.txt": {1000, 1001}},
 			Want:       "changed group of 'file.txt' from staff to devs\n",
 		},
 		{
 			Name:       "v reports a retained owner",
-			Files:      fsx.MemFS{"file.txt": file(1000, 1000)},
+			Files:      fsx.MemoryFS{"file.txt": file(1000, 1000)},
 			Args:       []string{"-v", "alice", "file.txt"},
 			WantOwners: map[string]owner{"file.txt": {1000, 1000}},
 			Want:       "ownership of 'file.txt' retained as alice\n",
 		},
 		{
 			Name:       "v reports a retained group",
-			Files:      fsx.MemFS{"file.txt": file(1000, 1000)},
+			Files:      fsx.MemoryFS{"file.txt": file(1000, 1000)},
 			Args:       []string{"-v", ":staff", "file.txt"},
 			WantOwners: map[string]owner{"file.txt": {1000, 1000}},
 			Want:       "group of 'file.txt' retained as staff\n",
 		},
 		{
 			Name:       "v reports a lone colon as a retained ownership",
-			Files:      fsx.MemFS{"file.txt": file(1000, 1000)},
+			Files:      fsx.MemoryFS{"file.txt": file(1000, 1000)},
 			Args:       []string{"-v", ":", "file.txt"},
 			WantOwners: map[string]owner{"file.txt": {1000, 1000}},
 			Want:       "ownership of 'file.txt' retained\n",
 		},
 		{
 			Name:       "v reports unknown old IDs as numbers",
-			Files:      fsx.MemFS{"file.txt": file(500, 500)},
+			Files:      fsx.MemoryFS{"file.txt": file(500, 500)},
 			Args:       []string{"-v", "bob", "file.txt"},
 			WantOwners: map[string]owner{"file.txt": {1001, 500}},
 			Want:       "changed ownership of 'file.txt' from 500 to bob\n",
 		},
 		{
 			Name:       "v reports a + prefixed owner as its number",
-			Files:      fsx.MemFS{"file.txt": file(1000, 1000)},
+			Files:      fsx.MemoryFS{"file.txt": file(1000, 1000)},
 			Args:       []string{"-v", "+1001", "file.txt"},
 			WantOwners: map[string]owner{"file.txt": {1001, 1000}},
 			Want:       "changed ownership of 'file.txt' from alice to 1001\n",
 		},
 		{
 			Name:       "c reports only the files whose ownership changes",
-			Files:      fsx.MemFS{"a.txt": file(1000, 1000), "b.txt": file(0, 1000)},
+			Files:      fsx.MemoryFS{"a.txt": file(1000, 1000), "b.txt": file(0, 1000)},
 			Args:       []string{"-c", "0", "a.txt", "b.txt"},
 			WantOwners: map[string]owner{"a.txt": {0, 1000}, "b.txt": {0, 1000}},
 			Want:       "changed ownership of 'a.txt' from alice to 0\n",
 		},
 		{
 			Name:       "c reports nothing when nothing changes",
-			Files:      fsx.MemFS{"file.txt": file(1000, 1000)},
+			Files:      fsx.MemoryFS{"file.txt": file(1000, 1000)},
 			Args:       []string{"-c", "alice", "file.txt"},
 			WantOwners: map[string]owner{"file.txt": {1000, 1000}},
 		},
 		{
 			Name:       "without c or v nothing is reported",
-			Files:      fsx.MemFS{"file.txt": file(1000, 1000)},
+			Files:      fsx.MemoryFS{"file.txt": file(1000, 1000)},
 			Args:       []string{"bob", "file.txt"},
 			WantOwners: map[string]owner{"file.txt": {1001, 1000}},
 		},
 		{
 			Name:       "the last of c and v wins",
-			Files:      fsx.MemFS{"file.txt": file(1000, 1000)},
+			Files:      fsx.MemoryFS{"file.txt": file(1000, 1000)},
 			Args:       []string{"-c", "-v", "alice", "file.txt"},
 			WantOwners: map[string]owner{"file.txt": {1000, 1000}},
 			Want:       "ownership of 'file.txt' retained as alice\n",
 		},
 		{
 			Name:       "the last of v and c wins",
-			Files:      fsx.MemFS{"file.txt": file(1000, 1000)},
+			Files:      fsx.MemoryFS{"file.txt": file(1000, 1000)},
 			Args:       []string{"-v", "-c", "alice", "file.txt"},
 			WantOwners: map[string]owner{"file.txt": {1000, 1000}},
 		},
 		{
 			Name:       "the long options work",
-			Files:      fsx.MemFS{"file.txt": file(1000, 1000)},
+			Files:      fsx.MemoryFS{"file.txt": file(1000, 1000)},
 			Args:       []string{"--verbose", "0", "file.txt"},
 			WantOwners: map[string]owner{"file.txt": {0, 1000}},
 			Want:       "changed ownership of 'file.txt' from alice to 0\n",
 		},
 		{
 			Name:       "v reports the operand as given",
-			Files:      fsx.MemFS{"file.txt": file(1000, 1000)},
+			Files:      fsx.MemoryFS{"file.txt": file(1000, 1000)},
 			Args:       []string{"-v", "bob", "./file.txt"},
 			WantOwners: map[string]owner{"file.txt": {1001, 1000}},
 			Want:       "changed ownership of './file.txt' from alice to bob\n",
@@ -820,7 +820,7 @@ func TestRunVerboseRecursive(t *testing.T) {
 		},
 		{
 			Name:  "v doesn't report the links the walk leaves alone",
-			Files: fsx.MemFS{"dir": dir(1000, 1000), "dir/link": link("out", 1000, 1000), "out": file(1000, 1000)},
+			Files: fsx.MemoryFS{"dir": dir(1000, 1000), "dir/link": link("out", 1000, 1000), "out": file(1000, 1000)},
 			Args:  []string{"-Rv", "0:0", "dir"},
 			WantOwners: map[string]owner{
 				"dir":      {0, 0},
@@ -833,8 +833,8 @@ func TestRunVerboseRecursive(t *testing.T) {
 }
 
 func TestRunFrom(t *testing.T) {
-	two := func() fsx.MemFS {
-		return fsx.MemFS{"a.txt": file(1000, 1000), "b.txt": file(1001, 1001)}
+	two := func() fsx.MemoryFS {
+		return fsx.MemoryFS{"a.txt": file(1000, 1000), "b.txt": file(1001, 1001)}
 	}
 
 	runTests(t, []testCase{
@@ -852,19 +852,19 @@ func TestRunFrom(t *testing.T) {
 		},
 		{
 			Name:       "from=OWNER: matches the owner across every group",
-			Files:      fsx.MemFS{"a.txt": file(1000, 1000), "b.txt": file(1000, 1001), "c.txt": file(1001, 1000)},
+			Files:      fsx.MemoryFS{"a.txt": file(1000, 1000), "b.txt": file(1000, 1001), "c.txt": file(1001, 1000)},
 			Args:       []string{"--from=alice:", "0:0", "a.txt", "b.txt", "c.txt"},
 			WantOwners: map[string]owner{"a.txt": {0, 0}, "b.txt": {0, 0}, "c.txt": {1001, 1000}},
 		},
 		{
 			Name:       "from=UID: matches a numeric owner across every group",
-			Files:      fsx.MemFS{"a.txt": file(1000, 1000), "b.txt": file(1000, 1001)},
+			Files:      fsx.MemoryFS{"a.txt": file(1000, 1000), "b.txt": file(1000, 1001)},
 			Args:       []string{"--from=1000:", "0:0", "a.txt", "b.txt"},
 			WantOwners: map[string]owner{"a.txt": {0, 0}, "b.txt": {0, 0}},
 		},
 		{
 			Name:       "from=:GROUP matches the group across every owner",
-			Files:      fsx.MemFS{"a.txt": file(1000, 1001), "b.txt": file(1001, 1001), "c.txt": file(1000, 1000)},
+			Files:      fsx.MemoryFS{"a.txt": file(1000, 1001), "b.txt": file(1001, 1001), "c.txt": file(1000, 1000)},
 			Args:       []string{"--from=:devs", "0:0", "a.txt", "b.txt", "c.txt"},
 			WantOwners: map[string]owner{"a.txt": {0, 0}, "b.txt": {0, 0}, "c.txt": {1000, 1000}},
 		},
@@ -894,19 +894,19 @@ func TestRunFrom(t *testing.T) {
 		},
 		{
 			Name:       "from works with R",
-			Files:      fsx.MemFS{"d": dir(1000, 1000), "d/f": file(1001, 1001)},
+			Files:      fsx.MemoryFS{"d": dir(1000, 1000), "d/f": file(1001, 1001)},
 			Args:       []string{"-R", "--from=alice", "0:0", "d"},
 			WantOwners: map[string]owner{"d": {0, 0}, "d/f": {1001, 1001}},
 		},
 		{
 			Name:       "v prints nothing for the files from skips",
-			Files:      fsx.MemFS{"a.txt": file(1000, 1000)},
+			Files:      fsx.MemoryFS{"a.txt": file(1000, 1000)},
 			Args:       []string{"-v", "--from=bob", "0:0", "a.txt"},
 			WantOwners: map[string]owner{"a.txt": {1000, 1000}},
 		},
 		{
 			Name:       "an invalid from is an error",
-			Files:      fsx.MemFS{"a.txt": file(1000, 1000)},
+			Files:      fsx.MemoryFS{"a.txt": file(1000, 1000)},
 			Args:       []string{"--from=nosuch", "0:0", "a.txt"},
 			WantOwners: map[string]owner{"a.txt": {1000, 1000}},
 			WantErr:    "chown: invalid user: \"nosuch\"\n",
@@ -916,8 +916,8 @@ func TestRunFrom(t *testing.T) {
 }
 
 func TestRunReference(t *testing.T) {
-	ref := func() fsx.MemFS {
-		return fsx.MemFS{"ref": file(1001, 1001), "file.txt": file(1000, 1000)}
+	ref := func() fsx.MemoryFS {
+		return fsx.MemoryFS{"ref": file(1001, 1001), "file.txt": file(1000, 1000)}
 	}
 
 	runTests(t, []testCase{
@@ -935,7 +935,7 @@ func TestRunReference(t *testing.T) {
 		},
 		{
 			Name:  "the ownership applies to every file",
-			Files: fsx.MemFS{"ref": file(1001, 1001), "a.txt": file(0, 0), "b.txt": file(0, 0)},
+			Files: fsx.MemoryFS{"ref": file(1001, 1001), "a.txt": file(0, 0), "b.txt": file(0, 0)},
 			Args:  []string{"--reference=ref", "a.txt", "b.txt"},
 			WantOwners: map[string]owner{
 				"ref": {1001, 1001}, "a.txt": {1001, 1001}, "b.txt": {1001, 1001},
@@ -943,7 +943,7 @@ func TestRunReference(t *testing.T) {
 		},
 		{
 			Name:  "a reference to a symbolic link is dereferenced",
-			Files: fsx.MemFS{"ref": file(1001, 1001), "rlink": link("ref", 0, 0), "file.txt": file(1000, 1000)},
+			Files: fsx.MemoryFS{"ref": file(1001, 1001), "rlink": link("ref", 0, 0), "file.txt": file(1000, 1000)},
 			Args:  []string{"--reference=rlink", "file.txt"},
 			WantOwners: map[string]owner{
 				"ref": {1001, 1001}, "rlink": {0, 0}, "file.txt": {1001, 1001},
@@ -958,7 +958,7 @@ func TestRunReference(t *testing.T) {
 		},
 		{
 			Name:       "a missing reference file is an error",
-			Files:      fsx.MemFS{"file.txt": file(1000, 1000)},
+			Files:      fsx.MemoryFS{"file.txt": file(1000, 1000)},
 			Args:       []string{"--reference=missing", "file.txt"},
 			WantOwners: map[string]owner{"file.txt": {1000, 1000}},
 			WantErr:    "chown: failed to get attributes of missing: file does not exist\n",
@@ -966,7 +966,7 @@ func TestRunReference(t *testing.T) {
 		},
 		{
 			Name:       "no operands is a usage error",
-			Files:      fsx.MemFS{"ref": file(1001, 1001)},
+			Files:      fsx.MemoryFS{"ref": file(1001, 1001)},
 			Args:       []string{"--reference=ref"},
 			WantOwners: map[string]owner{"ref": {1001, 1001}},
 			WantErr:    "chown: missing operand\nTry 'chown --help' for more information.\n",
@@ -974,7 +974,7 @@ func TestRunReference(t *testing.T) {
 		},
 		{
 			Name:  "every operand is a file with a reference",
-			Files: fsx.MemFS{"ref": file(1001, 1001), "file.txt": file(1000, 1000)},
+			Files: fsx.MemoryFS{"ref": file(1001, 1001), "file.txt": file(1000, 1000)},
 			Args:  []string{"--reference=ref", "1000", "file.txt"},
 			WantOwners: map[string]owner{
 				"ref": {1001, 1001}, "file.txt": {1001, 1001},
@@ -984,7 +984,7 @@ func TestRunReference(t *testing.T) {
 		},
 		{
 			Name:  "a reference works with R",
-			Files: fsx.MemFS{"ref": file(1001, 1001), "d": dir(1000, 1000), "d/f": file(1000, 1000)},
+			Files: fsx.MemoryFS{"ref": file(1001, 1001), "d": dir(1000, 1000), "d/f": file(1000, 1000)},
 			Args:  []string{"-R", "--reference=ref", "d"},
 			WantOwners: map[string]owner{
 				"ref": {1001, 1001}, "d": {1001, 1001}, "d/f": {1001, 1001},
@@ -997,7 +997,7 @@ func TestRunGeneral(t *testing.T) {
 	runTests(t, []testCase{
 		{
 			Name:       "a missing operand is an error",
-			Files:      fsx.MemFS{"file.txt": file(1000, 1000)},
+			Files:      fsx.MemoryFS{"file.txt": file(1000, 1000)},
 			Args:       nil,
 			WantOwners: map[string]owner{"file.txt": {1000, 1000}},
 			WantErr:    "chown: missing operand\nTry 'chown --help' for more information.\n",
@@ -1005,7 +1005,7 @@ func TestRunGeneral(t *testing.T) {
 		},
 		{
 			Name:       "a missing file operand is an error",
-			Files:      fsx.MemFS{"file.txt": file(1000, 1000)},
+			Files:      fsx.MemoryFS{"file.txt": file(1000, 1000)},
 			Args:       []string{"alice"},
 			WantOwners: map[string]owner{"file.txt": {1000, 1000}},
 			WantErr:    "chown: missing file operand\nTry 'chown --help' for more information.\n",
@@ -1013,7 +1013,7 @@ func TestRunGeneral(t *testing.T) {
 		},
 		{
 			Name:       "an invalid option is an error",
-			Files:      fsx.MemFS{"file.txt": file(1000, 1000)},
+			Files:      fsx.MemoryFS{"file.txt": file(1000, 1000)},
 			Args:       []string{"-x", "alice", "file.txt"},
 			WantOwners: map[string]owner{"file.txt": {1000, 1000}},
 			WantErr:    "chown: invalid option -- 'x'\nTry 'chown --help' for more information.\n",
@@ -1021,7 +1021,7 @@ func TestRunGeneral(t *testing.T) {
 		},
 		{
 			Name:       "an invalid option in a group is an error",
-			Files:      fsx.MemFS{"file.txt": file(1000, 1000)},
+			Files:      fsx.MemoryFS{"file.txt": file(1000, 1000)},
 			Args:       []string{"-Rx", "alice", "file.txt"},
 			WantOwners: map[string]owner{"file.txt": {1000, 1000}},
 			WantErr:    "chown: invalid option -- 'x'\nTry 'chown --help' for more information.\n",
@@ -1029,7 +1029,7 @@ func TestRunGeneral(t *testing.T) {
 		},
 		{
 			Name:       "an unrecognized long option",
-			Files:      fsx.MemFS{"file.txt": file(1000, 1000)},
+			Files:      fsx.MemoryFS{"file.txt": file(1000, 1000)},
 			Args:       []string{"--bogus", "alice", "file.txt"},
 			WantOwners: map[string]owner{"file.txt": {1000, 1000}},
 			WantErr:    "chown: unrecognized option '--bogus'\nTry 'chown --help' for more information.\n",
@@ -1037,7 +1037,7 @@ func TestRunGeneral(t *testing.T) {
 		},
 		{
 			Name:       "a missing option argument is an error",
-			Files:      fsx.MemFS{"file.txt": file(1000, 1000)},
+			Files:      fsx.MemoryFS{"file.txt": file(1000, 1000)},
 			Args:       []string{"--from"},
 			WantOwners: map[string]owner{"file.txt": {1000, 1000}},
 			WantErr:    "chown: option '--from' requires an argument\nTry 'chown --help' for more information.\n",
@@ -1045,7 +1045,7 @@ func TestRunGeneral(t *testing.T) {
 		},
 		{
 			Name:       "an owner starting with a dash can follow a double dash",
-			Files:      fsx.MemFS{"file.txt": file(1000, 1000)},
+			Files:      fsx.MemoryFS{"file.txt": file(1000, 1000)},
 			Args:       []string{"--", "-42", "file.txt"},
 			WantOwners: map[string]owner{"file.txt": {1000, 1000}},
 			WantErr:    "chown: invalid user: \"-42\"\n",
@@ -1053,7 +1053,7 @@ func TestRunGeneral(t *testing.T) {
 		},
 		{
 			Name:       "a file named like an option can follow a double dash",
-			Files:      fsx.MemFS{"-w": file(1000, 1000)},
+			Files:      fsx.MemoryFS{"-w": file(1000, 1000)},
 			Args:       []string{"--", "0", "-w"},
 			WantOwners: map[string]owner{"-w": {0, 1000}},
 		},
@@ -1074,7 +1074,7 @@ func TestRunGeneral(t *testing.T) {
 		},
 		{
 			Name:       "a missing file is an error, but the others are changed",
-			Files:      fsx.MemFS{"file.txt": file(1000, 1000)},
+			Files:      fsx.MemoryFS{"file.txt": file(1000, 1000)},
 			Args:       []string{"0", "missing", "file.txt"},
 			WantOwners: map[string]owner{"file.txt": {0, 1000}},
 			WantErr:    "chown: cannot access 'missing': file does not exist\n",
@@ -1082,7 +1082,7 @@ func TestRunGeneral(t *testing.T) {
 		},
 		{
 			Name:       "f suppresses the diagnostics but keeps the status",
-			Files:      fsx.MemFS{"file.txt": file(1000, 1000)},
+			Files:      fsx.MemoryFS{"file.txt": file(1000, 1000)},
 			Args:       []string{"-f", "0", "missing", "file.txt"},
 			WantOwners: map[string]owner{"file.txt": {0, 1000}},
 			WantExit:   1,
@@ -1097,7 +1097,7 @@ func TestRunPreserveRoot(t *testing.T) {
 	runTests(t, []testCase{
 		{
 			Name:       "R on the root is not refused by default",
-			Files:      fsx.MemFS{"file.txt": file(1000, 1000)},
+			Files:      fsx.MemoryFS{"file.txt": file(1000, 1000)},
 			Args:       []string{"-R", "0:0", "/"},
 			WantOwners: map[string]owner{"file.txt": {1000, 1000}},
 			WantErr:    "chown: cannot access '/': invalid argument\n",
@@ -1105,7 +1105,7 @@ func TestRunPreserveRoot(t *testing.T) {
 		},
 		{
 			Name:       "preserve-root refuses a recursive run on /",
-			Files:      fsx.MemFS{"file.txt": file(1000, 1000)},
+			Files:      fsx.MemoryFS{"file.txt": file(1000, 1000)},
 			Args:       []string{"--preserve-root", "-R", "0:0", "/"},
 			WantOwners: map[string]owner{"file.txt": {1000, 1000}},
 			WantErr:    failsafe,
@@ -1113,7 +1113,7 @@ func TestRunPreserveRoot(t *testing.T) {
 		},
 		{
 			Name:       "preserve-root also catches a cleaned / operand",
-			Files:      fsx.MemFS{"file.txt": file(1000, 1000)},
+			Files:      fsx.MemoryFS{"file.txt": file(1000, 1000)},
 			Args:       []string{"-R", "--preserve-root", "0:0", "/usr/.."},
 			WantOwners: map[string]owner{"file.txt": {1000, 1000}},
 			WantErr:    failsafe,
@@ -1121,7 +1121,7 @@ func TestRunPreserveRoot(t *testing.T) {
 		},
 		{
 			Name:       "no-preserve-root overrides the failsafe",
-			Files:      fsx.MemFS{"file.txt": file(1000, 1000)},
+			Files:      fsx.MemoryFS{"file.txt": file(1000, 1000)},
 			Args:       []string{"--preserve-root", "--no-preserve-root", "-R", "0:0", "/"},
 			WantOwners: map[string]owner{"file.txt": {1000, 1000}},
 			WantErr:    "chown: cannot access '/': invalid argument\n",
@@ -1129,7 +1129,7 @@ func TestRunPreserveRoot(t *testing.T) {
 		},
 		{
 			Name:       "the last of the two options wins",
-			Files:      fsx.MemFS{"file.txt": file(1000, 1000)},
+			Files:      fsx.MemoryFS{"file.txt": file(1000, 1000)},
 			Args:       []string{"--no-preserve-root", "--preserve-root", "-R", "0:0", "/"},
 			WantOwners: map[string]owner{"file.txt": {1000, 1000}},
 			WantErr:    failsafe,
@@ -1137,7 +1137,7 @@ func TestRunPreserveRoot(t *testing.T) {
 		},
 		{
 			Name:       "without R the option has no effect",
-			Files:      fsx.MemFS{"file.txt": file(1000, 1000)},
+			Files:      fsx.MemoryFS{"file.txt": file(1000, 1000)},
 			Args:       []string{"--preserve-root", "0:0", "/"},
 			WantOwners: map[string]owner{"file.txt": {1000, 1000}},
 			WantErr:    "chown: cannot access '/': invalid argument\n",
@@ -1145,19 +1145,19 @@ func TestRunPreserveRoot(t *testing.T) {
 		},
 		{
 			Name:       "preserve-root leaves the other hierarchies alone",
-			Files:      fsx.MemFS{"d": dir(1000, 1000), "d/f": file(1000, 1000)},
+			Files:      fsx.MemoryFS{"d": dir(1000, 1000), "d/f": file(1000, 1000)},
 			Args:       []string{"--preserve-root", "-R", "0:0", "d"},
 			WantOwners: map[string]owner{"d": {0, 0}, "d/f": {0, 0}},
 		},
 		{
 			Name:       "preserve-root leaves a followed link to a hierarchy alone",
-			Files:      fsx.MemFS{"dir": dir(1000, 1000), "dlink": link("dir", 1000, 1000)},
+			Files:      fsx.MemoryFS{"dir": dir(1000, 1000), "dlink": link("dir", 1000, 1000)},
 			Args:       []string{"--preserve-root", "-R", "-H", "0:0", "dlink"},
 			WantOwners: map[string]owner{"dir": {0, 0}, "dlink": {1000, 1000}},
 		},
 		{
 			Name:       "preserve-root refuses a link operand pointing at / with H",
-			Files:      fsx.MemFS{"rlink": link("/", 1000, 1000), "file.txt": file(1000, 1000)},
+			Files:      fsx.MemoryFS{"rlink": link("/", 1000, 1000), "file.txt": file(1000, 1000)},
 			Args:       []string{"--preserve-root", "-R", "-H", "0:0", "rlink"},
 			WantOwners: map[string]owner{"rlink": {1000, 1000}, "file.txt": {1000, 1000}},
 			WantErr:    failsafe,
@@ -1165,7 +1165,7 @@ func TestRunPreserveRoot(t *testing.T) {
 		},
 		{
 			Name:       "preserve-root refuses a link operand pointing at / with L",
-			Files:      fsx.MemFS{"rlink": link("/", 1000, 1000), "file.txt": file(1000, 1000)},
+			Files:      fsx.MemoryFS{"rlink": link("/", 1000, 1000), "file.txt": file(1000, 1000)},
 			Args:       []string{"--preserve-root", "-R", "-L", "0:0", "rlink"},
 			WantOwners: map[string]owner{"rlink": {1000, 1000}, "file.txt": {1000, 1000}},
 			WantErr:    failsafe,
@@ -1173,7 +1173,7 @@ func TestRunPreserveRoot(t *testing.T) {
 		},
 		{
 			Name:       "preserve-root refuses a chain of links pointing at /",
-			Files:      fsx.MemFS{"l2": link("/", 1000, 1000), "l1": link("l2", 1000, 1000)},
+			Files:      fsx.MemoryFS{"l2": link("/", 1000, 1000), "l1": link("l2", 1000, 1000)},
 			Args:       []string{"--preserve-root", "-R", "-L", "0:0", "l1"},
 			WantOwners: map[string]owner{"l1": {1000, 1000}, "l2": {1000, 1000}},
 			WantErr:    failsafe,
@@ -1181,7 +1181,7 @@ func TestRunPreserveRoot(t *testing.T) {
 		},
 		{
 			Name:       "a link operand pointing at / is not refused by default",
-			Files:      fsx.MemFS{"rlink": link("/", 1000, 1000), "file.txt": file(1000, 1000)},
+			Files:      fsx.MemoryFS{"rlink": link("/", 1000, 1000), "file.txt": file(1000, 1000)},
 			Args:       []string{"-R", "-H", "0:0", "rlink"},
 			WantOwners: map[string]owner{"file.txt": {0, 0}, "rlink": {1000, 1000}},
 		},
@@ -1192,20 +1192,20 @@ func TestRunLongOptions(t *testing.T) {
 	runTests(t, []testCase{
 		{
 			Name:       "recursive changes every file below the directory",
-			Files:      fsx.MemFS{"d": dir(1000, 1000), "d/f": file(1000, 1000)},
+			Files:      fsx.MemoryFS{"d": dir(1000, 1000), "d/f": file(1000, 1000)},
 			Args:       []string{"--recursive", "0:0", "d"},
 			WantOwners: map[string]owner{"d": {0, 0}, "d/f": {0, 0}},
 		},
 		{
 			Name:       "silent suppresses the diagnostics",
-			Files:      fsx.MemFS{"file.txt": file(1000, 1000)},
+			Files:      fsx.MemoryFS{"file.txt": file(1000, 1000)},
 			Args:       []string{"--silent", "0", "missing", "file.txt"},
 			WantOwners: map[string]owner{"file.txt": {0, 1000}},
 			WantExit:   1,
 		},
 		{
 			Name:       "quiet suppresses the diagnostics too",
-			Files:      fsx.MemFS{"file.txt": file(1000, 1000)},
+			Files:      fsx.MemoryFS{"file.txt": file(1000, 1000)},
 			Args:       []string{"--quiet", "0", "missing", "file.txt"},
 			WantOwners: map[string]owner{"file.txt": {0, 1000}},
 			WantExit:   1,
@@ -1217,7 +1217,7 @@ func TestRunConflict(t *testing.T) {
 	runTests(t, []testCase{
 		{
 			Name:       "R with dereference needs a traversal mode",
-			Files:      fsx.MemFS{"file.txt": file(1000, 1000)},
+			Files:      fsx.MemoryFS{"file.txt": file(1000, 1000)},
 			Args:       []string{"-R", "--dereference", "0:0", "file.txt"},
 			WantOwners: map[string]owner{"file.txt": {1000, 1000}},
 			WantErr:    "chown: -R --dereference requires either -H or -L\n",
@@ -1225,7 +1225,7 @@ func TestRunConflict(t *testing.T) {
 		},
 		{
 			Name:       "R with -P and dereference is refused too",
-			Files:      fsx.MemFS{"file.txt": file(1000, 1000)},
+			Files:      fsx.MemoryFS{"file.txt": file(1000, 1000)},
 			Args:       []string{"-R", "-P", "--dereference", "0:0", "file.txt"},
 			WantOwners: map[string]owner{"file.txt": {1000, 1000}},
 			WantErr:    "chown: -R --dereference requires either -H or -L\n",
@@ -1233,7 +1233,7 @@ func TestRunConflict(t *testing.T) {
 		},
 		{
 			Name:       "the option order doesn't matter for the check",
-			Files:      fsx.MemFS{"file.txt": file(1000, 1000)},
+			Files:      fsx.MemoryFS{"file.txt": file(1000, 1000)},
 			Args:       []string{"--dereference", "-R", "0:0", "file.txt"},
 			WantOwners: map[string]owner{"file.txt": {1000, 1000}},
 			WantErr:    "chown: -R --dereference requires either -H or -L\n",
@@ -1241,7 +1241,7 @@ func TestRunConflict(t *testing.T) {
 		},
 		{
 			Name:  "R with dereference and H dereferences the walk",
-			Files: fsx.MemFS{"d": dir(1000, 1000), "d/link": link("../out", 1000, 1000), "out": file(1000, 1000)},
+			Files: fsx.MemoryFS{"d": dir(1000, 1000), "d/link": link("../out", 1000, 1000), "out": file(1000, 1000)},
 			Args:  []string{"-R", "--dereference", "-H", "0:0", "d"},
 			WantOwners: map[string]owner{
 				"d":      {0, 0},
@@ -1276,7 +1276,7 @@ func TestRunFailingFS(t *testing.T) {
 
 	t.Run("a failed change is reported and keeps the status", func(t *testing.T) {
 		stderr := new(bytes.Buffer)
-		p := newProg(failFS{fsx.MemFS{"f": file(1000, 1000)}}, io.Discard, stderr)
+		p := newProg(failFS{fsx.MemoryFS{"f": file(1000, 1000)}}, io.Discard, stderr)
 		err := p.Run(t.Context(), "0", "f")
 		if code := testutil.ExitCode(t, err); code != 1 {
 			t.Errorf("Run() exit code = %d, want 1 (error = %v)", code, err)
@@ -1288,7 +1288,7 @@ func TestRunFailingFS(t *testing.T) {
 
 	t.Run("a group change is reported as one", func(t *testing.T) {
 		stderr := new(bytes.Buffer)
-		p := newProg(failFS{fsx.MemFS{"f": file(1000, 1000)}}, io.Discard, stderr)
+		p := newProg(failFS{fsx.MemoryFS{"f": file(1000, 1000)}}, io.Discard, stderr)
 		err := p.Run(t.Context(), ":devs", "f")
 		if code := testutil.ExitCode(t, err); code != 1 {
 			t.Errorf("Run() exit code = %d, want 1 (error = %v)", code, err)
@@ -1300,7 +1300,7 @@ func TestRunFailingFS(t *testing.T) {
 
 	t.Run("f silences the failure but keeps the status", func(t *testing.T) {
 		stderr := new(bytes.Buffer)
-		p := newProg(failFS{fsx.MemFS{"f": file(1000, 1000)}}, io.Discard, stderr)
+		p := newProg(failFS{fsx.MemoryFS{"f": file(1000, 1000)}}, io.Discard, stderr)
 		err := p.Run(t.Context(), "-f", "0", "f")
 		if code := testutil.ExitCode(t, err); code != 1 {
 			t.Errorf("Run() exit code = %d, want 1 (error = %v)", code, err)
@@ -1312,7 +1312,7 @@ func TestRunFailingFS(t *testing.T) {
 
 	t.Run("R keeps walking below a directory that fails", func(t *testing.T) {
 		stderr := new(bytes.Buffer)
-		p := newProg(failFS{fsx.MemFS{"d": dir(1000, 1000), "d/f.txt": file(1000, 1000)}}, io.Discard, stderr)
+		p := newProg(failFS{fsx.MemoryFS{"d": dir(1000, 1000), "d/f.txt": file(1000, 1000)}}, io.Discard, stderr)
 		err := p.Run(t.Context(), "-R", "0", "d")
 		if code := testutil.ExitCode(t, err); code != 1 {
 			t.Errorf("Run() exit code = %d, want 1 (error = %v)", code, err)
@@ -1331,7 +1331,7 @@ type noChownFS struct {
 }
 
 func TestRunFSWithoutChown(t *testing.T) {
-	files := noChownFS{fsx.MemFS{"file.txt": file(1000, 1000)}}
+	files := noChownFS{fsx.MemoryFS{"file.txt": file(1000, 1000)}}
 	stderr := new(bytes.Buffer)
 	rt := &coreutils.Runtime{Stdout: io.Discard, Stderr: stderr, FS: files}
 	err := New(rt).Run(t.Context(), "0", "file.txt")
@@ -1350,7 +1350,7 @@ func TestRunFSWithoutChown(t *testing.T) {
 	}
 }
 
-func TestRunOsFS(t *testing.T) {
+func TestRunSystemFS(t *testing.T) {
 	if runtime.GOOS == "windows" {
 		t.Skip("there is no numeric ownership on Windows")
 	}
@@ -1370,7 +1370,7 @@ func TestRunOsFS(t *testing.T) {
 
 	uid := os.Getuid()
 	stderr := new(bytes.Buffer)
-	rt := &coreutils.Runtime{Stdout: io.Discard, Stderr: stderr, FS: fsx.OsFS(dir)}
+	rt := &coreutils.Runtime{Stdout: io.Discard, Stderr: stderr, FS: fsx.SystemFS(dir)}
 	if err := New(rt).Run(t.Context(), strconv.Itoa(uid), "ok.txt"); err != nil {
 		t.Errorf("Run() error = %v, want nil", err)
 	}
@@ -1382,7 +1382,7 @@ func TestRunOsFS(t *testing.T) {
 	}
 }
 
-func TestRunOsFSSymlink(t *testing.T) {
+func TestRunSystemFSSymlink(t *testing.T) {
 	if runtime.GOOS == "windows" {
 		t.Skip("there is no numeric ownership on Windows")
 	}
@@ -1414,7 +1414,7 @@ func TestRunOsFSSymlink(t *testing.T) {
 	targetUid, targetGid := before(target)
 	linkUid, linkGid := before(link)
 
-	rt := &coreutils.Runtime{Stdout: io.Discard, Stderr: new(bytes.Buffer), FS: fsx.OsFS(dir)}
+	rt := &coreutils.Runtime{Stdout: io.Discard, Stderr: new(bytes.Buffer), FS: fsx.SystemFS(dir)}
 	if err := New(rt).Run(t.Context(), "-h", "0:0", "link.txt"); err != nil {
 		t.Errorf("Run() error = %v, want nil", err)
 	}
@@ -1427,7 +1427,7 @@ func TestRunOsFSSymlink(t *testing.T) {
 	}
 }
 
-func TestRunOsFSPreserveRoot(t *testing.T) {
+func TestRunSystemFSPreserveRoot(t *testing.T) {
 	if runtime.GOOS == "windows" {
 		t.Skip("there is no numeric ownership on Windows")
 	}
@@ -1440,7 +1440,7 @@ func TestRunOsFSPreserveRoot(t *testing.T) {
 	}
 
 	stderr := new(bytes.Buffer)
-	rt := &coreutils.Runtime{Stdout: io.Discard, Stderr: stderr, FS: fsx.OsFS(dir)}
+	rt := &coreutils.Runtime{Stdout: io.Discard, Stderr: stderr, FS: fsx.SystemFS(dir)}
 	err := New(rt).Run(t.Context(), "--preserve-root", "-R", "-H", "0:0", "rootlink")
 	if code := testutil.ExitCode(t, err); code != 1 {
 		t.Errorf("Run() exit code = %d, want 1 (error = %v)", code, err)
@@ -1464,14 +1464,14 @@ func TestRunWindows(t *testing.T) {
 			t.Fatalf("setup: %v", err)
 		}
 		stderr := new(bytes.Buffer)
-		rt := &coreutils.Runtime{Stdout: io.Discard, Stderr: stderr, FS: fsx.OsFS(dir)}
+		rt := &coreutils.Runtime{Stdout: io.Discard, Stderr: stderr, FS: fsx.SystemFS(dir)}
 		if err := New(rt).Run(t.Context(), "0:0", "file.txt"); err != nil {
 			t.Errorf("Run() error = %v, stderr = %q", err, stderr)
 		}
 	})
 
 	t.Run("backslash operands are normalized", func(t *testing.T) {
-		files := fsx.MemFS{"sub": dir(0, 0), "sub/file.txt": file(0, 0)}
+		files := fsx.MemoryFS{"sub": dir(0, 0), "sub/file.txt": file(0, 0)}
 		runCase(t, testCase{
 			Files:      files,
 			Args:       []string{"1000:1000", "sub\\file.txt"},

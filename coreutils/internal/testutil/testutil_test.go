@@ -59,7 +59,7 @@ func TestOnce(t *testing.T) {
 	result := Once(t, fakeNew, Case{
 		Name:  "result and file checks",
 		Stdin: strings.NewReader("hi\n"),
-		FS: fsx.MemFS{
+		FS: fsx.MemoryFS{
 			"in.txt": {Data: []byte("data"), Mode: 0o644, ModTime: mod},
 		},
 		Want:      "hi\n",
@@ -180,7 +180,7 @@ func TestReaderFS(t *testing.T) {
 
 func TestFailWriteFS(t *testing.T) {
 	err := errors.New("disk full")
-	fsys := FailWriteFS{FS: fsx.MemFS{}, Err: err}
+	fsys := FailWriteFS{FS: fsx.MemoryFS{}, Err: err}
 
 	f, openErr := fsys.OpenFile("f", os.O_CREATE|os.O_WRONLY, 0o644)
 	if openErr != nil {

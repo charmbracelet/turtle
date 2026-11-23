@@ -21,8 +21,8 @@ import (
 //	e1.txt: "a\n" e2.txt: "a\nb\n" e3.txt: "b\n"
 //	n1/x, n2/x: differing files; n1/only: "z\n"; n2/new: "n\n"
 //	n1/sub/f, n2/sub: only one of them holds the sub directory
-func gnuFS() fsx.MemFS {
-	return fsx.MemFS{
+func gnuFS() fsx.MemoryFS {
+	return fsx.MemoryFS{
 		"case1.txt":  {Data: []byte("A\nb\n")},
 		"case2.txt":  {Data: []byte("a\nB\n")},
 		"ws1.txt":    {Data: []byte("a b\n")},
@@ -219,7 +219,7 @@ func TestRunIgnoreOptions(t *testing.T) {
 		},
 		{
 			Name:     "changes with lines which aren't blank still come out",
-			FS:       fsx.MemFS{"b1": {Data: []byte("a\n\nb\n")}, "b2": {Data: []byte("a\nc\n")}},
+			FS:       fsx.MemoryFS{"b1": {Data: []byte("a\n\nb\n")}, "b2": {Data: []byte("a\nc\n")}},
 			Args:     []string{"-B", "b1", "b2"},
 			Want:     "2,3c2\n< \n< b\n---\n> c\n",
 			WantExit: 1,
@@ -254,7 +254,7 @@ func TestRunIgnoreOptions(t *testing.T) {
 		},
 		{
 			Name: "case ignored with the blanks too",
-			FS: fsx.MemFS{
+			FS: fsx.MemoryFS{
 				"c1": {Data: []byte("A\tb\n")},
 				"c2": {Data: []byte("a    B\n")},
 			},
@@ -431,7 +431,7 @@ func TestRunNewFile(t *testing.T) {
 		},
 		{
 			Name: "missing subdirectories under directories",
-			FS: fsx.MemFS{
+			FS: fsx.MemoryFS{
 				"n1/sdir/f": {Data: []byte("k\n")},
 				"n2/x":      {Data: []byte("b\n")},
 			},
@@ -611,7 +611,7 @@ func TestRunFromToFiles(t *testing.T) {
 }
 
 func TestRunTabs(t *testing.T) {
-	tabs := fsx.MemFS{
+	tabs := fsx.MemoryFS{
 		"t1": {Data: []byte("a\tb\n")},
 		"t2": {Data: []byte("a b\n")},
 	}
@@ -774,7 +774,7 @@ func TestRunSideBySide(t *testing.T) {
 }
 
 func TestRunExcludes(t *testing.T) {
-	excludeFS := fsx.MemFS{
+	excludeFS := fsx.MemoryFS{
 		"n1/a":     {Data: []byte("1\n")},
 		"n2/a":     {Data: []byte("2\n")},
 		"n1/b.log": {Data: []byte("x\n")},
@@ -957,7 +957,7 @@ func TestRunFinalNewline(t *testing.T) {
 	tests := []testutil.Case{
 		{
 			Name:     "a missing final newline stays a difference with -i",
-			FS:       fsx.MemFS{"c1": {Data: []byte("a\nB\n")}, "c2": {Data: []byte("A\nb")}},
+			FS:       fsx.MemoryFS{"c1": {Data: []byte("a\nB\n")}, "c2": {Data: []byte("A\nb")}},
 			Args:     []string{"-i", "c1", "c2"},
 			Want:     "2c2\n< B\n---\n> b\n\\ No newline at end of file\n",
 			WantExit: 1,

@@ -195,7 +195,7 @@ func TestExpandOldStyle(t *testing.T) {
 
 type createCase struct {
 	name     string
-	files    fsx.MemFS
+	files    fsx.MemoryFS
 	stdin    string
 	umask    fs.FileMode
 	args     []string
@@ -230,15 +230,15 @@ func runCreate(t *testing.T, test createCase) {
 	compareEntries(t, test.want, parseArchive(t, data))
 }
 
-func helloFile() *fsx.MemFile {
-	return &fsx.MemFile{Data: []byte("hello\n"), Mode: 0o644, ModTime: oldTime}
+func helloFile() *fsx.MemoryFile {
+	return &fsx.MemoryFile{Data: []byte("hello\n"), Mode: 0o644, ModTime: oldTime}
 }
 
 func TestCreate(t *testing.T) {
 	tests := []createCase{
 		{
 			name:  "file to stdout",
-			files: fsx.MemFS{"hello.txt": helloFile()},
+			files: fsx.MemoryFS{"hello.txt": helloFile()},
 			args:  []string{"-cf", "-", "hello.txt"},
 			want: []entry{
 				{name: "hello.txt", typ: tar.TypeReg, mode: 0o644, body: "hello\n", mtime: oldTime},
@@ -246,7 +246,7 @@ func TestCreate(t *testing.T) {
 		},
 		{
 			name:  "default archive is the standard output",
-			files: fsx.MemFS{"hello.txt": helloFile()},
+			files: fsx.MemoryFS{"hello.txt": helloFile()},
 			args:  []string{"-c", "hello.txt"},
 			want: []entry{
 				{name: "hello.txt", typ: tar.TypeReg, mode: 0o644, body: "hello\n", mtime: oldTime},
@@ -254,7 +254,7 @@ func TestCreate(t *testing.T) {
 		},
 		{
 			name: "directory tree",
-			files: fsx.MemFS{
+			files: fsx.MemoryFS{
 				"sub/a.txt":   {Data: []byte("a\n"), Mode: 0o644, ModTime: oldTime},
 				"sub/b.txt":   {Data: []byte("b\n"), Mode: 0o600, ModTime: oldTime},
 				"outside.txt": {Data: []byte("no\n"), Mode: 0o644},
@@ -268,7 +268,7 @@ func TestCreate(t *testing.T) {
 		},
 		{
 			name: "trailing slash operand",
-			files: fsx.MemFS{
+			files: fsx.MemoryFS{
 				"sub/a.txt": {Data: []byte("a\n"), Mode: 0o644, ModTime: oldTime},
 			},
 			args: []string{"-cf", "-", "sub/"},
@@ -279,7 +279,7 @@ func TestCreate(t *testing.T) {
 		},
 		{
 			name: "symlink",
-			files: fsx.MemFS{
+			files: fsx.MemoryFS{
 				"link":   {Mode: fs.ModeSymlink | 0o777, Data: []byte("target")},
 				"target": {Data: []byte("t\n"), Mode: 0o644},
 			},
@@ -290,7 +290,7 @@ func TestCreate(t *testing.T) {
 		},
 		{
 			name: "dereference symlink",
-			files: fsx.MemFS{
+			files: fsx.MemoryFS{
 				"link":      {Mode: fs.ModeSymlink | 0o777, Data: []byte("hello.txt")},
 				"hello.txt": helloFile(),
 			},
@@ -301,14 +301,14 @@ func TestCreate(t *testing.T) {
 		},
 		{
 			name:     "socket ignored",
-			files:    fsx.MemFS{"sock": {Mode: fs.ModeSocket}},
+			files:    fsx.MemoryFS{"sock": {Mode: fs.ModeSocket}},
 			args:     []string{"-cf", "-", "sock"},
 			wantErr:  "tar: sock: socket ignored\n",
 			wantExit: 1,
 		},
 		{
 			name:  "fifo",
-			files: fsx.MemFS{"pipe": {Mode: fs.ModeNamedPipe | 0o644}},
+			files: fsx.MemoryFS{"pipe": {Mode: fs.ModeNamedPipe | 0o644}},
 			args:  []string{"-cf", "-", "pipe"},
 			want: []entry{
 				{name: "pipe", typ: tar.TypeFifo, mode: 0o644},
@@ -316,7 +316,7 @@ func TestCreate(t *testing.T) {
 		},
 		{
 			name:  "missing operand doesn't stop the rest",
-			files: fsx.MemFS{"hello.txt": helloFile()},
+			files: fsx.MemoryFS{"hello.txt": helloFile()},
 			args:  []string{"-cf", "-", "nope", "hello.txt"},
 			want: []entry{
 				{name: "hello.txt", typ: tar.TypeReg, mode: 0o644, body: "hello\n", mtime: oldTime},
@@ -326,7 +326,7 @@ func TestCreate(t *testing.T) {
 		},
 		{
 			name:  "ignore failed read",
-			files: fsx.MemFS{"hello.txt": helloFile()},
+			files: fsx.MemoryFS{"hello.txt": helloFile()},
 			args:  []string{"-cf", "-", "-e", "nope", "hello.txt"},
 			want: []entry{
 				{name: "hello.txt", typ: tar.TypeReg, mode: 0o644, body: "hello\n", mtime: oldTime},
@@ -335,14 +335,14 @@ func TestCreate(t *testing.T) {
 		},
 		{
 			name:     "no operands",
-			files:    fsx.MemFS{"hello.txt": helloFile()},
+			files:    fsx.MemoryFS{"hello.txt": helloFile()},
 			args:     []string{"-cf", "-"},
 			wantErr:  "tar: Cowardly refusing to create an empty archive\n",
 			wantExit: 2,
 		},
 		{
 			name:  "verbose names on stderr",
-			files: fsx.MemFS{"hello.txt": helloFile()},
+			files: fsx.MemoryFS{"hello.txt": helloFile()},
 			args:  []string{"-cvf", "-", "hello.txt"},
 			want: []entry{
 				{name: "hello.txt", typ: tar.TypeReg, mode: 0o644, body: "hello\n", mtime: oldTime},
@@ -351,7 +351,7 @@ func TestCreate(t *testing.T) {
 		},
 		{
 			name:    "archive file gets mode from umask",
-			files:   fsx.MemFS{"hello.txt": helloFile()},
+			files:   fsx.MemoryFS{"hello.txt": helloFile()},
 			umask:   0o022,
 			args:    []string{"-cf", "a.tar", "hello.txt"},
 			archive: "a.tar",
@@ -361,13 +361,13 @@ func TestCreate(t *testing.T) {
 		},
 		{
 			name:    "declined file is left out",
-			files:   fsx.MemFS{"hello.txt": helloFile()},
+			files:   fsx.MemoryFS{"hello.txt": helloFile()},
 			args:    []string{"-cf", "-", "-w", "hello.txt"},
 			wantErr: "tar: add 'hello.txt'? ",
 		},
 		{
 			name:  "accepted file is archived",
-			files: fsx.MemFS{"hello.txt": helloFile()},
+			files: fsx.MemoryFS{"hello.txt": helloFile()},
 			stdin: "y\n",
 			args:  []string{"-cf", "-", "-w", "hello.txt"},
 			want: []entry{
@@ -377,7 +377,7 @@ func TestCreate(t *testing.T) {
 		},
 		{
 			name:  "blocking factor of two",
-			files: fsx.MemFS{"hello.txt": helloFile()},
+			files: fsx.MemoryFS{"hello.txt": helloFile()},
 			args:  []string{"-cf", "-", "-b", "2", "hello.txt"},
 			want: []entry{
 				{name: "hello.txt", typ: tar.TypeReg, mode: 0o644, body: "hello\n", mtime: oldTime},
@@ -386,7 +386,7 @@ func TestCreate(t *testing.T) {
 		},
 		{
 			name:  "blocking factor of one",
-			files: fsx.MemFS{"hello.txt": helloFile()},
+			files: fsx.MemoryFS{"hello.txt": helloFile()},
 			args:  []string{"-cf", "-", "-b", "1", "hello.txt"},
 			want: []entry{
 				{name: "hello.txt", typ: tar.TypeReg, mode: 0o644, body: "hello\n", mtime: oldTime},
@@ -395,7 +395,7 @@ func TestCreate(t *testing.T) {
 		},
 		{
 			name:  "owner from file system",
-			files: fsx.MemFS{"hello.txt": {Data: []byte("hello\n"), Mode: 0o644, ModTime: oldTime, Uid: 1000, Gid: 2000}},
+			files: fsx.MemoryFS{"hello.txt": {Data: []byte("hello\n"), Mode: 0o644, ModTime: oldTime, Uid: 1000, Gid: 2000}},
 			args:  []string{"-cf", "-", "hello.txt"},
 			want: []entry{
 				{name: "hello.txt", typ: tar.TypeReg, mode: 0o644, body: "hello\n", mtime: oldTime, uid: 1000, gid: 2000},
@@ -403,7 +403,7 @@ func TestCreate(t *testing.T) {
 		},
 		{
 			name:  "setuid bit",
-			files: fsx.MemFS{"prog": {Data: []byte(""), Mode: fs.ModeSetuid | 0o755, ModTime: oldTime}},
+			files: fsx.MemoryFS{"prog": {Data: []byte(""), Mode: fs.ModeSetuid | 0o755, ModTime: oldTime}},
 			args:  []string{"-cf", "-", "prog"},
 			want: []entry{
 				{name: "prog", typ: tar.TypeReg, mode: 0o4755, mtime: oldTime},
@@ -411,7 +411,7 @@ func TestCreate(t *testing.T) {
 		},
 		{
 			name:  "default record size",
-			files: fsx.MemFS{"hello.txt": helloFile()},
+			files: fsx.MemoryFS{"hello.txt": helloFile()},
 			args:  []string{"-cf", "-", "hello.txt"},
 			want: []entry{
 				{name: "hello.txt", typ: tar.TypeReg, mode: 0o644, body: "hello\n", mtime: oldTime},
@@ -434,7 +434,7 @@ func TestCreateAbsolute(t *testing.T) {
 	if err := os.WriteFile(dir+"/d/f.txt", []byte("x\n"), 0o644); err != nil {
 		t.Fatal(err)
 	}
-	stdout, stderr, err := run(t, fsx.OsFS(""), "", nil, 0, "-cf", "-", dir+"/d/f.txt")
+	stdout, stderr, err := run(t, fsx.SystemFS(""), "", nil, 0, "-cf", "-", dir+"/d/f.txt")
 	if err != nil {
 		t.Fatalf("Run() error = %v", err)
 	}
@@ -462,7 +462,7 @@ func TestWriteError(t *testing.T) {
 	rt := &coreutils.Runtime{
 		Stdout: testutil.ErrorWriter{},
 		Stderr: new(bytes.Buffer),
-		FS:     fsx.MemFS{"hello.txt": helloFile()},
+		FS:     fsx.MemoryFS{"hello.txt": helloFile()},
 	}
 	err := New(rt).Run(t.Context(), "-cf", "-", "hello.txt")
 	if code := testutil.ExitCode(t, err); code != 1 {
@@ -473,7 +473,7 @@ func TestWriteError(t *testing.T) {
 func TestContextCanceled(t *testing.T) {
 	ctx, cancel := context.WithCancel(t.Context())
 	cancel()
-	files := fsx.MemFS{"hello.txt": helloFile()}
+	files := fsx.MemoryFS{"hello.txt": helloFile()}
 	rt := &coreutils.Runtime{
 		Stdout: new(bytes.Buffer),
 		Stderr: new(bytes.Buffer),

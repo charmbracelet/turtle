@@ -22,8 +22,8 @@ import (
 //	empty.txt:     ""
 //	nonl.txt:      "no newline" (no trailing newline)
 //	sub/inner.txt: "inner\n"
-func testFS() fsx.MemFS {
-	return fsx.MemFS{
+func testFS() fsx.MemoryFS {
+	return fsx.MemoryFS{
 		"a.txt":         {Data: []byte("abcdefg\nxyz\n")},
 		"passwd.txt":    {Data: []byte("root:x:0:0:root:/root:/bin/sh\ndaemon:x:1:1:daemon:/usr/sbin:/usr/sbin/nologin\n")},
 		"tabs.txt":      {Data: []byte("f1\tf2\tf3\nplain\n")},
@@ -813,7 +813,7 @@ func TestRunErrors(t *testing.T) {
 		},
 		{
 			Name:     "directory operand",
-			FS:       fsx.MemFS{"dir": {Mode: fs.ModeDir}},
+			FS:       fsx.MemoryFS{"dir": {Mode: fs.ModeDir}},
 			Args:     []string{"-b", "1", "dir"},
 			WantErr:  "cut: dir: invalid argument\n",
 			WantExit: 1,

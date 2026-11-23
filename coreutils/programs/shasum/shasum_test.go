@@ -30,9 +30,9 @@ const (
 //	sha256.txt:  the SHA-256 checksum of hello.txt
 //	bsd256.txt:  the BSD-style SHA-256 checksum of hello.txt
 //	bad.txt:     a checksum file holding a digest which doesn't match
-func testFS() fsx.MemFS {
+func testFS() fsx.MemoryFS {
 	bad := strings.Repeat("0", len(helloSHA1))
-	return fsx.MemFS{
+	return fsx.MemoryFS{
 		"hello.txt":  {Data: []byte("hello\n")},
 		"sums.txt":   {Data: []byte(helloSHA1 + "  hello.txt\n")},
 		"sha256.txt": {Data: []byte(helloSHA256 + "  hello.txt\n")},

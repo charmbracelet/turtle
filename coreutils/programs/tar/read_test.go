@@ -24,7 +24,7 @@ func fixture(t *testing.T) string {
 
 type extractCase struct {
 	name     string
-	files    fsx.MemFS
+	files    fsx.MemoryFS
 	stdin    string
 	umask    fs.FileMode
 	args     []string
@@ -33,7 +33,7 @@ type extractCase struct {
 	wantTime map[string]time.Time
 	wantLink map[string]string
 	absent   []string
-	check    func(t *testing.T, files fsx.MemFS)
+	check    func(t *testing.T, files fsx.MemoryFS)
 	wantErr  string
 	wantExit int
 }
@@ -42,7 +42,7 @@ func runExtract(t *testing.T, test extractCase) {
 	t.Helper()
 
 	if test.files == nil {
-		test.files = fsx.MemFS{}
+		test.files = fsx.MemoryFS{}
 	}
 	_, stderr, err := run(t, test.files, test.stdin, nil, test.umask, test.args...)
 	if code := testutil.ExitCode(t, err); code != test.wantExit {
@@ -106,7 +106,7 @@ func TestList(t *testing.T) {
 	base := buildArchive(t, entry{name: "hello.txt", typ: tar.TypeReg, mode: 0o644, mtime: oldTime})
 	tests := []struct {
 		name     string
-		files    fsx.MemFS
+		files    fsx.MemoryFS
 		stdin    string
 		env      map[string]string
 		args     []string
@@ -128,14 +128,14 @@ func TestList(t *testing.T) {
 		},
 		{
 			name:    "TAPE archive",
-			files:   fsx.MemFS{"a.tar": {Data: []byte(archive), Mode: 0o644}},
+			files:   fsx.MemoryFS{"a.tar": {Data: []byte(archive), Mode: 0o644}},
 			args:    []string{"-t"},
 			env:     map[string]string{"TAPE": "a.tar"},
 			wantOut: "hello.txt\nsub/\nsub/a.txt\n",
 		},
 		{
 			name:    "from file",
-			files:   fsx.MemFS{"a.tar": {Data: []byte(archive), Mode: 0o644}},
+			files:   fsx.MemoryFS{"a.tar": {Data: []byte(archive), Mode: 0o644}},
 			args:    []string{"-tf", "a.tar"},
 			wantOut: "hello.txt\nsub/\nsub/a.txt\n",
 		},
@@ -282,7 +282,7 @@ func TestExtract(t *testing.T) {
 			name:  "touch keeps current time",
 			stdin: buildArchive(t, entry{name: "f.txt", typ: tar.TypeReg, mode: 0o644, body: "x", mtime: oldTime}),
 			args:  []string{"-xf", "-", "-m"},
-			check: func(t *testing.T, files fsx.MemFS) {
+			check: func(t *testing.T, files fsx.MemoryFS) {
 				fi, err := fs.Stat(files, "f.txt")
 				if err != nil {
 					t.Fatalf("Stat(f.txt) error = %v", err)
@@ -319,7 +319,7 @@ func TestExtract(t *testing.T) {
 		},
 		{
 			name:     "symlink replaces a file",
-			files:    fsx.MemFS{"link": {Data: []byte("old"), Mode: 0o644}},
+			files:    fsx.MemoryFS{"link": {Data: []byte("old"), Mode: 0o644}},
 			stdin:    buildArchive(t, entry{name: "link", typ: tar.TypeSymlink, link: "target", mode: 0o777}),
 			args:     []string{"-xf", "-"},
 			wantLink: map[string]string{"link": "target"},
@@ -371,7 +371,7 @@ func TestExtract(t *testing.T) {
 		},
 		{
 			name: "symbolic link in the path is refused",
-			files: fsx.MemFS{
+			files: fsx.MemoryFS{
 				"evil/old.txt": {Data: []byte("old"), Mode: 0o644},
 				"link":         {Mode: fs.ModeSymlink | 0o777, Data: []byte("evil")},
 			},
@@ -384,7 +384,7 @@ func TestExtract(t *testing.T) {
 		},
 		{
 			name: "symbolic link higher in the path is refused",
-			files: fsx.MemFS{
+			files: fsx.MemoryFS{
 				"evil/old.txt": {Data: []byte("old"), Mode: 0o644},
 				"a/link":       {Mode: fs.ModeSymlink | 0o777, Data: []byte("../evil")},
 			},
@@ -396,14 +396,14 @@ func TestExtract(t *testing.T) {
 		},
 		{
 			name: "regular file replaces a symbolic link",
-			files: fsx.MemFS{
+			files: fsx.MemoryFS{
 				"target": {Data: []byte("OLD"), Mode: 0o644},
 				"f.txt":  {Mode: fs.ModeSymlink | 0o777, Data: []byte("target")},
 			},
 			stdin: buildArchive(t, entry{name: "f.txt", typ: tar.TypeReg, mode: 0o644, body: "new"}),
 			args:  []string{"-xf", "-"},
 			want:  map[string]string{"f.txt": "new", "target": "OLD"},
-			check: func(t *testing.T, files fsx.MemFS) {
+			check: func(t *testing.T, files fsx.MemoryFS) {
 				if _, err := files.ReadLink("f.txt"); err == nil {
 					t.Errorf("ReadLink(f.txt) succeeded, want f.txt to be a regular file")
 				}
@@ -411,7 +411,7 @@ func TestExtract(t *testing.T) {
 		},
 		{
 			name: "directory over a symbolic link is refused",
-			files: fsx.MemFS{
+			files: fsx.MemoryFS{
 				"evil/old.txt": {Data: []byte("old"), Mode: 0o644},
 				"link":         {Mode: fs.ModeSymlink | 0o777, Data: []byte("evil")},
 			},
@@ -422,7 +422,7 @@ func TestExtract(t *testing.T) {
 		},
 		{
 			name:     "file over directory",
-			files:    fsx.MemFS{"x/in.txt": {Data: []byte("i"), Mode: 0o644}},
+			files:    fsx.MemoryFS{"x/in.txt": {Data: []byte("i"), Mode: 0o644}},
 			stdin:    buildArchive(t, entry{name: "x", typ: tar.TypeReg, mode: 0o644, body: "x"}),
 			args:     []string{"-xf", "-"},
 			wantErr:  "tar: x: invalid argument\n",
@@ -430,7 +430,7 @@ func TestExtract(t *testing.T) {
 		},
 		{
 			name:     "directory over file",
-			files:    fsx.MemFS{"x": {Data: []byte("f"), Mode: 0o644}},
+			files:    fsx.MemoryFS{"x": {Data: []byte("f"), Mode: 0o644}},
 			stdin:    buildArchive(t, entry{name: "x/", typ: tar.TypeDir, mode: 0o755}),
 			args:     []string{"-xf", "-"},
 			wantErr:  "tar: x/: not a directory\n",
@@ -454,7 +454,7 @@ func TestExtract(t *testing.T) {
 		},
 		{
 			name:  "overwrite truncates",
-			files: fsx.MemFS{"f.txt": {Data: []byte("old longer content"), Mode: 0o644}},
+			files: fsx.MemoryFS{"f.txt": {Data: []byte("old longer content"), Mode: 0o644}},
 			stdin: buildArchive(t, entry{name: "f.txt", typ: tar.TypeReg, mode: 0o644, body: "new"}),
 			args:  []string{"-xf", "-"},
 			want:  map[string]string{"f.txt": "new"},
@@ -491,7 +491,7 @@ func TestExtract(t *testing.T) {
 		},
 		{
 			name:  "accepted file is extracted",
-			files: fsx.MemFS{"a.tar": {Data: []byte(fixture(t)), Mode: 0o644}},
+			files: fsx.MemoryFS{"a.tar": {Data: []byte(fixture(t)), Mode: 0o644}},
 			stdin: "y\nn\ny\n",
 			args:  []string{"-xf", "a.tar", "-w"},
 			want: map[string]string{

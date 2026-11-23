@@ -31,7 +31,7 @@ func both(t time.Time) timePair {
 
 type testCase struct {
 	name     string
-	files    fsx.MemFS
+	files    fsx.MemoryFS
 	tz       string
 	clock    time.Time
 	args     []string
@@ -111,8 +111,8 @@ var (
 
 // testFS returns a file system holding a reference file with distinct access
 // and modification times.
-func testFS() fsx.MemFS {
-	fsys := fsx.MemFS{
+func testFS() fsx.MemoryFS {
+	fsys := fsx.MemoryFS{
 		"ref.txt":      {Data: []byte("ref")},
 		"sub/keep.txt": {Data: []byte("keep")},
 	}
@@ -126,44 +126,44 @@ func TestRunDefaults(t *testing.T) {
 	tests := []testCase{
 		{
 			name:  "creates a missing file",
-			files: fsx.MemFS{},
+			files: fsx.MemoryFS{},
 			args:  []string{"file.txt"},
 			want:  map[string]timePair{"file.txt": {}},
 		},
 		{
 			name:  "creates every missing file",
-			files: fsx.MemFS{},
+			files: fsx.MemoryFS{},
 			args:  []string{"one.txt", "two.txt"},
 			want:  map[string]timePair{"one.txt": {}, "two.txt": {}},
 		},
 		{
 			name:  "creates a file inside an existing directory",
-			files: fsx.MemFS{"sub/keep.txt": {Data: []byte("keep")}},
+			files: fsx.MemoryFS{"sub/keep.txt": {Data: []byte("keep")}},
 			args:  []string{"sub/new.txt"},
 			want:  map[string]timePair{"sub/new.txt": {}},
 		},
 		{
 			name:  "updates the times of an existing file",
-			files: fsx.MemFS{"file.txt": {Data: []byte("hello")}},
+			files: fsx.MemoryFS{"file.txt": {Data: []byte("hello")}},
 			args:  []string{"file.txt"},
 			want:  map[string]timePair{"file.txt": {}},
 		},
 		{
 			name:  "a file named like an option after a double dash",
-			files: fsx.MemFS{},
+			files: fsx.MemoryFS{},
 			args:  []string{"--", "-t"},
 			want:  map[string]timePair{"-t": {}},
 		},
 		{
 			name:     "a missing parent directory is an error",
-			files:    fsx.MemFS{},
+			files:    fsx.MemoryFS{},
 			args:     []string{"missing/file.txt"},
 			wantErr:  "touch: missing/file.txt: file does not exist\n",
 			wantExit: 1,
 		},
 		{
 			name:     "keeps touching the other files after an error",
-			files:    fsx.MemFS{},
+			files:    fsx.MemoryFS{},
 			args:     []string{"missing/file.txt", "ok.txt"},
 			want:     map[string]timePair{"ok.txt": {}},
 			wantErr:  "touch: missing/file.txt: file does not exist\n",
@@ -189,7 +189,7 @@ func TestRunAccessTime(t *testing.T) {
 		},
 		{
 			name:  "a on a new file keeps the creation modification time",
-			files: fsx.MemFS{},
+			files: fsx.MemoryFS{},
 			tz:    "UTC",
 			args:  []string{"-a", "-t", "202201020304.05", "new.txt"},
 			want:  map[string]timePair{"new.txt": {atime: time.Date(2022, 1, 2, 3, 4, 5, 0, time.UTC)}},
@@ -230,13 +230,13 @@ func TestRunNoCreate(t *testing.T) {
 	tests := []testCase{
 		{
 			name:   "c does not create the file",
-			files:  fsx.MemFS{},
+			files:  fsx.MemoryFS{},
 			args:   []string{"-c", "missing.txt"},
 			absent: []string{"missing.txt"},
 		},
 		{
 			name:   "c does not create the file with a time",
-			files:  fsx.MemFS{},
+			files:  fsx.MemoryFS{},
 			tz:     "UTC",
 			args:   []string{"-c", "-t", "202201020304.05", "missing.txt"},
 			absent: []string{"missing.txt"},
@@ -278,7 +278,7 @@ func TestRunReferenceFile(t *testing.T) {
 		},
 		{
 			name:     "a missing reference file is an error",
-			files:    fsx.MemFS{},
+			files:    fsx.MemoryFS{},
 			args:     []string{"-r", "missing.txt", "file.txt"},
 			absent:   []string{"file.txt"},
 			wantErr:  "touch: missing.txt: file does not exist\n",
@@ -296,49 +296,49 @@ func TestRunTimeOption(t *testing.T) {
 	tests := []testCase{
 		{
 			name:  "CCYYMMDDhhmm",
-			files: fsx.MemFS{},
+			files: fsx.MemoryFS{},
 			tz:    "UTC",
 			args:  []string{"-t", "202201020304", "file.txt"},
 			want:  map[string]timePair{"file.txt": both(time.Date(2022, 1, 2, 3, 4, 0, 0, time.UTC))},
 		},
 		{
 			name:  "YYMMDDhhmm in the 20th century",
-			files: fsx.MemFS{},
+			files: fsx.MemoryFS{},
 			tz:    "UTC",
 			args:  []string{"-t", "7001020304", "file.txt"},
 			want:  map[string]timePair{"file.txt": both(time.Date(1970, 1, 2, 3, 4, 0, 0, time.UTC))},
 		},
 		{
 			name:  "YYMMDDhhmm in the 21st century",
-			files: fsx.MemFS{},
+			files: fsx.MemoryFS{},
 			tz:    "UTC",
 			args:  []string{"-t", "0101020304", "file.txt"},
 			want:  map[string]timePair{"file.txt": both(time.Date(2001, 1, 2, 3, 4, 0, 0, time.UTC))},
 		},
 		{
 			name:  "MMDDhhmm uses the current year",
-			files: fsx.MemFS{},
+			files: fsx.MemoryFS{},
 			tz:    "UTC",
 			args:  []string{"-t", "01020304", "file.txt"},
 			want:  map[string]timePair{"file.txt": both(time.Date(time.Now().Year(), 1, 2, 3, 4, 0, 0, time.UTC))},
 		},
 		{
 			name:  "seconds",
-			files: fsx.MemFS{},
+			files: fsx.MemoryFS{},
 			tz:    "UTC",
 			args:  []string{"-t", "202201020304.05", "file.txt"},
 			want:  map[string]timePair{"file.txt": both(time.Date(2022, 1, 2, 3, 4, 5, 0, time.UTC))},
 		},
 		{
 			name:  "a leap second is one second later",
-			files: fsx.MemFS{},
+			files: fsx.MemoryFS{},
 			tz:    "UTC",
 			args:  []string{"-t", "202201020304.60", "file.txt"},
 			want:  map[string]timePair{"file.txt": both(time.Date(2022, 1, 2, 3, 5, 0, 0, time.UTC))},
 		},
 		{
 			name:  "a glued option-argument",
-			files: fsx.MemFS{},
+			files: fsx.MemoryFS{},
 			tz:    "UTC",
 			args:  []string{"-t202201020304.05", "file.txt"},
 			want:  map[string]timePair{"file.txt": both(time.Date(2022, 1, 2, 3, 4, 5, 0, time.UTC))},
@@ -356,49 +356,49 @@ func TestRunDateTimeOption(t *testing.T) {
 	tests := []testCase{
 		{
 			name:  "date and time",
-			files: fsx.MemFS{},
+			files: fsx.MemoryFS{},
 			tz:    "UTC",
 			args:  []string{"-d", "2007-11-12T10:15:30", "file.txt"},
 			want:  map[string]timePair{"file.txt": both(time.Date(2007, 11, 12, 10, 15, 30, 0, time.UTC))},
 		},
 		{
 			name:  "a space instead of the T designator",
-			files: fsx.MemFS{},
+			files: fsx.MemoryFS{},
 			tz:    "UTC",
 			args:  []string{"-d", "2007-11-12 10:15:30", "file.txt"},
 			want:  map[string]timePair{"file.txt": both(time.Date(2007, 11, 12, 10, 15, 30, 0, time.UTC))},
 		},
 		{
 			name:  "a UTC time",
-			files: fsx.MemFS{},
+			files: fsx.MemoryFS{},
 			tz:    "UTC",
 			args:  []string{"-d", "2007-11-12T10:15:30Z", "file.txt"},
 			want:  map[string]timePair{"file.txt": both(time.Date(2007, 11, 12, 10, 15, 30, 0, time.UTC))},
 		},
 		{
 			name:  "a fractional second with a period",
-			files: fsx.MemFS{},
+			files: fsx.MemoryFS{},
 			tz:    "UTC",
 			args:  []string{"-d", "2007-11-12T10:15:30.002", "file.txt"},
 			want:  map[string]timePair{"file.txt": both(time.Date(2007, 11, 12, 10, 15, 30, 2000000, time.UTC))},
 		},
 		{
 			name:  "a missing seconds field",
-			files: fsx.MemFS{},
+			files: fsx.MemoryFS{},
 			tz:    "UTC",
 			args:  []string{"-d", "2007-11-12T10:15", "file.txt"},
 			want:  map[string]timePair{"file.txt": both(time.Date(2007, 11, 12, 10, 15, 0, 0, time.UTC))},
 		},
 		{
 			name:  "a fractional second with a comma",
-			files: fsx.MemFS{},
+			files: fsx.MemoryFS{},
 			tz:    "UTC",
 			args:  []string{"-d", "2007-11-12T10:15:30,002", "file.txt"},
 			want:  map[string]timePair{"file.txt": both(time.Date(2007, 11, 12, 10, 15, 30, 2000000, time.UTC))},
 		},
 		{
 			name:  "yesterday",
-			files: fsx.MemFS{},
+			files: fsx.MemoryFS{},
 			tz:    "UTC",
 			clock: clock,
 			args:  []string{"-d", "yesterday", "file.txt"},
@@ -406,7 +406,7 @@ func TestRunDateTimeOption(t *testing.T) {
 		},
 		{
 			name:  "an epoch time",
-			files: fsx.MemFS{},
+			files: fsx.MemoryFS{},
 			tz:    "UTC",
 			clock: clock,
 			args:  []string{"-d", "@1700000000", "file.txt"},
@@ -414,7 +414,7 @@ func TestRunDateTimeOption(t *testing.T) {
 		},
 		{
 			name:  "a relative time",
-			files: fsx.MemFS{},
+			files: fsx.MemoryFS{},
 			tz:    "UTC",
 			clock: clock,
 			args:  []string{"-d", "2 hours ago", "file.txt"},
@@ -422,7 +422,7 @@ func TestRunDateTimeOption(t *testing.T) {
 		},
 		{
 			name:  "month names",
-			files: fsx.MemFS{},
+			files: fsx.MemoryFS{},
 			tz:    "UTC",
 			clock: clock,
 			args:  []string{"-d", "Jul 21 14:19:13 2020", "file.txt"},
@@ -430,7 +430,7 @@ func TestRunDateTimeOption(t *testing.T) {
 		},
 		{
 			name:  "a zone suffix",
-			files: fsx.MemFS{},
+			files: fsx.MemoryFS{},
 			tz:    "UTC",
 			clock: clock,
 			args:  []string{"-d", "2020-07-21 14:19:13 +0530", "file.txt"},
@@ -438,7 +438,7 @@ func TestRunDateTimeOption(t *testing.T) {
 		},
 		{
 			name:  "a named zone",
-			files: fsx.MemFS{},
+			files: fsx.MemoryFS{},
 			tz:    "UTC",
 			clock: clock,
 			args:  []string{"-d", "2020-07-21 14:19:13 UTC", "file.txt"},
@@ -515,13 +515,13 @@ func TestRunLongOptions(t *testing.T) {
 		},
 		{
 			name:   "no-create does not create the file",
-			files:  fsx.MemFS{},
+			files:  fsx.MemoryFS{},
 			args:   []string{"--no-create", "missing.txt"},
 			absent: []string{"missing.txt"},
 		},
 		{
 			name:  "date sets both times",
-			files: fsx.MemFS{},
+			files: fsx.MemoryFS{},
 			tz:    "UTC",
 			args:  []string{"--date", "2007-11-12T10:15:30", "file.txt"},
 			want:  map[string]timePair{"file.txt": both(time.Date(2007, 11, 12, 10, 15, 30, 0, time.UTC))},
@@ -534,14 +534,14 @@ func TestRunLongOptions(t *testing.T) {
 		},
 		{
 			name:     "an unknown time word is an error",
-			files:    fsx.MemFS{},
+			files:    fsx.MemoryFS{},
 			args:     []string{"--time=bogus", "file.txt"},
 			wantErr:  "touch: invalid argument 'bogus' for '--time'\nTry 'touch --help' for more information.\n",
 			wantExit: 2,
 		},
 		{
 			name:     "time requires an argument",
-			files:    fsx.MemFS{},
+			files:    fsx.MemoryFS{},
 			args:     []string{"--time"},
 			wantErr:  "touch: option '--time' requires an argument\nTry 'touch --help' for more information.\n",
 			wantExit: 2,
@@ -604,7 +604,7 @@ func TestRunUsageErrors(t *testing.T) {
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
 			runCase(t, testCase{
-				files:    fsx.MemFS{},
+				files:    fsx.MemoryFS{},
 				args:     test.args,
 				wantErr:  test.wantErr,
 				wantExit: 2,
@@ -684,7 +684,7 @@ func TestRunInvalidTimes(t *testing.T) {
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
 			runCase(t, testCase{
-				files:    fsx.MemFS{},
+				files:    fsx.MemoryFS{},
 				tz:       "UTC",
 				args:     append(test.args, "file.txt"),
 				absent:   []string{"file.txt"},
@@ -697,7 +697,7 @@ func TestRunInvalidTimes(t *testing.T) {
 
 func TestRunEmptyOperand(t *testing.T) {
 	runCase(t, testCase{
-		files:    fsx.MemFS{},
+		files:    fsx.MemoryFS{},
 		args:     []string{""},
 		wantErr:  "touch: : invalid argument\n",
 		wantExit: 1,
@@ -711,7 +711,7 @@ func TestRunContext(t *testing.T) {
 	rt := &coreutils.Runtime{
 		Stdout: io.Discard,
 		Stderr: new(bytes.Buffer),
-		FS:     fsx.MemFS{},
+		FS:     fsx.MemoryFS{},
 	}
 	err := New(rt).Run(ctx, "file.txt")
 	if !errors.Is(err, context.Canceled) {
@@ -738,7 +738,7 @@ func TestRunNoFilesystem(t *testing.T) {
 func TestRunNoopOption(t *testing.T) {
 	runCase(t, testCase{
 		name:  "f is ignored, for BSD compatibility",
-		files: fsx.MemFS{},
+		files: fsx.MemoryFS{},
 		tz:    "UTC",
 		args:  []string{"-f", "-t", "202201020304.05", "file.txt"},
 		want:  map[string]timePair{"file.txt": both(time.Date(2022, 1, 2, 3, 4, 5, 0, time.UTC))},
@@ -747,8 +747,8 @@ func TestRunNoopOption(t *testing.T) {
 
 // linkFS returns a file system with a file, a symbolic link to it, a dangling
 // link, and another file to act on, each with distinct times.
-func linkFS() fsx.MemFS {
-	fsys := fsx.MemFS{
+func linkFS() fsx.MemoryFS {
+	fsys := fsx.MemoryFS{
 		"file.txt":     {Data: []byte("hello")},
 		"sym.txt":      {Data: []byte("file.txt"), Mode: fs.ModeSymlink},
 		"dangling.txt": {Data: []byte("missing.txt"), Mode: fs.ModeSymlink},
@@ -768,7 +768,7 @@ func linkFS() fsx.MemFS {
 
 // entryTimes returns the access and modification times of the entry at name,
 // without following a final symbolic link.
-func entryTimes(t *testing.T, fsys fsx.MemFS, name string) timePair {
+func entryTimes(t *testing.T, fsys fsx.MemoryFS, name string) timePair {
 	t.Helper()
 	fi, err := fsys.Lstat(name)
 	if err != nil {
@@ -779,7 +779,7 @@ func entryTimes(t *testing.T, fsys fsx.MemFS, name string) timePair {
 }
 
 // assertPair checks the exact access and modification times of an entry.
-func assertPair(t *testing.T, fsys fsx.MemFS, name string, want timePair) {
+func assertPair(t *testing.T, fsys fsx.MemoryFS, name string, want timePair) {
 	t.Helper()
 	got := entryTimes(t, fsys, name)
 	if !got.atime.Equal(want.atime) || !got.mtime.Equal(want.mtime) {
@@ -917,7 +917,7 @@ func TestRunNoDereferenceOS(t *testing.T) {
 	rt := &coreutils.Runtime{
 		Stdout: io.Discard,
 		Stderr: stderr,
-		FS:     fsx.OsFS(dir),
+		FS:     fsx.SystemFS(dir),
 	}
 	err := New(rt).Run(t.Context(), "-h", "sym.txt")
 

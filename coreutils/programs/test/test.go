@@ -367,8 +367,8 @@ func (p *Prog) fileBinary(a, op, b string) (bool, error) {
 // memory file system shares entries between links, while the operating system
 // one compares their device and inode numbers.
 func sameFile(a, b fs.FileInfo) bool {
-	if ma, ok := a.Sys().(*fsx.MemFile); ok {
-		mb, ok := b.Sys().(*fsx.MemFile)
+	if ma, ok := a.Sys().(*fsx.MemoryFile); ok {
+		mb, ok := b.Sys().(*fsx.MemoryFile)
 		return ok && ma == mb
 	}
 	return os.SameFile(a, b)

@@ -11,7 +11,7 @@ func Owner(fi fs.FileInfo) (uid, gid int, ok bool) {
 	if fi == nil {
 		return 0, 0, false
 	}
-	if mf, isMem := fi.Sys().(*MemFile); isMem {
+	if mf, isMem := fi.Sys().(*MemoryFile); isMem {
 		return mf.Uid, mf.Gid, true
 	}
 	return sysOwner(fi.Sys())

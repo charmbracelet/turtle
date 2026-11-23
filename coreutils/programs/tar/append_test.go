@@ -15,7 +15,7 @@ var newTime = oldTime.Add(time.Hour)
 func TestAppend(t *testing.T) {
 	tests := []struct {
 		name     string
-		files    fsx.MemFS
+		files    fsx.MemoryFS
 		args     []string
 		archive  string
 		want     []entry
@@ -26,7 +26,7 @@ func TestAppend(t *testing.T) {
 	}{
 		{
 			name: "append to an archive",
-			files: fsx.MemFS{
+			files: fsx.MemoryFS{
 				"a.tar": {Data: []byte(buildArchive(t, entry{name: "hello.txt", typ: tar.TypeReg, mode: 0o644, body: "hello\n", mtime: oldTime})), Mode: 0o644},
 				"f.txt": {Data: []byte("f\n"), Mode: 0o644, ModTime: newTime},
 			},
@@ -41,7 +41,7 @@ func TestAppend(t *testing.T) {
 		},
 		{
 			name: "verbose append",
-			files: fsx.MemFS{
+			files: fsx.MemoryFS{
 				"a.tar": {Data: []byte(buildArchive(t)), Mode: 0o644},
 				"f.txt": {Data: []byte("f\n"), Mode: 0o644, ModTime: newTime},
 			},
@@ -52,21 +52,21 @@ func TestAppend(t *testing.T) {
 		},
 		{
 			name:     "archive on a standard stream",
-			files:    fsx.MemFS{"f.txt": {Data: []byte("f\n"), Mode: 0o644}},
+			files:    fsx.MemoryFS{"f.txt": {Data: []byte("f\n"), Mode: 0o644}},
 			args:     []string{"-rf", "-", "f.txt"},
 			wantErr:  "tar: cannot update an archive on a standard stream\n",
 			wantExit: 1,
 		},
 		{
 			name:     "missing archive",
-			files:    fsx.MemFS{"f.txt": {Data: []byte("f\n"), Mode: 0o644}},
+			files:    fsx.MemoryFS{"f.txt": {Data: []byte("f\n"), Mode: 0o644}},
 			args:     []string{"-rf", "a.tar", "f.txt"},
 			wantErr:  "tar: a.tar: file does not exist\n",
 			wantExit: 1,
 		},
 		{
 			name: "no operands keeps the archive",
-			files: fsx.MemFS{
+			files: fsx.MemoryFS{
 				"a.tar": {Data: []byte(buildArchive(t, entry{name: "hello.txt", typ: tar.TypeReg, mode: 0o644, body: "hello\n", mtime: oldTime})), Mode: 0o644},
 			},
 			args:    []string{"-rf", "a.tar"},
@@ -77,7 +77,7 @@ func TestAppend(t *testing.T) {
 		},
 		{
 			name: "append to a corrupt archive",
-			files: fsx.MemFS{
+			files: fsx.MemoryFS{
 				"a.tar": {Data: []byte("garbage"), Mode: 0o644},
 				"f.txt": {Data: []byte("f\n"), Mode: 0o644},
 			},
@@ -123,7 +123,7 @@ func TestUpdate(t *testing.T) {
 	)
 	tests := []struct {
 		name     string
-		files    fsx.MemFS
+		files    fsx.MemoryFS
 		args     []string
 		want     []entry
 		wantErr  string
@@ -131,7 +131,7 @@ func TestUpdate(t *testing.T) {
 	}{
 		{
 			name: "older file is skipped",
-			files: fsx.MemFS{
+			files: fsx.MemoryFS{
 				"a.tar": {Data: []byte(base), Mode: 0o644},
 				"f.txt": {Data: []byte("old\n"), Mode: 0o644, ModTime: oldTime},
 			},
@@ -144,7 +144,7 @@ func TestUpdate(t *testing.T) {
 		},
 		{
 			name: "newer file is appended",
-			files: fsx.MemFS{
+			files: fsx.MemoryFS{
 				"a.tar": {Data: []byte(base), Mode: 0o644},
 				"f.txt": {Data: []byte("new\n"), Mode: 0o644, ModTime: newTime},
 			},
@@ -158,7 +158,7 @@ func TestUpdate(t *testing.T) {
 		},
 		{
 			name: "absent file is appended",
-			files: fsx.MemFS{
+			files: fsx.MemoryFS{
 				"a.tar": {Data: []byte(base), Mode: 0o644},
 				"g.txt": {Data: []byte("g\n"), Mode: 0o644, ModTime: oldTime},
 			},
@@ -172,7 +172,7 @@ func TestUpdate(t *testing.T) {
 		},
 		{
 			name: "children of an unchanged directory are still considered",
-			files: fsx.MemFS{
+			files: fsx.MemoryFS{
 				"a.tar":     {Data: []byte(base), Mode: 0o644},
 				"sub/f.txt": {Data: []byte("s\n"), Mode: 0o644, ModTime: oldTime},
 				"sub/g.txt": {Data: []byte("g\n"), Mode: 0o644, ModTime: oldTime},
@@ -187,7 +187,7 @@ func TestUpdate(t *testing.T) {
 		},
 		{
 			name: "verbose lists only the appended files",
-			files: fsx.MemFS{
+			files: fsx.MemoryFS{
 				"a.tar":     {Data: []byte(base), Mode: 0o644},
 				"f.txt":     {Data: []byte("new\n"), Mode: 0o644, ModTime: newTime},
 				"sub/f.txt": {Data: []byte("s\n"), Mode: 0o644, ModTime: oldTime},
@@ -197,7 +197,7 @@ func TestUpdate(t *testing.T) {
 		},
 		{
 			name: "missing archive",
-			files: fsx.MemFS{
+			files: fsx.MemoryFS{
 				"f.txt": {Data: []byte("f\n"), Mode: 0o644},
 			},
 			args:     []string{"-uf", "a.tar", "f.txt"},
@@ -228,7 +228,7 @@ func TestUpdate(t *testing.T) {
 
 func TestOldStyle(t *testing.T) {
 	t.Run("create", func(t *testing.T) {
-		files := fsx.MemFS{"hello.txt": helloFile()}
+		files := fsx.MemoryFS{"hello.txt": helloFile()}
 		stdout, _, err := run(t, files, "", nil, 0, "cf", "-", "hello.txt")
 		if err != nil {
 			t.Fatalf("Run() error = %v", err)
@@ -238,7 +238,7 @@ func TestOldStyle(t *testing.T) {
 		}, parseArchive(t, stdout.String()))
 	})
 	t.Run("create with blocking factor", func(t *testing.T) {
-		files := fsx.MemFS{"hello.txt": helloFile()}
+		files := fsx.MemoryFS{"hello.txt": helloFile()}
 		stdout, stderr, err := run(t, files, "", nil, 0, "cvfb", "-", "2", "hello.txt")
 		if err != nil {
 			t.Fatalf("Run() error = %v", err)
@@ -251,7 +251,7 @@ func TestOldStyle(t *testing.T) {
 		}
 	})
 	t.Run("extract", func(t *testing.T) {
-		files := fsx.MemFS{}
+		files := fsx.MemoryFS{}
 		_, _, err := run(t, files, fixture(t), nil, 0, "xf")
 		if err != nil {
 			t.Fatalf("Run() error = %v", err)
@@ -265,7 +265,7 @@ func TestOldStyle(t *testing.T) {
 		}
 	})
 	t.Run("list", func(t *testing.T) {
-		files := fsx.MemFS{"a.tar": {Data: []byte(fixture(t)), Mode: 0o644}}
+		files := fsx.MemoryFS{"a.tar": {Data: []byte(fixture(t)), Mode: 0o644}}
 		stdout, _, err := run(t, files, "", nil, 0, "tf", "a.tar")
 		if err != nil {
 			t.Fatalf("Run() error = %v", err)
@@ -278,7 +278,7 @@ func TestOldStyle(t *testing.T) {
 
 func TestLongOptions(t *testing.T) {
 	t.Run("create", func(t *testing.T) {
-		files := fsx.MemFS{"hello.txt": helloFile()}
+		files := fsx.MemoryFS{"hello.txt": helloFile()}
 		stdout, stderr, err := run(t, files, "", nil, 0, "--create", "--file=-", "--verbose", "--blocking-factor=2", "hello.txt")
 		if err != nil {
 			t.Fatalf("Run() error = %v", err)
@@ -291,7 +291,7 @@ func TestLongOptions(t *testing.T) {
 		}
 	})
 	t.Run("extract", func(t *testing.T) {
-		files := fsx.MemFS{}
+		files := fsx.MemoryFS{}
 		_, _, err := run(t, files, fixture(t), nil, 0, "--extract", "--file=-", "--touch")
 		if err != nil {
 			t.Fatalf("Run() error = %v", err)
@@ -305,7 +305,7 @@ func TestLongOptions(t *testing.T) {
 		}
 	})
 	t.Run("list", func(t *testing.T) {
-		stdout, _, err := run(t, fsx.MemFS{}, fixture(t), nil, 0, "--list", "--file=-")
+		stdout, _, err := run(t, fsx.MemoryFS{}, fixture(t), nil, 0, "--list", "--file=-")
 		if err != nil {
 			t.Fatalf("Run() error = %v", err)
 		}

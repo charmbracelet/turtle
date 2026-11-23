@@ -15,8 +15,8 @@ import (
 
 // tree returns a working directory with files, directories and symbolic
 // links the tests read.
-func tree() fsx.MemFS {
-	return fsx.MemFS{
+func tree() fsx.MemoryFS {
+	return fsx.MemoryFS{
 		"work/a.txt":      {Data: []byte("hello")},
 		"work/d/keep.txt": {},
 		"work/x/b.txt":    {Data: []byte("b")},
@@ -422,13 +422,13 @@ func TestCommonOptions(t *testing.T) {
 // cancelFS cancels its context on the first lookup, so the resolution of
 // the operands runs into a canceled context.
 type cancelFS struct {
-	fsx.MemFS
+	fsx.MemoryFS
 	cancel context.CancelFunc
 }
 
 func (f cancelFS) Lstat(name string) (fs.FileInfo, error) {
 	f.cancel()
-	return f.MemFS.Lstat(name)
+	return f.MemoryFS.Lstat(name)
 }
 
 func TestRunContextCanceled(t *testing.T) {
@@ -441,7 +441,7 @@ func TestRunContextCanceled(t *testing.T) {
 		Stdin:      strings.NewReader(""),
 		Stdout:     stdout,
 		Stderr:     stderr,
-		FS:         cancelFS{MemFS: tree(), cancel: cancel},
+		FS:         cancelFS{MemoryFS: tree(), cancel: cancel},
 		WorkingDir: "work",
 	}
 

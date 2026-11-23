@@ -15,7 +15,7 @@ import (
 
 type testCase struct {
 	name     string
-	files    fsx.MemFS
+	files    fsx.MemoryFS
 	wd       string
 	args     []string
 	want     map[string]string
@@ -53,7 +53,7 @@ func TestRun(t *testing.T) {
 		tests := []testCase{
 			{
 				name:     "creates a hard link to a file",
-				files:    fsx.MemFS{"a.txt": {Data: []byte("hello")}},
+				files:    fsx.MemoryFS{"a.txt": {Data: []byte("hello")}},
 				args:     []string{"a.txt", "b.txt"},
 				want:     map[string]string{"b.txt": "hello"},
 				wantSame: map[string]string{"b.txt": "a.txt"},
@@ -61,7 +61,7 @@ func TestRun(t *testing.T) {
 			},
 			{
 				name:     "resolves the operands against the working directory",
-				files:    fsx.MemFS{"d/a.txt": {Data: []byte("hello")}},
+				files:    fsx.MemoryFS{"d/a.txt": {Data: []byte("hello")}},
 				wd:       "d",
 				args:     []string{"a.txt", "b.txt"},
 				want:     map[string]string{"d/b.txt": "hello"},
@@ -70,7 +70,7 @@ func TestRun(t *testing.T) {
 			},
 			{
 				name:     "an operand starting with a dash is a file",
-				files:    fsx.MemFS{"-f.txt": {Data: []byte("hello")}},
+				files:    fsx.MemoryFS{"-f.txt": {Data: []byte("hello")}},
 				args:     []string{"-f.txt", "b.txt"},
 				want:     map[string]string{"b.txt": "hello"},
 				wantSame: map[string]string{"b.txt": "-f.txt"},
@@ -78,7 +78,7 @@ func TestRun(t *testing.T) {
 			},
 			{
 				name:     "a double dash is an operand",
-				files:    fsx.MemFS{"--": {Data: []byte("hello")}},
+				files:    fsx.MemoryFS{"--": {Data: []byte("hello")}},
 				args:     []string{"--", "b.txt"},
 				want:     map[string]string{"b.txt": "hello"},
 				wantSame: map[string]string{"b.txt": "--"},
@@ -96,7 +96,7 @@ func TestRun(t *testing.T) {
 		tests := []testCase{
 			{
 				name:     "an existing destination is an error",
-				files:    fsx.MemFS{"a.txt": {Data: []byte("new")}, "b.txt": {Data: []byte("old")}},
+				files:    fsx.MemoryFS{"a.txt": {Data: []byte("new")}, "b.txt": {Data: []byte("old")}},
 				args:     []string{"a.txt", "b.txt"},
 				want:     map[string]string{"b.txt": "old"},
 				present:  []string{"a.txt"},
@@ -105,7 +105,7 @@ func TestRun(t *testing.T) {
 			},
 			{
 				name:     "a directory source is an error",
-				files:    fsx.MemFS{"d/keep.txt": {}},
+				files:    fsx.MemoryFS{"d/keep.txt": {}},
 				args:     []string{"d", "link"},
 				present:  []string{"d/keep.txt"},
 				absent:   []string{"link"},
@@ -114,7 +114,7 @@ func TestRun(t *testing.T) {
 			},
 			{
 				name:     "a missing source is an error",
-				files:    fsx.MemFS{},
+				files:    fsx.MemoryFS{},
 				args:     []string{"missing.txt", "b.txt"},
 				absent:   []string{"b.txt"},
 				wantErr:  "link: cannot create link 'b.txt' to 'missing.txt': file does not exist\n",
@@ -122,7 +122,7 @@ func TestRun(t *testing.T) {
 			},
 			{
 				name:     "a missing parent of the destination is an error",
-				files:    fsx.MemFS{"a.txt": {Data: []byte("hello")}},
+				files:    fsx.MemoryFS{"a.txt": {Data: []byte("hello")}},
 				args:     []string{"a.txt", "d/b.txt"},
 				present:  []string{"a.txt"},
 				wantErr:  "link: cannot create link 'd/b.txt' to 'a.txt': file does not exist\n",
@@ -130,7 +130,7 @@ func TestRun(t *testing.T) {
 			},
 			{
 				name:     "a trailing slash on the source is rejected",
-				files:    fsx.MemFS{"a.txt": {Data: []byte("hello")}},
+				files:    fsx.MemoryFS{"a.txt": {Data: []byte("hello")}},
 				args:     []string{"a.txt/", "b.txt"},
 				present:  []string{"a.txt"},
 				absent:   []string{"b.txt"},
@@ -139,7 +139,7 @@ func TestRun(t *testing.T) {
 			},
 			{
 				name:     "a trailing slash on the destination is rejected",
-				files:    fsx.MemFS{"a.txt": {Data: []byte("hello")}},
+				files:    fsx.MemoryFS{"a.txt": {Data: []byte("hello")}},
 				args:     []string{"a.txt", "b.txt/"},
 				present:  []string{"a.txt"},
 				absent:   []string{"b.txt"},
@@ -148,7 +148,7 @@ func TestRun(t *testing.T) {
 			},
 			{
 				name: "a dot-dot isn't resolved lexically away from a symlink",
-				files: fsx.MemFS{
+				files: fsx.MemoryFS{
 					"a.txt": {Data: []byte("hello")},
 					"s":     {Data: []byte("d"), Mode: fs.ModeSymlink},
 				},
@@ -160,7 +160,7 @@ func TestRun(t *testing.T) {
 			},
 			{
 				name:     "an empty source operand is an error",
-				files:    fsx.MemFS{"a.txt": {Data: []byte("hello")}},
+				files:    fsx.MemoryFS{"a.txt": {Data: []byte("hello")}},
 				args:     []string{"", "b.txt"},
 				present:  []string{"a.txt"},
 				absent:   []string{"b.txt"},
@@ -169,7 +169,7 @@ func TestRun(t *testing.T) {
 			},
 			{
 				name:     "an empty destination operand is an error",
-				files:    fsx.MemFS{"a.txt": {Data: []byte("hello")}},
+				files:    fsx.MemoryFS{"a.txt": {Data: []byte("hello")}},
 				args:     []string{"a.txt", ""},
 				present:  []string{"a.txt"},
 				wantErr:  "link: invalid zero-length file name\n",
@@ -177,14 +177,14 @@ func TestRun(t *testing.T) {
 			},
 			{
 				name:     "no operand is an error",
-				files:    fsx.MemFS{},
+				files:    fsx.MemoryFS{},
 				args:     nil,
 				wantErr:  "link: missing file operand\nTry 'link --help' for more information.\n",
 				wantExit: 2,
 			},
 			{
 				name:     "a single operand is an error",
-				files:    fsx.MemFS{"a.txt": {Data: []byte("hello")}},
+				files:    fsx.MemoryFS{"a.txt": {Data: []byte("hello")}},
 				args:     []string{"a.txt"},
 				present:  []string{"a.txt"},
 				wantErr:  "link: missing destination file operand after 'a.txt'\nTry 'link --help' for more information.\n",
@@ -192,7 +192,7 @@ func TestRun(t *testing.T) {
 			},
 			{
 				name:     "extra operands are an error",
-				files:    fsx.MemFS{"a.txt": {Data: []byte("a")}, "b.txt": {Data: []byte("b")}},
+				files:    fsx.MemoryFS{"a.txt": {Data: []byte("a")}, "b.txt": {Data: []byte("b")}},
 				args:     []string{"a.txt", "b.txt", "c.txt"},
 				present:  []string{"a.txt", "b.txt"},
 				absent:   []string{"c.txt"},
@@ -209,7 +209,7 @@ func TestRun(t *testing.T) {
 }
 
 func TestLinkSharesData(t *testing.T) {
-	files := fsx.MemFS{"a.txt": {Data: []byte("hello")}}
+	files := fsx.MemoryFS{"a.txt": {Data: []byte("hello")}}
 	rt := &coreutils.Runtime{
 		Stdin:      strings.NewReader(""),
 		Stdout:     io.Discard,

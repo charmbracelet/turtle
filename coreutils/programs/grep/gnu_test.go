@@ -16,73 +16,73 @@ func TestRunRecursive(t *testing.T) {
 		{
 			name:  "single directory prefixes the files",
 			args:  []string{"-r", "foo", "dir"},
-			files: fsx.MemFS{"dir/a": {Data: []byte("foo\n")}, "dir/b": {Data: []byte("bar\n")}},
+			files: fsx.MemoryFS{"dir/a": {Data: []byte("foo\n")}, "dir/b": {Data: []byte("bar\n")}},
 			want:  "dir/a:foo\n",
 		},
 		{
 			name:  "single file operand has no prefix",
 			args:  []string{"-r", "foo", "dir/a"},
-			files: fsx.MemFS{"dir/a": {Data: []byte("foo\n")}},
+			files: fsx.MemoryFS{"dir/a": {Data: []byte("foo\n")}},
 			want:  "foo\n",
 		},
 		{
 			name:  "no operand searches the working directory",
 			args:  []string{"-r", "foo"},
-			files: fsx.MemFS{"a": {Data: []byte("foo\n")}, "sub/b": {Data: []byte("foo\n")}},
+			files: fsx.MemoryFS{"a": {Data: []byte("foo\n")}, "sub/b": {Data: []byte("foo\n")}},
 			want:  "a:foo\nsub/b:foo\n",
 		},
 		{
 			name:     "no operand with no match",
 			args:     []string{"-r", "baz"},
-			files:    fsx.MemFS{"a": {Data: []byte("foo\n")}},
+			files:    fsx.MemoryFS{"a": {Data: []byte("foo\n")}},
 			wantCode: 1,
 		},
 		{
 			name:     "missing starting point",
 			args:     []string{"-r", "foo", "missing"},
-			files:    fsx.MemFS{},
+			files:    fsx.MemoryFS{},
 			wantErr:  "grep: missing: file does not exist\n",
 			wantCode: 2,
 		},
 		{
 			name:     "missing starting point is suppressed with -s",
 			args:     []string{"-r", "-s", "foo", "missing"},
-			files:    fsx.MemFS{},
+			files:    fsx.MemoryFS{},
 			wantCode: 2,
 		},
 		{
 			name:  "more than one starting point",
 			args:  []string{"-r", "foo", "d1", "d2"},
-			files: fsx.MemFS{"d1/a": {Data: []byte("foo\n")}, "d2/b": {Data: []byte("foo\n")}},
+			files: fsx.MemoryFS{"d1/a": {Data: []byte("foo\n")}, "d2/b": {Data: []byte("foo\n")}},
 			want:  "d1/a:foo\nd2/b:foo\n",
 		},
 		{
 			name:  "count per file",
 			args:  []string{"-r", "-c", "foo", "dir"},
-			files: fsx.MemFS{"dir/a": {Data: []byte("foo\nfoo\n")}, "dir/b": {Data: []byte("bar\n")}},
+			files: fsx.MemoryFS{"dir/a": {Data: []byte("foo\nfoo\n")}, "dir/b": {Data: []byte("bar\n")}},
 			want:  "dir/a:2\ndir/b:0\n",
 		},
 		{
 			name:  "file names with -l",
 			args:  []string{"-r", "-l", "foo", "dir"},
-			files: fsx.MemFS{"dir/a": {Data: []byte("foo\n")}, "dir/b": {Data: []byte("bar\n")}},
+			files: fsx.MemoryFS{"dir/a": {Data: []byte("foo\n")}, "dir/b": {Data: []byte("bar\n")}},
 			want:  "dir/a\n",
 		},
 		{
 			name:  "quiet stops at the first match",
 			args:  []string{"-r", "-q", "foo", "dir"},
-			files: fsx.MemFS{"dir/a": {Data: []byte("foo\n")}, "dir/b": {Data: []byte("foo\n")}},
+			files: fsx.MemoryFS{"dir/a": {Data: []byte("foo\n")}, "dir/b": {Data: []byte("foo\n")}},
 		},
 		{
 			name:  "long option",
 			args:  []string{"--recursive", "foo", "dir"},
-			files: fsx.MemFS{"dir/a": {Data: []byte("foo\n")}},
+			files: fsx.MemoryFS{"dir/a": {Data: []byte("foo\n")}},
 			want:  "dir/a:foo\n",
 		},
 		{
 			name: "-R follows the symbolic links met below",
 			args: []string{"-R", "foo", "dir"},
-			files: fsx.MemFS{
+			files: fsx.MemoryFS{
 				"dir/a":  {Data: []byte("foo\n")},
 				"dir/ln": {Mode: fs.ModeSymlink, Data: []byte("a")},
 			},
@@ -91,7 +91,7 @@ func TestRunRecursive(t *testing.T) {
 		{
 			name: "-r skips the symbolic links met below",
 			args: []string{"-r", "foo", "dir"},
-			files: fsx.MemFS{
+			files: fsx.MemoryFS{
 				"dir/a":  {Data: []byte("foo\n")},
 				"dir/ln": {Mode: fs.ModeSymlink, Data: []byte("a")},
 			},
@@ -116,26 +116,26 @@ func TestRunOptionD(t *testing.T) {
 		{
 			name:  "recurse",
 			args:  []string{"-d", "recurse", "foo", "dir"},
-			files: fsx.MemFS{"dir/a": {Data: []byte("foo\n")}},
+			files: fsx.MemoryFS{"dir/a": {Data: []byte("foo\n")}},
 			want:  "dir/a:foo\n",
 		},
 		{
 			name:     "skip",
 			args:     []string{"-d", "skip", "foo", "dir"},
-			files:    fsx.MemFS{"dir/a": {Data: []byte("foo\n")}},
+			files:    fsx.MemoryFS{"dir/a": {Data: []byte("foo\n")}},
 			wantCode: 1,
 		},
 		{
 			name:     "read fails on a directory",
 			args:     []string{"-d", "read", "foo", "dir"},
-			files:    fsx.MemFS{"dir/a": {Data: []byte("foo\n")}},
+			files:    fsx.MemoryFS{"dir/a": {Data: []byte("foo\n")}},
 			wantErr:  "grep: dir: invalid argument\n",
 			wantCode: 2,
 		},
 		{
 			name:     "read is the default",
 			args:     []string{"foo", "dir"},
-			files:    fsx.MemFS{"dir/a": {Data: []byte("foo\n")}},
+			files:    fsx.MemoryFS{"dir/a": {Data: []byte("foo\n")}},
 			wantErr:  "grep: dir: invalid argument\n",
 			wantCode: 2,
 		},
@@ -164,67 +164,67 @@ func TestRunFileSelection(t *testing.T) {
 		{
 			name:  "include",
 			args:  []string{"-r", "--include=*.txt", "foo", "dir"},
-			files: fsx.MemFS{"dir/a.txt": {Data: []byte("foo\n")}, "dir/b": {Data: []byte("foo\n")}},
+			files: fsx.MemoryFS{"dir/a.txt": {Data: []byte("foo\n")}, "dir/b": {Data: []byte("foo\n")}},
 			want:  "dir/a.txt:foo\n",
 		},
 		{
 			name:  "exclude",
 			args:  []string{"-r", "--exclude=*.txt", "foo", "dir"},
-			files: fsx.MemFS{"dir/a.txt": {Data: []byte("foo\n")}, "dir/b": {Data: []byte("foo\n")}},
+			files: fsx.MemoryFS{"dir/a.txt": {Data: []byte("foo\n")}, "dir/b": {Data: []byte("foo\n")}},
 			want:  "dir/b:foo\n",
 		},
 		{
 			name:  "the last matching option wins",
 			args:  []string{"-r", "--include=*.txt", "--exclude=a.txt", "foo", "dir"},
-			files: fsx.MemFS{"dir/a.txt": {Data: []byte("foo\n")}, "dir/b.txt": {Data: []byte("foo\n")}},
+			files: fsx.MemoryFS{"dir/a.txt": {Data: []byte("foo\n")}, "dir/b.txt": {Data: []byte("foo\n")}},
 			want:  "dir/b.txt:foo\n",
 		},
 		{
 			name:     "no match excludes when the first option includes",
 			args:     []string{"-r", "--include=*.log", "foo", "dir"},
-			files:    fsx.MemFS{"dir/a.txt": {Data: []byte("foo\n")}},
+			files:    fsx.MemoryFS{"dir/a.txt": {Data: []byte("foo\n")}},
 			wantCode: 1,
 		},
 		{
 			name:  "no match includes when the first option excludes",
 			args:  []string{"-r", "--exclude=*.log", "foo", "dir"},
-			files: fsx.MemFS{"dir/a.txt": {Data: []byte("foo\n")}},
+			files: fsx.MemoryFS{"dir/a.txt": {Data: []byte("foo\n")}},
 			want:  "dir/a.txt:foo\n",
 		},
 		{
 			name:  "include matches the command-line name suffixes",
 			args:  []string{"-r", "--include=*.txt", "foo", "dir/a.txt", "dir/b"},
-			files: fsx.MemFS{"dir/a.txt": {Data: []byte("foo\n")}, "dir/b": {Data: []byte("foo\n")}},
+			files: fsx.MemoryFS{"dir/a.txt": {Data: []byte("foo\n")}, "dir/b": {Data: []byte("foo\n")}},
 			want:  "dir/a.txt:foo\n",
 		},
 		{
 			name:     "exclude matches the whole command-line name",
 			args:     []string{"-r", "--exclude=dir/a.txt", "foo", "dir/a.txt"},
-			files:    fsx.MemFS{"dir/a.txt": {Data: []byte("foo\n")}},
+			files:    fsx.MemoryFS{"dir/a.txt": {Data: []byte("foo\n")}},
 			wantCode: 1,
 		},
 		{
 			name:  "exclude-dir",
 			args:  []string{"-r", "--exclude-dir=sub", "foo", "dir"},
-			files: fsx.MemFS{"dir/a": {Data: []byte("foo\n")}, "dir/sub/b": {Data: []byte("foo\n")}},
+			files: fsx.MemoryFS{"dir/a": {Data: []byte("foo\n")}, "dir/sub/b": {Data: []byte("foo\n")}},
 			want:  "dir/a:foo\n",
 		},
 		{
 			name:     "exclude-dir matches a command-line directory",
 			args:     []string{"-r", "--exclude-dir=sub", "foo", "dir/sub"},
-			files:    fsx.MemFS{"dir/sub/b": {Data: []byte("foo\n")}},
+			files:    fsx.MemoryFS{"dir/sub/b": {Data: []byte("foo\n")}},
 			wantCode: 1,
 		},
 		{
 			name:  "exclude-dir ignores trailing slashes",
 			args:  []string{"-r", "--exclude-dir=sub/", "foo", "dir"},
-			files: fsx.MemFS{"dir/a": {Data: []byte("foo\n")}, "dir/sub/b": {Data: []byte("foo\n")}},
+			files: fsx.MemoryFS{"dir/a": {Data: []byte("foo\n")}, "dir/sub/b": {Data: []byte("foo\n")}},
 			want:  "dir/a:foo\n",
 		},
 		{
 			name: "exclude-from",
 			args: []string{"-r", "--exclude-from=list", "foo", "dir"},
-			files: fsx.MemFS{
+			files: fsx.MemoryFS{
 				"dir/a": {Data: []byte("foo\n")},
 				"dir/b": {Data: []byte("foo\n")},
 				"dir/c": {Data: []byte("foo\n")},
@@ -360,13 +360,13 @@ func TestRunPrefixes(t *testing.T) {
 		{
 			name:  "H with more than one file",
 			args:  []string{"-H", "foo", "a", "b"},
-			files: fsx.MemFS{"a": {Data: []byte("foo\n")}, "b": {Data: []byte("foo\n")}},
+			files: fsx.MemoryFS{"a": {Data: []byte("foo\n")}, "b": {Data: []byte("foo\n")}},
 			want:  "a:foo\nb:foo\n",
 		},
 		{
 			name:  "h suppresses the name",
 			args:  []string{"-h", "foo", "a", "b"},
-			files: fsx.MemFS{"a": {Data: []byte("foo\n")}, "b": {Data: []byte("foo\n")}},
+			files: fsx.MemoryFS{"a": {Data: []byte("foo\n")}, "b": {Data: []byte("foo\n")}},
 			want:  "foo\nfoo\n",
 		},
 		{
@@ -378,13 +378,13 @@ func TestRunPrefixes(t *testing.T) {
 		{
 			name:  "initial tab",
 			args:  []string{"-n", "-T", "foo", "a"},
-			files: fsx.MemFS{"a": {Data: []byte("foo\n")}},
+			files: fsx.MemoryFS{"a": {Data: []byte("foo\n")}},
 			want:  "1:\tfoo\n",
 		},
 		{
 			name:  "initial tab between the fields",
 			args:  []string{"-b", "-n", "-T", "foo", "a"},
-			files: fsx.MemFS{"a": {Data: []byte("foo\n")}},
+			files: fsx.MemoryFS{"a": {Data: []byte("foo\n")}},
 			want:  "1:0:\tfoo\n",
 		},
 		{
@@ -398,19 +398,19 @@ func TestRunPrefixes(t *testing.T) {
 		{
 			name:  "field order whatever the option order",
 			args:  []string{"-b", "-n", "foo", "a"},
-			files: fsx.MemFS{"a": {Data: []byte("foo\n")}},
+			files: fsx.MemoryFS{"a": {Data: []byte("foo\n")}},
 			want:  "1:0:foo\n",
 		},
 		{
 			name:  "null byte after the file name",
 			args:  []string{"-Z", "foo", "a", "b"},
-			files: fsx.MemFS{"a": {Data: []byte("foo\n")}, "b": {Data: []byte("foo\n")}},
+			files: fsx.MemoryFS{"a": {Data: []byte("foo\n")}, "b": {Data: []byte("foo\n")}},
 			want:  "a\x00foo\nb\x00foo\n",
 		},
 		{
 			name:  "null byte after the name of a matching file",
 			args:  []string{"-l", "-Z", "foo", "a"},
-			files: fsx.MemFS{"a": {Data: []byte("foo\n")}},
+			files: fsx.MemoryFS{"a": {Data: []byte("foo\n")}},
 			want:  "a\x00",
 		},
 		{
@@ -511,7 +511,7 @@ func TestRunContext(t *testing.T) {
 		{
 			name:  "context with the file name",
 			args:  []string{"-C", "1", "foo", "a", "b"},
-			files: fsx.MemFS{"a": {Data: []byte("x\nfoo\ny\n")}, "b": {Data: []byte("foo\n")}},
+			files: fsx.MemoryFS{"a": {Data: []byte("x\nfoo\ny\n")}, "b": {Data: []byte("foo\n")}},
 			want:  "a-x\na:foo\na-y\nb:foo\n",
 		},
 		{
@@ -533,43 +533,43 @@ func TestRunBinary(t *testing.T) {
 		{
 			name:  "default reports a match on the standard output",
 			args:  []string{"foo", "a"},
-			files: fsx.MemFS{"a": {Data: []byte("foo\x00bar\n")}},
+			files: fsx.MemoryFS{"a": {Data: []byte("foo\x00bar\n")}},
 			want:  "Binary file a matches\n",
 		},
 		{
 			name:  "text reads it as text",
 			args:  []string{"-a", "foo", "a"},
-			files: fsx.MemFS{"a": {Data: []byte("foo\x00bar\n")}},
+			files: fsx.MemoryFS{"a": {Data: []byte("foo\x00bar\n")}},
 			want:  "foo\x00bar\n",
 		},
 		{
 			name:  "text long option",
 			args:  []string{"--binary-files=text", "foo", "a"},
-			files: fsx.MemFS{"a": {Data: []byte("foo\x00bar\n")}},
+			files: fsx.MemoryFS{"a": {Data: []byte("foo\x00bar\n")}},
 			want:  "foo\x00bar\n",
 		},
 		{
 			name:     "without match",
 			args:     []string{"-I", "foo", "a"},
-			files:    fsx.MemFS{"a": {Data: []byte("foo\x00bar\n")}},
+			files:    fsx.MemoryFS{"a": {Data: []byte("foo\x00bar\n")}},
 			wantCode: 1,
 		},
 		{
 			name:     "without match long option",
 			args:     []string{"--binary-files=without-match", "foo", "a"},
-			files:    fsx.MemFS{"a": {Data: []byte("foo\x00bar\n")}},
+			files:    fsx.MemoryFS{"a": {Data: []byte("foo\x00bar\n")}},
 			wantCode: 1,
 		},
 		{
 			name:  "lines before the null byte are output",
 			args:  []string{"foo", "a"},
-			files: fsx.MemFS{"a": {Data: []byte("foo\n\x00bar\n")}},
+			files: fsx.MemoryFS{"a": {Data: []byte("foo\n\x00bar\n")}},
 			want:  "foo\n",
 		},
 		{
 			name:  "count of a binary file keeps counting",
 			args:  []string{"-c", "foo", "a"},
-			files: fsx.MemFS{"a": {Data: []byte("foo\x00foo\n")}},
+			files: fsx.MemoryFS{"a": {Data: []byte("foo\x00foo\n")}},
 			want:  "1\n",
 		},
 		{
@@ -655,7 +655,7 @@ func TestRunFilesWithoutMatch(t *testing.T) {
 		{
 			name:  "files without a match",
 			args:  []string{"-L", "foo", "a", "b"},
-			files: fsx.MemFS{"a": {Data: []byte("foo\n")}, "b": {Data: []byte("bar\n")}},
+			files: fsx.MemoryFS{"a": {Data: []byte("foo\n")}, "b": {Data: []byte("bar\n")}},
 			want:  "b\n",
 		},
 		{
@@ -668,12 +668,12 @@ func TestRunFilesWithoutMatch(t *testing.T) {
 		{
 			name:  "a binary file with a match is not listed",
 			args:  []string{"-L", "foo", "a"},
-			files: fsx.MemFS{"a": {Data: []byte("foo\x00\n")}},
+			files: fsx.MemoryFS{"a": {Data: []byte("foo\x00\n")}},
 		},
 		{
 			name:     "long option",
 			args:     []string{"--files-without-match", "baz", "a"},
-			files:    fsx.MemFS{"a": {Data: []byte("foo\n")}},
+			files:    fsx.MemoryFS{"a": {Data: []byte("foo\n")}},
 			want:     "a\n",
 			wantCode: 1,
 		},
@@ -690,7 +690,7 @@ func TestRunColor(t *testing.T) {
 		name     string
 		args     []string
 		stdin    *bytes.Buffer
-		files    fsx.MemFS
+		files    fsx.MemoryFS
 		environ  []string
 		want     string
 		wantErr  string
@@ -723,7 +723,7 @@ func TestRunColor(t *testing.T) {
 		{
 			name:  "colored prefixes and separators",
 			args:  []string{"--color=always", "-nH", "foo", "a"},
-			files: fsx.MemFS{"a": {Data: []byte("foo\n")}},
+			files: fsx.MemoryFS{"a": {Data: []byte("foo\n")}},
 			want: "\x1b[35m\x1b[Ka\x1b[m\x1b[K" + "\x1b[36m\x1b[K:\x1b[m\x1b[K" +
 				"\x1b[32m\x1b[K1\x1b[m\x1b[K" + "\x1b[36m\x1b[K:\x1b[m\x1b[K" +
 				"\x1b[01;31m\x1b[Kfoo\x1b[m\x1b[K" + "\n",
@@ -823,7 +823,7 @@ func TestRunOtherGNUOptions(t *testing.T) {
 
 // runTestEnv runs grep with an environment and compares its output, its
 // standard error and its exit status.
-func runTestEnv(t *testing.T, args []string, stdin io.Reader, files fsx.MemFS, environ []string, want, wantErr string, wantCode int) {
+func runTestEnv(t *testing.T, args []string, stdin io.Reader, files fsx.MemoryFS, environ []string, want, wantErr string, wantCode int) {
 	t.Helper()
 	stdout := new(bytes.Buffer)
 	stderr := new(bytes.Buffer)

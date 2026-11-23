@@ -77,7 +77,7 @@ func TestReadAll(t *testing.T) {
 		},
 		{
 			name:    "file in the file system",
-			rt:      &coreutils.Runtime{FS: fsx.MemFS{"file.txt": {Data: []byte("contents")}}},
+			rt:      &coreutils.Runtime{FS: fsx.MemoryFS{"file.txt": {Data: []byte("contents")}}},
 			operand: "file.txt",
 			want:    "contents",
 		},
@@ -95,7 +95,7 @@ func TestReadAll(t *testing.T) {
 		},
 		{
 			name:    "missing file",
-			rt:      &coreutils.Runtime{FS: fsx.MemFS{}},
+			rt:      &coreutils.Runtime{FS: fsx.MemoryFS{}},
 			operand: "missing.txt",
 			wantErr: "open missing.txt: file does not exist",
 		},
@@ -183,7 +183,7 @@ func TestOpen(t *testing.T) {
 		},
 		{
 			name: "file in the file system",
-			rt: &coreutils.Runtime{FS: fsx.MemFS{
+			rt: &coreutils.Runtime{FS: fsx.MemoryFS{
 				"file.txt": {Data: []byte("hello")},
 			}},
 			in:   Input{Name: "file.txt"},
@@ -191,7 +191,7 @@ func TestOpen(t *testing.T) {
 		},
 		{
 			name: "file resolved from the working directory",
-			rt: &coreutils.Runtime{FS: fsx.MemFS{
+			rt: &coreutils.Runtime{FS: fsx.MemoryFS{
 				"dir/file.txt": {Data: []byte("hello")},
 			}, WorkingDir: "dir"},
 			in:   Input{Name: "file.txt"},
@@ -205,7 +205,7 @@ func TestOpen(t *testing.T) {
 		},
 		{
 			name: "missing file",
-			rt: &coreutils.Runtime{FS: fsx.MemFS{
+			rt: &coreutils.Runtime{FS: fsx.MemoryFS{
 				"file.txt": {Data: []byte("hello")},
 			}},
 			in:      Input{Name: "missing.txt"},

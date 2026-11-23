@@ -24,8 +24,8 @@ import (
 //	"-1":          "x\n" (a file named like an option)
 //	sub/inner.txt: "i\nj\n"
 //	sub/other.txt: "j\nk\n"
-func testFS() fsx.MemFS {
-	return fsx.MemFS{
+func testFS() fsx.MemoryFS {
+	return fsx.MemoryFS{
 		"left.txt":      {Data: []byte("apple\nbanana\ncherry\ndate\n")},
 		"right.txt":     {Data: []byte("banana\ncherry\nelderberry\n")},
 		"same1.txt":     {Data: []byte("a\nb\nc\n")},
@@ -227,7 +227,7 @@ func TestRunOutputDelimiter(t *testing.T) {
 }
 
 func TestRunZeroTerminated(t *testing.T) {
-	zfs := fsx.MemFS{
+	zfs := fsx.MemoryFS{
 		"z1.txt": {Data: []byte("apple\x00date\x00")},
 		"z2.txt": {Data: []byte("date\x00elderberry\x00")},
 	}
@@ -260,7 +260,7 @@ func TestRunZeroTerminated(t *testing.T) {
 			// A missing final NUL is treated as present, so the
 			// unterminated "b" equals the terminated one.
 			Name: "a missing final NUL takes part in comparisons",
-			FS: fsx.MemFS{
+			FS: fsx.MemoryFS{
 				"z1.txt": {Data: []byte("a\x00b")},
 				"z2.txt": {Data: []byte("a\x00b\x00")},
 			},
@@ -269,7 +269,7 @@ func TestRunZeroTerminated(t *testing.T) {
 		},
 		{
 			Name: "newlines are ordinary bytes under -z",
-			FS:   fsx.MemFS{"z1.txt": {Data: []byte("a\nb\x00")}, "z2.txt": {Data: []byte("a\nb\x00")}},
+			FS:   fsx.MemoryFS{"z1.txt": {Data: []byte("a\nb\x00")}, "z2.txt": {Data: []byte("a\nb\x00")}},
 			Args: []string{"-z", "z1.txt", "z2.txt"},
 			Want: "\t\ta\nb\x00",
 		},
@@ -358,7 +358,7 @@ func TestRunErrors(t *testing.T) {
 		},
 		{
 			Name:     "directory input",
-			FS:       fsx.MemFS{"dir": {Mode: fs.ModeDir}, "right.txt": {Data: []byte("a\n")}},
+			FS:       fsx.MemoryFS{"dir": {Mode: fs.ModeDir}, "right.txt": {Data: []byte("a\n")}},
 			Args:     []string{"dir", "right.txt"},
 			WantErr:  "comm: dir: invalid argument\n",
 			WantExit: 1,
@@ -397,7 +397,7 @@ func TestRunWriteError(t *testing.T) {
 		Stdin:  strings.NewReader("a\n"),
 		Stdout: testutil.ErrorWriter{Err: writeErr},
 		Stderr: stderr,
-		FS:     fsx.MemFS{"empty.txt": {Data: []byte("")}},
+		FS:     fsx.MemoryFS{"empty.txt": {Data: []byte("")}},
 	}
 	err := New(rt).Run(t.Context(), "-", "empty.txt")
 
@@ -413,7 +413,7 @@ func TestRunWriteError(t *testing.T) {
 }
 
 func TestRunContext(t *testing.T) {
-	files := fsx.MemFS{"right.txt": {Data: []byte("hello\n")}}
+	files := fsx.MemoryFS{"right.txt": {Data: []byte("hello\n")}}
 
 	t.Run("cancelled before running", func(t *testing.T) {
 		testutil.Cancelled(t, New, strings.NewReader("hello\n"), files, "-", "right.txt")

@@ -30,7 +30,7 @@ func runCase(t *testing.T, test testCase) {
 	t.Helper()
 
 	if test.FS == nil {
-		test.FS = fsx.MemFS{}
+		test.FS = fsx.MemoryFS{}
 	}
 	testutil.Once(t, New, testutil.Case{
 		Name:     test.Name,
@@ -83,12 +83,12 @@ func checkFiles(t *testing.T, fsys fsx.FS, want map[string]string) {
 
 // memOf returns the memory file system behind fsys, or nil when it doesn't
 // hold one to inspect.
-func memOf(fsys fsx.FS) fsx.MemFS {
+func memOf(fsys fsx.FS) fsx.MemoryFS {
 	switch f := fsys.(type) {
-	case fsx.MemFS:
+	case fsx.MemoryFS:
 		return f
 	case nonSeekableFS:
-		return f.MemFS
+		return f.MemoryFS
 	case testutil.FailWriteFS:
 		return memOf(f.FS)
 	}
@@ -97,8 +97,8 @@ func memOf(fsys fsx.FS) fsx.MemFS {
 
 // file returns a memory file system holding one file with the given
 // contents.
-func file(name, data string) fsx.MemFS {
-	return fsx.MemFS{name: {Data: []byte(data), Mode: 0o600}}
+func file(name, data string) fsx.MemoryFS {
+	return fsx.MemoryFS{name: {Data: []byte(data), Mode: 0o600}}
 }
 
 func TestRun(t *testing.T) {
@@ -349,7 +349,7 @@ func TestRun(t *testing.T) {
 		// The -r reference file.
 		{
 			Name: "a reference size grows a file",
-			FS: fsx.MemFS{
+			FS: fsx.MemoryFS{
 				"f":   {Data: []byte("abc")},
 				"ref": {Data: []byte(strings.Repeat("r", 10))},
 			},
@@ -359,7 +359,7 @@ func TestRun(t *testing.T) {
 		},
 		{
 			Name: "a reference size shrinks a file",
-			FS: fsx.MemFS{
+			FS: fsx.MemoryFS{
 				"f":   {Data: []byte("abcdef")},
 				"ref": {Data: []byte("rr")},
 			},
@@ -369,7 +369,7 @@ func TestRun(t *testing.T) {
 		},
 		{
 			Name: "a reference size applies to every file",
-			FS: fsx.MemFS{
+			FS: fsx.MemoryFS{
 				"a":   {Data: []byte("aaa")},
 				"b":   {Data: []byte(strings.Repeat("b", 8))},
 				"ref": {Data: []byte(strings.Repeat("r", 5))},
@@ -384,7 +384,7 @@ func TestRun(t *testing.T) {
 		},
 		{
 			Name: "a relative size is relative to the reference size",
-			FS: fsx.MemFS{
+			FS: fsx.MemoryFS{
 				"f":   {Data: []byte(strings.Repeat("a", 100))},
 				"ref": {Data: []byte(strings.Repeat("r", 4))},
 			},
@@ -572,7 +572,7 @@ func TestRun(t *testing.T) {
 
 func TestRunMultipleFiles(t *testing.T) {
 	t.Run("all files are truncated", func(t *testing.T) {
-		fsys := fsx.MemFS{
+		fsys := fsx.MemoryFS{
 			"a": {Data: []byte("aaaa")},
 			"b": {Data: []byte("bbbbbb")},
 		}
@@ -585,7 +585,7 @@ func TestRunMultipleFiles(t *testing.T) {
 	})
 
 	t.Run("a failing file doesn't keep the others from being truncated", func(t *testing.T) {
-		fsys := fsx.MemFS{
+		fsys := fsx.MemoryFS{
 			"a":   {Data: []byte("aaaa")},
 			"b":   {Data: []byte("bbbbbb")},
 			"dir": {Mode: fs.ModeDir | 0o755},
@@ -600,7 +600,7 @@ func TestRunMultipleFiles(t *testing.T) {
 	})
 
 	t.Run("the diagnostics of every failing file are reported", func(t *testing.T) {
-		fsys := fsx.MemFS{
+		fsys := fsx.MemoryFS{
 			"dir": {Mode: fs.ModeDir | 0o755},
 		}
 		runCase(t, testCase{
@@ -632,9 +632,9 @@ func TestRunContext(t *testing.T) {
 	}
 }
 
-// nonSeekableFS wraps a MemFS so that its files can't be sought.
+// nonSeekableFS wraps a MemoryFS so that its files can't be sought.
 type nonSeekableFS struct {
-	fsx.MemFS
+	fsx.MemoryFS
 }
 
 // plainFile hides the seek support of the file it wraps.
@@ -644,7 +644,7 @@ type plainFile struct {
 
 // OpenFile implements fsx.WriteFS.
 func (m nonSeekableFS) OpenFile(name string, flag int, perm fs.FileMode) (fsx.File, error) {
-	f, err := m.MemFS.OpenFile(name, flag, perm)
+	f, err := m.MemoryFS.OpenFile(name, flag, perm)
 	return plainFile{f}, err
 }
 
@@ -676,7 +676,7 @@ func TestRunAppendOnly(t *testing.T) {
 	// On a file system whose files can't be sought, growing is done by
 	// appending zeroes instead.
 	t.Run("a file grows through appended zeroes", func(t *testing.T) {
-		fsys := nonSeekableFS{MemFS: file("f", "abc")}
+		fsys := nonSeekableFS{MemoryFS: file("f", "abc")}
 		runCase(t, testCase{
 			FS:       fsys,
 			Args:     []string{"-s", "5", "f"},
@@ -686,7 +686,7 @@ func TestRunAppendOnly(t *testing.T) {
 	})
 
 	t.Run("a missing file grows through appended zeroes", func(t *testing.T) {
-		fsys := nonSeekableFS{MemFS: fsx.MemFS{}}
+		fsys := nonSeekableFS{MemoryFS: fsx.MemoryFS{}}
 		runCase(t, testCase{
 			FS:       fsys,
 			Args:     []string{"-s", "3", "f"},

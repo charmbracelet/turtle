@@ -13,7 +13,7 @@ func Atime(fi fs.FileInfo) (time.Time, bool) {
 	if fi == nil {
 		return time.Time{}, false
 	}
-	if mf, ok := fi.Sys().(*MemFile); ok {
+	if mf, ok := fi.Sys().(*MemoryFile); ok {
 		if mf.atime.IsZero() {
 			return mf.ModTime, true
 		}

@@ -22,8 +22,8 @@ var (
 )
 
 // testFS describes the files most of the tests evaluate primaries against.
-func testFS() fsx.MemFS {
-	return fsx.MemFS{
+func testFS() fsx.MemoryFS {
+	return fsx.MemoryFS{
 		"file":     {Data: []byte("contents"), Mode: 0o644},
 		"empty":    {Mode: 0o644},
 		"dir":      {Mode: fs.ModeDir | 0o755},
@@ -47,9 +47,9 @@ func testFS() fsx.MemFS {
 
 type testCase struct {
 	name       string
-	files      fsx.MemFS
+	files      fsx.MemoryFS
 	wd         string
-	setup      func(t *testing.T, fsys fsx.MemFS)
+	setup      func(t *testing.T, fsys fsx.MemoryFS)
 	args       []string
 	want       bool
 	wantErr    string
@@ -102,8 +102,8 @@ func runTest(t *testing.T, test testCase) {
 }
 
 // link returns a setup that makes newName a link to oldName.
-func link(oldName, newName string) func(t *testing.T, fsys fsx.MemFS) {
-	return func(t *testing.T, fsys fsx.MemFS) {
+func link(oldName, newName string) func(t *testing.T, fsys fsx.MemoryFS) {
+	return func(t *testing.T, fsys fsx.MemoryFS) {
 		t.Helper()
 		if err := fsys.Link(oldName, newName); err != nil {
 			t.Fatalf("Link(%q, %q) error = %v", oldName, newName, err)
@@ -449,14 +449,14 @@ func TestRunWorkingDir(t *testing.T) {
 	tests := []testCase{
 		{
 			name:  "resolves operands relative to the working directory",
-			files: fsx.MemFS{"work/file": {Data: []byte("x"), Mode: 0o644}},
+			files: fsx.MemoryFS{"work/file": {Data: []byte("x"), Mode: 0o644}},
 			wd:    "work",
 			args:  []string{"-f", "file"},
 			want:  true,
 		},
 		{
 			name:  "a missing file below the working directory",
-			files: fsx.MemFS{"work/file": {Data: []byte("x"), Mode: 0o644}},
+			files: fsx.MemoryFS{"work/file": {Data: []byte("x"), Mode: 0o644}},
 			wd:    "work",
 			args:  []string{"-f", "nope"},
 			want:  false,
@@ -476,7 +476,7 @@ func TestRunWindowsSeparators(t *testing.T) {
 
 	runTest(t, testCase{
 		name:  "backslashes are treated as separators",
-		files: fsx.MemFS{"d/file": {Data: []byte("x"), Mode: 0o644}},
+		files: fsx.MemoryFS{"d/file": {Data: []byte("x"), Mode: 0o644}},
 		args:  []string{"-f", `d\file`},
 		want:  true,
 	})

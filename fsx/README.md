@@ -18,7 +18,7 @@ go install charm.land/turtle/fsx@latest
 ## Example
 
 The same file system value supports writes and the standard library's read
-helpers. `OsFS("")` resolves relative names in the current working directory
+helpers. `SystemFS("")` resolves relative names in the current working directory
 of the process:
 
 ```go
@@ -37,7 +37,7 @@ import (
 func main() {
     const workingDir = "" // empty means current
 
-    fsys := fsx.OsFS(workingDir)
+    fsys := fsx.SystemFS(workingDir)
     flags := os.O_CREATE | os.O_WRONLY | os.O_TRUNC
     f, err := fsys.OpenFile("hello.txt", flags, 0o644)
     if err != nil {
@@ -56,8 +56,8 @@ func main() {
 }
 ```
 
-To execute the same operations in memory, replace `OsFS` with an empty
-`fsx.MemFS{}`. Files can also be seeded when constructing the map, as shown
+To execute the same operations in memory, replace `SystemFS` with an empty
+`fsx.MemoryFS{}`. Files can also be seeded when constructing the map, as shown
 below.
 
 ## Interfaces
@@ -98,7 +98,7 @@ reading sequentially when it isn't implemented.
 `fsx.ChownFS` isn't embedded into `fsx.FS`: callers should check for it before
 relying on ownership changes. The provided implementations support it.
 
-`fsx.SyncFS` is supported by `OsFS` and `MemFS`, but it isn't embedded into
+`fsx.SyncFS` is supported by `SystemFS` and `MemoryFS`, but it isn't embedded into
 `fsx.FS` either, because not every file system can be flushed, like a network
 one: callers should check for it and treat its absence as a successful no-op.
 
@@ -106,23 +106,23 @@ one: callers should check for it and treat its absence as a successful no-op.
 
 Three implementations are available:
 
-* `fsx.OsFS(dir)` operates on the operating system's file system. Names are
+* `fsx.SystemFS(dir)` operates on the operating system's file system. Names are
   resolved inside `dir`, which works like a working directory, except that
   absolute paths are used as given. An empty `dir` means the current working
   directory of the process.
 * `fsx.RootFS(root)` adapts an `os.Root`. Operations are confined to the root
   using `os.Root` semantics. The caller retains ownership and must close it.
-* `fsx.MemFS` is an in-memory file system, meant mostly for writing tests of
+* `fsx.MemoryFS` is an in-memory file system, meant mostly for writing tests of
   code that uses this package. Files are seeded with a map literal, like in
   `testing/fstest.MapFS`:
 
 ```go
-fsys := fsx.MemFS{
+fsys := fsx.MemoryFS{
     "file.txt": {Data: []byte("contents")},
 }
 ```
 
-Besides `Data`, a `MemFile` sets the `Mode`, `ModTime`, `Uid` and `Gid` of
+Besides `Data`, a `MemoryFile` sets the `Mode`, `ModTime`, `Uid` and `Gid` of
 the entry. Its access time starts as the modification time, and is otherwise
 only changed by `Chtimes`.
 

@@ -22,8 +22,8 @@ import (
 //	out.txt:       "old\n" (truncated by output tests)
 //	"-d":          "p\np\n" (a file named like an option)
 //	sub/inner.txt: "i\ni\n"
-func testFS() fsx.MemFS {
-	return fsx.MemFS{
+func testFS() fsx.MemoryFS {
+	return fsx.MemoryFS{
 		"dups.txt":      {Data: []byte("a\na\nb\nb\nb\nc\na\n")},
 		"fields.txt":    {Data: []byte("x 1\ny 1\nz 2\n")},
 		"utf8.txt":      {Data: []byte("áx\náy\n")},
@@ -655,14 +655,14 @@ func TestRunErrors(t *testing.T) {
 		},
 		{
 			Name:     "directory input",
-			FS:       fsx.MemFS{"dir": {Mode: fs.ModeDir}},
+			FS:       fsx.MemoryFS{"dir": {Mode: fs.ModeDir}},
 			Args:     []string{"dir"},
 			WantErr:  "uniq: dir: invalid argument\n",
 			WantExit: 1,
 		},
 		{
 			Name:     "directory output",
-			FS:       fsx.MemFS{"dups.txt": {Data: []byte("a\n")}, "dir": {Mode: fs.ModeDir}},
+			FS:       fsx.MemoryFS{"dups.txt": {Data: []byte("a\n")}, "dir": {Mode: fs.ModeDir}},
 			Args:     []string{"dups.txt", "dir"},
 			WantErr:  "uniq: dir: invalid argument\n",
 			WantExit: 1,

@@ -140,7 +140,7 @@ func TestWriteClose(t *testing.T) {
 }
 
 func TestStat(t *testing.T) {
-	fsys := fsx.MemFS{"file.txt": {Data: []byte("hello")}}
+	fsys := fsx.MemoryFS{"file.txt": {Data: []byte("hello")}}
 	f, err := fsys.OpenFile("file.txt", os.O_WRONLY, 0)
 	if err != nil {
 		t.Fatalf("OpenFile error = %v", err)

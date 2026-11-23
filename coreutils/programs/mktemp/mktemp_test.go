@@ -18,7 +18,7 @@ import (
 
 type testCase struct {
 	name       string
-	files      fsx.MemFS
+	files      fsx.MemoryFS
 	umask      fs.FileMode
 	env        map[string]string
 	workingDir string
@@ -99,7 +99,7 @@ func runCase(t *testing.T, test testCase) {
 	}
 }
 
-func keys(files fsx.MemFS) []string {
+func keys(files fsx.MemoryFS) []string {
 	return slices.Sorted(maps.Keys(files))
 }
 
@@ -107,28 +107,28 @@ func TestRunDefaults(t *testing.T) {
 	tests := []testCase{
 		{
 			name:     "creates a file in the current directory",
-			files:    fsx.MemFS{},
+			files:    fsx.MemoryFS{},
 			args:     []string{"file.XXXX"},
 			wantName: `^file\.[A-Za-z0-9]{4}$`,
 			wantMode: 0o600,
 		},
 		{
 			name:     "replaces the whole final run of X's",
-			files:    fsx.MemFS{},
+			files:    fsx.MemoryFS{},
 			args:     []string{"x-XXXXXXXXXX"},
 			wantName: `^x-[A-Za-z0-9]{10}$`,
 			wantMode: 0o600,
 		},
 		{
 			name:     "keeps the X's before the final run",
-			files:    fsx.MemFS{},
+			files:    fsx.MemoryFS{},
 			args:     []string{"file-XXXX-XXXX.txt"},
 			wantName: `^file-XXXX-[A-Za-z0-9]{4}\.txt$`,
 			wantMode: 0o600,
 		},
 		{
 			name:     "the default template goes to the temporary directory",
-			files:    fsx.MemFS{"td/keep": {Data: []byte("keep")}},
+			files:    fsx.MemoryFS{"td/keep": {Data: []byte("keep")}},
 			env:      map[string]string{"TMPDIR": "td"},
 			args:     nil,
 			wantName: `^td/tmp\.[A-Za-z0-9]{10}$`,
@@ -136,14 +136,14 @@ func TestRunDefaults(t *testing.T) {
 		},
 		{
 			name:     "a template after a double dash",
-			files:    fsx.MemFS{},
+			files:    fsx.MemoryFS{},
 			args:     []string{"--", "file.XXXX"},
 			wantName: `^file\.[A-Za-z0-9]{4}$`,
 			wantMode: 0o600,
 		},
 		{
 			name:     "the umask reduces the file mode",
-			files:    fsx.MemFS{},
+			files:    fsx.MemoryFS{},
 			umask:    0o200,
 			args:     []string{"f.XXXX"},
 			wantName: `^f\.[A-Za-z0-9]{4}$`,
@@ -151,63 +151,63 @@ func TestRunDefaults(t *testing.T) {
 		},
 		{
 			name:     "a final run of less than three X's",
-			files:    fsx.MemFS{},
+			files:    fsx.MemoryFS{},
 			args:     []string{"XX"},
 			wantErr:  `^mktemp: too few X's in template 'XX'\nTry 'mktemp --help' for more information\.$`,
 			wantExit: 1,
 		},
 		{
 			name:     "the X's must be in the last component",
-			files:    fsx.MemFS{},
+			files:    fsx.MemoryFS{},
 			args:     []string{"XXXX/dir"},
 			wantErr:  `^mktemp: too few X's in template 'XXXX/dir'\nTry 'mktemp --help' for more information\.$`,
 			wantExit: 1,
 		},
 		{
 			name:     "no X's at all",
-			files:    fsx.MemFS{},
+			files:    fsx.MemoryFS{},
 			args:     []string{"file.txt"},
 			wantErr:  `^mktemp: too few X's in template 'file\.txt'\nTry 'mktemp --help' for more information\.$`,
 			wantExit: 1,
 		},
 		{
 			name:     "an explicitly empty template",
-			files:    fsx.MemFS{},
+			files:    fsx.MemoryFS{},
 			args:     []string{""},
 			wantErr:  `^mktemp: too few X's in template ''\nTry 'mktemp --help' for more information\.$`,
 			wantExit: 1,
 		},
 		{
 			name:     "an explicitly empty template with a suffix",
-			files:    fsx.MemFS{},
+			files:    fsx.MemoryFS{},
 			args:     []string{"--suffix=.txt", ""},
 			wantErr:  `^mktemp: with --suffix, template '' must end in X\nTry 'mktemp --help' for more information\.$`,
 			wantExit: 1,
 		},
 		{
 			name:     "too many operands",
-			files:    fsx.MemFS{},
+			files:    fsx.MemoryFS{},
 			args:     []string{"a.XXXX", "b.XXXX"},
 			wantErr:  `^mktemp: extra operand 'b\.XXXX'\nTry 'mktemp --help' for more information\.$`,
 			wantExit: 2,
 		},
 		{
 			name:     "an invalid option",
-			files:    fsx.MemFS{},
+			files:    fsx.MemoryFS{},
 			args:     []string{"-z"},
 			wantErr:  `^mktemp: invalid option -- 'z'\nTry 'mktemp --help' for more information\.$`,
 			wantExit: 2,
 		},
 		{
 			name:     "an unrecognized long option",
-			files:    fsx.MemFS{},
+			files:    fsx.MemoryFS{},
 			args:     []string{"--bogus"},
 			wantErr:  `^mktemp: unrecognized option '--bogus'\nTry 'mktemp --help' for more information\.$`,
 			wantExit: 2,
 		},
 		{
 			name:     "-p missing its argument",
-			files:    fsx.MemFS{},
+			files:    fsx.MemoryFS{},
 			args:     []string{"-p"},
 			wantErr:  `^mktemp: option requires an argument -- 'p'\nTry 'mktemp --help' for more information\.$`,
 			wantExit: 2,
@@ -224,21 +224,21 @@ func TestRunDirectory(t *testing.T) {
 	tests := []testCase{
 		{
 			name:     "creates a directory",
-			files:    fsx.MemFS{},
+			files:    fsx.MemoryFS{},
 			args:     []string{"-d", "d.XXX"},
 			wantName: `^d\.[A-Za-z0-9]{3}$`,
 			wantMode: fs.ModeDir | 0o700,
 		},
 		{
 			name:     "the long form",
-			files:    fsx.MemFS{},
+			files:    fsx.MemoryFS{},
 			args:     []string{"--directory", "d.XXX"},
 			wantName: `^d\.[A-Za-z0-9]{3}$`,
 			wantMode: fs.ModeDir | 0o700,
 		},
 		{
 			name:     "the umask reduces the directory mode",
-			files:    fsx.MemFS{},
+			files:    fsx.MemoryFS{},
 			umask:    0o100,
 			args:     []string{"-d", "d.XXX"},
 			wantName: `^d\.[A-Za-z0-9]{3}$`,
@@ -246,7 +246,7 @@ func TestRunDirectory(t *testing.T) {
 		},
 		{
 			name:     "with the default template",
-			files:    fsx.MemFS{"td/keep": {Data: []byte("keep")}},
+			files:    fsx.MemoryFS{"td/keep": {Data: []byte("keep")}},
 			env:      map[string]string{"TMPDIR": "td"},
 			args:     []string{"-d"},
 			wantName: `^td/tmp\.[A-Za-z0-9]{10}$`,
@@ -264,21 +264,21 @@ func TestRunDryRun(t *testing.T) {
 	tests := []testCase{
 		{
 			name:       "prints a name without creating anything",
-			files:      fsx.MemFS{},
+			files:      fsx.MemoryFS{},
 			args:       []string{"-u", "file.XXX"},
 			wantName:   `^file\.[A-Za-z0-9]{3}$`,
 			wantAbsent: true,
 		},
 		{
 			name:       "the long form",
-			files:      fsx.MemFS{},
+			files:      fsx.MemoryFS{},
 			args:       []string{"--dry-run", "file.XXX"},
 			wantName:   `^file\.[A-Za-z0-9]{3}$`,
 			wantAbsent: true,
 		},
 		{
 			name:       "with the default template",
-			files:      fsx.MemFS{"td/keep": {Data: []byte("keep")}},
+			files:      fsx.MemoryFS{"td/keep": {Data: []byte("keep")}},
 			env:        map[string]string{"TMPDIR": "td"},
 			args:       []string{"-u"},
 			wantName:   `^td/tmp\.[A-Za-z0-9]{10}$`,
@@ -286,7 +286,7 @@ func TestRunDryRun(t *testing.T) {
 		},
 		{
 			name:       "keeps the entries of the file system",
-			files:      fsx.MemFS{"file.txt": {Data: []byte("keep")}},
+			files:      fsx.MemoryFS{"file.txt": {Data: []byte("keep")}},
 			args:       []string{"-u", "file.XXX"},
 			wantName:   `^file\.[A-Za-z0-9]{3}$`,
 			wantAbsent: true,
@@ -303,21 +303,21 @@ func TestRunSuffix(t *testing.T) {
 	tests := []testCase{
 		{
 			name:     "an attached value",
-			files:    fsx.MemFS{},
+			files:    fsx.MemoryFS{},
 			args:     []string{"--suffix=.txt", "file-XXXX"},
 			wantName: `^file-[A-Za-z0-9]{4}\.txt$`,
 			wantMode: 0o600,
 		},
 		{
 			name:     "a value in the next argument",
-			files:    fsx.MemFS{},
+			files:    fsx.MemoryFS{},
 			args:     []string{"--suffix", ".txt", "file-XXXX"},
 			wantName: `^file-[A-Za-z0-9]{4}\.txt$`,
 			wantMode: 0o600,
 		},
 		{
 			name:     "the default template with a suffix",
-			files:    fsx.MemFS{"td/keep": {Data: []byte("keep")}},
+			files:    fsx.MemoryFS{"td/keep": {Data: []byte("keep")}},
 			env:      map[string]string{"TMPDIR": "td"},
 			args:     []string{"--suffix=.txt"},
 			wantName: `^td/tmp\.[A-Za-z0-9]{10}\.txt$`,
@@ -325,28 +325,28 @@ func TestRunSuffix(t *testing.T) {
 		},
 		{
 			name:     "the X's of the suffix stay literal",
-			files:    fsx.MemFS{},
+			files:    fsx.MemoryFS{},
 			args:     []string{"--suffix=X", "file.XXX"},
 			wantName: `^file\.[A-Za-z0-9]{3}X$`,
 			wantMode: 0o600,
 		},
 		{
 			name:     "a suffix that starts with X",
-			files:    fsx.MemFS{},
+			files:    fsx.MemoryFS{},
 			args:     []string{"--suffix=Xyz", "f.XXX"},
 			wantName: `^f\.[A-Za-z0-9]{3}Xyz$`,
 			wantMode: 0o600,
 		},
 		{
 			name:     "the template must end in X",
-			files:    fsx.MemFS{},
+			files:    fsx.MemoryFS{},
 			args:     []string{"--suffix=.txt", "file.txt"},
 			wantErr:  `^mktemp: with --suffix, template 'file\.txt' must end in X\nTry 'mktemp --help' for more information\.$`,
 			wantExit: 1,
 		},
 		{
 			name:     "the suffix must not contain a slash",
-			files:    fsx.MemFS{},
+			files:    fsx.MemoryFS{},
 			args:     []string{"--suffix=a/b", "f.XXXX"},
 			wantErr:  `^mktemp: invalid suffix 'a/b', contains directory separator\nTry 'mktemp --help' for more information\.$`,
 			wantExit: 1,
@@ -363,28 +363,28 @@ func TestRunTmpDir(t *testing.T) {
 	tests := []testCase{
 		{
 			name:     "-p with the directory in the next argument",
-			files:    fsx.MemFS{"sub/keep": {Data: []byte("keep")}},
+			files:    fsx.MemoryFS{"sub/keep": {Data: []byte("keep")}},
 			args:     []string{"-p", "sub", "t.XXXX"},
 			wantName: `^sub/t\.[A-Za-z0-9]{4}$`,
 			wantMode: 0o600,
 		},
 		{
 			name:     "-p with the directory glued to the option",
-			files:    fsx.MemFS{"sub/keep": {Data: []byte("keep")}},
+			files:    fsx.MemoryFS{"sub/keep": {Data: []byte("keep")}},
 			args:     []string{"-psub", "t.XXXX"},
 			wantName: `^sub/t\.[A-Za-z0-9]{4}$`,
 			wantMode: 0o600,
 		},
 		{
 			name:     "--tmpdir with an attached directory",
-			files:    fsx.MemFS{"sub/keep": {Data: []byte("keep")}},
+			files:    fsx.MemoryFS{"sub/keep": {Data: []byte("keep")}},
 			args:     []string{"--tmpdir=sub", "t.XXXX"},
 			wantName: `^sub/t\.[A-Za-z0-9]{4}$`,
 			wantMode: 0o600,
 		},
 		{
 			name:     "--tmpdir without a directory uses TMPDIR",
-			files:    fsx.MemFS{"td/keep": {Data: []byte("keep")}},
+			files:    fsx.MemoryFS{"td/keep": {Data: []byte("keep")}},
 			env:      map[string]string{"TMPDIR": "td"},
 			args:     []string{"--tmpdir", "t.XXXX"},
 			wantName: `^td/t\.[A-Za-z0-9]{4}$`,
@@ -392,7 +392,7 @@ func TestRunTmpDir(t *testing.T) {
 		},
 		{
 			name:     "-p with an empty directory uses TMPDIR",
-			files:    fsx.MemFS{"td/keep": {Data: []byte("keep")}},
+			files:    fsx.MemoryFS{"td/keep": {Data: []byte("keep")}},
 			env:      map[string]string{"TMPDIR": "td"},
 			args:     []string{"-p", "", "t.XXXX"},
 			wantName: `^td/t\.[A-Za-z0-9]{4}$`,
@@ -400,35 +400,35 @@ func TestRunTmpDir(t *testing.T) {
 		},
 		{
 			name:     "--tmpdir without TMPDIR falls back to /tmp",
-			files:    fsx.MemFS{},
+			files:    fsx.MemoryFS{},
 			args:     []string{"--tmpdir", "t.XXXX"},
 			wantErr:  `^mktemp: failed to create file via template '/tmp/t\.[A-Za-z0-9]{4}': invalid argument$`,
 			wantExit: 1,
 		},
 		{
 			name:     "an absolute template is rejected",
-			files:    fsx.MemFS{"sub/keep": {Data: []byte("keep")}},
+			files:    fsx.MemoryFS{"sub/keep": {Data: []byte("keep")}},
 			args:     []string{"-p", "sub", "/tmp/t.XXXX"},
 			wantErr:  `^mktemp: template '/tmp/t\.XXXX' must not be absolute\nTry 'mktemp --help' for more information\.$`,
 			wantExit: 1,
 		},
 		{
 			name:     "an absolute template is rejected with --tmpdir",
-			files:    fsx.MemFS{"sub/keep": {Data: []byte("keep")}},
+			files:    fsx.MemoryFS{"sub/keep": {Data: []byte("keep")}},
 			args:     []string{"--tmpdir=sub", "/tmp/t.XXXX"},
 			wantErr:  `^mktemp: template '/tmp/t\.XXXX' must not be absolute\nTry 'mktemp --help' for more information\.$`,
 			wantExit: 1,
 		},
 		{
 			name:     "a missing directory is an error",
-			files:    fsx.MemFS{},
+			files:    fsx.MemoryFS{},
 			args:     []string{"-p", "missing", "t.XXXX"},
 			wantErr:  `^mktemp: failed to create file via template 'missing/t\.[A-Za-z0-9]{4}': file does not exist$`,
 			wantExit: 1,
 		},
 		{
 			name:     "a missing directory with -d is an error",
-			files:    fsx.MemFS{},
+			files:    fsx.MemoryFS{},
 			args:     []string{"-d", "-p", "missing", "t.XXXX"},
 			wantErr:  `^mktemp: failed to create directory via template 'missing/t\.[A-Za-z0-9]{4}': file does not exist$`,
 			wantExit: 1,
@@ -445,7 +445,7 @@ func TestRunDeprecated(t *testing.T) {
 	tests := []testCase{
 		{
 			name:     "the template is relative to TMPDIR",
-			files:    fsx.MemFS{"td/keep": {Data: []byte("keep")}},
+			files:    fsx.MemoryFS{"td/keep": {Data: []byte("keep")}},
 			env:      map[string]string{"TMPDIR": "td"},
 			args:     []string{"-t", "n.XXXX"},
 			wantName: `^td/n\.[A-Za-z0-9]{4}$`,
@@ -453,7 +453,7 @@ func TestRunDeprecated(t *testing.T) {
 		},
 		{
 			name:     "TMPDIR wins over -p",
-			files:    fsx.MemFS{"td/keep": {Data: []byte("keep")}},
+			files:    fsx.MemoryFS{"td/keep": {Data: []byte("keep")}},
 			env:      map[string]string{"TMPDIR": "td"},
 			args:     []string{"-t", "-p", "sub", "n.XXX"},
 			wantName: `^td/n\.[A-Za-z0-9]{3}$`,
@@ -461,14 +461,14 @@ func TestRunDeprecated(t *testing.T) {
 		},
 		{
 			name:     "falls back to -p without TMPDIR",
-			files:    fsx.MemFS{"sub/keep": {Data: []byte("keep")}},
+			files:    fsx.MemoryFS{"sub/keep": {Data: []byte("keep")}},
 			args:     []string{"-t", "-p", "sub", "n.XXX"},
 			wantName: `^sub/n\.[A-Za-z0-9]{3}$`,
 			wantMode: 0o600,
 		},
 		{
 			name:     "the template must not contain a slash",
-			files:    fsx.MemFS{},
+			files:    fsx.MemoryFS{},
 			args:     []string{"-t", "a/n.XXXX"},
 			wantErr:  `^mktemp: invalid template 'a/n\.XXXX', contains directory separator\nTry 'mktemp --help' for more information\.$`,
 			wantExit: 1,
@@ -485,19 +485,19 @@ func TestRunQuiet(t *testing.T) {
 	tests := []testCase{
 		{
 			name:     "suppresses the diagnostic of a bad template",
-			files:    fsx.MemFS{},
+			files:    fsx.MemoryFS{},
 			args:     []string{"-q", "XX"},
 			wantExit: 1,
 		},
 		{
 			name:     "suppresses the diagnostic of a failure",
-			files:    fsx.MemFS{},
+			files:    fsx.MemoryFS{},
 			args:     []string{"-q", "-p", "missing", "t.XXXX"},
 			wantExit: 1,
 		},
 		{
 			name:     "the long form",
-			files:    fsx.MemFS{},
+			files:    fsx.MemoryFS{},
 			args:     []string{"--quiet", "-p", "missing", "t.XXXX"},
 			wantExit: 1,
 		},
@@ -513,7 +513,7 @@ func TestRunWorkingDir(t *testing.T) {
 	tests := []testCase{
 		{
 			name:       "a relative template is created in the working directory",
-			files:      fsx.MemFS{"base/keep": {Data: []byte("keep")}},
+			files:      fsx.MemoryFS{"base/keep": {Data: []byte("keep")}},
 			workingDir: "base",
 			args:       []string{"f.XXXX"},
 			wantName:   `^f\.[A-Za-z0-9]{4}$`,
@@ -521,7 +521,7 @@ func TestRunWorkingDir(t *testing.T) {
 		},
 		{
 			name:       "a relative -p directory is resolved in the working directory",
-			files:      fsx.MemFS{"base/sub/keep": {Data: []byte("keep")}},
+			files:      fsx.MemoryFS{"base/sub/keep": {Data: []byte("keep")}},
 			workingDir: "base",
 			args:       []string{"-p", "sub", "t.XXXX"},
 			wantName:   `^sub/t\.[A-Za-z0-9]{4}$`,
@@ -536,7 +536,7 @@ func TestRunWorkingDir(t *testing.T) {
 }
 
 func TestRunContextCanceled(t *testing.T) {
-	testutil.Cancelled(t, New, nil, fsx.MemFS{}, "file.XXXX")
+	testutil.Cancelled(t, New, nil, fsx.MemoryFS{}, "file.XXXX")
 }
 
 func TestTempDir(t *testing.T) {

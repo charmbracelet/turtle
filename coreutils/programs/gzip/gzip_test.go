@@ -22,8 +22,8 @@ import (
 //	a.txt:     "alpha\n"
 //	b.txt:     "beta\n"
 //	sub/c.txt: "gamma\n"
-func testFS() fsx.MemFS {
-	return fsx.MemFS{
+func testFS() fsx.MemoryFS {
+	return fsx.MemoryFS{
 		"a.txt":     {Data: []byte("alpha\n"), Mode: 0o644},
 		"b.txt":     {Data: []byte("beta\n"), Mode: 0o644},
 		"sub/c.txt": {Data: []byte("gamma\n"), Mode: 0o644},
@@ -52,10 +52,10 @@ func gz(t *testing.T, name string, mod time.Time, data string) string {
 }
 
 // gzFile is a file system entry holding a gzip file of the given contents.
-func gzFile(t *testing.T, data string) *fsx.MemFile {
+func gzFile(t *testing.T, data string) *fsx.MemoryFile {
 	t.Helper()
 
-	return &fsx.MemFile{Data: []byte(gz(t, "", mtime, data)), Mode: 0o644}
+	return &fsx.MemoryFile{Data: []byte(gz(t, "", mtime, data)), Mode: 0o644}
 }
 
 // result holds what a run of a program produced.
@@ -76,7 +76,7 @@ func environ(env map[string]string) []string {
 	return entries
 }
 
-func run(t *testing.T, new coreutils.NewFunc, fsys fsx.MemFS, stdin io.Reader, env map[string]string, args ...string) (result, fsx.MemFS) {
+func run(t *testing.T, new coreutils.NewFunc, fsys fsx.MemoryFS, stdin io.Reader, env map[string]string, args ...string) (result, fsx.MemoryFS) {
 	t.Helper()
 
 	var stdout, stderr bytes.Buffer
@@ -102,7 +102,7 @@ func run(t *testing.T, new coreutils.NewFunc, fsys fsx.MemFS, stdin io.Reader, e
 
 // wantData checks the contents of the files of a file system, and that the
 // names given as absent hold nothing.
-func wantData(t *testing.T, fsys fsx.MemFS, data map[string]string, absent ...string) {
+func wantData(t *testing.T, fsys fsx.MemoryFS, data map[string]string, absent ...string) {
 	t.Helper()
 
 	for name, want := range data {
@@ -123,7 +123,7 @@ func wantData(t *testing.T, fsys fsx.MemFS, data map[string]string, absent ...st
 }
 
 // names lists the names of a file system, for failure messages.
-func names(fsys fsx.MemFS) []string {
+func names(fsys fsx.MemoryFS) []string {
 	list := make([]string, 0, len(fsys))
 	for name := range fsys {
 		list = append(list, name)
@@ -157,7 +157,7 @@ func TestGzipCompresses(t *testing.T) {
 	})
 
 	t.Run("keeps the mode, times and owner", func(t *testing.T) {
-		fsys := fsx.MemFS{
+		fsys := fsx.MemoryFS{
 			"a.txt": {Data: []byte("alpha\n"), Mode: 0o640, ModTime: mtime, Uid: 100, Gid: 200},
 		}
 
@@ -179,7 +179,7 @@ func TestGzipCompresses(t *testing.T) {
 	})
 
 	t.Run("stores the name and modification time", func(t *testing.T) {
-		fsys := fsx.MemFS{"a.txt": {Data: []byte("alpha\n"), Mode: 0o644, ModTime: mtime}}
+		fsys := fsx.MemoryFS{"a.txt": {Data: []byte("alpha\n"), Mode: 0o644, ModTime: mtime}}
 
 		_, fsys = run(t, New, fsys, nil, nil, "a.txt")
 
@@ -241,7 +241,7 @@ func TestGzipOptions(t *testing.T) {
 	}
 
 	t.Run("-c writes the compressed data out", func(t *testing.T) {
-		fsys := fsx.MemFS{"a.txt": {Data: []byte("alpha\n"), Mode: 0o644}}
+		fsys := fsx.MemoryFS{"a.txt": {Data: []byte("alpha\n"), Mode: 0o644}}
 		res, fsys := run(t, New, fsys, nil, nil, "-c", "a.txt")
 
 		if res.exit != 0 {
@@ -280,7 +280,7 @@ func TestGzipOptions(t *testing.T) {
 	})
 
 	t.Run("-n leaves the name and time out of the file", func(t *testing.T) {
-		fsys := fsx.MemFS{"a.txt": {Data: []byte("alpha\n"), Mode: 0o644, ModTime: mtime}}
+		fsys := fsx.MemoryFS{"a.txt": {Data: []byte("alpha\n"), Mode: 0o644, ModTime: mtime}}
 
 		_, fsys = run(t, New, fsys, nil, nil, "-n", "a.txt")
 
@@ -294,7 +294,7 @@ func TestGzipOptions(t *testing.T) {
 	})
 
 	t.Run("an operand which already has a suffix is left alone", func(t *testing.T) {
-		fsys := fsx.MemFS{"a.txt.gz": {Data: []byte("data"), Mode: 0o644}}
+		fsys := fsx.MemoryFS{"a.txt.gz": {Data: []byte("data"), Mode: 0o644}}
 
 		res, fsys := run(t, New, fsys, nil, nil, "a.txt.gz")
 
@@ -311,7 +311,7 @@ func TestGzipOptions(t *testing.T) {
 	})
 
 	t.Run("-f compresses an operand which already has a suffix", func(t *testing.T) {
-		fsys := fsx.MemFS{"a.txt.gz": {Data: []byte(strings.Repeat("alpha ", 30)), Mode: 0o644}}
+		fsys := fsx.MemoryFS{"a.txt.gz": {Data: []byte(strings.Repeat("alpha ", 30)), Mode: 0o644}}
 
 		res, fsys := run(t, New, fsys, nil, nil, "-f", "a.txt.gz")
 
@@ -365,7 +365,7 @@ func TestGzipErrors(t *testing.T) {
 	tests := []struct {
 		name    string
 		args    []string
-		fsys    fsx.MemFS
+		fsys    fsx.MemoryFS
 		wantErr string
 	}{
 		{
@@ -383,7 +383,7 @@ func TestGzipErrors(t *testing.T) {
 		{
 			name:    "a missing decompression operand",
 			args:    []string{"-d", "missing.txt"},
-			fsys:    fsx.MemFS{},
+			fsys:    fsx.MemoryFS{},
 			wantErr: "file does not exist",
 		},
 		{
@@ -395,13 +395,13 @@ func TestGzipErrors(t *testing.T) {
 		{
 			name:    "a .Z file isn't supported yet",
 			args:    []string{"-d", "a.txt.Z"},
-			fsys:    fsx.MemFS{"a.txt.Z": {Data: []byte{0x1f, 0x9d, 0x48, 0x00}, Mode: 0o644}},
+			fsys:    fsx.MemoryFS{"a.txt.Z": {Data: []byte{0x1f, 0x9d, 0x48, 0x00}, Mode: 0o644}},
 			wantErr: "unsupported compression format",
 		},
 		{
 			name:    "a name too long for the suffix",
 			args:    []string{strings.Repeat("x", 253)},
-			fsys:    fsx.MemFS{strings.Repeat("x", 253): {Data: []byte("alpha\n"), Mode: 0o644}},
+			fsys:    fsx.MemoryFS{strings.Repeat("x", 253): {Data: []byte("alpha\n"), Mode: 0o644}},
 			wantErr: "invalid name",
 		},
 	}
@@ -420,7 +420,7 @@ func TestGzipErrors(t *testing.T) {
 	}
 
 	t.Run("a bad operand doesn't stop the others", func(t *testing.T) {
-		fsys := fsx.MemFS{
+		fsys := fsx.MemoryFS{
 			"a.txt": testFS()["a.txt"],
 			"b.gz":  {Data: []byte("no magic here"), Mode: 0o644},
 		}
@@ -436,7 +436,7 @@ func TestGzipErrors(t *testing.T) {
 	})
 
 	t.Run("restoring a bad file leaves it alone", func(t *testing.T) {
-		fsys := fsx.MemFS{"a.gz": {Data: []byte("no magic here"), Mode: 0o644}}
+		fsys := fsx.MemoryFS{"a.gz": {Data: []byte("no magic here"), Mode: 0o644}}
 
 		res, fsys := run(t, Gunzip, fsys, nil, nil, "a.gz")
 
@@ -514,7 +514,7 @@ func TestGunzipSuffixes(t *testing.T) {
 
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			fsys := fsx.MemFS{test.in: gzFile(t, "alpha\n")}
+			fsys := fsx.MemoryFS{test.in: gzFile(t, "alpha\n")}
 
 			res, fsys := run(t, Gunzip, fsys, nil, nil, test.in)
 
@@ -526,7 +526,7 @@ func TestGunzipSuffixes(t *testing.T) {
 	}
 
 	t.Run("the suffix is added to find the input", func(t *testing.T) {
-		fsys := fsx.MemFS{"a.txt.gz": gzFile(t, "alpha\n")}
+		fsys := fsx.MemoryFS{"a.txt.gz": gzFile(t, "alpha\n")}
 
 		res, fsys := run(t, Gunzip, fsys, nil, nil, "a.txt")
 
@@ -537,7 +537,7 @@ func TestGunzipSuffixes(t *testing.T) {
 	})
 
 	t.Run("-N restores the stored name in the same directory", func(t *testing.T) {
-		fsys := fsx.MemFS{"sub/a.gz": {Data: []byte(gz(t, "named.txt", mtime, "alpha\n")), Mode: 0o644}}
+		fsys := fsx.MemoryFS{"sub/a.gz": {Data: []byte(gz(t, "named.txt", mtime, "alpha\n")), Mode: 0o644}}
 
 		res, fsys := run(t, Gunzip, fsys, nil, nil, "-N", "sub/a.gz")
 
@@ -548,7 +548,7 @@ func TestGunzipSuffixes(t *testing.T) {
 	})
 
 	t.Run("-N refuses a stored name equal to the compressed input", func(t *testing.T) {
-		fsys := fsx.MemFS{"a.gz": {Data: []byte(gz(t, "a.gz", mtime, "alpha\n")), Mode: 0o644}}
+		fsys := fsx.MemoryFS{"a.gz": {Data: []byte(gz(t, "a.gz", mtime, "alpha\n")), Mode: 0o644}}
 
 		res, fsys := run(t, Gunzip, fsys, nil, nil, "-N", "a.gz")
 
@@ -559,7 +559,7 @@ func TestGunzipSuffixes(t *testing.T) {
 	})
 
 	t.Run("-N refuses a path traversal name", func(t *testing.T) {
-		fsys := fsx.MemFS{"sub/a.gz": {Data: []byte(gz(t, "../evil", mtime, "alpha\n")), Mode: 0o644}}
+		fsys := fsx.MemoryFS{"sub/a.gz": {Data: []byte(gz(t, "../evil", mtime, "alpha\n")), Mode: 0o644}}
 
 		res, fsys := run(t, Gunzip, fsys, nil, nil, "-N", "sub/a.gz")
 
@@ -573,7 +573,7 @@ func TestGunzipSuffixes(t *testing.T) {
 	})
 
 	t.Run("-N refuses names containing a newline", func(t *testing.T) {
-		fsys := fsx.MemFS{"a.gz": {Data: []byte(gz(t, "bad\nname", mtime, "alpha\n")), Mode: 0o644}}
+		fsys := fsx.MemoryFS{"a.gz": {Data: []byte(gz(t, "bad\nname", mtime, "alpha\n")), Mode: 0o644}}
 
 		res, fsys := run(t, Gunzip, fsys, nil, nil, "-N", "a.gz")
 
@@ -586,7 +586,7 @@ func TestGunzipSuffixes(t *testing.T) {
 
 func TestZcat(t *testing.T) {
 	t.Run("concatenates operands", func(t *testing.T) {
-		fsys := fsx.MemFS{"a.txt.gz": gzFile(t, "alpha\n"), "b.txt.gz": gzFile(t, "beta\n")}
+		fsys := fsx.MemoryFS{"a.txt.gz": gzFile(t, "alpha\n"), "b.txt.gz": gzFile(t, "beta\n")}
 
 		res, fsys := run(t, Zcat, fsys, nil, nil, "a.txt.gz", "b.txt.gz")
 
@@ -602,7 +602,7 @@ func TestZcat(t *testing.T) {
 	})
 
 	t.Run("gzcat does the same", func(t *testing.T) {
-		res, _ := run(t, Gzcat, fsx.MemFS{"a.txt.gz": gzFile(t, "alpha\n")}, nil, nil, "a.txt.gz")
+		res, _ := run(t, Gzcat, fsx.MemoryFS{"a.txt.gz": gzFile(t, "alpha\n")}, nil, nil, "a.txt.gz")
 
 		if res.exit != 0 {
 			t.Errorf("exit = %d, want 0 (%s)", res.exit, res.stderr)
@@ -614,7 +614,7 @@ func TestZcat(t *testing.T) {
 
 	t.Run("members are read in sequence", func(t *testing.T) {
 		multi := gz(t, "", mtime, "alpha\n") + gz(t, "", mtime, "more\n")
-		fsys := fsx.MemFS{"a.gz": {Data: []byte(multi), Mode: 0o644}}
+		fsys := fsx.MemoryFS{"a.gz": {Data: []byte(multi), Mode: 0o644}}
 
 		res, _ := run(t, Zcat, fsys, nil, nil, "a.gz")
 
@@ -627,7 +627,7 @@ func TestZcat(t *testing.T) {
 	})
 
 	t.Run("-f -c passes a plain operand through", func(t *testing.T) {
-		fsys := fsx.MemFS{"plain": {Data: []byte("alpha\n"), Mode: 0o644}}
+		fsys := fsx.MemoryFS{"plain": {Data: []byte("alpha\n"), Mode: 0o644}}
 		res, _ := run(t, Zcat, fsys, nil, nil, "-f", "plain")
 		if res.exit != 0 || res.stdout != "alpha\n" {
 			t.Errorf("exit = %d, stdout = %q, stderr = %q", res.exit, res.stdout, res.stderr)
@@ -635,14 +635,14 @@ func TestZcat(t *testing.T) {
 	})
 
 	t.Run("-f -c reports an operand which doesn't exist", func(t *testing.T) {
-		res, _ := run(t, Zcat, fsx.MemFS{}, nil, nil, "-f", "missing.txt")
+		res, _ := run(t, Zcat, fsx.MemoryFS{}, nil, nil, "-f", "missing.txt")
 		if res.exit != 1 || !strings.Contains(res.stderr, "file does not exist") {
 			t.Errorf("exit = %d, stderr = %q, want a missing-file error", res.exit, res.stderr)
 		}
 	})
 
 	t.Run("-f -c passes through an operand that has a non-regular type", func(t *testing.T) {
-		fsys := fsx.MemFS{
+		fsys := fsx.MemoryFS{
 			"plain": {Data: []byte("plain"), Mode: 0o644},
 			"link":  {Data: []byte("plain"), Mode: fs.ModeSymlink | 0o777},
 		}
@@ -666,7 +666,7 @@ func TestZcat(t *testing.T) {
 
 func TestOverwrite(t *testing.T) {
 	t.Run("an existing output is not overwritten", func(t *testing.T) {
-		fsys := fsx.MemFS{
+		fsys := fsx.MemoryFS{
 			"a.txt":    {Data: []byte("alpha\n"), Mode: 0o644},
 			"a.txt.gz": {Data: []byte("keep me"), Mode: 0o644},
 		}
@@ -683,7 +683,7 @@ func TestOverwrite(t *testing.T) {
 	})
 
 	t.Run("-f overwrites it", func(t *testing.T) {
-		fsys := fsx.MemFS{
+		fsys := fsx.MemoryFS{
 			"a.txt":    {Data: []byte("alpha\n"), Mode: 0o644},
 			"a.txt.gz": {Data: []byte("keep me"), Mode: 0o644},
 		}
@@ -700,7 +700,7 @@ func TestOverwrite(t *testing.T) {
 	})
 
 	t.Run("gunzip -f overwrites the restored file", func(t *testing.T) {
-		fsys := fsx.MemFS{
+		fsys := fsx.MemoryFS{
 			"a.txt":    {Data: []byte("old\n"), Mode: 0o644},
 			"a.txt.gz": gzFile(t, "alpha\n"),
 		}
@@ -714,7 +714,7 @@ func TestOverwrite(t *testing.T) {
 	})
 
 	t.Run("gunzip without -f leaves both files alone", func(t *testing.T) {
-		fsys := fsx.MemFS{
+		fsys := fsx.MemoryFS{
 			"a.txt":    {Data: []byte("old\n"), Mode: 0o644},
 			"a.txt.gz": gzFile(t, "alpha\n"),
 		}
@@ -743,7 +743,7 @@ func TestGzipTest(t *testing.T) {
 
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			fsys := fsx.MemFS{"a.gz": {Data: []byte(test.data), Mode: 0o644}}
+			fsys := fsx.MemoryFS{"a.gz": {Data: []byte(test.data), Mode: 0o644}}
 
 			res, fsys := run(t, New, fsys, nil, nil, "-t", "a.gz")
 
@@ -758,7 +758,7 @@ func TestGzipTest(t *testing.T) {
 	}
 
 	t.Run("-tv reports the file", func(t *testing.T) {
-		fsys := fsx.MemFS{"a.gz": gzFile(t, "alpha\n")}
+		fsys := fsx.MemoryFS{"a.gz": gzFile(t, "alpha\n")}
 
 		res, _ := run(t, New, fsys, nil, nil, "-tv", "a.gz")
 
@@ -770,7 +770,7 @@ func TestGzipTest(t *testing.T) {
 
 func TestGzipSymlinks(t *testing.T) {
 	t.Run("compression refuses a symbolic link without -f", func(t *testing.T) {
-		fsys := fsx.MemFS{
+		fsys := fsx.MemoryFS{
 			"target.txt": {Data: []byte("alpha\n"), Mode: 0o644},
 			"link.txt":   {Data: []byte("target.txt"), Mode: fs.ModeSymlink | 0o777},
 		}
@@ -789,7 +789,7 @@ func TestGzipSymlinks(t *testing.T) {
 	})
 
 	t.Run("compression follows a symbolic link with -f", func(t *testing.T) {
-		fsys := fsx.MemFS{
+		fsys := fsx.MemoryFS{
 			"target.txt": {Data: []byte("alpha\n"), Mode: 0o644},
 			"link.txt":   {Data: []byte("target.txt"), Mode: fs.ModeSymlink | 0o777},
 		}
@@ -808,7 +808,7 @@ func TestGzipSymlinks(t *testing.T) {
 	})
 
 	t.Run("restoring a symbolic link fails without -f", func(t *testing.T) {
-		fsys := fsx.MemFS{
+		fsys := fsx.MemoryFS{
 			"a.txt.gz": gzFile(t, "alpha\n"),
 			"link.gz":  {Data: []byte("a.txt.gz"), Mode: fs.ModeSymlink | 0o777},
 		}
@@ -823,7 +823,7 @@ func TestGzipSymlinks(t *testing.T) {
 
 func TestGzipRecursive(t *testing.T) {
 	t.Run("-r walks into directories", func(t *testing.T) {
-		fsys := fsx.MemFS{
+		fsys := fsx.MemoryFS{
 			"sub/c.txt":    {Data: []byte("gamma\n"), Mode: 0o644},
 			"sub/deep.txt": {Data: []byte("deep\n"), Mode: 0o644},
 		}
@@ -842,7 +842,7 @@ func TestGzipRecursive(t *testing.T) {
 	})
 
 	t.Run("-r skips symbolic links", func(t *testing.T) {
-		fsys := fsx.MemFS{
+		fsys := fsx.MemoryFS{
 			"sub/c.txt": {Data: []byte("gamma\n"), Mode: 0o644},
 			"sub/link":  {Data: []byte("c.txt"), Mode: fs.ModeSymlink | 0o777},
 		}
@@ -858,7 +858,7 @@ func TestGzipRecursive(t *testing.T) {
 	})
 
 	t.Run("-rc recurses into directories", func(t *testing.T) {
-		fsys := fsx.MemFS{"sub/a.gz": gzFile(t, "alpha\n")}
+		fsys := fsx.MemoryFS{"sub/a.gz": gzFile(t, "alpha\n")}
 		res, _ := run(t, Gunzip, fsys, nil, nil, "-rc", "sub")
 		if res.exit != 0 || res.stdout != "alpha\n" {
 			t.Errorf("exit = %d, stdout = %q, stderr = %q", res.exit, res.stdout, res.stderr)
@@ -866,7 +866,7 @@ func TestGzipRecursive(t *testing.T) {
 	})
 
 	t.Run("-rcf recurses into directories", func(t *testing.T) {
-		fsys := fsx.MemFS{"sub/a.gz": gzFile(t, "alpha\n")}
+		fsys := fsx.MemoryFS{"sub/a.gz": gzFile(t, "alpha\n")}
 		res, _ := run(t, Gunzip, fsys, nil, nil, "-rcf", "sub")
 		if res.exit != 0 || res.stdout != "alpha\n" {
 			t.Errorf("exit = %d, stdout = %q, stderr = %q", res.exit, res.stdout, res.stderr)
@@ -874,7 +874,7 @@ func TestGzipRecursive(t *testing.T) {
 	})
 
 	t.Run("-rt tests files in directories", func(t *testing.T) {
-		fsys := fsx.MemFS{"sub/a.gz": gzFile(t, "alpha\n")}
+		fsys := fsx.MemoryFS{"sub/a.gz": gzFile(t, "alpha\n")}
 		res, _ := run(t, Gunzip, fsys, nil, nil, "-rt", "sub")
 		if res.exit != 0 || res.stdout != "" {
 			t.Errorf("exit = %d, stdout = %q, stderr = %q", res.exit, res.stdout, res.stderr)
@@ -882,7 +882,7 @@ func TestGzipRecursive(t *testing.T) {
 	})
 
 	t.Run("-r restores a whole directory", func(t *testing.T) {
-		fsys := fsx.MemFS{"sub/c.txt.gz": gzFile(t, "gamma\n")}
+		fsys := fsx.MemoryFS{"sub/c.txt.gz": gzFile(t, "gamma\n")}
 
 		res, fsys := run(t, Gunzip, fsys, nil, nil, "-r", "sub")
 
@@ -994,7 +994,7 @@ func TestHelpVersion(t *testing.T) {
 
 func TestGzipEnv(t *testing.T) {
 	t.Run("GZIP holds options", func(t *testing.T) {
-		fsys := fsx.MemFS{"a.txt.gz": gzFile(t, "alpha\n")}
+		fsys := fsx.MemoryFS{"a.txt.gz": gzFile(t, "alpha\n")}
 
 		res, _ := run(t, Gunzip, fsys, nil, map[string]string{"GZIP": "-c"}, "a.txt.gz")
 
@@ -1048,7 +1048,7 @@ func TestGzipWindowsPaths(t *testing.T) {
 		t.Skip("operands with backslashes are only normalized on Windows")
 	}
 
-	fsys := fsx.MemFS{"sub/c.txt": {Data: []byte("gamma\n"), Mode: 0o644}}
+	fsys := fsx.MemoryFS{"sub/c.txt": {Data: []byte("gamma\n"), Mode: 0o644}}
 
 	res, fsys := run(t, New, fsys, nil, nil, `sub\c.txt`)
 
@@ -1061,7 +1061,7 @@ func TestGzipWindowsPaths(t *testing.T) {
 }
 
 // readHeader reads the header of the gzip file at name.
-func readHeader(t *testing.T, fsys fsx.MemFS, name string) gzip.Header {
+func readHeader(t *testing.T, fsys fsx.MemoryFS, name string) gzip.Header {
 	t.Helper()
 
 	file, ok := fsys[name]

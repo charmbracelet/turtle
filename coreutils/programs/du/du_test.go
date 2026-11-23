@@ -19,7 +19,7 @@ import (
 //
 // The sizes come from the file sizes rounded up to whole 512-byte blocks,
 // as the memory file system reports no blocks.
-var tree = fsx.MemFS{
+var tree = fsx.MemoryFS{
 	"tree/a":     {Data: make([]byte, 600)},
 	"tree/b":     {Data: make([]byte, 100)},
 	"tree/sub/c": {Data: make([]byte, 2000)},
@@ -27,7 +27,7 @@ var tree = fsx.MemFS{
 
 // joined is the tree and a second hierarchy together, for the tests of
 // multiple operands.
-var joined = fsx.MemFS{
+var joined = fsx.MemoryFS{
 	"tree/a":     {Data: make([]byte, 600)},
 	"tree/b":     {Data: make([]byte, 100)},
 	"tree/sub/c": {Data: make([]byte, 2000)},
@@ -35,7 +35,7 @@ var joined = fsx.MemFS{
 }
 
 // deep is the tree above with one more level of directories.
-var deep = fsx.MemFS{
+var deep = fsx.MemoryFS{
 	"tree/a":        {Data: make([]byte, 600)},
 	"tree/b":        {Data: make([]byte, 100)},
 	"tree/sub/c":    {Data: make([]byte, 2000)},
@@ -44,7 +44,7 @@ var deep = fsx.MemFS{
 
 // linked holds a symbolic link to a file inside a directory, and one to a
 // directory elsewhere.
-var linked = fsx.MemFS{
+var linked = fsx.MemoryFS{
 	"f":       {Data: make([]byte, 5000)}, // 10 blocks
 	"dir/a":   {Data: make([]byte, 600)},  // 2 blocks
 	"dir/l":   link("../f"),               // 1 block on its own
@@ -54,13 +54,13 @@ var linked = fsx.MemFS{
 }
 
 // link returns a symbolic entry pointing at target.
-func link(target string) *fsx.MemFile {
-	return &fsx.MemFile{Data: []byte(target), Mode: fs.ModeSymlink | 0o777}
+func link(target string) *fsx.MemoryFile {
+	return &fsx.MemoryFile{Data: []byte(target), Mode: fs.ModeSymlink | 0o777}
 }
 
 // failFS is a memory file system whose named directory can't be read.
 type failFS struct {
-	fsx.MemFS
+	fsx.MemoryFS
 	fail string
 }
 
@@ -69,14 +69,14 @@ func (f failFS) ReadDir(name string) ([]fs.DirEntry, error) {
 	if name == f.fail {
 		return nil, &fs.PathError{Op: "readdir", Path: name, Err: fs.ErrPermission}
 	}
-	return f.MemFS.ReadDir(name)
+	return f.MemoryFS.ReadDir(name)
 }
 
 func TestRunOperands(t *testing.T) {
 	testutil.Run(t, New, []testutil.Case{
 		{
 			Name: "no operand defaults to the working directory",
-			FS: fsx.MemFS{
+			FS: fsx.MemoryFS{
 				"a": {Data: make([]byte, 600)},
 				"b": {Data: make([]byte, 100)},
 			},
@@ -90,7 +90,7 @@ func TestRunOperands(t *testing.T) {
 		},
 		{
 			Name: "operands are written in the order given",
-			FS: fsx.MemFS{
+			FS: fsx.MemoryFS{
 				"t2/x": {Data: make([]byte, 100)},
 				"t1/a": {Data: make([]byte, 600)},
 			},
@@ -263,13 +263,13 @@ func TestRunFollow(t *testing.T) {
 		},
 		{
 			Name: "a broken link operand counts as itself with -H",
-			FS:   fsx.MemFS{"lnk": link("missing")},
+			FS:   fsx.MemoryFS{"lnk": link("missing")},
 			Args: []string{"-H", "lnk"},
 			Want: "1 lnk\n",
 		},
 		{
 			Name: "a broken link operand counts as itself with -L",
-			FS:   fsx.MemFS{"lnk": link("missing")},
+			FS:   fsx.MemoryFS{"lnk": link("missing")},
 			Args: []string{"-L", "lnk"},
 			Want: "1 lnk\n",
 		},
@@ -320,13 +320,13 @@ func TestRunGnu(t *testing.T) {
 		},
 		{
 			Name: "-S keeps the files held directly",
-			FS:   fsx.MemFS{"d/x": {Data: make([]byte, 600)}, "d/s/y": {Data: make([]byte, 100)}},
+			FS:   fsx.MemoryFS{"d/x": {Data: make([]byte, 600)}, "d/s/y": {Data: make([]byte, 100)}},
 			Args: []string{"-S", "d"},
 			Want: "1 d/s\n2 d\n",
 		},
 		{
 			Name: "the same hierarchy without -S",
-			FS:   fsx.MemFS{"d/x": {Data: make([]byte, 600)}, "d/s/y": {Data: make([]byte, 100)}},
+			FS:   fsx.MemoryFS{"d/x": {Data: make([]byte, 600)}, "d/s/y": {Data: make([]byte, 100)}},
 			Args: []string{"d"},
 			Want: "1 d/s\n3 d\n",
 		},
@@ -338,7 +338,7 @@ func TestRunGnu(t *testing.T) {
 		},
 		{
 			Name: "-b counts the apparent size of a link",
-			FS:   fsx.MemFS{"l": link("point")},
+			FS:   fsx.MemoryFS{"l": link("point")},
 			Args: []string{"-b", "l"},
 			Want: "5 l\n",
 		},
@@ -561,7 +561,7 @@ func TestRunUnreadable(t *testing.T) {
 	testutil.Run(t, New, []testutil.Case{
 		{
 			Name:     "an unreadable operand is an error",
-			FS:       failFS{MemFS: tree, fail: "tree"},
+			FS:       failFS{MemoryFS: tree, fail: "tree"},
 			Args:     []string{"tree"},
 			Want:     "0 tree\n",
 			WantErr:  "du: cannot read directory 'tree': permission denied\n",
@@ -569,7 +569,7 @@ func TestRunUnreadable(t *testing.T) {
 		},
 		{
 			Name:     "an unreadable subdirectory keeps the rest counted",
-			FS:       failFS{MemFS: tree, fail: "tree/sub"},
+			FS:       failFS{MemoryFS: tree, fail: "tree/sub"},
 			Args:     []string{"tree"},
 			Want:     "0 tree/sub\n3 tree\n",
 			WantErr:  "du: cannot read directory 'tree/sub': permission denied\n",

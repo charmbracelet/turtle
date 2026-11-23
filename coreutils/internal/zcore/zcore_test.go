@@ -193,7 +193,7 @@ func TestCheckName(t *testing.T) {
 // removeErrFS fails the removal of one name, so that the cleanup of the file it
 // produced can still be observed.
 type removeErrFS struct {
-	fsx.MemFS
+	fsx.MemoryFS
 	blocked string
 }
 
@@ -202,7 +202,7 @@ func (f removeErrFS) Remove(name string) error {
 	if path.Base(name) == f.blocked {
 		return errors.New("permission denied")
 	}
-	return f.MemFS.Remove(name)
+	return f.MemoryFS.Remove(name)
 }
 
 // gzData builds the contents of a gzip file holding data.
@@ -224,7 +224,7 @@ func TestRemoveInputFailure(t *testing.T) {
 	tests := []struct {
 		name     string
 		opts     Options
-		fsys     fsx.MemFS
+		fsys     fsx.MemoryFS
 		operand  string
 		blocked  string
 		out      string
@@ -234,7 +234,7 @@ func TestRemoveInputFailure(t *testing.T) {
 		{
 			name:     "compression discards its output",
 			opts:     Options{Prog: "gzip", Algorithm: Gzip, Level: -1},
-			fsys:     fsx.MemFS{"a.txt": {Data: []byte(strings.Repeat("alpha ", 30)), Mode: 0o644}},
+			fsys:     fsx.MemoryFS{"a.txt": {Data: []byte(strings.Repeat("alpha ", 30)), Mode: 0o644}},
 			operand:  "a.txt",
 			blocked:  "a.txt",
 			out:      "a.txt.gz",
@@ -244,7 +244,7 @@ func TestRemoveInputFailure(t *testing.T) {
 		{
 			name:     "forced compression keeps its output",
 			opts:     Options{Prog: "gzip", Algorithm: Gzip, Level: -1, Force: true},
-			fsys:     fsx.MemFS{"a.txt": {Data: []byte(strings.Repeat("alpha ", 30)), Mode: 0o644}},
+			fsys:     fsx.MemoryFS{"a.txt": {Data: []byte(strings.Repeat("alpha ", 30)), Mode: 0o644}},
 			operand:  "a.txt",
 			blocked:  "a.txt",
 			out:      "a.txt.gz",
@@ -254,7 +254,7 @@ func TestRemoveInputFailure(t *testing.T) {
 		{
 			name:     "decompression discards its output",
 			opts:     Options{Prog: "gunzip", Algorithm: Gzip, Level: -1, Decompress: true},
-			fsys:     fsx.MemFS{"a.txt.gz": {Data: gzData(t, "alpha\n"), Mode: 0o644}},
+			fsys:     fsx.MemoryFS{"a.txt.gz": {Data: gzData(t, "alpha\n"), Mode: 0o644}},
 			operand:  "a.txt.gz",
 			blocked:  "a.txt.gz",
 			out:      "a.txt",
@@ -264,7 +264,7 @@ func TestRemoveInputFailure(t *testing.T) {
 		{
 			name:     "forced decompression keeps its output",
 			opts:     Options{Prog: "gunzip", Algorithm: Gzip, Level: -1, Decompress: true, Force: true},
-			fsys:     fsx.MemFS{"a.txt.gz": {Data: gzData(t, "alpha\n"), Mode: 0o644}},
+			fsys:     fsx.MemoryFS{"a.txt.gz": {Data: gzData(t, "alpha\n"), Mode: 0o644}},
 			operand:  "a.txt.gz",
 			blocked:  "a.txt.gz",
 			out:      "a.txt",
@@ -279,7 +279,7 @@ func TestRemoveInputFailure(t *testing.T) {
 				Stdin:   strings.NewReader(""),
 				Stdout:  io.Discard,
 				Stderr:  io.Discard,
-				FS:      removeErrFS{MemFS: test.fsys, blocked: test.blocked},
+				FS:      removeErrFS{MemoryFS: test.fsys, blocked: test.blocked},
 				Environ: func() []string { return nil },
 			}
 
@@ -303,7 +303,7 @@ func TestStdoutWriteFailure(t *testing.T) {
 		name    string
 		opts    Options
 		stdin   io.Reader
-		fsys    fsx.MemFS
+		fsys    fsx.MemoryFS
 		operand string
 	}{
 		{
@@ -320,14 +320,14 @@ func TestStdoutWriteFailure(t *testing.T) {
 			name:    "compressing a file",
 			opts:    Options{Prog: "gzip", Algorithm: Gzip, Level: -1, Stdout: true},
 			stdin:   strings.NewReader(""),
-			fsys:    fsx.MemFS{"a.txt": {Data: []byte("alpha\n"), Mode: 0o644}},
+			fsys:    fsx.MemoryFS{"a.txt": {Data: []byte("alpha\n"), Mode: 0o644}},
 			operand: "a.txt",
 		},
 		{
 			name:    "restoring a file",
 			opts:    Options{Prog: "zcat", Algorithm: Gzip, Level: -1, Decompress: true, Stdout: true},
 			stdin:   strings.NewReader(""),
-			fsys:    fsx.MemFS{"a.txt.gz": {Data: gzData(t, "alpha\n"), Mode: 0o644}},
+			fsys:    fsx.MemoryFS{"a.txt.gz": {Data: gzData(t, "alpha\n"), Mode: 0o644}},
 			operand: "a.txt.gz",
 		},
 	}
@@ -335,7 +335,7 @@ func TestStdoutWriteFailure(t *testing.T) {
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
 			if test.fsys == nil {
-				test.fsys = fsx.MemFS{}
+				test.fsys = fsx.MemoryFS{}
 			}
 			rt := &coreutils.Runtime{
 				Stdin:   test.stdin,
@@ -363,7 +363,7 @@ func TestMissingRuntimeValues(t *testing.T) {
 		rt := &coreutils.Runtime{
 			Stdout:  io.Discard,
 			Stderr:  io.Discard,
-			FS:      fsx.MemFS{},
+			FS:      fsx.MemoryFS{},
 			Environ: func() []string { return nil },
 		}
 		err := Run(t.Context(), rt, Options{Prog: "gzip", Algorithm: Gzip, Level: -1}, nil)
@@ -389,7 +389,7 @@ func TestMissingRuntimeValues(t *testing.T) {
 }
 
 func TestStoreNameHeaderFailure(t *testing.T) {
-	fsys := fsx.MemFS{"a.gz": {Data: []byte{0x1f, 0x8b}, Mode: 0o644}}
+	fsys := fsx.MemoryFS{"a.gz": {Data: []byte{0x1f, 0x8b}, Mode: 0o644}}
 	rt := &coreutils.Runtime{
 		Stdin:   strings.NewReader(""),
 		Stdout:  io.Discard,

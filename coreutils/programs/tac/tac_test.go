@@ -28,8 +28,8 @@ import (
 //	before2.txt: ".__x.___y.____z._1._2.__3.___4"
 //	"-b":        "dash-b\n" (a file named like an option)
 //	sub/inner.txt: "inner\n"
-func testFS() fsx.MemFS {
-	return fsx.MemFS{
+func testFS() fsx.MemoryFS {
+	return fsx.MemoryFS{
 		"a.txt":         {Data: []byte("a\nb\nc\nd\ne\n")},
 		"nonl.txt":      {Data: []byte("a\nb\nc")},
 		"empty.txt":     {Data: []byte("")},

@@ -546,7 +546,7 @@ func TestRunInvokeRealUtility(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	rt := coreutils.OsRuntime("")
+	rt := coreutils.SystemRuntime("")
 	out := new(bytes.Buffer)
 	rt.Stdout = out
 	if err := New(rt).Run(t.Context(), "FOO=fromenv", "PATH="+dir, "myutil"); err != nil {
@@ -560,7 +560,7 @@ func TestRunInvokeRealUtility(t *testing.T) {
 func TestRunChdir(t *testing.T) {
 	tests := []struct {
 		name     string
-		fsys     fsx.MemFS
+		fsys     fsx.MemoryFS
 		args     []string
 		wantWd   string
 		wantErr  string
@@ -568,32 +568,32 @@ func TestRunChdir(t *testing.T) {
 	}{
 		{
 			name:   "-C changes the working directory",
-			fsys:   fsx.MemFS{"sub": {Mode: fs.ModeDir | 0o755}},
+			fsys:   fsx.MemoryFS{"sub": {Mode: fs.ModeDir | 0o755}},
 			args:   []string{"-C", "sub", "utility"},
 			wantWd: "sub",
 		},
 		{
 			name:   "--chdir works too",
-			fsys:   fsx.MemFS{"sub": {Mode: fs.ModeDir | 0o755}},
+			fsys:   fsx.MemoryFS{"sub": {Mode: fs.ModeDir | 0o755}},
 			args:   []string{"--chdir=sub", "utility"},
 			wantWd: "sub",
 		},
 		{
 			name:   "-C resolves a nested directory",
-			fsys:   fsx.MemFS{"a/b": {Mode: fs.ModeDir | 0o755}},
+			fsys:   fsx.MemoryFS{"a/b": {Mode: fs.ModeDir | 0o755}},
 			args:   []string{"-C", "a/b"},
 			wantWd: "a/b",
 		},
 		{
 			name:     "a missing directory fails",
-			fsys:     fsx.MemFS{},
+			fsys:     fsx.MemoryFS{},
 			args:     []string{"-C", "nope", "utility"},
 			wantErr:  "env: cannot change directory to nope: file does not exist\n",
 			wantCode: 125,
 		},
 		{
 			name:     "a file is not a directory",
-			fsys:     fsx.MemFS{"f": {}},
+			fsys:     fsx.MemoryFS{"f": {}},
 			args:     []string{"-C", "f"},
 			wantErr:  "env: cannot change directory to f: not a directory\n",
 			wantCode: 125,

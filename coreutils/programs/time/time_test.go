@@ -1049,7 +1049,7 @@ func TestOutputFile(t *testing.T) {
 	// are the three POSIX lines.
 	stats := "real 2.00\nuser 0.00\nsys 0.00\n"
 
-	run := func(t *testing.T, fsys fsx.MemFS, dir string, args ...string) *coreutils.Runtime {
+	run := func(t *testing.T, fsys fsx.MemoryFS, dir string, args ...string) *coreutils.Runtime {
 		t.Helper()
 		start := time.Date(2024, 6, 1, 12, 0, 0, 0, time.UTC)
 		clock := &fakeClock{times: []time.Time{start, start.Add(2 * time.Second)}}
@@ -1065,7 +1065,7 @@ func TestOutputFile(t *testing.T) {
 	}
 
 	t.Run("the statistics are written to the file", func(t *testing.T) {
-		fsys := fsx.MemFS{}
+		fsys := fsx.MemoryFS{}
 		rt := run(t, fsys, "", "-o", "out.txt", "true")
 
 		f := fsys["out.txt"]
@@ -1081,7 +1081,7 @@ func TestOutputFile(t *testing.T) {
 	})
 
 	t.Run("the file is overwritten by default", func(t *testing.T) {
-		fsys := fsx.MemFS{"out.txt": {Data: []byte("old\n")}}
+		fsys := fsx.MemoryFS{"out.txt": {Data: []byte("old\n")}}
 		run(t, fsys, "", "-o", "out.txt", "true")
 
 		if got, want := string(fsys["out.txt"].Data), stats; got != want {
@@ -1090,7 +1090,7 @@ func TestOutputFile(t *testing.T) {
 	})
 
 	t.Run("the -a option appends", func(t *testing.T) {
-		fsys := fsx.MemFS{"out.txt": {Data: []byte("old\n")}}
+		fsys := fsx.MemoryFS{"out.txt": {Data: []byte("old\n")}}
 		run(t, fsys, "", "-o", "out.txt", "-a", "true")
 
 		if got, want := string(fsys["out.txt"].Data), "old\n"+stats; got != want {
@@ -1099,7 +1099,7 @@ func TestOutputFile(t *testing.T) {
 	})
 
 	t.Run("the -a option alone is a no-op", func(t *testing.T) {
-		rt := run(t, fsx.MemFS{}, "", "-a", "true")
+		rt := run(t, fsx.MemoryFS{}, "", "-a", "true")
 
 		if got, want := stderr(t, rt), stats; got != want {
 			t.Errorf("Run() stderr = %q, want %q", got, want)
@@ -1107,7 +1107,7 @@ func TestOutputFile(t *testing.T) {
 	})
 
 	t.Run("the file is relative to the working directory", func(t *testing.T) {
-		fsys := fsx.MemFS{"work": {Mode: fs.ModeDir | 0o755}}
+		fsys := fsx.MemoryFS{"work": {Mode: fs.ModeDir | 0o755}}
 		run(t, fsys, "work", "--output=out.txt", "true")
 
 		f := fsys["work/out.txt"]
@@ -1120,7 +1120,7 @@ func TestOutputFile(t *testing.T) {
 	})
 
 	t.Run("the --output-file spelling is accepted", func(t *testing.T) {
-		fsys := fsx.MemFS{}
+		fsys := fsx.MemoryFS{}
 		run(t, fsys, "", "--output-file=out.txt", "true")
 
 		if fsys["out.txt"] == nil {
@@ -1135,7 +1135,7 @@ func TestOutputFile(t *testing.T) {
 				clock := &fakeClock{times: []time.Time{start, start.Add(2 * time.Second)}}
 				rec := &execRecord{}
 				rt := newRuntime(clock, rec, nil)
-				rt.FS = fsx.MemFS{}
+				rt.FS = fsx.MemoryFS{}
 
 				err := New(rt).Run(t.Context(), append(args, "true")...)
 
@@ -1157,7 +1157,7 @@ func TestOutputFile(t *testing.T) {
 		clock := &fakeClock{times: []time.Time{start, start.Add(2 * time.Second)}}
 		rec := &execRecord{}
 		rt := newRuntime(clock, rec, nil)
-		rt.FS = fsx.MemFS{}
+		rt.FS = fsx.MemoryFS{}
 
 		err := New(rt).Run(t.Context(), "-o", "no/out.txt", "true")
 

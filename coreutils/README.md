@@ -27,7 +27,7 @@ task bin
 
 ## Example
 
-`OsRuntime` wires utilities to the operating system, including the standard
+`SystemRuntime` wires utilities to the operating system, including the standard
 streams, environment and file system. An empty directory argument uses the
 current working directory of the process:
 
@@ -46,7 +46,7 @@ import (
 func main() {
     const workingDir = "" // empty means current
 
-    rt := coreutils.OsRuntime(workingDir)
+    rt := coreutils.SystemRuntime(workingDir)
     ctx := context.Background()
 
     if err := cp.New(rt).Run(ctx, "input.txt", "copy.txt"); err != nil {
@@ -59,7 +59,7 @@ func main() {
 ```
 
 For custom or in-memory execution, instantiate a `Runtime` directly, setting
-`FS` to an [`fsx.MemFS`](/fsx/README.md) and providing any desired standard
+`FS` to an [`fsx.MemoryFS`](/fsx/README.md) and providing any desired standard
 streams, working directory or environment. Utilities use the state in their
 runtime, so no process-wide changes are needed.
 

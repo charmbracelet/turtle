@@ -17,8 +17,8 @@ import (
 //	empty.txt:     ""
 //	nonl.txt:      "x1\nx2" (no trailing newline)
 //	sub/inner.txt: "inner\n"
-func testFS() fsx.MemFS {
-	return fsx.MemFS{
+func testFS() fsx.MemoryFS {
+	return fsx.MemoryFS{
 		"a.txt":         {Data: []byte("a1\na2\na3\n")},
 		"b.txt":         {Data: []byte("b1\nb2\n")},
 		"c.txt":         {Data: []byte("c1\nc2\nc3\nc4\n")},
@@ -252,13 +252,13 @@ func TestRunZeroTerminated(t *testing.T) {
 	tests := []testutil.Case{
 		{
 			Name: "a single file is copied item by item",
-			FS:   fsx.MemFS{"n.txt": {Data: []byte("n1\x00n2\x00")}},
+			FS:   fsx.MemoryFS{"n.txt": {Data: []byte("n1\x00n2\x00")}},
 			Args: []string{"-z", "n.txt"},
 			Want: "n1\x00n2\x00",
 		},
 		{
 			Name: "two files of the same length",
-			FS: fsx.MemFS{
+			FS: fsx.MemoryFS{
 				"x.txt": {Data: []byte("x1\x00x2\x00")},
 				"y.txt": {Data: []byte("y1\x00y2\x00")},
 			},
@@ -267,7 +267,7 @@ func TestRunZeroTerminated(t *testing.T) {
 		},
 		{
 			Name: "an exhausted file contributes empty items",
-			FS: fsx.MemFS{
+			FS: fsx.MemoryFS{
 				"x.txt": {Data: []byte("x1\x00x2\x00")},
 				"y.txt": {Data: []byte("y1\x00")},
 			},
@@ -276,19 +276,19 @@ func TestRunZeroTerminated(t *testing.T) {
 		},
 		{
 			Name: "a missing final NUL is added",
-			FS:   fsx.MemFS{"n.txt": {Data: []byte("n1\x00n2")}},
+			FS:   fsx.MemoryFS{"n.txt": {Data: []byte("n1\x00n2")}},
 			Args: []string{"-z", "n.txt"},
 			Want: "n1\x00n2\x00",
 		},
 		{
 			Name: "newlines are kept inside items",
-			FS:   fsx.MemFS{"n.txt": {Data: []byte("n1\nn2\x00n3\x00")}},
+			FS:   fsx.MemoryFS{"n.txt": {Data: []byte("n1\nn2\x00n3\x00")}},
 			Args: []string{"-z", "n.txt"},
 			Want: "n1\nn2\x00n3\x00",
 		},
 		{
 			Name: "a custom delimiter",
-			FS: fsx.MemFS{
+			FS: fsx.MemoryFS{
 				"x.txt": {Data: []byte("x1\x00x2\x00")},
 				"y.txt": {Data: []byte("y1\x00")},
 			},
@@ -297,13 +297,13 @@ func TestRunZeroTerminated(t *testing.T) {
 		},
 		{
 			Name: "serial mode",
-			FS:   fsx.MemFS{"n.txt": {Data: []byte("n1\x00n2\x00n3\x00")}},
+			FS:   fsx.MemoryFS{"n.txt": {Data: []byte("n1\x00n2\x00n3\x00")}},
 			Args: []string{"-s", "-z", "n.txt"},
 			Want: "n1\tn2\tn3\x00",
 		},
 		{
 			Name: "serial mode with a missing final NUL",
-			FS:   fsx.MemFS{"n.txt": {Data: []byte("n1\x00n2")}},
+			FS:   fsx.MemoryFS{"n.txt": {Data: []byte("n1\x00n2")}},
 			Args: []string{"-s", "-z", "n.txt"},
 			Want: "n1\tn2\x00",
 		},
@@ -321,7 +321,7 @@ func TestRunZeroTerminated(t *testing.T) {
 		},
 		{
 			Name: "an empty file produces no output",
-			FS:   fsx.MemFS{"n.txt": {Data: []byte("")}},
+			FS:   fsx.MemoryFS{"n.txt": {Data: []byte("")}},
 			Args: []string{"-z", "n.txt"},
 			Want: "",
 		},
@@ -401,7 +401,7 @@ func TestRunErrors(t *testing.T) {
 		},
 		{
 			Name:     "directory operand",
-			FS:       fsx.MemFS{"dir": {Mode: fs.ModeDir}},
+			FS:       fsx.MemoryFS{"dir": {Mode: fs.ModeDir}},
 			Args:     []string{"dir"},
 			WantErr:  "paste: dir: invalid argument\n",
 			WantExit: 1,
@@ -489,7 +489,7 @@ func TestRunLongOptions(t *testing.T) {
 		},
 		{
 			Name: "zero-terminated",
-			FS:   fsx.MemFS{"n.txt": {Data: []byte("n1\x00n2\x00")}},
+			FS:   fsx.MemoryFS{"n.txt": {Data: []byte("n1\x00n2\x00")}},
 			Args: []string{"--zero-terminated", "n.txt"},
 			Want: "n1\x00n2\x00",
 		},

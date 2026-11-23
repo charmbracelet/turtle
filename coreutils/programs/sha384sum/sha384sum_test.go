@@ -19,9 +19,9 @@ const helloDigest = "1d0f284efe3edea4b9ca3bd514fa134b17eae361ccc7a1eefeff801b9bd
 //	hello.txt: "hello\n"
 //	sums.txt:  a checksum file holding the digest of hello.txt
 //	bad.txt:   a checksum file holding a digest which doesn't match
-func testFS() fsx.MemFS {
+func testFS() fsx.MemoryFS {
 	bad := strings.Repeat("0", len(helloDigest))
-	return fsx.MemFS{
+	return fsx.MemoryFS{
 		"hello.txt": {Data: []byte("hello\n")},
 		"sums.txt":  {Data: []byte(helloDigest + "  hello.txt\n")},
 		"bad.txt":   {Data: []byte(bad + "  hello.txt\n")},

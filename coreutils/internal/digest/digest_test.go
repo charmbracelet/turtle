@@ -55,9 +55,9 @@ const (
 //	cr\rname.txt:    "hello\n"
 //	back\slash.txt:  "hello\n"
 //	a)b.txt:         "hello\n"
-func testFS() fsx.MemFS {
+func testFS() fsx.MemoryFS {
 	hello := []byte("hello\n")
-	return fsx.MemFS{
+	return fsx.MemoryFS{
 		"hello.txt":      {Data: hello},
 		"empty.txt":      {Data: []byte("")},
 		"foo.txt":        {Data: []byte("foo\nbar\n")},

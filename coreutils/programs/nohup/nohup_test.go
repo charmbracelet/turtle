@@ -37,7 +37,7 @@ func (r *execRecord) exec(ctx context.Context, opts coreutils.ExecOpts) (int, er
 // terminal file descriptors of tty and the environment environ. The file
 // system is set only when fsys is not nil, so the runs without one are
 // covered too.
-func newRuntime(rec *execRecord, fsys fsx.MemFS, tty map[int]bool, environ []string) *coreutils.Runtime {
+func newRuntime(rec *execRecord, fsys fsx.MemoryFS, tty map[int]bool, environ []string) *coreutils.Runtime {
 	rt := &coreutils.Runtime{
 		Stdout:     new(bytes.Buffer),
 		Stderr:     new(bytes.Buffer),
@@ -92,7 +92,7 @@ func stderr(t *testing.T, rt *coreutils.Runtime) string {
 func TestRunInvoke(t *testing.T) {
 	t.Run("the utility and its arguments are passed", func(t *testing.T) {
 		rec := &execRecord{}
-		rt := newRuntime(rec, fsx.MemFS{}, nil, nil)
+		rt := newRuntime(rec, fsx.MemoryFS{}, nil, nil)
 
 		if err := New(rt).Run(t.Context(), "echo", "-n", "a", "b"); err != nil {
 			t.Fatalf("Run() error = %v, want nil (exit status 0)", err)
@@ -114,7 +114,7 @@ func TestRunInvoke(t *testing.T) {
 	t.Run("the environment of the runtime is passed", func(t *testing.T) {
 		rec := &execRecord{}
 		environ := []string{"PATH=/bin", "FOO=bar"}
-		rt := newRuntime(rec, fsx.MemFS{}, nil, environ)
+		rt := newRuntime(rec, fsx.MemoryFS{}, nil, environ)
 
 		if err := New(rt).Run(t.Context(), "true"); err != nil {
 			t.Fatalf("Run() error = %v, want nil (exit status 0)", err)
@@ -126,7 +126,7 @@ func TestRunInvoke(t *testing.T) {
 
 	t.Run("the exit status of the utility becomes the exit status of nohup", func(t *testing.T) {
 		rec := &execRecord{status: 3}
-		rt := newRuntime(rec, fsx.MemFS{}, nil, nil)
+		rt := newRuntime(rec, fsx.MemoryFS{}, nil, nil)
 
 		err := New(rt).Run(t.Context(), "false")
 		if code := testutil.ExitCode(t, err); code != 3 {
@@ -136,7 +136,7 @@ func TestRunInvoke(t *testing.T) {
 
 	t.Run("double dash makes an option-like utility be invoked", func(t *testing.T) {
 		rec := &execRecord{}
-		rt := newRuntime(rec, fsx.MemFS{}, nil, nil)
+		rt := newRuntime(rec, fsx.MemoryFS{}, nil, nil)
 
 		if err := New(rt).Run(t.Context(), "--", "-x"); err != nil {
 			t.Fatalf("Run() error = %v, want nil (exit status 0)", err)
@@ -155,7 +155,7 @@ func TestRedirect(t *testing.T) {
 	// "out\n" to the streams the utility was given, reporting the runtime
 	// and the execution record. When both is set, the utility writes to its
 	// standard error as well.
-	run := func(t *testing.T, fsys fsx.MemFS, tty map[int]bool, both bool, environ []string, args ...string) (*coreutils.Runtime, *execRecord) {
+	run := func(t *testing.T, fsys fsx.MemoryFS, tty map[int]bool, both bool, environ []string, args ...string) (*coreutils.Runtime, *execRecord) {
 		t.Helper()
 		rec := &execRecord{}
 		rt := newRuntime(rec, fsys, tty, environ)
@@ -167,7 +167,7 @@ func TestRedirect(t *testing.T) {
 	}
 
 	t.Run("no terminal stream is redirected", func(t *testing.T) {
-		rt, rec := run(t, fsx.MemFS{}, nil, false, nil, "true")
+		rt, rec := run(t, fsx.MemoryFS{}, nil, false, nil, "true")
 
 		if rec.opts.Stdout != nil {
 			t.Errorf("executed with a standard output of %v, want the runtime stream", rec.opts.Stdout)
@@ -184,7 +184,7 @@ func TestRedirect(t *testing.T) {
 	})
 
 	t.Run("a terminal standard output is appended to nohup.out", func(t *testing.T) {
-		fsys := fsx.MemFS{}
+		fsys := fsx.MemoryFS{}
 		rt, rec := run(t, fsys, map[int]bool{1: true}, false, nil, "true")
 
 		if rec.opts.Stdout == nil {
@@ -205,7 +205,7 @@ func TestRedirect(t *testing.T) {
 	})
 
 	t.Run("the file is created readable and writable only by its owner", func(t *testing.T) {
-		fsys := fsx.MemFS{}
+		fsys := fsx.MemoryFS{}
 		run(t, fsys, map[int]bool{1: true}, false, nil, "true")
 
 		if got, want := fsys["nohup.out"].Mode.Perm(), fs.FileMode(0o600); got != want {
@@ -214,7 +214,7 @@ func TestRedirect(t *testing.T) {
 	})
 
 	t.Run("the output is appended to an existing nohup.out", func(t *testing.T) {
-		fsys := fsx.MemFS{"nohup.out": {Data: []byte("old\n"), Mode: 0o644}}
+		fsys := fsx.MemoryFS{"nohup.out": {Data: []byte("old\n"), Mode: 0o644}}
 		run(t, fsys, map[int]bool{1: true}, false, nil, "true")
 
 		if got, want := string(fsys["nohup.out"].Data), "old\nout\n"; got != want {
@@ -223,7 +223,7 @@ func TestRedirect(t *testing.T) {
 	})
 
 	t.Run("two runs keep appending to nohup.out", func(t *testing.T) {
-		fsys := fsx.MemFS{}
+		fsys := fsx.MemoryFS{}
 		rec := &execRecord{}
 		rt := newRuntime(rec, fsys, map[int]bool{1: true}, nil)
 		rec.reply = writeReply(rt, "out\n", false)
@@ -239,7 +239,7 @@ func TestRedirect(t *testing.T) {
 	})
 
 	t.Run("a terminal standard error goes to the same file", func(t *testing.T) {
-		fsys := fsx.MemFS{}
+		fsys := fsx.MemoryFS{}
 		rt, rec := run(t, fsys, map[int]bool{1: true, 2: true}, true, nil, "true")
 
 		if rec.opts.Stdout == nil || rec.opts.Stderr == nil {
@@ -258,7 +258,7 @@ func TestRedirect(t *testing.T) {
 	})
 
 	t.Run("a terminal standard input is announced as ignored", func(t *testing.T) {
-		fsys := fsx.MemFS{}
+		fsys := fsx.MemoryFS{}
 		rt, rec := run(t, fsys, map[int]bool{0: true, 1: true}, false, nil, "true")
 
 		if rec.opts.Stdout == nil {
@@ -270,7 +270,7 @@ func TestRedirect(t *testing.T) {
 	})
 
 	t.Run("an ignored input alone is announced", func(t *testing.T) {
-		rt, rec := run(t, fsx.MemFS{}, map[int]bool{0: true}, false, nil, "true")
+		rt, rec := run(t, fsx.MemoryFS{}, map[int]bool{0: true}, false, nil, "true")
 
 		if rec.opts.Stdout != nil || rec.opts.Stderr != nil {
 			t.Error("executed with redirected streams, want the runtime ones")
@@ -281,7 +281,7 @@ func TestRedirect(t *testing.T) {
 	})
 
 	t.Run("a terminal standard error with a non-terminal output", func(t *testing.T) {
-		fsys := fsx.MemFS{}
+		fsys := fsx.MemoryFS{}
 		rt, rec := run(t, fsys, map[int]bool{2: true}, false, nil, "true")
 
 		if rec.opts.Stdout != nil {
@@ -303,7 +303,7 @@ func TestRedirect(t *testing.T) {
 	})
 
 	t.Run("a terminal standard error with a closed output", func(t *testing.T) {
-		fsys := fsx.MemFS{}
+		fsys := fsx.MemoryFS{}
 		rec := &execRecord{}
 		rt := newRuntime(rec, fsys, map[int]bool{2: true}, nil)
 		rec.reply = writeReply(rt, "out\n", true)
@@ -327,7 +327,7 @@ func TestRedirect(t *testing.T) {
 	})
 
 	t.Run("the output file is closed after the run", func(t *testing.T) {
-		fsys := fsx.MemFS{}
+		fsys := fsx.MemoryFS{}
 		rec := &execRecord{}
 		rt := newRuntime(rec, fsys, map[int]bool{1: true, 2: true}, nil)
 		rec.reply = writeReply(rt, "out\n", true)
@@ -342,7 +342,7 @@ func TestRedirect(t *testing.T) {
 	})
 
 	t.Run("the output file is closed when the execution fails", func(t *testing.T) {
-		fsys := fsx.MemFS{}
+		fsys := fsx.MemoryFS{}
 		rec := &execRecord{status: 127, err: notFoundErr}
 		rt := newRuntime(rec, fsys, map[int]bool{1: true}, nil)
 
@@ -358,7 +358,7 @@ func TestRedirect(t *testing.T) {
 	t.Run("the output file is closed when no execution is available", func(t *testing.T) {
 		// The execution never runs, so the open file can only be taken
 		// from the file system itself.
-		fsys := &recFS{MemFS: fsx.MemFS{}}
+		fsys := &recFS{MemoryFS: fsx.MemoryFS{}}
 		rec := &execRecord{}
 		rt := newRuntime(rec, nil, map[int]bool{1: true}, nil)
 		rt.FS = fsys
@@ -380,13 +380,13 @@ func TestRedirect(t *testing.T) {
 // recFS records the files OpenFile hands out, so a test can tell whether
 // they were closed.
 type recFS struct {
-	fsx.MemFS
+	fsx.MemoryFS
 	files []fsx.File
 }
 
 // OpenFile implements fsx.WriteFS.
 func (m *recFS) OpenFile(name string, flag int, perm fs.FileMode) (fsx.File, error) {
-	f, err := m.MemFS.OpenFile(name, flag, perm)
+	f, err := m.MemoryFS.OpenFile(name, flag, perm)
 	if err == nil {
 		m.files = append(m.files, f)
 	}
@@ -396,8 +396,8 @@ func (m *recFS) OpenFile(name string, flag int, perm fs.FileMode) (fsx.File, err
 func TestFallback(t *testing.T) {
 	// A file system whose working directory cannot hold nohup.out, with a
 	// home directory that can: the runs fall back to $HOME/nohup.out.
-	newFS := func() fsx.MemFS {
-		return fsx.MemFS{"home": {Mode: fs.ModeDir | 0o755}}
+	newFS := func() fsx.MemoryFS {
+		return fsx.MemoryFS{"home": {Mode: fs.ModeDir | 0o755}}
 	}
 	environ := []string{"HOME=home"}
 
@@ -521,7 +521,7 @@ func TestRunFailedExecution(t *testing.T) {
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
 			rec := &execRecord{status: test.status, err: test.err}
-			rt := newRuntime(rec, fsx.MemFS{}, nil, nil)
+			rt := newRuntime(rec, fsx.MemoryFS{}, nil, nil)
 
 			err := New(rt).Run(t.Context(), "missing")
 
@@ -567,7 +567,7 @@ func TestUsageErrors(t *testing.T) {
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
 			rec := &execRecord{}
-			rt := newRuntime(rec, fsx.MemFS{}, nil, nil)
+			rt := newRuntime(rec, fsx.MemoryFS{}, nil, nil)
 
 			err := New(rt).Run(t.Context(), test.args...)
 
@@ -612,7 +612,7 @@ func TestContextCancellation(t *testing.T) {
 		ctx, cancel := context.WithCancel(t.Context())
 		cancel()
 
-		fsys := fsx.MemFS{}
+		fsys := fsx.MemoryFS{}
 		rec := &execRecord{}
 		rt := newRuntime(rec, fsys, map[int]bool{1: true}, nil)
 
@@ -637,7 +637,7 @@ func TestContextCancellation(t *testing.T) {
 		rec := &execRecord{reply: func(context.Context, coreutils.ExecOpts) (int, error) {
 			return 125, errors.New("signal: killed")
 		}}
-		rt := newRuntime(rec, fsx.MemFS{}, nil, nil)
+		rt := newRuntime(rec, fsx.MemoryFS{}, nil, nil)
 
 		if err := New(rt).Run(ctx, "true"); err != context.Canceled {
 			t.Fatalf("Run() error = %v, want the context error itself", err)
@@ -649,7 +649,7 @@ func TestContextCancellation(t *testing.T) {
 }
 
 func TestNoExec(t *testing.T) {
-	rt := newRuntime(nil, fsx.MemFS{}, nil, nil)
+	rt := newRuntime(nil, fsx.MemoryFS{}, nil, nil)
 
 	err := New(rt).Run(t.Context(), "true")
 

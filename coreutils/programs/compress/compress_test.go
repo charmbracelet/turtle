@@ -13,15 +13,15 @@ import (
 )
 
 // testFS holds the fixtures used by the tests.
-func testFS() fsx.MemFS {
-	return fsx.MemFS{
+func testFS() fsx.MemoryFS {
+	return fsx.MemoryFS{
 		"a.txt": {Data: []byte(strings.Repeat("alpha ", 30)), Mode: 0o644},
 		"b.txt": {Data: []byte("beta\n"), Mode: 0o644},
 	}
 }
 
 // run executes the program built by new against the given arguments.
-func run(t *testing.T, new coreutils.NewFunc, fsys fsx.MemFS, args ...string) (int, string, string, fsx.MemFS) {
+func run(t *testing.T, new coreutils.NewFunc, fsys fsx.MemoryFS, args ...string) (int, string, string, fsx.MemoryFS) {
 	t.Helper()
 
 	var stdout, stderr strings.Builder
@@ -102,7 +102,7 @@ func TestCompressLZWDeferred(t *testing.T) {
 			newFunc, fsys := New, testFS()
 			if test.mode == "uncompress" {
 				newFunc = Uncompress
-				fsys = fsx.MemFS{"a.txt.Z": {Data: []byte{0x1f, 0x9d, 0x48, 0x00}, Mode: 0o644}}
+				fsys = fsx.MemoryFS{"a.txt.Z": {Data: []byte{0x1f, 0x9d, 0x48, 0x00}, Mode: 0o644}}
 			}
 			code, _, stderr, _ := run(t, newFunc, fsys, test.args...)
 			if code != test.wantCode {
@@ -140,7 +140,7 @@ func TestUncompressGzip(t *testing.T) {
 		}
 		for _, test := range tests {
 			t.Run(test.name, func(t *testing.T) {
-				fsys := fsx.MemFS{test.in: {Data: gzipData(t, strings.Repeat("alpha ", 30)), Mode: 0o644}}
+				fsys := fsx.MemoryFS{test.in: {Data: gzipData(t, strings.Repeat("alpha ", 30)), Mode: 0o644}}
 				code, _, stderr, fsys := run(t, Uncompress, fsys, test.in)
 				if code != 0 {
 					t.Errorf("exit = %d, want 0 (%s)", code, stderr)
@@ -158,7 +158,7 @@ func TestUncompressGzip(t *testing.T) {
 	})
 
 	t.Run("-c restores to stdout and keeps the input", func(t *testing.T) {
-		fsys := fsx.MemFS{"a.txt.gz": {Data: []byte("plain"), Mode: 0o644}}
+		fsys := fsx.MemoryFS{"a.txt.gz": {Data: []byte("plain"), Mode: 0o644}}
 
 		code, stdout, stderr, fsys := run(t, Uncompress, fsys, "-c", "a.txt.gz")
 
@@ -183,7 +183,7 @@ func TestCompressOptions(t *testing.T) {
 	})
 
 	t.Run("-d is equivalent to uncompress", func(t *testing.T) {
-		fsys := fsx.MemFS{"a.txt.gz": {Data: gzipData(t, strings.Repeat("alpha ", 30)), Mode: 0o644}}
+		fsys := fsx.MemoryFS{"a.txt.gz": {Data: gzipData(t, strings.Repeat("alpha ", 30)), Mode: 0o644}}
 		code, _, stderr, fsys := run(t, New, fsys, "-d", "a.txt.gz")
 
 		if code != 0 {
@@ -195,7 +195,7 @@ func TestCompressOptions(t *testing.T) {
 	})
 
 	t.Run("-g on tiny files returns POSIX status 2 and keeps input", func(t *testing.T) {
-		fsys := fsx.MemFS{"tiny.txt": {Data: []byte("x"), Mode: 0o644}}
+		fsys := fsx.MemoryFS{"tiny.txt": {Data: []byte("x"), Mode: 0o644}}
 		code, _, stderr, fsys := run(t, New, fsys, "-g", "tiny.txt")
 		if code != 2 {
 			t.Errorf("exit = %d, want 2 (%s)", code, stderr)
@@ -209,7 +209,7 @@ func TestCompressOptions(t *testing.T) {
 	})
 
 	t.Run("a suffixed operand is still compressed", func(t *testing.T) {
-		fsys := fsx.MemFS{"a.txt.gz": {Data: []byte(strings.Repeat("alpha ", 30)), Mode: 0o644}}
+		fsys := fsx.MemoryFS{"a.txt.gz": {Data: []byte(strings.Repeat("alpha ", 30)), Mode: 0o644}}
 		code, _, stderr, fsys := run(t, New, fsys, "-g", "a.txt.gz")
 
 		if code != 0 {
@@ -366,7 +366,7 @@ func gzipData(t *testing.T, data string) []byte {
 		Stdin:   strings.NewReader(data),
 		Stdout:  &stdout,
 		Stderr:  io.Discard,
-		FS:      fsx.MemFS{},
+		FS:      fsx.MemoryFS{},
 		Environ: func() []string { return nil },
 	}
 	if err := gzip.New(rt).Run(t.Context(), "-c"); err != nil {

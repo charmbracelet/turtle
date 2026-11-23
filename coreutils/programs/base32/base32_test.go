@@ -21,8 +21,8 @@ import (
 //	garbage.txt: "NBSW Y3DP"
 //	"-d":        "x"
 //	sub/inner.txt: "inner\n"
-func testFS() fsx.MemFS {
-	return fsx.MemFS{
+func testFS() fsx.MemoryFS {
+	return fsx.MemoryFS{
 		"hello.txt":     {Data: []byte("hello")},
 		"empty.txt":     {Data: []byte("")},
 		"lines.txt":     {Data: []byte("NBSWY3DP\nMZXW6YTBOI======\n")},

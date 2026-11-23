@@ -15,7 +15,7 @@ import (
 
 // files holds the fixtures used by the tests, with the checksums the
 // algorithm of the specification gives for them.
-var files = fsx.MemFS{
+var files = fsx.MemoryFS{
 	"abc.txt":   {Data: []byte("abc")},
 	"empty.txt": {Data: []byte("")},
 	"hello.txt": {Data: []byte("hello")},
@@ -251,7 +251,7 @@ func TestRunDigestOptions(t *testing.T) {
 	testutil.Run(t, New, tests)
 
 	t.Run("a name holding a line break is escaped", func(t *testing.T) {
-		fsys := fsx.MemFS{"a\nb.txt": {Data: []byte("abc")}}
+		fsys := fsx.MemoryFS{"a\nb.txt": {Data: []byte("abc")}}
 		testutil.Once(t, New, testutil.Case{
 			FS:   fsys,
 			Args: []string{"-a", "md5", "a\nb.txt"},
@@ -400,7 +400,7 @@ func TestRunIOErrors(t *testing.T) {
 // failFS opens files whose reads always fail, recording when they are
 // closed.
 type failFS struct {
-	fsx.MemFS
+	fsx.MemoryFS
 	closed bool
 }
 

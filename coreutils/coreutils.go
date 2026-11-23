@@ -87,11 +87,11 @@ type Runtime struct {
 	ExecUsage ExecUsageFunc
 }
 
-// OsRuntime returns a Runtime wired to the real operating system, using
+// SystemRuntime returns a Runtime wired to the real operating system, using
 // workingDir as the working directory. An empty workingDir means the current
 // working directory, which is left empty when it can't be determined. A
 // relative workingDir is made absolute when possible.
-func OsRuntime(workingDir string) *Runtime {
+func SystemRuntime(workingDir string) *Runtime {
 	wd := workingDir
 	if wd == "" {
 		var err error
@@ -106,7 +106,7 @@ func OsRuntime(workingDir string) *Runtime {
 		Stdin:      os.Stdin,
 		Stdout:     os.Stdout,
 		Stderr:     os.Stderr,
-		FS:         fsx.OsFS(""),
+		FS:         fsx.SystemFS(""),
 		WorkingDir: wd,
 		Environ:    os.Environ,
 		Clock:      time.Now,

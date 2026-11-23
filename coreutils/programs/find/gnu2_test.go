@@ -17,13 +17,13 @@ import (
 
 func TestRunPrintf(t *testing.T) {
 	mtime := time.Date(2025, 12, 31, 13, 14, 15, 123456789, time.UTC)
-	files := fsx.MemFS{
+	files := fsx.MemoryFS{
 		"dir/a": {Data: []byte("hello"), Mode: 0o644, ModTime: mtime, Uid: 424242, Gid: 424243},
 	}
 	tests := []struct {
 		name     string
 		args     []string
-		files    fsx.MemFS
+		files    fsx.MemoryFS
 		want     string
 		wantErr  string
 		wantCode int
@@ -71,7 +71,7 @@ func TestRunPrintf(t *testing.T) {
 		{
 			name: "the mode with special bits",
 			args: []string{"dir/a", "-printf", "%m %#m\n"},
-			files: fsx.MemFS{
+			files: fsx.MemoryFS{
 				"dir/a": {Mode: 0o755 | fs.ModeSetuid},
 			},
 			want: "4755 04755\n",
@@ -79,7 +79,7 @@ func TestRunPrintf(t *testing.T) {
 		{
 			name: "the mode with the sticky bit",
 			args: []string{"dir/a", "-printf", "%m %#m\n"},
-			files: fsx.MemFS{
+			files: fsx.MemoryFS{
 				"dir/a": {Mode: 0o644 | fs.ModeSticky},
 			},
 			want: "1644 01644\n",
@@ -220,13 +220,13 @@ func TestRunPrintf(t *testing.T) {
 		{
 			name:  "the whole path with a dot starting point",
 			args:  []string{".", "-printf", "%p %P\n"},
-			files: fsx.MemFS{"dir/a": {ModTime: mtime}},
+			files: fsx.MemoryFS{"dir/a": {ModTime: mtime}},
 			want:  ". \n./dir dir\n./dir/a dir/a\n",
 		},
 	}
 	// The link tests need a symbolic link, and a memory file system is a
 	// map the helper mutates, so every test takes a fresh copy of it.
-	withLink := func() fsx.MemFS {
+	withLink := func() fsx.MemoryFS {
 		return symlinkFS(t, "ln", "dir/a", copyFiles(files))
 	}
 	for _, test := range tests {
@@ -248,20 +248,20 @@ func TestRunPrintf(t *testing.T) {
 }
 
 // copyFiles returns a copy of a memory file system.
-func copyFiles(files fsx.MemFS) fsx.MemFS {
-	c := fsx.MemFS{}
+func copyFiles(files fsx.MemoryFS) fsx.MemoryFS {
+	c := fsx.MemoryFS{}
 	maps.Copy(c, files)
 	return c
 }
 
 func TestRunPrintfMissingArgument(t *testing.T) {
-	runTest(t, []string{".", "-printf"}, fsx.MemFS{}, nil, nil, "",
+	runTest(t, []string{".", "-printf"}, fsx.MemoryFS{}, nil, nil, "",
 		"find: missing argument to '-printf'\nTry 'find --help' for more information.\n", 1)
 }
 
 func TestRunLS(t *testing.T) {
 	mtime := time.Date(2025, 12, 31, 13, 14, 15, 0, time.UTC)
-	files := fsx.MemFS{
+	files := fsx.MemoryFS{
 		"dir/a": {Data: []byte("hello"), Mode: 0o644, ModTime: mtime, Uid: 424242, Gid: 424243},
 	}
 	want := fmt.Sprintf("%7d %6d %s %3d %-8s %-8s %8s %s %s\n",
@@ -271,7 +271,7 @@ func TestRunLS(t *testing.T) {
 
 func TestRunLSSymlink(t *testing.T) {
 	mtime := time.Date(2025, 12, 31, 13, 14, 15, 0, time.UTC)
-	files := symlinkFS(t, "ln", "dir/a", fsx.MemFS{
+	files := symlinkFS(t, "ln", "dir/a", fsx.MemoryFS{
 		"dir/a": {Data: []byte("hello"), Mode: 0o644, ModTime: mtime, Uid: 424242, Gid: 424243},
 	})
 	files["ln"].Uid = 424242
@@ -286,13 +286,13 @@ func TestRunIgnoreReaddirRace(t *testing.T) {
 	// The options take effect immediately, wherever they sit in the
 	// expression, so even the error of a missing starting point is
 	// suppressed.
-	runTest(t, []string{"missing", "-ignore_readdir_race", "-print"}, fsx.MemFS{}, nil, nil, "", "", 0)
-	runTest(t, []string{"missing", "-print"}, fsx.MemFS{}, nil, nil, "",
+	runTest(t, []string{"missing", "-ignore_readdir_race", "-print"}, fsx.MemoryFS{}, nil, nil, "", "", 0)
+	runTest(t, []string{"missing", "-print"}, fsx.MemoryFS{}, nil, nil, "",
 		"find: 'missing': file does not exist\n", 1)
 }
 
 func TestRunLSQuotes(t *testing.T) {
-	files := fsx.MemFS{"a b\tc": {}}
+	files := fsx.MemoryFS{"a b\tc": {}}
 	stderr := new(bytes.Buffer)
 	runtime := &coreutils.Runtime{
 		Stdout: io.Discard,
@@ -308,7 +308,7 @@ func TestRunLSQuotes(t *testing.T) {
 
 func TestRunFprintFamily(t *testing.T) {
 	t.Run("fprint writes to a file", func(t *testing.T) {
-		files := fsx.MemFS{"a": {}, "out": {Data: []byte("old")}}
+		files := fsx.MemoryFS{"a": {}, "out": {Data: []byte("old")}}
 		runTest(t, []string{".", "-name", "a", "-fprint", "out"}, files, nil, nil, "", "", 0)
 		if got, want := string(files["out"].Data), "./a\n"; got != want {
 			t.Errorf("out = %q, want %q", got, want)
@@ -316,7 +316,7 @@ func TestRunFprintFamily(t *testing.T) {
 	})
 
 	t.Run("fprint applies the umask", func(t *testing.T) {
-		files := fsx.MemFS{"a": {}}
+		files := fsx.MemoryFS{"a": {}}
 		runtime := &coreutils.Runtime{
 			Stdout: new(bytes.Buffer),
 			Stderr: new(bytes.Buffer),
@@ -333,7 +333,7 @@ func TestRunFprintFamily(t *testing.T) {
 	})
 
 	t.Run("fprint0 writes null bytes", func(t *testing.T) {
-		files := fsx.MemFS{"a": {}}
+		files := fsx.MemoryFS{"a": {}}
 		runTest(t, []string{".", "-name", "a", "-fprint0", "out"}, files, nil, nil, "", "", 0)
 		if got, want := string(files["out"].Data), "./a\x00"; got != want {
 			t.Errorf("out = %q, want %q", got, want)
@@ -341,7 +341,7 @@ func TestRunFprintFamily(t *testing.T) {
 	})
 
 	t.Run("fprintf takes a format", func(t *testing.T) {
-		files := fsx.MemFS{"a": {}}
+		files := fsx.MemoryFS{"a": {}}
 		runTest(t, []string{".", "-name", "a", "-fprintf", "out", "%f:%y\n"}, files, nil, nil, "", "", 0)
 		if got, want := string(files["out"].Data), "a:f\n"; got != want {
 			t.Errorf("out = %q, want %q", got, want)
@@ -349,7 +349,7 @@ func TestRunFprintFamily(t *testing.T) {
 	})
 
 	t.Run("fls writes a listing", func(t *testing.T) {
-		files := fsx.MemFS{"a": {}}
+		files := fsx.MemoryFS{"a": {}}
 		runTest(t, []string{".", "-name", "a", "-fls", "out"}, files, nil, nil, "", "", 0)
 		if got := string(files["out"].Data); !strings.HasSuffix(got, "/a\n") {
 			t.Errorf("out = %q, want a listing ending in '/a\\n'", got)
@@ -357,25 +357,25 @@ func TestRunFprintFamily(t *testing.T) {
 	})
 
 	t.Run("the standard output and error names are special", func(t *testing.T) {
-		files := fsx.MemFS{"a": {}}
+		files := fsx.MemoryFS{"a": {}}
 		runTest(t, []string{".", "-name", "a", "-fprint", "/dev/stdout"}, files, nil, nil, "./a\n", "", 0)
 	})
 
 	t.Run("an output file that can't be opened", func(t *testing.T) {
-		files := fsx.MemFS{"a": {}, "d/x": {}}
+		files := fsx.MemoryFS{"a": {}, "d/x": {}}
 		runTest(t, []string{".", "-name", "a", "-fprint", "d"}, files, nil, nil, "",
 			"find: cannot open 'd' for writing: invalid argument\n", 1)
 	})
 
 	t.Run("missing argument", func(t *testing.T) {
-		runTest(t, []string{".", "-fprint"}, fsx.MemFS{}, nil, nil, "",
+		runTest(t, []string{".", "-fprint"}, fsx.MemoryFS{}, nil, nil, "",
 			"find: missing argument to '-fprint'\nTry 'find --help' for more information.\n", 1)
 	})
 }
 
 func TestRunDelete(t *testing.T) {
 	t.Run("the named files are removed", func(t *testing.T) {
-		files := fsx.MemFS{"d/a": {}, "d/sub/b": {}, "keep": {}}
+		files := fsx.MemoryFS{"d/a": {}, "d/sub/b": {}, "keep": {}}
 		runTest(t, []string{"d", "-name", "a", "-delete"}, files, nil, nil, "", "", 0)
 		if _, ok := files["d/a"]; ok {
 			t.Errorf("d/a was not deleted")
@@ -386,7 +386,7 @@ func TestRunDelete(t *testing.T) {
 	})
 
 	t.Run("a directory is deleted after its entries", func(t *testing.T) {
-		files := fsx.MemFS{"d": {Mode: dirMode()}, "d/a": {}}
+		files := fsx.MemoryFS{"d": {Mode: dirMode()}, "d/a": {}}
 		runTest(t, []string{"d", "-delete"}, files, nil, nil, "", "", 0)
 		if len(files) != 0 {
 			t.Errorf("files = %v, want empty", files)
@@ -394,7 +394,7 @@ func TestRunDelete(t *testing.T) {
 	})
 
 	t.Run("a non-empty directory is not removed", func(t *testing.T) {
-		files := fsx.MemFS{"d": {Mode: dirMode()}, "d/y": {Data: []byte("z")}}
+		files := fsx.MemoryFS{"d": {Mode: dirMode()}, "d/y": {Data: []byte("z")}}
 		runTest(t, []string{"d", "-maxdepth", "0", "-delete"}, files, nil, nil, "",
 			"find: cannot delete 'd': directory not empty\n", 1)
 	})
@@ -409,7 +409,7 @@ func TestRunExecdir(t *testing.T) {
 	runtime := &coreutils.Runtime{
 		Stdout: io.Discard,
 		Stderr: io.Discard,
-		FS:     fsx.MemFS{"d/a": {}, "d/b": {}, "d/sub/c": {}},
+		FS:     fsx.MemoryFS{"d/a": {}, "d/b": {}, "d/sub/c": {}},
 		Clock:  func() time.Time { return testNow },
 		Exec: func(_ context.Context, opts coreutils.ExecOpts) (int, error) {
 			invocations = append(invocations, invocation{dir: opts.Dir, args: append([]string{opts.Name}, opts.Args...)})
@@ -440,7 +440,7 @@ func TestRunExecdirAggregating(t *testing.T) {
 	runtime := &coreutils.Runtime{
 		Stdout: io.Discard,
 		Stderr: io.Discard,
-		FS:     fsx.MemFS{"d/a": {}, "d/b": {}, "d/sub/c": {}},
+		FS:     fsx.MemoryFS{"d/a": {}, "d/b": {}, "d/sub/c": {}},
 		Clock:  func() time.Time { return testNow },
 		Exec: func(_ context.Context, opts coreutils.ExecOpts) (int, error) {
 			dirs = append(dirs, opts.Dir)
@@ -469,7 +469,7 @@ func TestRunOkdir(t *testing.T) {
 		Stdin:  strings.NewReader("y\n"),
 		Stdout: new(bytes.Buffer),
 		Stderr: new(bytes.Buffer),
-		FS:     fsx.MemFS{"d/a": {}},
+		FS:     fsx.MemoryFS{"d/a": {}},
 		Clock:  func() time.Time { return testNow },
 		Exec: func(_ context.Context, opts coreutils.ExecOpts) (int, error) {
 			args = append([]string{opts.Name}, opts.Args...)

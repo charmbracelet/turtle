@@ -15,7 +15,7 @@ import (
 // reports is written as it is, even when it's zero: a sparse file uses no
 // blocks, and its count isn't measured by its size.
 func TestBlocksReportedByTheSystem(t *testing.T) {
-	p := &Prog{Runtime: &coreutils.Runtime{FS: fsx.MemFS{}}}
+	p := &Prog{Runtime: &coreutils.Runtime{FS: fsx.MemoryFS{}}}
 	r := &renderer{prog: p, loc: time.UTC, style: quoteShellEscape}
 	tests := []struct {
 		name   string

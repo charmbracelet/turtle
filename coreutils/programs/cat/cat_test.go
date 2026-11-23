@@ -20,8 +20,8 @@ import (
 //	bin.txt:  arbitrary bytes
 //	"-u":     "dash-u\n" (a file named like an option)
 //	sub/inner.txt: "inner\n"
-func testFS() fsx.MemFS {
-	return fsx.MemFS{
+func testFS() fsx.MemoryFS {
+	return fsx.MemoryFS{
 		"a.txt":         {Data: []byte("alpha\n")},
 		"b.txt":         {Data: []byte("beta\n")},
 		"empty.txt":     {Data: []byte("")},
@@ -218,20 +218,20 @@ func TestRunNumber(t *testing.T) {
 		},
 		{
 			Name: "numbering continues across files",
-			FS:   fsx.MemFS{"a": {Data: []byte("a\n")}, "b": {Data: []byte("b\n")}},
+			FS:   fsx.MemoryFS{"a": {Data: []byte("a\n")}, "b": {Data: []byte("b\n")}},
 			Args: []string{"-n", "a", "b"},
 			Want: "     1\ta\n     2\tb\n",
 		},
 		{
 			Name: "an unfinished line spans file boundaries",
-			FS:   fsx.MemFS{"a": {Data: []byte("a")}, "b": {Data: []byte("\n")}},
+			FS:   fsx.MemoryFS{"a": {Data: []byte("a")}, "b": {Data: []byte("\n")}},
 			Args: []string{"-n", "a", "b"},
 			Want: "     1\ta\n",
 		},
 		{
 			Name:  "an unfinished line spans the standard input and a file",
 			Stdin: strings.NewReader("a"),
-			FS:    fsx.MemFS{"b": {Data: []byte("b\n")}},
+			FS:    fsx.MemoryFS{"b": {Data: []byte("b\n")}},
 			Args:  []string{"-nE", "-", "b"},
 			Want:  "     1\tab$\n",
 		},
@@ -300,7 +300,7 @@ func TestRunSqueeze(t *testing.T) {
 		},
 		{
 			Name: "squeezing spans file boundaries",
-			FS:   fsx.MemFS{"a": {Data: []byte("a\n\n")}, "b": {Data: []byte("\nb\n")}},
+			FS:   fsx.MemoryFS{"a": {Data: []byte("a\n\n")}, "b": {Data: []byte("\nb\n")}},
 			Args: []string{"-s", "a", "b"},
 			Want: "a\n\nb\n",
 		},
@@ -442,7 +442,7 @@ func TestRunErrors(t *testing.T) {
 		},
 		{
 			Name:     "directory operand",
-			FS:       fsx.MemFS{"dir": {Mode: fs.ModeDir}},
+			FS:       fsx.MemoryFS{"dir": {Mode: fs.ModeDir}},
 			Args:     []string{"dir"},
 			WantErr:  "cat: dir: invalid argument\n",
 			WantExit: 1,

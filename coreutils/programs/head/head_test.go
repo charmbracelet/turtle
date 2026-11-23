@@ -29,8 +29,8 @@ import (
 //	"-n":     "dash-n\n" (a file named like an option)
 //	"-5":     "dash-5\n" (a file named like the obsolete form)
 //	sub/inner.txt: "inner\n"
-func testFS() fsx.MemFS {
-	return fsx.MemFS{
+func testFS() fsx.MemoryFS {
+	return fsx.MemoryFS{
 		"a.txt":         {Data: []byte("alpha\n")},
 		"b.txt":         {Data: []byte("beta\n")},
 		"empty.txt":     {Data: []byte("")},

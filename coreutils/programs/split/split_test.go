@@ -44,7 +44,7 @@ func runCase(t *testing.T, test testCase) {
 	t.Helper()
 
 	if test.FS == nil {
-		test.FS = fsx.MemFS{}
+		test.FS = fsx.MemoryFS{}
 	}
 	want := test.wantFiles
 	if want == nil {
@@ -55,7 +55,7 @@ func runCase(t *testing.T, test testCase) {
 		sort.Strings(want)
 	}
 	check := func(t *testing.T, rt *coreutils.Runtime) {
-		mem, ok := rt.FS.(fsx.MemFS)
+		mem, ok := rt.FS.(fsx.MemoryFS)
 		if !ok {
 			return
 		}
@@ -85,7 +85,7 @@ func TestRunLines(t *testing.T) {
 	tests := []testCase{
 		{
 			Name:      "default is 1000 lines per piece",
-			FS:        fsx.MemFS{"in.txt": {Data: []byte(lines(1, 2500))}},
+			FS:        fsx.MemoryFS{"in.txt": {Data: []byte(lines(1, 2500))}},
 			Args:      []string{"in.txt"},
 			wantFiles: []string{"in.txt", "xaa", "xab", "xac"},
 			WantFiles: map[string]string{
@@ -143,13 +143,13 @@ func TestRunLines(t *testing.T) {
 		},
 		{
 			Name:      "empty input creates no files",
-			FS:        fsx.MemFS{"empty.txt": {Data: []byte("")}},
+			FS:        fsx.MemoryFS{"empty.txt": {Data: []byte("")}},
 			Args:      []string{"empty.txt"},
 			wantFiles: []string{"empty.txt"},
 		},
 		{
 			Name:      "empty input creates no files even with zero suffix length",
-			FS:        fsx.MemFS{"empty.txt": {Data: []byte("")}},
+			FS:        fsx.MemoryFS{"empty.txt": {Data: []byte("")}},
 			Args:      []string{"-a", "0", "empty.txt"},
 			wantFiles: []string{"empty.txt"},
 		},
@@ -161,7 +161,7 @@ func TestRunLines(t *testing.T) {
 		},
 		{
 			Name:      "pieces in a subdirectory prefix",
-			FS:        fsx.MemFS{"in.txt": {Data: []byte("a\nb\nc\n")}, "out/keep.txt": {Data: []byte("k")}},
+			FS:        fsx.MemoryFS{"in.txt": {Data: []byte("a\nb\nc\n")}, "out/keep.txt": {Data: []byte("k")}},
 			Args:      []string{"-l", "1", "in.txt", "out/p_"},
 			wantFiles: []string{"in.txt", "out/keep.txt", "out/p_aa", "out/p_ab", "out/p_ac"},
 			WantFiles: map[string]string{
@@ -233,7 +233,7 @@ func TestRunBytes(t *testing.T) {
 }
 
 func TestRunSuffixExhaustion(t *testing.T) {
-	files := fsx.MemFS{"in.txt": {Data: []byte(lines(1, 30))}}
+	files := fsx.MemoryFS{"in.txt": {Data: []byte(lines(1, 30))}}
 	stderr := new(bytes.Buffer)
 	rt := &coreutils.Runtime{
 		Stdin:  strings.NewReader(""),
@@ -339,7 +339,7 @@ func TestRunErrors(t *testing.T) {
 	tests := []testCase{
 		{
 			Name:     "missing input file",
-			FS:       fsx.MemFS{},
+			FS:       fsx.MemoryFS{},
 			Args:     []string{"missing.txt"},
 			WantErr:  "split: missing.txt: file does not exist\n",
 			WantExit: 1,
@@ -360,7 +360,7 @@ func TestRunErrors(t *testing.T) {
 
 	t.Run("write error", func(t *testing.T) {
 		runCase(t, testCase{
-			FS:       testutil.FailWriteFS{FS: fsx.MemFS{}, Err: errors.New("disk full")},
+			FS:       testutil.FailWriteFS{FS: fsx.MemoryFS{}, Err: errors.New("disk full")},
 			Stdin:    strings.NewReader("a\n"),
 			Args:     []string{"-l", "1"},
 			WantErr:  "split: xaa: disk full\n",
@@ -375,7 +375,7 @@ func TestRunCancellation(t *testing.T) {
 		Stdin:  &testutil.CancelReader{Cancel: cancel},
 		Stdout: io.Discard,
 		Stderr: io.Discard,
-		FS:     fsx.MemFS{},
+		FS:     fsx.MemoryFS{},
 	})
 	if err := prog.Run(ctx, "-l", "1"); !errors.Is(err, context.Canceled) {
 		t.Fatalf("Run() error = %v, want context.Canceled", err)

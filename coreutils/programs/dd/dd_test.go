@@ -116,9 +116,9 @@ type ddCase struct {
 func runCase(t *testing.T, test ddCase) {
 	t.Helper()
 
-	fsys := fsx.MemFS{}
+	fsys := fsx.MemoryFS{}
 	for name, data := range test.Files {
-		fsys[name] = &fsx.MemFile{Data: []byte(data), Mode: 0o666}
+		fsys[name] = &fsx.MemoryFile{Data: []byte(data), Mode: 0o666}
 	}
 	stdin := test.Stdin
 	if stdin == nil {

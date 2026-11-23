@@ -25,8 +25,8 @@ import (
 //	out.txt:       "old\n" (truncated by output tests)
 //	"-n":          "3\n1\n" (a file named like an option)
 //	sub/inner.txt: "b\na\n"
-func testFS() fsx.MemFS {
-	return fsx.MemFS{
+func testFS() fsx.MemoryFS {
+	return fsx.MemoryFS{
 		"names.txt":     {Data: []byte("zoe\neve\namy\n")},
 		"nums.txt":      {Data: []byte("10\n2\n1\n")},
 		"ids.txt":       {Data: []byte("b:2\na:10\nc:1\n")},
@@ -793,7 +793,7 @@ func TestRunMerge(t *testing.T) {
 		},
 		{
 			Name: "merged lines keep duplicates",
-			FS: fsx.MemFS{
+			FS: fsx.MemoryFS{
 				"one.txt": {Data: []byte("a\nb\n")},
 				"two.txt": {Data: []byte("b\nc\n")},
 			},
@@ -802,7 +802,7 @@ func TestRunMerge(t *testing.T) {
 		},
 		{
 			Name: "a merged unique",
-			FS: fsx.MemFS{
+			FS: fsx.MemoryFS{
 				"one.txt": {Data: []byte("a\nb\n")},
 				"two.txt": {Data: []byte("b\nc\n")},
 			},
@@ -1093,7 +1093,7 @@ func TestRunErrors(t *testing.T) {
 		},
 		{
 			Name:     "directory operand",
-			FS:       fsx.MemFS{"dir": {Mode: fs.ModeDir}},
+			FS:       fsx.MemoryFS{"dir": {Mode: fs.ModeDir}},
 			Args:     []string{"dir"},
 			WantErr:  "sort: dir: invalid argument\n",
 			WantExit: 2,

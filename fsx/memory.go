@@ -11,12 +11,12 @@ import (
 	"time"
 )
 
-// MemFS is an in-memory implementation of FS, meant mostly to write tests of
+// MemoryFS is an in-memory implementation of FS, meant mostly to write tests of
 // code that uses this package.
 //
 // Files are seeded with a map literal, like in testing/fstest.MapFS:
 //
-//	fsys := fsx.MemFS{
+//	fsys := fsx.MemoryFS{
 //		"file.txt": {Data: []byte("contents")},
 //	}
 //
@@ -27,11 +27,11 @@ import (
 // target as its data, and is followed by the read operations, like Open and
 // Stat. Link makes two names share the same entry, so writes through either
 // are seen by the other.
-type MemFS map[string]*MemFile
+type MemoryFS map[string]*MemoryFile
 
-// MemFile describes a file of a MemFS. Its access time starts as the
+// MemoryFile describes a file of a MemoryFS. Its access time starts as the
 // modification time, and is otherwise only changed by Chtimes.
-type MemFile struct {
+type MemoryFile struct {
 	Data    []byte
 	Mode    fs.FileMode
 	ModTime time.Time
@@ -45,7 +45,7 @@ type MemFile struct {
 }
 
 // Open implements fs.FS.
-func (m MemFS) Open(name string) (fs.File, error) {
+func (m MemoryFS) Open(name string) (fs.File, error) {
 	if !fs.ValidPath(name) {
 		return nil, &fs.PathError{Op: "open", Path: name, Err: fs.ErrInvalid}
 	}
@@ -54,16 +54,16 @@ func (m MemFS) Open(name string) (fs.File, error) {
 		return nil, &fs.PathError{Op: "open", Path: name, Err: err}
 	}
 	if f, ok := m[p]; ok {
-		return &memOpenFile{entry: f, path: name, read: !f.Mode.IsDir()}, nil
+		return &memoryOpenFile{entry: f, path: name, read: !f.Mode.IsDir()}, nil
 	}
 	if m.isDir(p) {
-		return &memOpenFile{entry: &MemFile{Mode: fs.ModeDir | 0o755}, path: name}, nil
+		return &memoryOpenFile{entry: &MemoryFile{Mode: fs.ModeDir | 0o755}, path: name}, nil
 	}
 	return nil, &fs.PathError{Op: "open", Path: name, Err: fs.ErrNotExist}
 }
 
 // OpenFile implements WriteFS.
-func (m MemFS) OpenFile(name string, flag int, perm fs.FileMode) (File, error) {
+func (m MemoryFS) OpenFile(name string, flag int, perm fs.FileMode) (File, error) {
 	if !fs.ValidPath(name) {
 		return nil, &fs.PathError{Op: "open", Path: name, Err: fs.ErrInvalid}
 	}
@@ -87,14 +87,14 @@ func (m MemFS) OpenFile(name string, flag int, perm fs.FileMode) (File, error) {
 			return nil, &fs.PathError{Op: "open", Path: name, Err: fs.ErrNotExist}
 		}
 		now := time.Now()
-		f = &MemFile{Mode: perm.Perm(), ModTime: now, atime: now}
+		f = &MemoryFile{Mode: perm.Perm(), ModTime: now, atime: now}
 		m[p] = f
 	}
 	if f.Mode.IsDir() {
 		if flag&(os.O_WRONLY|os.O_RDWR) != 0 {
 			return nil, &fs.PathError{Op: "open", Path: name, Err: fs.ErrInvalid}
 		}
-		return &memOpenFile{entry: f, path: name}, nil
+		return &memoryOpenFile{entry: f, path: name}, nil
 	}
 	if ok && flag&os.O_CREATE != 0 && flag&os.O_EXCL != 0 {
 		return nil, &fs.PathError{Op: "open", Path: name, Err: fs.ErrExist}
@@ -103,7 +103,7 @@ func (m MemFS) OpenFile(name string, flag int, perm fs.FileMode) (File, error) {
 		f.Data = nil
 		f.ModTime = time.Now()
 	}
-	return &memOpenFile{
+	return &memoryOpenFile{
 		entry:  f,
 		path:   name,
 		read:   flag&os.O_WRONLY == 0,
@@ -113,7 +113,7 @@ func (m MemFS) OpenFile(name string, flag int, perm fs.FileMode) (File, error) {
 }
 
 // Chtimes implements ChtimesFS. Implicit directories are ignored.
-func (m MemFS) Chtimes(name string, atime, mtime time.Time) error {
+func (m MemoryFS) Chtimes(name string, atime, mtime time.Time) error {
 	if !fs.ValidPath(name) {
 		return &fs.PathError{Op: "chtimes", Path: name, Err: fs.ErrInvalid}
 	}
@@ -134,7 +134,7 @@ const chmodBits = fs.ModePerm | fs.ModeSetuid | fs.ModeSetgid | fs.ModeSticky
 // Chmod implements ChmodFS. Only the permission, set-user-ID, set-group-ID and
 // sticky bits are changed; the file type is kept. Chmoding an implicit
 // directory makes it an explicit entry.
-func (m MemFS) Chmod(name string, mode fs.FileMode) error {
+func (m MemoryFS) Chmod(name string, mode fs.FileMode) error {
 	if !fs.ValidPath(name) {
 		return &fs.PathError{Op: "chmod", Path: name, Err: fs.ErrInvalid}
 	}
@@ -146,7 +146,7 @@ func (m MemFS) Chmod(name string, mode fs.FileMode) error {
 		if !m.isDir(name) {
 			return &fs.PathError{Op: "chmod", Path: name, Err: fs.ErrNotExist}
 		}
-		f = &MemFile{Mode: fs.ModeDir}
+		f = &MemoryFile{Mode: fs.ModeDir}
 		m[name] = f
 	}
 	f.Mode = f.Mode.Type() | mode&chmodBits
@@ -155,7 +155,7 @@ func (m MemFS) Chmod(name string, mode fs.FileMode) error {
 
 // Chown implements ChownFS. A uid or gid of -1 keeps the current value.
 // Implicit directories are ignored.
-func (m MemFS) Chown(name string, uid, gid int) error {
+func (m MemoryFS) Chown(name string, uid, gid int) error {
 	if !fs.ValidPath(name) {
 		return &fs.PathError{Op: "chown", Path: name, Err: fs.ErrInvalid}
 	}
@@ -177,7 +177,7 @@ func (m MemFS) Chown(name string, uid, gid int) error {
 
 // Mkdir implements MkdirFS. Implicit directories, which exist only because
 // of nested entries, also make it fail with fs.ErrExist.
-func (m MemFS) Mkdir(name string, perm fs.FileMode) error {
+func (m MemoryFS) Mkdir(name string, perm fs.FileMode) error {
 	if !fs.ValidPath(name) {
 		return &fs.PathError{Op: "mkdir", Path: name, Err: fs.ErrInvalid}
 	}
@@ -196,14 +196,14 @@ func (m MemFS) Mkdir(name string, perm fs.FileMode) error {
 		}
 	}
 	now := time.Now()
-	m[name] = &MemFile{Mode: fs.ModeDir | perm.Perm(), ModTime: now, atime: now}
+	m[name] = &MemoryFile{Mode: fs.ModeDir | perm.Perm(), ModTime: now, atime: now}
 	return nil
 }
 
 // Remove implements RemoveFS. Directories must be empty, which implicit ones,
 // existing only because of nested entries, never are. A final symbolic link
 // is removed instead of what it points to, as with unlink(2).
-func (m MemFS) Remove(name string) error {
+func (m MemoryFS) Remove(name string) error {
 	if !fs.ValidPath(name) || name == "." {
 		return &fs.PathError{Op: "remove", Path: name, Err: fs.ErrInvalid}
 	}
@@ -230,7 +230,7 @@ func (m MemFS) Remove(name string) error {
 // new name must be an existing directory. An existing destination is
 // replaced, unless it's a directory receiving a non-directory, a non-empty
 // directory, or the directory is the source itself, mirroring rename(2).
-func (m MemFS) Rename(oldName, newName string) error {
+func (m MemoryFS) Rename(oldName, newName string) error {
 	if !fs.ValidPath(oldName) || oldName == "." {
 		return &fs.PathError{Op: "rename", Path: oldName, Err: fs.ErrInvalid}
 	}
@@ -288,7 +288,7 @@ func (m MemFS) Rename(oldName, newName string) error {
 // Link implements LinkFS. The new name shares the same entry as oldName, so
 // writes through either name are seen by the other. A symbolic link oldName
 // is linked as-is, without being followed, as with link(2).
-func (m MemFS) Link(oldName, newName string) error {
+func (m MemoryFS) Link(oldName, newName string) error {
 	if !fs.ValidPath(oldName) || oldName == "." {
 		return &fs.PathError{Op: "link", Path: oldName, Err: fs.ErrInvalid}
 	}
@@ -321,7 +321,7 @@ func (m MemFS) Link(oldName, newName string) error {
 
 // Symlink implements SymlinkFS. oldName is stored as given and need not name
 // an existing entry.
-func (m MemFS) Symlink(oldName, newName string) error {
+func (m MemoryFS) Symlink(oldName, newName string) error {
 	if !fs.ValidPath(newName) || newName == "." {
 		return &fs.PathError{Op: "symlink", Path: newName, Err: fs.ErrInvalid}
 	}
@@ -339,7 +339,7 @@ func (m MemFS) Symlink(oldName, newName string) error {
 		return &fs.PathError{Op: "symlink", Path: newName, Err: err}
 	}
 	now := time.Now()
-	m[new] = &MemFile{
+	m[new] = &MemoryFile{
 		Data:    []byte(oldName),
 		Mode:    fs.ModeSymlink | 0o777,
 		ModTime: now,
@@ -350,7 +350,7 @@ func (m MemFS) Symlink(oldName, newName string) error {
 
 // ReadLink implements fs.ReadLinkFS. It fails with fs.ErrInvalid when name
 // isn't a symbolic link.
-func (m MemFS) ReadLink(name string) (string, error) {
+func (m MemoryFS) ReadLink(name string) (string, error) {
 	if !fs.ValidPath(name) {
 		return "", &fs.PathError{Op: "readlink", Path: name, Err: fs.ErrInvalid}
 	}
@@ -373,7 +373,7 @@ func (m MemFS) ReadLink(name string) (string, error) {
 
 // Lstat implements fs.ReadLinkFS. It describes the entry at name without
 // following a final symbolic link, unlike Stat.
-func (m MemFS) Lstat(name string) (fs.FileInfo, error) {
+func (m MemoryFS) Lstat(name string) (fs.FileInfo, error) {
 	if !fs.ValidPath(name) {
 		return nil, &fs.PathError{Op: "lstat", Path: name, Err: fs.ErrInvalid}
 	}
@@ -382,22 +382,22 @@ func (m MemFS) Lstat(name string) (fs.FileInfo, error) {
 		return nil, &fs.PathError{Op: "lstat", Path: name, Err: err}
 	}
 	if f, ok := m[p]; ok {
-		return memFileInfo{entry: f, path: p}, nil
+		return memoryFileInfo{entry: f, path: p}, nil
 	}
 	if m.isDir(p) {
-		return memFileInfo{entry: &MemFile{Mode: fs.ModeDir | 0o755}, path: p}, nil
+		return memoryFileInfo{entry: &MemoryFile{Mode: fs.ModeDir | 0o755}, path: p}, nil
 	}
 	return nil, &fs.PathError{Op: "lstat", Path: name, Err: fs.ErrNotExist}
 }
 
 // Sync implements SyncFS. It's a no-op, as the entries hold the data of the
 // files themselves instead of buffering it.
-func (m MemFS) Sync() error {
+func (m MemoryFS) Sync() error {
 	return nil
 }
 
 // checkParent reports whether the parent of name is an existing directory.
-func (m MemFS) checkParent(name string) error {
+func (m MemoryFS) checkParent(name string) error {
 	parent := path.Dir(name)
 	if parent == "." {
 		return nil
@@ -435,7 +435,7 @@ const maxSymlinks = 40
 // true. When a link dangles, or an entry is missing, the path where the
 // lookup stopped is returned together with an fs.ErrNotExist error, so that
 // writers can create the target of a dangling link.
-func (m MemFS) resolve(name string, followLast bool) (string, error) {
+func (m MemoryFS) resolve(name string, followLast bool) (string, error) {
 	dir, rest := ".", name
 	links := 0
 	for rest != "" {
@@ -483,8 +483,8 @@ func (m MemFS) resolve(name string, followLast bool) (string, error) {
 }
 
 // ReadDir implements fs.ReadDirFS, so that directory listings and helpers from
-// io/fs, like fs.WalkDir, work with a MemFS. Entries are sorted by name.
-func (m MemFS) ReadDir(name string) ([]fs.DirEntry, error) {
+// io/fs, like fs.WalkDir, work with a MemoryFS. Entries are sorted by name.
+func (m MemoryFS) ReadDir(name string) ([]fs.DirEntry, error) {
 	if !fs.ValidPath(name) {
 		return nil, &fs.PathError{Op: "readdir", Path: name, Err: fs.ErrInvalid}
 	}
@@ -519,9 +519,9 @@ func (m MemFS) ReadDir(name string) ([]fs.DirEntry, error) {
 		child := path.Join(p, base)
 		f, ok := m[child]
 		if !ok {
-			f = &MemFile{Mode: fs.ModeDir | 0o755}
+			f = &MemoryFile{Mode: fs.ModeDir | 0o755}
 		}
-		entries = append(entries, memDirEntry{info: memFileInfo{entry: f, path: child}})
+		entries = append(entries, memoryDirEntry{info: memoryFileInfo{entry: f, path: child}})
 	}
 	sort.Slice(entries, func(i, j int) bool { return entries[i].Name() < entries[j].Name() })
 	return entries, nil
@@ -530,7 +530,7 @@ func (m MemFS) ReadDir(name string) ([]fs.DirEntry, error) {
 // entryExists reports whether name itself is an entry, without following the
 // final symbolic link, like os.Lstat does. It only misses names whose
 // redundant separators were cleaned, which resolve handles afterwards.
-func (m MemFS) entryExists(name string) bool {
+func (m MemoryFS) entryExists(name string) bool {
 	if _, ok := m[name]; ok {
 		return true
 	}
@@ -539,7 +539,7 @@ func (m MemFS) entryExists(name string) bool {
 
 // isDir reports whether name is a directory in m, either because it holds an
 // entry marked as one or because it's implied by a nested name.
-func (m MemFS) isDir(name string) bool {
+func (m MemoryFS) isDir(name string) bool {
 	if name == "." {
 		return true
 	}
@@ -554,9 +554,9 @@ func (m MemFS) isDir(name string) bool {
 	return false
 }
 
-// memOpenFile is an open file of a MemFS.
-type memOpenFile struct {
-	entry  *MemFile
+// memoryOpenFile is an open file of a MemoryFS.
+type memoryOpenFile struct {
+	entry  *MemoryFile
 	path   string
 	offset int
 	read   bool
@@ -566,15 +566,15 @@ type memOpenFile struct {
 }
 
 // Stat implements fs.File.
-func (f *memOpenFile) Stat() (fs.FileInfo, error) {
+func (f *memoryOpenFile) Stat() (fs.FileInfo, error) {
 	if f.closed {
 		return nil, f.err("stat", fs.ErrClosed)
 	}
-	return memFileInfo{entry: f.entry, path: f.path}, nil
+	return memoryFileInfo{entry: f.entry, path: f.path}, nil
 }
 
 // Read implements fs.File.
-func (f *memOpenFile) Read(p []byte) (int, error) {
+func (f *memoryOpenFile) Read(p []byte) (int, error) {
 	switch {
 	case f.closed:
 		return 0, f.err("read", fs.ErrClosed)
@@ -589,7 +589,7 @@ func (f *memOpenFile) Read(p []byte) (int, error) {
 }
 
 // Write implements io.Writer.
-func (f *memOpenFile) Write(p []byte) (int, error) {
+func (f *memoryOpenFile) Write(p []byte) (int, error) {
 	switch {
 	case f.closed:
 		return 0, f.err("write", fs.ErrClosed)
@@ -612,7 +612,7 @@ func (f *memOpenFile) Write(p []byte) (int, error) {
 }
 
 // Close implements fs.File.
-func (f *memOpenFile) Close() error {
+func (f *memoryOpenFile) Close() error {
 	if f.closed {
 		return f.err("close", fs.ErrClosed)
 	}
@@ -621,7 +621,7 @@ func (f *memOpenFile) Close() error {
 }
 
 // Seek implements io.Seeker.
-func (f *memOpenFile) Seek(offset int64, whence int) (int64, error) {
+func (f *memoryOpenFile) Seek(offset int64, whence int) (int64, error) {
 	if f.closed {
 		return 0, f.err("seek", fs.ErrClosed)
 	}
@@ -645,7 +645,7 @@ func (f *memOpenFile) Seek(offset int64, whence int) (int64, error) {
 
 // Sync flushes the buffered data of the file. It's a no-op, as writes go
 // straight to the entry.
-func (f *memOpenFile) Sync() error {
+func (f *memoryOpenFile) Sync() error {
 	if f.closed {
 		return f.err("sync", fs.ErrClosed)
 	}
@@ -653,40 +653,40 @@ func (f *memOpenFile) Sync() error {
 }
 
 // err returns a path error for an operation on f.
-func (f *memOpenFile) err(op string, err error) error {
+func (f *memoryOpenFile) err(op string, err error) error {
 	return &fs.PathError{Op: op, Path: f.path, Err: err}
 }
 
-// memFileInfo implements fs.FileInfo for a MemFS file.
-type memFileInfo struct {
-	entry *MemFile
+// memoryFileInfo implements fs.FileInfo for a MemoryFS file.
+type memoryFileInfo struct {
+	entry *MemoryFile
 	path  string
 }
 
-func (fi memFileInfo) Name() string       { return path.Base(fi.path) }
-func (fi memFileInfo) Size() int64        { return int64(len(fi.entry.Data)) }
-func (fi memFileInfo) Mode() fs.FileMode  { return fi.entry.Mode }
-func (fi memFileInfo) ModTime() time.Time { return fi.entry.ModTime }
-func (fi memFileInfo) IsDir() bool        { return fi.entry.Mode.IsDir() }
-func (fi memFileInfo) Sys() any           { return fi.entry }
+func (fi memoryFileInfo) Name() string       { return path.Base(fi.path) }
+func (fi memoryFileInfo) Size() int64        { return int64(len(fi.entry.Data)) }
+func (fi memoryFileInfo) Mode() fs.FileMode  { return fi.entry.Mode }
+func (fi memoryFileInfo) ModTime() time.Time { return fi.entry.ModTime }
+func (fi memoryFileInfo) IsDir() bool        { return fi.entry.Mode.IsDir() }
+func (fi memoryFileInfo) Sys() any           { return fi.entry }
 
-// memDirEntry implements fs.DirEntry for a MemFS entry.
-type memDirEntry struct {
-	info memFileInfo
+// memoryDirEntry implements fs.DirEntry for a MemoryFS entry.
+type memoryDirEntry struct {
+	info memoryFileInfo
 }
 
-func (e memDirEntry) Name() string               { return e.info.Name() }
-func (e memDirEntry) IsDir() bool                { return e.info.IsDir() }
-func (e memDirEntry) Type() fs.FileMode          { return e.info.Mode().Type() }
-func (e memDirEntry) Info() (fs.FileInfo, error) { return e.info, nil }
+func (e memoryDirEntry) Name() string               { return e.info.Name() }
+func (e memoryDirEntry) IsDir() bool                { return e.info.IsDir() }
+func (e memoryDirEntry) Type() fs.FileMode          { return e.info.Mode().Type() }
+func (e memoryDirEntry) Info() (fs.FileInfo, error) { return e.info, nil }
 
 var (
-	_ FS            = MemFS{}
-	_ fs.FS         = MemFS{}
-	_ fs.ReadDirFS  = MemFS{}
-	_ fs.ReadLinkFS = MemFS{}
-	_ File          = (*memOpenFile)(nil)
-	_ SeekFile      = (*memOpenFile)(nil)
-	_ fs.File       = (*memOpenFile)(nil)
-	_ fs.DirEntry   = memDirEntry{}
+	_ FS            = MemoryFS{}
+	_ fs.FS         = MemoryFS{}
+	_ fs.ReadDirFS  = MemoryFS{}
+	_ fs.ReadLinkFS = MemoryFS{}
+	_ File          = (*memoryOpenFile)(nil)
+	_ SeekFile      = (*memoryOpenFile)(nil)
+	_ fs.File       = (*memoryOpenFile)(nil)
+	_ fs.DirEntry   = memoryDirEntry{}
 )

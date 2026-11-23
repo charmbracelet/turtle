@@ -59,7 +59,7 @@ func TestRun(t *testing.T) {
 		{
 			name:  "file operand",
 			args:  []string{"foo", "file"},
-			files: fsx.MemFS{"file": {Data: []byte("foo\nbar\n")}},
+			files: fsx.MemoryFS{"file": {Data: []byte("foo\nbar\n")}},
 			want:  "foo\n",
 		},
 		{
@@ -71,13 +71,13 @@ func TestRun(t *testing.T) {
 		{
 			name:  "prefix with more than one file",
 			args:  []string{"foo", "a", "b"},
-			files: fsx.MemFS{"a": {Data: []byte("foo\n")}, "b": {Data: []byte("foo\nbar\n")}},
+			files: fsx.MemoryFS{"a": {Data: []byte("foo\n")}, "b": {Data: []byte("foo\nbar\n")}},
 			want:  "a:foo\nb:foo\n",
 		},
 		{
 			name:  "no prefix with one file",
 			args:  []string{"foo", "a"},
-			files: fsx.MemFS{"a": {Data: []byte("foo\n")}},
+			files: fsx.MemoryFS{"a": {Data: []byte("foo\n")}},
 			want:  "foo\n",
 		},
 		{
@@ -90,7 +90,7 @@ func TestRun(t *testing.T) {
 			name:  "standard input label with more than one file",
 			args:  []string{"foo", "-", "a"},
 			stdin: bytes.NewBufferString("foo\n"),
-			files: fsx.MemFS{"a": {Data: []byte("foo\n")}},
+			files: fsx.MemoryFS{"a": {Data: []byte("foo\n")}},
 			want:  "(standard input):foo\na:foo\n",
 		},
 		{
@@ -217,7 +217,7 @@ func TestRunOptionC(t *testing.T) {
 		{
 			name:  "prefix with more than one file",
 			args:  []string{"-c", "foo", "a", "b"},
-			files: fsx.MemFS{"a": {Data: []byte("foo\n")}, "b": {Data: []byte("bar\n")}},
+			files: fsx.MemoryFS{"a": {Data: []byte("foo\n")}, "b": {Data: []byte("bar\n")}},
 			want:  "a:1\nb:0\n",
 		},
 		{
@@ -269,7 +269,7 @@ func TestRunOptionEAndF(t *testing.T) {
 		{
 			name:  "operand is the pattern when e is given",
 			args:  []string{"-e", "foo", "file"},
-			files: fsx.MemFS{"file": {Data: []byte("file\nfoo\n")}},
+			files: fsx.MemoryFS{"file": {Data: []byte("file\nfoo\n")}},
 			want:  "foo\n",
 		},
 		{
@@ -292,28 +292,28 @@ func TestRunOptionFFile(t *testing.T) {
 			name:  "patterns from a file",
 			args:  []string{"-f", "patterns"},
 			stdin: bytes.NewBufferString("foo\nbaz\nbar\n"),
-			files: fsx.MemFS{"patterns": {Data: []byte("foo\nbar\n")}},
+			files: fsx.MemoryFS{"patterns": {Data: []byte("foo\nbar\n")}},
 			want:  "foo\nbar\n",
 		},
 		{
 			name:  "empty line is a null pattern",
 			args:  []string{"-f", "patterns"},
 			stdin: bytes.NewBufferString("foo\nbaz\n"),
-			files: fsx.MemFS{"patterns": {Data: []byte("foo\n\n")}},
+			files: fsx.MemoryFS{"patterns": {Data: []byte("foo\n\n")}},
 			want:  "foo\nbaz\n",
 		},
 		{
 			name:  "last pattern without a newline",
 			args:  []string{"-f", "patterns"},
 			stdin: bytes.NewBufferString("foo\nbar\n"),
-			files: fsx.MemFS{"patterns": {Data: []byte("foo\nbar")}},
+			files: fsx.MemoryFS{"patterns": {Data: []byte("foo\nbar")}},
 			want:  "foo\nbar\n",
 		},
 		{
 			name:  "e and f together",
 			args:  []string{"-e", "baz", "-f", "patterns"},
 			stdin: bytes.NewBufferString("foo\nbaz\nbar\n"),
-			files: fsx.MemFS{"patterns": {Data: []byte("foo\nbar\n")}},
+			files: fsx.MemoryFS{"patterns": {Data: []byte("foo\nbar\n")}},
 			want:  "foo\nbaz\nbar\n",
 		},
 		{
@@ -326,7 +326,7 @@ func TestRunOptionFFile(t *testing.T) {
 			name:  "long option",
 			args:  []string{"--file", "patterns"},
 			stdin: bytes.NewBufferString("foo\n"),
-			files: fsx.MemFS{"patterns": {Data: []byte("foo\n")}},
+			files: fsx.MemoryFS{"patterns": {Data: []byte("foo\n")}},
 			want:  "foo\n",
 		},
 		{
@@ -388,7 +388,7 @@ func TestRunOptionL(t *testing.T) {
 		{
 			name: "file names once per file",
 			args: []string{"-l", "foo", "a", "b", "c"},
-			files: fsx.MemFS{
+			files: fsx.MemoryFS{
 				"a": {Data: []byte("foo\nfoo\n")},
 				"b": {Data: []byte("bar\n")},
 				"c": {Data: []byte("foo\n")},
@@ -404,7 +404,7 @@ func TestRunOptionL(t *testing.T) {
 		{
 			name:  "l wins when it is the last output option",
 			args:  []string{"-c", "-n", "-l", "foo", "a", "b"},
-			files: fsx.MemFS{"a": {Data: []byte("foo\n")}, "b": {Data: []byte("bar\n")}},
+			files: fsx.MemoryFS{"a": {Data: []byte("foo\n")}, "b": {Data: []byte("bar\n")}},
 			want:  "a\n",
 		},
 		{
@@ -416,7 +416,7 @@ func TestRunOptionL(t *testing.T) {
 		{
 			name:  "long option",
 			args:  []string{"--files-with-matches", "foo", "a"},
-			files: fsx.MemFS{"a": {Data: []byte("foo\n")}},
+			files: fsx.MemoryFS{"a": {Data: []byte("foo\n")}},
 			want:  "a\n",
 		},
 	}
@@ -432,13 +432,13 @@ func TestRunOptionN(t *testing.T) {
 		{
 			name:  "line numbers restart per file",
 			args:  []string{"-n", "foo", "a", "b"},
-			files: fsx.MemFS{"a": {Data: []byte("bar\nfoo\n")}, "b": {Data: []byte("foo\n")}},
+			files: fsx.MemoryFS{"a": {Data: []byte("bar\nfoo\n")}, "b": {Data: []byte("foo\n")}},
 			want:  "a:2:foo\nb:1:foo\n",
 		},
 		{
 			name:  "single file has no file prefix",
 			args:  []string{"-n", "foo", "a"},
-			files: fsx.MemFS{"a": {Data: []byte("foo\n")}},
+			files: fsx.MemoryFS{"a": {Data: []byte("foo\n")}},
 			want:  "1:foo\n",
 		},
 		{
@@ -471,7 +471,7 @@ func TestRunOptionQ(t *testing.T) {
 		{
 			name:     "match wins over an earlier error",
 			args:     []string{"-q", "foo", "missing", "a"},
-			files:    fsx.MemFS{"a": {Data: []byte("foo\n")}},
+			files:    fsx.MemoryFS{"a": {Data: []byte("foo\n")}},
 			wantErr:  "grep: missing: file does not exist\n",
 			wantCode: 0,
 		},
@@ -640,7 +640,7 @@ func TestRunInvalidUsage(t *testing.T) {
 				name     string
 				args     []string
 				stdin    io.Reader
-				files    fsx.MemFS
+				files    fsx.MemoryFS
 				want     string
 				wantErr  string
 				wantCode int
@@ -654,7 +654,7 @@ func TestRunMissingFile(t *testing.T) {
 		name     string
 		args     []string
 		stdin    io.Reader
-		files    fsx.MemFS
+		files    fsx.MemoryFS
 		want     string
 		wantErr  string
 		wantCode int
@@ -732,7 +732,7 @@ type runTestArgs struct {
 	name     string
 	args     []string
 	stdin    io.Reader
-	files    fsx.MemFS
+	files    fsx.MemoryFS
 	want     string
 	wantErr  string
 	wantCode int

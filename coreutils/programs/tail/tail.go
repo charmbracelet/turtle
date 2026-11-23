@@ -904,8 +904,8 @@ func sameFile(a, b fs.FileInfo) bool {
 	if os.SameFile(a, b) {
 		return true
 	}
-	ma, aok := a.Sys().(*fsx.MemFile)
-	mb, bok := b.Sys().(*fsx.MemFile)
+	ma, aok := a.Sys().(*fsx.MemoryFile)
+	mb, bok := b.Sys().(*fsx.MemoryFile)
 	return aok && bok && ma == mb
 }
 

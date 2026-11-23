@@ -27,8 +27,8 @@ import (
 //	nl.txt:    "a\n"
 //	"-f":      "dash-f\n" (a file named like an option)
 //	sub/inner.txt: "inner\n"
-func testFS() fsx.MemFS {
-	return fsx.MemFS{
+func testFS() fsx.MemoryFS {
+	return fsx.MemoryFS{
 		"a.txt":         {Data: []byte("a\nb\nc\nd\ne\n")},
 		"nonl.txt":      {Data: []byte("a\nb\nc")},
 		"empty.txt":     {Data: []byte("")},
@@ -470,7 +470,7 @@ func TestRunHeaders(t *testing.T) {
 
 func TestRunFollowMultipleFiles(t *testing.T) {
 	t.Run("the followed files get a header when the output switches", func(t *testing.T) {
-		fsys := fsx.MemFS{
+		fsys := fsx.MemoryFS{
 			"a.txt":     {Data: []byte("a\n")},
 			"lines.txt": {Data: []byte("l1\n")},
 		}
@@ -497,7 +497,7 @@ func TestRunFollowMultipleFiles(t *testing.T) {
 	})
 
 	t.Run("-q never prints the headers", func(t *testing.T) {
-		fsys := fsx.MemFS{
+		fsys := fsx.MemoryFS{
 			"a.txt":     {Data: []byte("a\n")},
 			"lines.txt": {Data: []byte("l1\n")},
 		}
@@ -516,7 +516,7 @@ func TestRunFollowMultipleFiles(t *testing.T) {
 
 // runFollowSteps runs tail with args on fsys, running each step on a wait,
 // and cancelling the context once the steps run out.
-func runFollowSteps(t *testing.T, fsys fsx.MemFS, args []string, steps []func()) (string, string, error) {
+func runFollowSteps(t *testing.T, fsys fsx.MemoryFS, args []string, steps []func()) (string, string, error) {
 	t.Helper()
 
 	stdout := new(bytes.Buffer)
@@ -643,31 +643,31 @@ func TestRunLinesAcrossChunks(t *testing.T) {
 	tests := []testutil.Case{
 		{
 			Name: "more lines than a single backwards chunk",
-			FS:   fsx.MemFS{"big.txt": {Data: []byte(data)}},
+			FS:   fsx.MemoryFS{"big.txt": {Data: []byte(data)}},
 			Args: []string{"-n", "500", "big.txt"},
 			Want: strings.Repeat(line, 500),
 		},
 		{
 			Name: "the last line",
-			FS:   fsx.MemFS{"big.txt": {Data: []byte(data)}},
+			FS:   fsx.MemoryFS{"big.txt": {Data: []byte(data)}},
 			Args: []string{"-n", "1", "big.txt"},
 			Want: line,
 		},
 		{
 			Name: "more lines than the file",
-			FS:   fsx.MemFS{"big.txt": {Data: []byte(data)}},
+			FS:   fsx.MemoryFS{"big.txt": {Data: []byte(data)}},
 			Args: []string{"-n", "1001", "big.txt"},
 			Want: data,
 		},
 		{
 			Name: "a single long line",
-			FS:   fsx.MemFS{"long.txt": {Data: []byte(strings.Repeat("x", 10000))}},
+			FS:   fsx.MemoryFS{"long.txt": {Data: []byte(strings.Repeat("x", 10000))}},
 			Args: []string{"-n", "1", "long.txt"},
 			Want: strings.Repeat("x", 10000),
 		},
 		{
 			Name: "more lines than a long single line file",
-			FS:   fsx.MemFS{"long.txt": {Data: []byte(strings.Repeat("x", 10000))}},
+			FS:   fsx.MemoryFS{"long.txt": {Data: []byte(strings.Repeat("x", 10000))}},
 			Args: []string{"-n", "2", "long.txt"},
 			Want: strings.Repeat("x", 10000),
 		},
@@ -757,7 +757,7 @@ func TestRunFollowFile(t *testing.T) {
 func runFollow(t *testing.T, data string, args []string, chunks []string) (string, string, error) {
 	t.Helper()
 
-	fsys := fsx.MemFS{"f.txt": {Data: []byte(data)}}
+	fsys := fsx.MemoryFS{"f.txt": {Data: []byte(data)}}
 	stdout := new(bytes.Buffer)
 	stderr := new(bytes.Buffer)
 	ctx, cancel := context.WithCancel(t.Context())
@@ -815,7 +815,7 @@ func TestRunFollowErrors(t *testing.T) {
 	})
 
 	t.Run("a removed name is given up without --retry", func(t *testing.T) {
-		fsys := fsx.MemFS{"f.txt": {Data: []byte("one\n")}}
+		fsys := fsx.MemoryFS{"f.txt": {Data: []byte("one\n")}}
 		steps := []func(){
 			func() { delete(fsys, "f.txt") },
 		}
@@ -858,7 +858,7 @@ func TestRunFollowErrors(t *testing.T) {
 }
 
 func TestRunFollowTruncate(t *testing.T) {
-	fsys := fsx.MemFS{"f.txt": {Data: []byte("one\ntwo\nthree\n")}}
+	fsys := fsx.MemoryFS{"f.txt": {Data: []byte("one\ntwo\nthree\n")}}
 	steps := []func(){
 		func() { fsys["f.txt"].Data = fsys["f.txt"].Data[:4] },
 	}
@@ -876,9 +876,9 @@ func TestRunFollowTruncate(t *testing.T) {
 
 func TestRunFollowName(t *testing.T) {
 	t.Run("a replaced file is followed from its beginning", func(t *testing.T) {
-		fsys := fsx.MemFS{"f.txt": {Data: []byte("old\n")}}
+		fsys := fsx.MemoryFS{"f.txt": {Data: []byte("old\n")}}
 		steps := []func(){
-			func() { fsys["f.txt"] = &fsx.MemFile{Data: []byte("new\n")} },
+			func() { fsys["f.txt"] = &fsx.MemoryFile{Data: []byte("new\n")} },
 		}
 		got, stderr, err := runFollowSteps(t, fsys, []string{"--follow=name", "--max-unchanged-stats=1", "f.txt"}, steps)
 		if !errors.Is(err, context.Canceled) {
@@ -893,10 +893,10 @@ func TestRunFollowName(t *testing.T) {
 	})
 
 	t.Run("a reappeared file is followed from its beginning with --retry", func(t *testing.T) {
-		fsys := fsx.MemFS{"f.txt": {Data: []byte("old\n")}}
+		fsys := fsx.MemoryFS{"f.txt": {Data: []byte("old\n")}}
 		steps := []func(){
 			func() { delete(fsys, "f.txt") },
-			func() { fsys["f.txt"] = &fsx.MemFile{Data: []byte("new\n")} },
+			func() { fsys["f.txt"] = &fsx.MemoryFile{Data: []byte("new\n")} },
 		}
 		got, stderr, err := runFollowSteps(t, fsys, []string{"--follow=name", "--retry", "--max-unchanged-stats=1", "f.txt"}, steps)
 		if !errors.Is(err, context.Canceled) {
@@ -913,9 +913,9 @@ func TestRunFollowName(t *testing.T) {
 	})
 
 	t.Run("-F follows a missing file once it appears", func(t *testing.T) {
-		fsys := fsx.MemFS{}
+		fsys := fsx.MemoryFS{}
 		steps := []func(){
-			func() { fsys["f.txt"] = &fsx.MemFile{Data: []byte("hello\n")} },
+			func() { fsys["f.txt"] = &fsx.MemoryFile{Data: []byte("hello\n")} },
 		}
 		got, stderr, err := runFollowSteps(t, fsys, []string{"-F", "f.txt"}, steps)
 		if !errors.Is(err, context.Canceled) {
@@ -972,7 +972,7 @@ func TestRunFollowPID(t *testing.T) {
 		rt := &coreutils.Runtime{
 			Stdout: stdout,
 			Stderr: io.Discard,
-			FS:     fsx.MemFS{"f.txt": {Data: []byte("one\n")}},
+			FS:     fsx.MemoryFS{"f.txt": {Data: []byte("one\n")}},
 			ProcessAlive: func(pid int) bool {
 				return false
 			},
@@ -990,7 +990,7 @@ func TestRunFollowPID(t *testing.T) {
 	})
 
 	t.Run("--pid is not supported on this system", func(t *testing.T) {
-		fsys := fsx.MemFS{"f.txt": {Data: []byte("one\n")}}
+		fsys := fsx.MemoryFS{"f.txt": {Data: []byte("one\n")}}
 		steps := []func(){}
 		got, stderr, err := runFollowSteps(t, fsys, []string{"-f", "--pid=1234", "f.txt"}, steps)
 		if !errors.Is(err, context.Canceled) {
@@ -1028,7 +1028,7 @@ func TestRunFollowWarnings(t *testing.T) {
 	})
 
 	t.Run("--retry only affects the initial open by descriptor", func(t *testing.T) {
-		fsys := fsx.MemFS{"f.txt": {Data: []byte("one\n")}}
+		fsys := fsx.MemoryFS{"f.txt": {Data: []byte("one\n")}}
 		steps := []func(){}
 		_, stderr, err := runFollowSteps(t, fsys, []string{"-f", "--retry", "f.txt"}, steps)
 		if !errors.Is(err, context.Canceled) {
@@ -1043,7 +1043,7 @@ func TestRunFollowWarnings(t *testing.T) {
 func TestRunFollowSleepInterval(t *testing.T) {
 	t.Run("the default is one second", func(t *testing.T) {
 		var got time.Duration
-		fsys := fsx.MemFS{"f.txt": {Data: []byte("one\n")}}
+		fsys := fsx.MemoryFS{"f.txt": {Data: []byte("one\n")}}
 		stdout := new(bytes.Buffer)
 		ctx, cancel := context.WithCancel(t.Context())
 		defer cancel()
@@ -1073,7 +1073,7 @@ func TestRunFollowSleepInterval(t *testing.T) {
 	} {
 		t.Run(name, func(t *testing.T) {
 			var got time.Duration
-			fsys := fsx.MemFS{"f.txt": {Data: []byte("one\n")}}
+			fsys := fsx.MemoryFS{"f.txt": {Data: []byte("one\n")}}
 			stdout := new(bytes.Buffer)
 			ctx, cancel := context.WithCancel(t.Context())
 			defer cancel()
@@ -1126,7 +1126,7 @@ func TestRunFollowDebug(t *testing.T) {
 	}
 	for _, test := range tests {
 		t.Run(test.Name, func(t *testing.T) {
-			fsys := fsx.MemFS{"f.txt": {Data: []byte("one\n")}, "g.txt": {Data: []byte("1\n")}}
+			fsys := fsx.MemoryFS{"f.txt": {Data: []byte("one\n")}, "g.txt": {Data: []byte("1\n")}}
 			_, stderr, err := runFollowSteps(t, fsys, test.Args, nil)
 			if !errors.Is(err, context.Canceled) {
 				t.Errorf("Run() error = %v, want context.Canceled", err)
@@ -1182,7 +1182,7 @@ func TestRunFollowStdinPipe(t *testing.T) {
 			Stdin:  pipeStdin{strings.NewReader("hi\n")},
 			Stdout: stdout,
 			Stderr: io.Discard,
-			FS:     fsx.MemFS{"a.txt": {Data: []byte("a\n")}},
+			FS:     fsx.MemoryFS{"a.txt": {Data: []byte("a\n")}},
 			Sleep: func(ctx context.Context, d time.Duration) error {
 				cancel()
 				return ctx.Err()
@@ -1502,7 +1502,7 @@ func TestRunDoesNotReadUnusedStandardInput(t *testing.T) {
 
 func TestRunSizeSuffixes(t *testing.T) {
 	// big.txt holds 3000 bytes.
-	fsys := fsx.MemFS{"big.txt": {Data: []byte(strings.Repeat("x", 3000))}}
+	fsys := fsx.MemoryFS{"big.txt": {Data: []byte(strings.Repeat("x", 3000))}}
 	last := func(n int) string { return strings.Repeat("x", n) }
 	tests := []testutil.Case{
 		{
@@ -1598,7 +1598,7 @@ func TestRunSizeSuffixes(t *testing.T) {
 }
 
 func TestRunZeroTerminated(t *testing.T) {
-	fsys := fsx.MemFS{
+	fsys := fsx.MemoryFS{
 		"z.txt":     {Data: []byte("a\x00b\x00c\x00")},
 		"znonl.txt": {Data: []byte("a\x00b\x00c")},
 	}
@@ -1743,19 +1743,19 @@ func TestRunObsolete(t *testing.T) {
 		},
 		{
 			Name: "the letter alone defaults to ten",
-			FS:   fsx.MemFS{"big.txt": {Data: []byte(strings.Repeat("x", 3000))}},
+			FS:   fsx.MemoryFS{"big.txt": {Data: []byte(strings.Repeat("x", 3000))}},
 			Args: []string{"-b", "big.txt"},
 			Want: strings.Repeat("x", 3000),
 		},
 		{
 			Name: "a block count",
-			FS:   fsx.MemFS{"big.txt": {Data: []byte(strings.Repeat("x", 3000))}},
+			FS:   fsx.MemoryFS{"big.txt": {Data: []byte(strings.Repeat("x", 3000))}},
 			Args: []string{"-2b", "big.txt"},
 			Want: strings.Repeat("x", 1024),
 		},
 		{
 			Name: "a block count from the start",
-			FS:   fsx.MemFS{"big.txt": {Data: []byte(strings.Repeat("x", 3000))}},
+			FS:   fsx.MemoryFS{"big.txt": {Data: []byte(strings.Repeat("x", 3000))}},
 			Args: []string{"+2b", "big.txt"},
 			Want: strings.Repeat("x", 3000-1023),
 		},
@@ -1785,7 +1785,7 @@ func TestRunObsolete(t *testing.T) {
 		},
 		{
 			Name: "options after the obsolete form are rejected",
-			FS: fsx.MemFS{
+			FS: fsx.MemoryFS{
 				"a.txt": {Data: []byte("a\n")},
 				"b.txt": {Data: []byte("b\n")},
 			},

@@ -32,8 +32,8 @@ import (
 //	d1/only:  "z\n"
 //	d1/sub/f: "q\n"       d2/sub/f: "w\n"
 //	d1/mix:   "m\n"       d2/mix/f: "n\n" (a file against a directory)
-func testFS() fsx.MemFS {
-	return fsx.MemFS{
+func testFS() fsx.MemoryFS {
+	return fsx.MemoryFS{
 		"a.txt":       {Data: []byte("1\n2\n3\n")},
 		"b.txt":       {Data: []byte("1\nx\n3\n")},
 		"c.txt":       {Data: []byte("1\n2\n")},
@@ -222,7 +222,7 @@ func TestRunDirectories(t *testing.T) {
 	tests := []testutil.Case{
 		{
 			Name: "common subdirectories only",
-			FS: fsx.MemFS{
+			FS: fsx.MemoryFS{
 				"d1/sub/f": {Data: []byte("q\n")},
 				"d2/sub/f": {Data: []byte("q\n")},
 			},
@@ -231,7 +231,7 @@ func TestRunDirectories(t *testing.T) {
 		},
 		{
 			Name: "identical directories",
-			FS: fsx.MemFS{
+			FS: fsx.MemoryFS{
 				"d1/x": {Data: []byte("a\n")},
 				"d2/x": {Data: []byte("a\n")},
 			},
@@ -292,7 +292,7 @@ func TestRunWriteError(t *testing.T) {
 }
 
 func TestRunContext(t *testing.T) {
-	files := fsx.MemFS{"a.txt": {Data: []byte("hello\n")}}
+	files := fsx.MemoryFS{"a.txt": {Data: []byte("hello\n")}}
 
 	t.Run("cancelled before running", func(t *testing.T) {
 		testutil.Cancelled(t, New, strings.NewReader("hello\n"), files, "-", "a.txt")
@@ -310,8 +310,8 @@ var stamp = time.Date(2026, 1, 2, 3, 4, 5, 0, time.UTC)
 //
 //	m1.txt, m2.txt: a three line file and one with its middle line changed
 //	m3.txt, m4.txt: a five line file and one with its second line changed
-func formatFS() fsx.MemFS {
-	return fsx.MemFS{
+func formatFS() fsx.MemoryFS {
+	return fsx.MemoryFS{
 		"m1.txt": {Data: []byte("1\n2\n3\n"), ModTime: stamp},
 		"m2.txt": {Data: []byte("1\nx\n3\n"), ModTime: stamp},
 		"m3.txt": {Data: []byte("1\n2\n3\n4\n5\n"), ModTime: stamp},
@@ -397,7 +397,7 @@ func TestRunFormats(t *testing.T) {
 		},
 		{
 			Name: "context lines keep the first file contents with -b",
-			FS:   fsx.MemFS{"w1": {Data: []byte("1\n2 \n3\n"), ModTime: stamp}, "w2": {Data: []byte("1\n2\n4\n"), ModTime: stamp}},
+			FS:   fsx.MemoryFS{"w1": {Data: []byte("1\n2 \n3\n"), ModTime: stamp}, "w2": {Data: []byte("1\n2\n4\n"), ModTime: stamp}},
 			Args: []string{"-b", "-c", "w1", "w2"},
 			Want: "*** w1\tFri Jan  2 03:04:05 2026\n--- w2\tFri Jan  2 03:04:05 2026\n" +
 				"***************\n*** 1,3 ****\n  1\n  2 \n! 3\n--- 1,3 ----\n  1\n  2\n! 4\n",
@@ -480,7 +480,7 @@ func TestRunRecursive(t *testing.T) {
 		},
 		{
 			Name: "deeply nested files",
-			FS: fsx.MemFS{
+			FS: fsx.MemoryFS{
 				"d3/a/b/c.txt": {Data: []byte("1\n")},
 				"d4/a/b/c.txt": {Data: []byte("2\n")},
 			},
@@ -490,7 +490,7 @@ func TestRunRecursive(t *testing.T) {
 		},
 		{
 			Name: "recursion options in the header",
-			FS: fsx.MemFS{
+			FS: fsx.MemoryFS{
 				"d3/a/b/c.txt": {Data: []byte("1\n2\n3\n4\n5\n"), ModTime: stamp},
 				"d4/a/b/c.txt": {Data: []byte("1\nX\n3\n4\n5\n"), ModTime: stamp},
 			},
@@ -509,7 +509,7 @@ func TestRunRecursive(t *testing.T) {
 		},
 		{
 			Name: "identical directories compare equal recursively",
-			FS: fsx.MemFS{
+			FS: fsx.MemoryFS{
 				"d1/x":   {Data: []byte("a\n")},
 				"d2/x":   {Data: []byte("a\n")},
 				"d1/s/y": {Data: []byte("b\n")},

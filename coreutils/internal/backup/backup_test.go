@@ -50,7 +50,7 @@ func TestParseMethod(t *testing.T) {
 func TestName(t *testing.T) {
 	tests := []struct {
 		name  string
-		files fsx.MemFS
+		files fsx.MemoryFS
 		dest  string
 		opts  Options
 		want  string
@@ -58,14 +58,14 @@ func TestName(t *testing.T) {
 	}{
 		{
 			name:  "no backups keep the name",
-			files: fsx.MemFS{"f": {}},
+			files: fsx.MemoryFS{"f": {}},
 			dest:  "f",
 			opts:  Options{Method: None},
 			want:  "f",
 		},
 		{
 			name:  "simple backups take the suffix",
-			files: fsx.MemFS{"f": {}, "f~": {}},
+			files: fsx.MemoryFS{"f": {}, "f~": {}},
 			dest:  "f",
 			opts:  Options{Method: Simple, Suffix: "~"},
 			want:  "f~",
@@ -84,49 +84,49 @@ func TestName(t *testing.T) {
 		},
 		{
 			name:  "numbered continue after the highest",
-			files: fsx.MemFS{"f": {}, "f.~1~": {}, "f.~3~": {}},
+			files: fsx.MemoryFS{"f": {}, "f.~1~": {}, "f.~3~": {}},
 			dest:  "f",
 			opts:  Options{Method: Numbered},
 			want:  "f.~4~",
 		},
 		{
 			name:  "numbered in a directory",
-			files: fsx.MemFS{"d/f": {}, "d/f.~2~": {}},
+			files: fsx.MemoryFS{"d/f": {}, "d/f.~2~": {}},
 			dest:  "d/f",
 			opts:  Options{Method: Numbered},
 			want:  "d/f.~3~",
 		},
 		{
 			name:  "existing falls back to simple",
-			files: fsx.MemFS{"f": {}, "f~": {}},
+			files: fsx.MemoryFS{"f": {}, "f~": {}},
 			dest:  "f",
 			opts:  Options{Method: Existing, Suffix: "~"},
 			want:  "f~",
 		},
 		{
 			name:  "existing follows numbered ones",
-			files: fsx.MemFS{"f": {}, "f.~1~": {}},
+			files: fsx.MemoryFS{"f": {}, "f.~1~": {}},
 			dest:  "f",
 			opts:  Options{Method: Existing, Suffix: "~"},
 			want:  "f.~2~",
 		},
 		{
 			name:  "versions of other files don't count",
-			files: fsx.MemFS{"f": {}, "g.~1~": {}, "ff.~1~": {}},
+			files: fsx.MemoryFS{"f": {}, "g.~1~": {}, "ff.~1~": {}},
 			dest:  "f",
 			opts:  Options{Method: Existing},
 			want:  "f~",
 		},
 		{
 			name:  "numbered backups need the directory",
-			files: fsx.MemFS{},
+			files: fsx.MemoryFS{},
 			dest:  "d/f",
 			opts:  Options{Method: Numbered},
 			err:   true,
 		},
 		{
 			name:  "simple backups don't read the directory",
-			files: fsx.MemFS{"f": {Data: []byte("x")}},
+			files: fsx.MemoryFS{"f": {Data: []byte("x")}},
 			dest:  "f",
 			opts:  Options{Method: Simple, Suffix: "~"},
 			want:  "f~",
@@ -137,7 +137,7 @@ func TestName(t *testing.T) {
 		t.Run(test.name, func(t *testing.T) {
 			fsys := test.files
 			if fsys == nil {
-				fsys = fsx.MemFS{}
+				fsys = fsx.MemoryFS{}
 			}
 			opts := test.opts
 			if opts.Method != None && opts.Suffix == "" {

@@ -39,8 +39,8 @@ func randFile(n int, seed uint64) []byte {
 //	randempty:     "" (an empty random source)
 //	"-n":          "2\n1\n" (a file named like an option)
 //	sub/inner.txt: "b\na\n"
-func testFS() fsx.MemFS {
-	return fsx.MemFS{
+func testFS() fsx.MemoryFS {
+	return fsx.MemoryFS{
 		"names.txt":     {Data: []byte("zoe\neve\namy\n")},
 		"cards.txt":     {Data: []byte("a\nb\nc\nd\n")},
 		"nonl.txt":      {Data: []byte("b\na")},
@@ -57,7 +57,7 @@ func testFS() fsx.MemFS {
 
 // runShuf runs shuf with the given fixtures and returns its standard output,
 // for the tests which don't demand an exact output.
-func runShuf(t *testing.T, stdin io.Reader, fsys fsx.MemFS, dir string, args ...string) string {
+func runShuf(t *testing.T, stdin io.Reader, fsys fsx.MemoryFS, dir string, args ...string) string {
 	t.Helper()
 
 	stdout := new(bytes.Buffer)

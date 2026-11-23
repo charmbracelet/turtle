@@ -42,8 +42,8 @@ func (r *pipeInput) Read(b []byte) (int, error) {
 //	out.txt:       "old contents\n" (truncated or appended to)
 //	"-a":          "dash-a\n" (a file named like an option)
 //	sub/inner.txt: "inner\n"
-func testFS() fsx.MemFS {
-	return fsx.MemFS{
+func testFS() fsx.MemoryFS {
+	return fsx.MemoryFS{
 		"a.txt":         {Data: []byte("alpha\n")},
 		"out.txt":       {Data: []byte("old contents\n")},
 		"-a":            {Data: []byte("dash-a\n")},
@@ -58,7 +58,7 @@ func testFS() fsx.MemFS {
 type testCase struct {
 	Name      string
 	Stdin     io.Reader
-	FS        fsx.MemFS
+	FS        fsx.MemoryFS
 	Dir       string
 	Args      []string
 	Want      string
@@ -697,7 +697,7 @@ func TestRunErrors(t *testing.T) {
 		{
 			Name:     "directory operand",
 			Stdin:    strings.NewReader("hello\n"),
-			FS:       fsx.MemFS{"dir": {Mode: fs.ModeDir}},
+			FS:       fsx.MemoryFS{"dir": {Mode: fs.ModeDir}},
 			Args:     []string{"dir"},
 			Want:     "hello\n",
 			WantErr:  "tee: dir: invalid argument\n",

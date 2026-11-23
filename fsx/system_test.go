@@ -10,9 +10,9 @@ import (
 	"time"
 )
 
-func TestOsFS(t *testing.T) {
+func TestSystemFS(t *testing.T) {
 	dir := t.TempDir()
-	fsys := OsFS(dir)
+	fsys := SystemFS(dir)
 
 	t.Run("creates a file inside the base directory", func(t *testing.T) {
 		f, err := fsys.OpenFile("file.txt", os.O_CREATE|os.O_WRONLY, 0o644)
@@ -66,9 +66,9 @@ func TestOsFS(t *testing.T) {
 	})
 }
 
-func TestOsFSAbsolutePath(t *testing.T) {
+func TestSystemFSAbsolutePath(t *testing.T) {
 	dir := t.TempDir()
-	fsys := OsFS(t.TempDir())
+	fsys := SystemFS(t.TempDir())
 
 	path := filepath.ToSlash(filepath.Join(dir, "file.txt"))
 	f, err := fsys.OpenFile(path, os.O_CREATE|os.O_WRONLY, 0o644)
@@ -84,9 +84,9 @@ func TestOsFSAbsolutePath(t *testing.T) {
 	}
 }
 
-func TestOsFSChtimes(t *testing.T) {
+func TestSystemFSChtimes(t *testing.T) {
 	dir := t.TempDir()
-	fsys := OsFS(dir)
+	fsys := SystemFS(dir)
 
 	// Zero times mean UTIME_OMIT, which the Linux kernel turns into a
 	// no-op that doesn't even look at the path, so use real times here.
@@ -128,9 +128,9 @@ func TestOsFSChtimes(t *testing.T) {
 	}
 }
 
-func TestOsFSChmod(t *testing.T) {
+func TestSystemFSChmod(t *testing.T) {
 	dir := t.TempDir()
-	fsys := OsFS(dir)
+	fsys := SystemFS(dir)
 
 	if err := fsys.Chmod("file.txt", 0o755); !errors.Is(err, fs.ErrNotExist) {
 		t.Fatalf("Chmod() error = %v, want fs.ErrNotExist", err)
@@ -188,14 +188,14 @@ func TestOsFSChmod(t *testing.T) {
 	}
 }
 
-func TestOsFSChown(t *testing.T) {
+func TestSystemFSChown(t *testing.T) {
 	switch runtime.GOOS {
 	case "windows", "plan9":
 		t.Skip("the file system here doesn't model ownership")
 	}
 
 	dir := t.TempDir()
-	fsys := OsFS(dir)
+	fsys := SystemFS(dir)
 
 	uid, gid := os.Getuid(), os.Getgid()
 	chownFS := fsys.(ChownFS)
@@ -236,9 +236,9 @@ func TestOsFSChown(t *testing.T) {
 	}
 }
 
-func TestOsFSMkdir(t *testing.T) {
+func TestSystemFSMkdir(t *testing.T) {
 	dir := t.TempDir()
-	fsys := OsFS(dir)
+	fsys := SystemFS(dir)
 
 	if err := fsys.Mkdir("sub", 0o755); err != nil {
 		t.Fatalf("Mkdir() error = %v", err)
@@ -262,9 +262,9 @@ func TestOsFSMkdir(t *testing.T) {
 	}
 }
 
-func TestOsFSRemove(t *testing.T) {
+func TestSystemFSRemove(t *testing.T) {
 	dir := t.TempDir()
-	fsys := OsFS(dir)
+	fsys := SystemFS(dir)
 
 	if err := fsys.Remove("missing.txt"); !errors.Is(err, fs.ErrNotExist) {
 		t.Errorf("Remove() of a missing file error = %v, want fs.ErrNotExist", err)
@@ -306,9 +306,9 @@ func TestOsFSRemove(t *testing.T) {
 	}
 }
 
-func TestOsFSRename(t *testing.T) {
+func TestSystemFSRename(t *testing.T) {
 	dir := t.TempDir()
-	fsys := OsFS(dir)
+	fsys := SystemFS(dir)
 
 	write := func(t *testing.T, name, content string) {
 		t.Helper()
@@ -381,9 +381,9 @@ func TestOsFSRename(t *testing.T) {
 	})
 }
 
-func TestOsFSLink(t *testing.T) {
+func TestSystemFSLink(t *testing.T) {
 	dir := t.TempDir()
-	fsys := OsFS(dir)
+	fsys := SystemFS(dir)
 
 	write := func(t *testing.T, name, content string) {
 		t.Helper()
@@ -429,9 +429,9 @@ func TestOsFSLink(t *testing.T) {
 	}
 }
 
-func TestOsFSSymlink(t *testing.T) {
+func TestSystemFSSymlink(t *testing.T) {
 	dir := t.TempDir()
-	fsys := OsFS(dir)
+	fsys := SystemFS(dir)
 
 	write := func(t *testing.T, name, content string) {
 		t.Helper()
@@ -516,9 +516,9 @@ func TestOsFSSymlink(t *testing.T) {
 	}
 }
 
-func TestOsFSSync(t *testing.T) {
+func TestSystemFSSync(t *testing.T) {
 	dir := t.TempDir()
-	fsys := OsFS(dir)
+	fsys := SystemFS(dir)
 
 	f, err := fsys.OpenFile("file.txt", os.O_CREATE|os.O_WRONLY, 0o644)
 	if err != nil {
@@ -541,7 +541,7 @@ func TestOsFSSync(t *testing.T) {
 	t.Run("the file system syncs", func(t *testing.T) {
 		syncer, ok := fsys.(SyncFS)
 		if !ok {
-			t.Fatalf("OsFS() = %T, want a SyncFS", fsys)
+			t.Fatalf("SystemFS() = %T, want a SyncFS", fsys)
 		}
 		if err := syncer.Sync(); err != nil {
 			t.Errorf("Sync() error = %v", err)

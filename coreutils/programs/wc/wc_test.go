@@ -24,8 +24,8 @@ import (
 //	invalid.txt: "\xffa\xfe é\n"           (1 line, 2 words, 7 bytes, 6 chars, 2 longest)
 //	"-l":        "x\n"                     (1 line, 1 word, 2 bytes, 1 longest)
 //	sub/inner.txt: "inner\n"               (1 line, 1 word, 6 bytes, 5 longest)
-func testFS() fsx.MemFS {
-	return fsx.MemFS{
+func testFS() fsx.MemoryFS {
+	return fsx.MemoryFS{
 		"file.txt":      {Data: []byte("hello world\nfoo bar\n")},
 		"one.txt":       {Data: []byte("a b\nc")},
 		"two.txt":       {Data: []byte("one\ntwo\n")},
@@ -603,7 +603,7 @@ func TestRunErrors(t *testing.T) {
 			Name:     "file read error",
 			Stdin:    strings.NewReader(""),
 			Args:     []string{"dir"},
-			FS:       fsx.MemFS{"dir": {Mode: fs.ModeDir}},
+			FS:       fsx.MemoryFS{"dir": {Mode: fs.ModeDir}},
 			WantErr:  "wc: dir: invalid argument\n",
 			WantExit: 1,
 		},

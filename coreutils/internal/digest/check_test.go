@@ -21,17 +21,17 @@ func taggedLine(tag, digest, name string) string {
 }
 
 // testFiles returns the fixtures of testFS with the given extra files.
-func testFiles(extra map[string]string) fsx.MemFS {
+func testFiles(extra map[string]string) fsx.MemoryFS {
 	files := testFS()
 	for name, data := range extra {
-		files[name] = &fsx.MemFile{Data: []byte(data)}
+		files[name] = &fsx.MemoryFile{Data: []byte(data)}
 	}
 	return files
 }
 
 // sumsFS returns the fixtures with a checksum file named "sums.txt" holding the
 // given lines.
-func sumsFS(lines ...string) fsx.MemFS {
+func sumsFS(lines ...string) fsx.MemoryFS {
 	return testFiles(map[string]string{
 		"sums.txt": strings.Join(lines, "\n") + "\n",
 	})

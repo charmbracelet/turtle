@@ -82,7 +82,7 @@ func TestOsExec(t *testing.T) {
 	})
 
 	t.Run("utility not found", func(t *testing.T) {
-		rt := OsRuntime("")
+		rt := SystemRuntime("")
 		status, err := osExec(t.Context(), rt, ExecOpts{Name: "definitely-not-a-utility"})
 		if status != 127 {
 			t.Errorf("status = %d, want 127", status)
@@ -101,7 +101,7 @@ func TestOsExec(t *testing.T) {
 		if err := os.WriteFile(path, []byte("exit 3\n"), 0o755); err != nil {
 			t.Fatal(err)
 		}
-		rt := OsRuntime("")
+		rt := SystemRuntime("")
 		rt.Environ = envWithPath(dir)
 		if status, err := osExec(t.Context(), rt, ExecOpts{Name: "myutil"}); err != nil || status != 3 {
 			t.Errorf("osExec() = %d, %v, want 3, nil", status, err)
@@ -109,7 +109,7 @@ func TestOsExec(t *testing.T) {
 	})
 
 	t.Run("utility named by a path that doesn't exist", func(t *testing.T) {
-		rt := OsRuntime("")
+		rt := SystemRuntime("")
 		status, err := osExec(t.Context(), rt, ExecOpts{Name: "./definitely-not-a-utility"})
 		if status != 127 {
 			t.Errorf("status = %d, want 127", status)
@@ -128,7 +128,7 @@ func TestOsExec(t *testing.T) {
 		if err := os.WriteFile(path, []byte("#!/bin/sh\nexit 0\n"), 0o755); err != nil {
 			t.Fatal(err)
 		}
-		rt := OsRuntime("")
+		rt := SystemRuntime("")
 		rt.Environ = envWithPath(dir)
 		if status, err := osExec(t.Context(), rt, ExecOpts{Name: "myutil"}); err != nil || status != 0 {
 			t.Errorf("osExec() = %d, %v, want 0, nil", status, err)
@@ -144,7 +144,7 @@ func TestOsExec(t *testing.T) {
 		if err := os.WriteFile(path, []byte("not executable\n"), 0o644); err != nil {
 			t.Fatal(err)
 		}
-		rt := OsRuntime("")
+		rt := SystemRuntime("")
 		rt.Environ = envWithPath(dir)
 		if status, err := osExec(t.Context(), rt, ExecOpts{Name: "myutil"}); status != 126 || err == nil {
 			t.Errorf("osExec() = %d, %v, want 126, an error", status, err)
@@ -160,7 +160,7 @@ func TestOsExec(t *testing.T) {
 		if err := os.WriteFile(path, []byte("#!/bin/sh\nexit 0\n"), 0o755); err != nil {
 			t.Fatal(err)
 		}
-		rt := OsRuntime("")
+		rt := SystemRuntime("")
 		rt.WorkingDir = dir
 		rt.Environ = envWithPath(".")
 		if status, err := osExec(t.Context(), rt, ExecOpts{Name: "myutil"}); err != nil || status != 0 {
@@ -182,7 +182,7 @@ func TestOsExec(t *testing.T) {
 			t.Fatal(err)
 		}
 		t.Chdir(dir)
-		rt := OsRuntime("")
+		rt := SystemRuntime("")
 		rt.WorkingDir = "sub"
 		rt.Environ = envWithPath(".")
 		if status, err := osExec(t.Context(), rt, ExecOpts{Name: "myutil"}); err != nil || status != 0 {
@@ -199,7 +199,7 @@ func TestOsExec(t *testing.T) {
 		if err := os.WriteFile(path, []byte("#!/bin/sh\nexit 0\n"), 0o755); err != nil {
 			t.Fatal(err)
 		}
-		rt := OsRuntime("")
+		rt := SystemRuntime("")
 		rt.WorkingDir = dir
 		rt.Environ = envWithPath("")
 		if status, err := osExec(t.Context(), rt, ExecOpts{Name: "myutil"}); err != nil || status != 0 {
@@ -211,7 +211,7 @@ func TestOsExec(t *testing.T) {
 		if runtime.GOOS == "windows" {
 			t.Skip("needs the default Unix search path")
 		}
-		rt := OsRuntime("")
+		rt := SystemRuntime("")
 		rt.Environ = func() []string { return envWithoutPath() }
 		if status, err := osExec(t.Context(), rt, ExecOpts{Name: "sh", Args: []string{"-c", "exit 0"}}); err != nil || status != 0 {
 			t.Errorf("osExec() = %d, %v, want 0, nil", status, err)
@@ -231,7 +231,7 @@ func TestOsExec(t *testing.T) {
 			t.Fatal(err)
 		}
 		t.Cleanup(func() { os.Chmod(dir, 0o755) })
-		rt := OsRuntime("")
+		rt := SystemRuntime("")
 		rt.Environ = envWithPath(dir)
 		if status, err := osExec(t.Context(), rt, ExecOpts{Name: "myutil"}); status != 126 || err == nil {
 			t.Errorf("osExec() = %d, %v, want 126, an error", status, err)
@@ -380,8 +380,8 @@ func TestRuntimeTerminal(t *testing.T) {
 	})
 }
 
-func TestOsRuntime(t *testing.T) {
-	rt := OsRuntime("")
+func TestSystemRuntime(t *testing.T) {
+	rt := SystemRuntime("")
 
 	wd, err := os.Getwd()
 	if err != nil {
@@ -401,7 +401,7 @@ func TestOsRuntime(t *testing.T) {
 	}
 }
 
-func TestOsRuntimeWorkingDir(t *testing.T) {
+func TestSystemRuntimeWorkingDir(t *testing.T) {
 	dir := t.TempDir()
 	cwd, err := os.Getwd()
 	if err != nil {
@@ -420,7 +420,7 @@ func TestOsRuntimeWorkingDir(t *testing.T) {
 		{name: "relative", dir: relative},
 	} {
 		t.Run(test.name, func(t *testing.T) {
-			rt := OsRuntime(test.dir)
+			rt := SystemRuntime(test.dir)
 			if rt.WorkingDir != dir {
 				t.Errorf("WorkingDir = %q, want %q", rt.WorkingDir, dir)
 			}
@@ -444,7 +444,7 @@ func TestOsExecEnv(t *testing.T) {
 	}
 
 	t.Run("runs the utility with the environment given", func(t *testing.T) {
-		rt := OsRuntime("")
+		rt := SystemRuntime("")
 		rt.Environ = envWithPath(dir)
 		out := new(bytes.Buffer)
 		rt.Stdout = out
@@ -459,7 +459,7 @@ func TestOsExecEnv(t *testing.T) {
 
 	t.Run("a nil environment is an empty one", func(t *testing.T) {
 		t.Setenv("FOO", "inherited")
-		rt := OsRuntime("")
+		rt := SystemRuntime("")
 		rt.Environ = nil
 		out := new(bytes.Buffer)
 		rt.Stdout = out

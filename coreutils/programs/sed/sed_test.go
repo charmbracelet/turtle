@@ -14,10 +14,10 @@ import (
 	"charm.land/turtle/fsx"
 )
 
-func stringsFS(files map[string]string) fsx.MemFS {
-	fsys := fsx.MemFS{}
+func stringsFS(files map[string]string) fsx.MemoryFS {
+	fsys := fsx.MemoryFS{}
 	for name, content := range files {
-		fsys[name] = &fsx.MemFile{Data: []byte(content)}
+		fsys[name] = &fsx.MemoryFile{Data: []byte(content)}
 	}
 	return fsys
 }
@@ -30,7 +30,7 @@ func runCases(t *testing.T, tests []testutil.Case) {
 
 	for i := range tests {
 		if tests[i].FS == nil {
-			tests[i].FS = fsx.MemFS{}
+			tests[i].FS = fsx.MemoryFS{}
 		}
 	}
 	testutil.Run(t, New, tests)
@@ -1021,14 +1021,14 @@ func testRuntime(stdin io.Reader) *coreutils.Runtime {
 		Stdin:  stdin,
 		Stdout: new(bytes.Buffer),
 		Stderr: new(bytes.Buffer),
-		FS:     fsx.MemFS{},
+		FS:     fsx.MemoryFS{},
 	}
 }
 
-// closeTrackingFS wraps a MemFS, failing to open one file and recording the
+// closeTrackingFS wraps a MemoryFS, failing to open one file and recording the
 // names of the files closed through it.
 type closeTrackingFS struct {
-	fsx.MemFS
+	fsx.MemoryFS
 	fail   string
 	closed *[]string
 }
@@ -1037,7 +1037,7 @@ func (f *closeTrackingFS) OpenFile(name string, flag int, perm fs.FileMode) (fsx
 	if name == f.fail {
 		return nil, &fs.PathError{Op: "open", Path: name, Err: fs.ErrPermission}
 	}
-	file, err := f.MemFS.OpenFile(name, flag, perm)
+	file, err := f.MemoryFS.OpenFile(name, flag, perm)
 	if err != nil {
 		return nil, err
 	}
@@ -1058,7 +1058,7 @@ func (f *closeTrackingFile) Close() error {
 
 func TestRunClosesWritersWhenOpenFails(t *testing.T) {
 	var closed []string
-	fsys := &closeTrackingFS{MemFS: fsx.MemFS{}, fail: "bad", closed: &closed}
+	fsys := &closeTrackingFS{MemoryFS: fsx.MemoryFS{}, fail: "bad", closed: &closed}
 	rt := &coreutils.Runtime{
 		Stdin:  strings.NewReader("a\n"),
 		Stdout: new(bytes.Buffer),
@@ -1209,7 +1209,7 @@ func TestRunInPlace(t *testing.T) {
 	runCases(t, tests)
 }
 
-func TestRunInPlaceOsFS(t *testing.T) {
+func TestRunInPlaceSystemFS(t *testing.T) {
 	// runOs edits f.txt in place, returning the error of the run and the
 	// names the directory holds afterwards.
 	runOs := func(t *testing.T, args ...string) (error, []string) {
@@ -1223,7 +1223,7 @@ func TestRunInPlaceOsFS(t *testing.T) {
 			Stdin:      strings.NewReader(""),
 			Stdout:     new(bytes.Buffer),
 			Stderr:     new(bytes.Buffer),
-			FS:         fsx.OsFS(dir),
+			FS:         fsx.SystemFS(dir),
 			WorkingDir: dir,
 		}
 		err := New(rt).Run(t.Context(), args...)
@@ -1260,7 +1260,7 @@ func TestRunInPlaceOsFS(t *testing.T) {
 }
 
 func TestRunInPlaceMode(t *testing.T) {
-	files := fsx.MemFS{"f.txt": {Data: []byte("a\nb\n"), Mode: 0o600}}
+	files := fsx.MemoryFS{"f.txt": {Data: []byte("a\nb\n"), Mode: 0o600}}
 	rt := &coreutils.Runtime{
 		Stdin:  strings.NewReader(""),
 		Stdout: new(bytes.Buffer),
@@ -1347,7 +1347,7 @@ func TestRunInPlaceFollowSymlinks(t *testing.T) {
 		Stdin:      strings.NewReader(""),
 		Stdout:     new(bytes.Buffer),
 		Stderr:     new(bytes.Buffer),
-		FS:         fsx.OsFS(dir),
+		FS:         fsx.SystemFS(dir),
 		WorkingDir: dir,
 	}
 

@@ -35,8 +35,8 @@ import (
 //	oct2.txt:   "12345678y" (oct1.txt with a difference at byte 9)
 //	sub/a.txt:  "z\n"
 //	sub/b.txt:  "y\n"
-func testFS() fsx.MemFS {
-	return fsx.MemFS{
+func testFS() fsx.MemoryFS {
+	return fsx.MemoryFS{
 		"a.txt":      {Data: []byte("ab\ncd\n")},
 		"b.txt":      {Data: []byte("ab\ncx\n")},
 		"c.txt":      {Data: []byte("ab\n")},
@@ -62,7 +62,7 @@ func testFS() fsx.MemFS {
 }
 
 func TestRunDefaults(t *testing.T) {
-	big := fsx.MemFS{
+	big := fsx.MemoryFS{
 		"big1.txt": {Data: []byte(strings.Repeat("a", 40000) + "b")},
 		"big2.txt": {Data: []byte(strings.Repeat("a", 40000) + "c")},
 		"big0.txt": {Data: []byte(strings.Repeat("a", 40000))},
@@ -634,7 +634,7 @@ func TestRunSkipOperands(t *testing.T) {
 }
 
 func TestRunBytesLimit(t *testing.T) {
-	big := fsx.MemFS{
+	big := fsx.MemoryFS{
 		"big1.txt": {Data: []byte(strings.Repeat("a", 40000) + "b")},
 		"big2.txt": {Data: []byte(strings.Repeat("a", 40000) + "c")},
 		"big0.txt": {Data: []byte(strings.Repeat("a", 40000))},
@@ -1067,7 +1067,7 @@ func TestRunErrors(t *testing.T) {
 		},
 		{
 			Name:     "directory input",
-			FS:       fsx.MemFS{"dir": {Mode: fs.ModeDir}, "a.txt": {Data: []byte("a\n")}},
+			FS:       fsx.MemoryFS{"dir": {Mode: fs.ModeDir}, "a.txt": {Data: []byte("a\n")}},
 			Args:     []string{"dir", "a.txt"},
 			WantErr:  "cmp: dir: invalid argument\n",
 			WantExit: 2,
@@ -1135,7 +1135,7 @@ func TestRunWriteError(t *testing.T) {
 }
 
 func TestRunContext(t *testing.T) {
-	files := fsx.MemFS{"a.txt": {Data: []byte("hello\n")}}
+	files := fsx.MemoryFS{"a.txt": {Data: []byte("hello\n")}}
 
 	t.Run("cancelled before running", func(t *testing.T) {
 		testutil.Cancelled(t, New, strings.NewReader("hello\n"), files, "-", "a.txt")

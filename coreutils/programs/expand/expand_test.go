@@ -21,8 +21,8 @@ import (
 //	empty.txt:     ""
 //	"-t":          "z\tw\n" (a file named like an option)
 //	sub/inner.txt: "x\ty\n"
-func testFS() fsx.MemFS {
-	return fsx.MemFS{
+func testFS() fsx.MemoryFS {
+	return fsx.MemoryFS{
 		"tabs.txt":      {Data: []byte("\tfoo\nbar\tbaz\n")},
 		"utf8.txt":      {Data: []byte("á\tb\n日本\t語\n")},
 		"invalid.txt":   {Data: []byte{'a', 0xff, '\t', 'b', '\n'}},
@@ -454,7 +454,7 @@ func TestRunErrors(t *testing.T) {
 		},
 		{
 			Name:     "directory operand",
-			FS:       fsx.MemFS{"dir": {Mode: fs.ModeDir}},
+			FS:       fsx.MemoryFS{"dir": {Mode: fs.ModeDir}},
 			Args:     []string{"dir"},
 			WantErr:  "expand: dir: invalid argument\n",
 			WantExit: 1,

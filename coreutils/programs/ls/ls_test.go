@@ -20,13 +20,13 @@ import (
 func dirMode(perm fs.FileMode) fs.FileMode { return fs.ModeDir | perm }
 
 // link returns a symbolic entry pointing at target.
-func link(target string) *fsx.MemFile {
-	return &fsx.MemFile{Data: []byte(target), Mode: fs.ModeSymlink | 0o777}
+func link(target string) *fsx.MemoryFile {
+	return &fsx.MemoryFile{Data: []byte(target), Mode: fs.ModeSymlink | 0o777}
 }
 
 // linkAt returns a symbolic entry pointing at target, made at the given time.
-func linkAt(target string, mod time.Time) *fsx.MemFile {
-	return &fsx.MemFile{
+func linkAt(target string, mod time.Time) *fsx.MemoryFile {
+	return &fsx.MemoryFile{
 		Data:    []byte(target),
 		Mode:    fs.ModeSymlink | 0o777,
 		ModTime: mod,
@@ -65,7 +65,7 @@ func (t times) year(when time.Time) string {
 
 type testCase struct {
 	name     string
-	files    fsx.MemFS
+	files    fsx.MemoryFS
 	sys      fsx.FS
 	wd       string
 	env      map[string]string
@@ -122,72 +122,72 @@ func TestRunDefault(t *testing.T) {
 	runCases(t, []testCase{
 		{
 			name:    "lists the working directory when no operand is given",
-			files:   fsx.MemFS{"b.txt": {}, "a.txt": {}},
+			files:   fsx.MemoryFS{"b.txt": {}, "a.txt": {}},
 			wantOut: "a.txt\nb.txt\n",
 		},
 		{
 			name:    "writes one entry per line by default",
-			files:   fsx.MemFS{"a.txt": {}, "b.txt": {}},
+			files:   fsx.MemoryFS{"a.txt": {}, "b.txt": {}},
 			args:    []string{"."},
 			wantOut: "a.txt\nb.txt\n",
 		},
 		{
 			name:    "hides the entries that begin with a dot",
-			files:   fsx.MemFS{".hidden": {}, "a.txt": {}},
+			files:   fsx.MemoryFS{".hidden": {}, "a.txt": {}},
 			wantOut: "a.txt\n",
 		},
 		{
 			name:    "writes an operand naming a hidden file",
-			files:   fsx.MemFS{".hidden": {}},
+			files:   fsx.MemoryFS{".hidden": {}},
 			args:    []string{".hidden"},
 			wantOut: ".hidden\n",
 		},
 		{
 			name:    "lists the contents of a directory operand",
-			files:   fsx.MemFS{"dir/a.txt": {}, "dir/b.txt": {}},
+			files:   fsx.MemoryFS{"dir/a.txt": {}, "dir/b.txt": {}},
 			args:    []string{"dir"},
 			wantOut: "a.txt\nb.txt\n",
 		},
 		{
 			name:    "sorts entries by their bytes",
-			files:   fsx.MemFS{"b.txt": {}, "C.txt": {}, "a.txt": {}},
+			files:   fsx.MemoryFS{"b.txt": {}, "C.txt": {}, "a.txt": {}},
 			wantOut: "C.txt\na.txt\nb.txt\n",
 		},
 		{
 			name:    "writes nothing for an empty directory",
-			files:   fsx.MemFS{"dir": {Mode: dirMode(0o755)}},
+			files:   fsx.MemoryFS{"dir": {Mode: dirMode(0o755)}},
 			args:    []string{"dir"},
 			wantOut: "",
 		},
 		{
 			name:    "resolves an operand against the working directory",
-			files:   fsx.MemFS{"work/a.txt": {}, "a.txt": {}},
+			files:   fsx.MemoryFS{"work/a.txt": {}, "a.txt": {}},
 			wd:      "work",
 			args:    []string{"a.txt"},
 			wantOut: "a.txt\n",
 		},
 		{
 			name:    "lists the working directory of an operand ending in a separator",
-			files:   fsx.MemFS{"dir/a.txt": {}},
+			files:   fsx.MemoryFS{"dir/a.txt": {}},
 			args:    []string{"dir/"},
 			wantOut: "a.txt\n",
 		},
 		{
 			name:    "lists a directory named through redundant separators",
-			files:   fsx.MemFS{"dir/a.txt": {}, "other/a.txt": {}},
+			files:   fsx.MemoryFS{"dir/a.txt": {}, "other/a.txt": {}},
 			args:    []string{"./dir/./"},
 			wantOut: "a.txt\n",
 		},
 		{
 			name:     "reports a missing operand",
-			files:    fsx.MemFS{},
+			files:    fsx.MemoryFS{},
 			args:     []string{"nope"},
 			wantErr:  "ls: cannot access 'nope': file does not exist\n",
 			wantExit: 1,
 		},
 		{
 			name:     "lists the other operands after a failure",
-			files:    fsx.MemFS{"a.txt": {}},
+			files:    fsx.MemoryFS{"a.txt": {}},
 			args:     []string{"nope", "a.txt"},
 			wantOut:  "a.txt\n",
 			wantErr:  "ls: cannot access 'nope': file does not exist\n",
@@ -195,14 +195,14 @@ func TestRunDefault(t *testing.T) {
 		},
 		{
 			name:     "reports a zero-length operand",
-			files:    fsx.MemFS{},
+			files:    fsx.MemoryFS{},
 			args:     []string{""},
 			wantErr:  "ls: invalid zero-length file name\n",
 			wantExit: 1,
 		},
 		{
 			name:    "writes the name of a file operand as specified",
-			files:   fsx.MemFS{"dir/a.txt": {}},
+			files:   fsx.MemoryFS{"dir/a.txt": {}},
 			args:    []string{"dir//a.txt"},
 			wantOut: "dir//a.txt\n",
 		},
@@ -215,19 +215,19 @@ func TestRunAll(t *testing.T) {
 	runCases(t, []testCase{
 		{
 			name:    "-a writes the entries that begin with a dot",
-			files:   fsx.MemFS{".hidden": {}, "a.txt": {}},
+			files:   fsx.MemoryFS{".hidden": {}, "a.txt": {}},
 			args:    []string{"-a"},
 			wantOut: ".hidden\na.txt\n",
 		},
 		{
 			name:    "-A writes the hidden entries",
-			files:   fsx.MemFS{".hidden": {}, "a.txt": {}},
+			files:   fsx.MemoryFS{".hidden": {}, "a.txt": {}},
 			args:    []string{"-A"},
 			wantOut: ".hidden\na.txt\n",
 		},
 		{
 			name:    "-a writes the long listing of a hidden entry",
-			files:   fsx.MemFS{".hidden": {Mode: 0o600, ModTime: now.recent}},
+			files:   fsx.MemoryFS{".hidden": {Mode: 0o600, ModTime: now.recent}},
 			args:    []string{"-al"},
 			wantOut: "total 0\n-rw------- 1 0 0 0 " + now.day(now.recent) + " .hidden\n",
 		},
@@ -240,7 +240,7 @@ func TestRunLong(t *testing.T) {
 	runCases(t, []testCase{
 		{
 			name: "-l writes the long format",
-			files: fsx.MemFS{
+			files: fsx.MemoryFS{
 				"dir":   {Mode: dirMode(0o755), ModTime: now.recent},
 				"f.txt": {Data: []byte("hello"), Mode: 0o644, ModTime: now.recent},
 			},
@@ -251,7 +251,7 @@ func TestRunLong(t *testing.T) {
 		},
 		{
 			name: "-l aligns the fields of the listing",
-			files: fsx.MemFS{
+			files: fsx.MemoryFS{
 				"one":   {Data: []byte("x"), Mode: 0o644, ModTime: now.recent},
 				"three": {Data: []byte(strings.Repeat("x", 10000)), Mode: 0o444, ModTime: now.recent},
 				"two":   {Data: []byte(strings.Repeat("x", 1000)), Mode: 0o644, ModTime: now.recent},
@@ -264,19 +264,19 @@ func TestRunLong(t *testing.T) {
 		},
 		{
 			name:    "-l writes the year for an old modification time",
-			files:   fsx.MemFS{"old.txt": {Mode: 0o644, ModTime: now.old}},
+			files:   fsx.MemoryFS{"old.txt": {Mode: 0o644, ModTime: now.old}},
 			args:    []string{"-l"},
 			wantOut: "total 0\n-rw-r--r-- 1 0 0 0 " + now.year(now.old) + " old.txt\n",
 		},
 		{
 			name:    "-l writes the year for a future modification time",
-			files:   fsx.MemFS{"soon.txt": {Mode: 0o644, ModTime: now.future}},
+			files:   fsx.MemoryFS{"soon.txt": {Mode: 0o644, ModTime: now.future}},
 			args:    []string{"-l"},
 			wantOut: "total 0\n-rw-r--r-- 1 0 0 0 " + now.year(now.future) + " soon.txt\n",
 		},
 		{
 			name: "-l writes every permission flag",
-			files: fsx.MemFS{
+			files: fsx.MemoryFS{
 				"deletable": {Mode: fs.ModeSticky | dirMode(0o757), ModTime: now.recent},
 				"exec":      {Mode: fs.ModeSetuid | 0o744, ModTime: now.recent},
 				"group":     {Mode: fs.ModeSetgid | 0o644, ModTime: now.recent},
@@ -297,7 +297,7 @@ func TestRunLong(t *testing.T) {
 		},
 		{
 			name: "-l writes the type of each file",
-			files: fsx.MemFS{
+			files: fsx.MemoryFS{
 				"block":  {Mode: fs.ModeDevice | 0o640, ModTime: now.recent},
 				"char":   {Mode: fs.ModeDevice | fs.ModeCharDevice | 0o640, ModTime: now.recent},
 				"other":  {Mode: fs.ModeIrregular | 0o640, ModTime: now.recent},
@@ -314,91 +314,91 @@ func TestRunLong(t *testing.T) {
 		},
 		{
 			name:    "-l writes the file operand as specified",
-			files:   fsx.MemFS{"dir/a.txt": {Mode: 0o644, ModTime: now.recent}},
+			files:   fsx.MemoryFS{"dir/a.txt": {Mode: 0o644, ModTime: now.recent}},
 			args:    []string{"-l", "dir/a.txt"},
 			wantOut: "-rw-r--r-- 1 0 0 0 " + now.day(now.recent) + " dir/a.txt\n",
 		},
 		{
 			name:    "-l of an empty directory writes only the total",
-			files:   fsx.MemFS{"dir": {Mode: dirMode(0o755)}},
+			files:   fsx.MemoryFS{"dir": {Mode: dirMode(0o755)}},
 			args:    []string{"-l", "dir"},
 			wantOut: "total 0\n",
 		},
 		{
 			name:    "-C disables the long format",
-			files:   fsx.MemFS{"a.txt": {}, "b.txt": {}},
+			files:   fsx.MemoryFS{"a.txt": {}, "b.txt": {}},
 			args:    []string{"-l", "-C"},
 			wantOut: "a.txt  b.txt\n",
 		},
 		{
 			name:    "-l after -C writes the long format again",
-			files:   fsx.MemFS{"a.txt": {Mode: 0o644, ModTime: now.recent}},
+			files:   fsx.MemoryFS{"a.txt": {Mode: 0o644, ModTime: now.recent}},
 			args:    []string{"-C", "-l"},
 			wantOut: "total 0\n-rw-r--r-- 1 0 0 0 " + now.day(now.recent) + " a.txt\n",
 		},
 		{
 			name:    "-1 keeps the long format",
-			files:   fsx.MemFS{"a.txt": {Mode: 0o644, ModTime: now.recent}},
+			files:   fsx.MemoryFS{"a.txt": {Mode: 0o644, ModTime: now.recent}},
 			args:    []string{"-l", "-1"},
 			wantOut: "total 0\n-rw-r--r-- 1 0 0 0 " + now.day(now.recent) + " a.txt\n",
 		},
 		{
 			name:    "-n writes the identifiers as numbers",
-			files:   fsx.MemFS{"a.txt": {Mode: 0o644, ModTime: now.recent}},
+			files:   fsx.MemoryFS{"a.txt": {Mode: 0o644, ModTime: now.recent}},
 			args:    []string{"-n"},
 			wantOut: "total 0\n-rw-r--r-- 1 0 0 0 " + now.day(now.recent) + " a.txt\n",
 		},
 		{
 			name:    "-g omits the owner",
-			files:   fsx.MemFS{"a.txt": {Mode: 0o644, ModTime: now.recent}},
+			files:   fsx.MemoryFS{"a.txt": {Mode: 0o644, ModTime: now.recent}},
 			args:    []string{"-g"},
 			wantOut: "total 0\n-rw-r--r-- 1 0 0 " + now.day(now.recent) + " a.txt\n",
 		},
 		{
 			name:    "-o omits the group",
-			files:   fsx.MemFS{"a.txt": {Mode: 0o644, ModTime: now.recent}},
+			files:   fsx.MemoryFS{"a.txt": {Mode: 0o644, ModTime: now.recent}},
 			args:    []string{"-o"},
 			wantOut: "total 0\n-rw-r--r-- 1 0 0 " + now.day(now.recent) + " a.txt\n",
 		},
 		{
 			name:    "-go omits both",
-			files:   fsx.MemFS{"a.txt": {Mode: 0o644, ModTime: now.recent}},
+			files:   fsx.MemoryFS{"a.txt": {Mode: 0o644, ModTime: now.recent}},
 			args:    []string{"-go"},
 			wantOut: "total 0\n-rw-r--r-- 1 0 " + now.day(now.recent) + " a.txt\n",
 		},
 		{
 			name:    "-li writes the file serial number first",
-			files:   fsx.MemFS{"a.txt": {Mode: 0o644, ModTime: now.recent}},
+			files:   fsx.MemoryFS{"a.txt": {Mode: 0o644, ModTime: now.recent}},
 			args:    []string{"-li"},
 			wantOut: "total 0\n0 -rw-r--r-- 1 0 0 0 " + now.day(now.recent) + " a.txt\n",
 		},
 		{
 			name:    "-ls writes the block count before the line",
-			files:   fsx.MemFS{"a.txt": {Data: []byte("hello"), Mode: 0o644, ModTime: now.recent}},
+			files:   fsx.MemoryFS{"a.txt": {Data: []byte("hello"), Mode: 0o644, ModTime: now.recent}},
 			args:    []string{"-ls"},
 			wantOut: "total 1\n1 -rw-r--r-- 1 0 0 5 " + now.day(now.recent) + " a.txt\n",
 		},
 		{
 			name:    "-c writes the status change time",
-			files:   fsx.MemFS{"a.txt": {Mode: 0o644, ModTime: now.old}},
+			files:   fsx.MemoryFS{"a.txt": {Mode: 0o644, ModTime: now.old}},
 			args:    []string{"-l", "-c"},
 			wantOut: "total 0\n-rw-r--r-- 1 0 0 0 " + now.year(now.old) + " a.txt\n",
 		},
 		{
 			name:    "-u writes the access time",
-			files:   fsx.MemFS{"a.txt": {Mode: 0o644, ModTime: now.old}},
+			files:   fsx.MemoryFS{"a.txt": {Mode: 0o644, ModTime: now.old}},
 			args:    []string{"-l", "-u"},
 			wantOut: "total 0\n-rw-r--r-- 1 0 0 0 " + now.year(now.old) + " a.txt\n",
 		},
 		{
 			name:    "-u after -c chooses the access time",
-			files:   fsx.MemFS{"a.txt": {Mode: 0o644, ModTime: now.recent}},
+			files:   fsx.MemoryFS{"a.txt": {Mode: 0o644, ModTime: now.recent}},
 			args:    []string{"-l", "-c", "-u"},
 			wantOut: "total 0\n-rw-r--r-- 1 0 0 0 " + now.day(now.recent) + " a.txt\n",
 		},
 		{
 			name:    "-c after -u chooses the status change time",
-			files:   fsx.MemFS{"a.txt": {Mode: 0o644, ModTime: now.recent}},
+			files:   fsx.MemoryFS{"a.txt": {Mode: 0o644, ModTime: now.recent}},
 			args:    []string{"-l", "-u", "-c"},
 			wantOut: "total 0\n-rw-r--r-- 1 0 0 0 " + now.day(now.recent) + " a.txt\n",
 		},
@@ -409,13 +409,13 @@ func TestRunInode(t *testing.T) {
 	runCases(t, []testCase{
 		{
 			name:    "-i writes the file serial number",
-			files:   fsx.MemFS{"a.txt": {}, "b.txt": {}},
+			files:   fsx.MemoryFS{"a.txt": {}, "b.txt": {}},
 			args:    []string{"-i", "-1"},
 			wantOut: "0 a.txt\n0 b.txt\n",
 		},
 		{
 			name:    "-i writes the number before the columns",
-			files:   fsx.MemFS{"a.txt": {}, "b.txt": {}},
+			files:   fsx.MemoryFS{"a.txt": {}, "b.txt": {}},
 			args:    []string{"-i", "-C"},
 			wantOut: "0 a.txt  0 b.txt\n",
 		},
@@ -426,31 +426,31 @@ func TestRunBlocks(t *testing.T) {
 	runCases(t, []testCase{
 		{
 			name:    "-s writes the blocks and their total",
-			files:   fsx.MemFS{"a.txt": {Data: []byte("x")}, "b.txt": {Data: []byte(strings.Repeat("x", 512))}},
+			files:   fsx.MemoryFS{"a.txt": {Data: []byte("x")}, "b.txt": {Data: []byte(strings.Repeat("x", 512))}},
 			args:    []string{"-s", "-1"},
 			wantOut: "total 1\n1 a.txt\n1 b.txt\n",
 		},
 		{
 			name:    "-s writes no block for an empty file",
-			files:   fsx.MemFS{"a.txt": {}},
+			files:   fsx.MemoryFS{"a.txt": {}},
 			args:    []string{"-s", "-1"},
 			wantOut: "total 0\n0 a.txt\n",
 		},
 		{
 			name:    "-k counts blocks in kibibytes",
-			files:   fsx.MemFS{"a.txt": {Data: []byte("x")}, "b.txt": {Data: []byte(strings.Repeat("x", 512))}},
+			files:   fsx.MemoryFS{"a.txt": {Data: []byte("x")}, "b.txt": {Data: []byte(strings.Repeat("x", 512))}},
 			args:    []string{"-s", "-k", "-1"},
 			wantOut: "total 1\n1 a.txt\n1 b.txt\n",
 		},
 		{
 			name:    "-s writes the blocks of a file operand without a total",
-			files:   fsx.MemFS{"a.txt": {Data: []byte("x")}},
+			files:   fsx.MemoryFS{"a.txt": {Data: []byte("x")}},
 			args:    []string{"-s", "-1", "a.txt"},
 			wantOut: "1 a.txt\n",
 		},
 		{
 			name:    "-s writes the numbers of listings of different widths",
-			files:   fsx.MemFS{"a.txt": {}, "b.txt": {Data: []byte(strings.Repeat("x", 5120))}},
+			files:   fsx.MemoryFS{"a.txt": {}, "b.txt": {Data: []byte(strings.Repeat("x", 5120))}},
 			args:    []string{"-s", "-1"},
 			wantOut: "total 5\n0 a.txt\n5 b.txt\n",
 		},
@@ -461,114 +461,114 @@ func TestRunFormat(t *testing.T) {
 	runCases(t, []testCase{
 		{
 			name:    "-C writes entries down the columns",
-			files:   fsx.MemFS{"a": {}, "b": {}, "c": {}, "d": {}, "e": {}, "f": {}, "g": {}},
+			files:   fsx.MemoryFS{"a": {}, "b": {}, "c": {}, "d": {}, "e": {}, "f": {}, "g": {}},
 			env:     map[string]string{"COLUMNS": "10"},
 			args:    []string{"-C"},
 			wantOut: "a  d  g\nb  e\nc  f\n",
 		},
 		{
 			name:    "-C pads to the width of the column",
-			files:   fsx.MemFS{"a": {}, "bbbb": {}},
+			files:   fsx.MemoryFS{"a": {}, "bbbb": {}},
 			env:     map[string]string{"COLUMNS": "20"},
 			args:    []string{"-C"},
 			wantOut: "a  bbbb\n",
 		},
 		{
 			name:    "-C writes as many columns as the width fits",
-			files:   fsx.MemFS{"a": {}, "b": {}, "c": {}, "d": {}},
+			files:   fsx.MemoryFS{"a": {}, "b": {}, "c": {}, "d": {}},
 			env:     map[string]string{"COLUMNS": "80"},
 			args:    []string{"-C"},
 			wantOut: "a  b  c  d\n",
 		},
 		{
 			name:    "-x writes entries across the columns",
-			files:   fsx.MemFS{"a": {}, "b": {}, "c": {}, "d": {}},
+			files:   fsx.MemoryFS{"a": {}, "b": {}, "c": {}, "d": {}},
 			env:     map[string]string{"COLUMNS": "10"},
 			args:    []string{"-x"},
 			wantOut: "a  b  c\nd\n",
 		},
 		{
 			name:    "-C pads by the characters of the names",
-			files:   fsx.MemFS{"a": {}, "\u00e9\u00e9": {}},
+			files:   fsx.MemoryFS{"a": {}, "\u00e9\u00e9": {}},
 			env:     map[string]string{"COLUMNS": "20"},
 			args:    []string{"-C"},
 			wantOut: "a  \u00e9\u00e9\n",
 		},
 		{
 			name:    "-C writes the file operands in the same columns",
-			files:   fsx.MemFS{"a.txt": {}, "bb.txt": {}},
+			files:   fsx.MemoryFS{"a.txt": {}, "bb.txt": {}},
 			args:    []string{"-C", "bb.txt", "a.txt"},
 			wantOut: "a.txt  bb.txt\n",
 		},
 		{
 			name:    "-C pads the names by their characters",
-			files:   fsx.MemFS{"a": {}, "\u00e9\u00e9": {}},
+			files:   fsx.MemoryFS{"a": {}, "\u00e9\u00e9": {}},
 			env:     map[string]string{"COLUMNS": "20"},
 			args:    []string{"-C"},
 			wantOut: "a  \u00e9\u00e9\n",
 		},
 		{
 			name:    "-C writes one column when a name is too wide",
-			files:   fsx.MemFS{"aaaaaaaaaaaa": {}, "b": {}},
+			files:   fsx.MemoryFS{"aaaaaaaaaaaa": {}, "b": {}},
 			env:     map[string]string{"COLUMNS": "10"},
 			args:    []string{"-C"},
 			wantOut: "aaaaaaaaaaaa\nb\n",
 		},
 		{
 			name:    "-m writes the names separated by commas",
-			files:   fsx.MemFS{"a": {}, "b": {}, "c": {}},
+			files:   fsx.MemoryFS{"a": {}, "b": {}, "c": {}},
 			args:    []string{"-m"},
 			wantOut: "a, b, c\n",
 		},
 		{
 			name:    "-m wraps when a name doesn't fit the width",
-			files:   fsx.MemFS{"aaa": {}, "bbb": {}, "ccc": {}},
+			files:   fsx.MemoryFS{"aaa": {}, "bbb": {}, "ccc": {}},
 			env:     map[string]string{"COLUMNS": "7"},
 			args:    []string{"-m"},
 			wantOut: "aaa,\nbbb,\nccc\n",
 		},
 		{
 			name:    "-1 writes one entry per line",
-			files:   fsx.MemFS{"a": {}, "b": {}},
+			files:   fsx.MemoryFS{"a": {}, "b": {}},
 			args:    []string{"-1"},
 			wantOut: "a\nb\n",
 		},
 		{
 			name:    "-1 after -C wins",
-			files:   fsx.MemFS{"a": {}, "b": {}},
+			files:   fsx.MemoryFS{"a": {}, "b": {}},
 			args:    []string{"-C", "-1"},
 			wantOut: "a\nb\n",
 		},
 		{
 			name:    "-C after -1 wins",
-			files:   fsx.MemFS{"a": {}, "b": {}},
+			files:   fsx.MemoryFS{"a": {}, "b": {}},
 			args:    []string{"-1", "-C"},
 			wantOut: "a  b\n",
 		},
 		{
 			name:    "-C pads every column to its own width",
-			files:   fsx.MemFS{"a": {}, "bb": {}, "cccc": {}},
+			files:   fsx.MemoryFS{"a": {}, "bb": {}, "cccc": {}},
 			env:     map[string]string{"COLUMNS": "20"},
 			args:    []string{"-C"},
 			wantOut: "a  bb  cccc\n",
 		},
 		{
 			name:    "-C writes one column when a name is wider than the width",
-			files:   fsx.MemFS{"aaaaaaaa": {}, "b": {}},
+			files:   fsx.MemoryFS{"aaaaaaaa": {}, "b": {}},
 			env:     map[string]string{"COLUMNS": "8"},
 			args:    []string{"-C"},
 			wantOut: "aaaaaaaa\nb\n",
 		},
 		{
 			name:    "an invalid COLUMNS value falls back to the default width",
-			files:   fsx.MemFS{"a": {}, "b": {}},
+			files:   fsx.MemoryFS{"a": {}, "b": {}},
 			env:     map[string]string{"COLUMNS": "banana"},
 			args:    []string{"-C"},
 			wantOut: "a  b\n",
 		},
 		{
 			name:    "a zero COLUMNS value falls back to the default width",
-			files:   fsx.MemFS{"a": {}, "b": {}},
+			files:   fsx.MemoryFS{"a": {}, "b": {}},
 			env:     map[string]string{"COLUMNS": "0"},
 			args:    []string{"-C"},
 			wantOut: "a  b\n",
@@ -582,7 +582,7 @@ func TestRunIndicators(t *testing.T) {
 	runCases(t, []testCase{
 		{
 			name: "-F marks the type of each file",
-			files: fsx.MemFS{
+			files: fsx.MemoryFS{
 				"dir":    {Mode: dirMode(0o755)},
 				"fifo":   {Mode: fs.ModeNamedPipe | 0o644},
 				"link":   link("dir"),
@@ -600,25 +600,25 @@ func TestRunIndicators(t *testing.T) {
 		},
 		{
 			name:    "-p marks directories only",
-			files:   fsx.MemFS{"dir": {Mode: dirMode(0o755)}, "script": {Mode: 0o755}},
+			files:   fsx.MemoryFS{"dir": {Mode: dirMode(0o755)}, "script": {Mode: 0o755}},
 			args:    []string{"-p"},
 			wantOut: "dir/\nscript\n",
 		},
 		{
 			name:    "-F after -p writes every indicator",
-			files:   fsx.MemFS{"dir": {Mode: dirMode(0o755)}, "script": {Mode: 0o755}},
+			files:   fsx.MemoryFS{"dir": {Mode: dirMode(0o755)}, "script": {Mode: 0o755}},
 			args:    []string{"-p", "-F"},
 			wantOut: "dir/\nscript*\n",
 		},
 		{
 			name:    "-p after -F writes the directory indicator only",
-			files:   fsx.MemFS{"dir": {Mode: dirMode(0o755)}, "script": {Mode: 0o755}},
+			files:   fsx.MemoryFS{"dir": {Mode: dirMode(0o755)}, "script": {Mode: 0o755}},
 			args:    []string{"-F", "-p"},
 			wantOut: "dir/\nscript\n",
 		},
 		{
 			name: "-lp writes the link target without an indicator",
-			files: fsx.MemFS{
+			files: fsx.MemoryFS{
 				"dir":  {Mode: dirMode(0o755), ModTime: now.recent},
 				"link": {Data: []byte("dir"), Mode: fs.ModeSymlink | 0o777, ModTime: now.recent},
 			},
@@ -629,13 +629,13 @@ func TestRunIndicators(t *testing.T) {
 		},
 		{
 			name:    "-lF marks the link before its target",
-			files:   fsx.MemFS{"link": {Data: []byte("dir"), Mode: fs.ModeSymlink | 0o777, ModTime: now.recent}},
+			files:   fsx.MemoryFS{"link": {Data: []byte("dir"), Mode: fs.ModeSymlink | 0o777, ModTime: now.recent}},
 			args:    []string{"-lF"},
 			wantOut: "total 1\nlrwxrwxrwx 1 0 0 3 " + now.day(now.recent) + " link@ -> dir\n",
 		},
 		{
 			name:    "-LF writes the indicator of the file a link refers to",
-			files:   fsx.MemFS{"dir": {Mode: dirMode(0o755)}, "link": link("dir")},
+			files:   fsx.MemoryFS{"dir": {Mode: dirMode(0o755)}, "link": link("dir")},
 			args:    []string{"-L", "-F"},
 			wantOut: "dir/\nlink/\n",
 		},
@@ -648,25 +648,25 @@ func TestRunQuote(t *testing.T) {
 	runCases(t, []testCase{
 		{
 			name:    "-q writes control characters as question marks",
-			files:   fsx.MemFS{"a\nb": {}, "c\td": {}, "e": {}},
+			files:   fsx.MemoryFS{"a\nb": {}, "c\td": {}, "e": {}},
 			args:    []string{"-q"},
 			wantOut: "a?b\nc?d\ne\n",
 		},
 		{
 			name:    "-q writes the long format with quoted names",
-			files:   fsx.MemFS{"a\x01b": {Mode: 0o644, ModTime: now.recent}},
+			files:   fsx.MemoryFS{"a\x01b": {Mode: 0o644, ModTime: now.recent}},
 			args:    []string{"-q", "-l"},
 			wantOut: "total 0\n-rw-r--r-- 1 0 0 0 " + now.day(now.recent) + " a?b\n",
 		},
 		{
 			name:    "without -q the name is written as it is",
-			files:   fsx.MemFS{"a\nb": {}},
+			files:   fsx.MemoryFS{"a\nb": {}},
 			args:    []string{"-1"},
 			wantOut: "a\nb\n",
 		},
 		{
 			name:    "-q writes the target of a link quoted",
-			files:   fsx.MemFS{"link": linkAt("a\nb", now.recent)},
+			files:   fsx.MemoryFS{"link": linkAt("a\nb", now.recent)},
 			args:    []string{"-l", "-q"},
 			wantOut: "total 1\nlrwxrwxrwx 1 0 0 3 " + now.day(now.recent) + " link -> a?b\n",
 		},
@@ -679,7 +679,7 @@ func TestRunSort(t *testing.T) {
 	runCases(t, []testCase{
 		{
 			name: "-S sorts by size, largest first",
-			files: fsx.MemFS{
+			files: fsx.MemoryFS{
 				"small": {Data: []byte("x")},
 				"big":   {Data: []byte("xxxxxxxxxx")},
 				"zero":  {},
@@ -689,7 +689,7 @@ func TestRunSort(t *testing.T) {
 		},
 		{
 			name: "-S sorts names up when the size is equal",
-			files: fsx.MemFS{
+			files: fsx.MemoryFS{
 				"b": {Data: []byte("x")},
 				"a": {Data: []byte("x")},
 			},
@@ -698,7 +698,7 @@ func TestRunSort(t *testing.T) {
 		},
 		{
 			name: "-t sorts by modification time, most recent first",
-			files: fsx.MemFS{
+			files: fsx.MemoryFS{
 				"old":  {ModTime: now.old},
 				"new":  {ModTime: now.recent},
 				"midd": {ModTime: now.recent.Add(-time.Hour)},
@@ -708,7 +708,7 @@ func TestRunSort(t *testing.T) {
 		},
 		{
 			name: "-t sorts names up when the time is equal",
-			files: fsx.MemFS{
+			files: fsx.MemoryFS{
 				"b": {ModTime: now.recent},
 				"a": {ModTime: now.recent},
 			},
@@ -717,61 +717,61 @@ func TestRunSort(t *testing.T) {
 		},
 		{
 			name:    "-X sorts by the suffix of a name after its last dot",
-			files:   fsx.MemFS{"b.txt": {}, "a.md": {}, "plain": {}, "c.txt": {}},
+			files:   fsx.MemoryFS{"b.txt": {}, "a.md": {}, "plain": {}, "c.txt": {}},
 			args:    []string{"-1", "-X"},
 			wantOut: "plain\na.md\nb.txt\nc.txt\n",
 		},
 		{
 			name:    "-v sorts the runs of digits of a name by value",
-			files:   fsx.MemFS{"f10": {}, "f9": {}, "f2": {}, "f1": {}},
+			files:   fsx.MemoryFS{"f10": {}, "f9": {}, "f2": {}, "f1": {}},
 			args:    []string{"-1", "-v"},
 			wantOut: "f1\nf2\nf9\nf10\n",
 		},
 		{
 			name:    "-v sorts a tilde first and the letters before the other bytes",
-			files:   fsx.MemFS{"a-b": {}, "a.b": {}, "ab": {}, "a~": {}, "a": {}},
+			files:   fsx.MemoryFS{"a-b": {}, "a.b": {}, "ab": {}, "a~": {}, "a": {}},
 			args:    []string{"-1", "-v"},
 			wantOut: "a~\na\na.b\nab\na-b\n",
 		},
 		{
 			name:    "-U keeps the order of the directory",
-			files:   fsx.MemFS{"b": {}, "a": {}},
+			files:   fsx.MemoryFS{"b": {}, "a": {}},
 			args:    []string{"-1", "-U"},
 			wantOut: "a\nb\n",
 		},
 		{
 			name:    "-r reverses the order of the names",
-			files:   fsx.MemFS{"a": {}, "b": {}, "c": {}},
+			files:   fsx.MemoryFS{"a": {}, "b": {}, "c": {}},
 			args:    []string{"-1", "-r"},
 			wantOut: "c\nb\na\n",
 		},
 		{
 			name:    "-r reverses the order of the sizes",
-			files:   fsx.MemFS{"big": {Data: []byte("xxx")}, "small": {Data: []byte("x")}},
+			files:   fsx.MemoryFS{"big": {Data: []byte("xxx")}, "small": {Data: []byte("x")}},
 			args:    []string{"-1", "-S", "-r"},
 			wantOut: "small\nbig\n",
 		},
 		{
 			name:    "-r reverses the order of the times",
-			files:   fsx.MemFS{"new": {ModTime: now.recent}, "old": {ModTime: now.old}},
+			files:   fsx.MemoryFS{"new": {ModTime: now.recent}, "old": {ModTime: now.old}},
 			args:    []string{"-1", "-t", "-r"},
 			wantOut: "old\nnew\n",
 		},
 		{
 			name:    "-S after -t wins the sort key",
-			files:   fsx.MemFS{"big": {Data: []byte("xxx"), ModTime: now.old}, "small": {Data: []byte("x"), ModTime: now.recent}},
+			files:   fsx.MemoryFS{"big": {Data: []byte("xxx"), ModTime: now.old}, "small": {Data: []byte("x"), ModTime: now.recent}},
 			args:    []string{"-1", "-t", "-S"},
 			wantOut: "big\nsmall\n",
 		},
 		{
 			name:    "-t after -S wins the sort key",
-			files:   fsx.MemFS{"big": {Data: []byte("xxx"), ModTime: now.old}, "small": {Data: []byte("x"), ModTime: now.recent}},
+			files:   fsx.MemoryFS{"big": {Data: []byte("xxx"), ModTime: now.old}, "small": {Data: []byte("x"), ModTime: now.recent}},
 			args:    []string{"-1", "-S", "-t"},
 			wantOut: "small\nbig\n",
 		},
 		{
 			name: "-t with -c sorts by the status change time",
-			files: fsx.MemFS{
+			files: fsx.MemoryFS{
 				"a.txt": {ModTime: now.recent},
 				"b.txt": {ModTime: now.old},
 			},
@@ -780,37 +780,37 @@ func TestRunSort(t *testing.T) {
 		},
 		{
 			name:    "-f writes the entries in the order of the directory",
-			files:   fsx.MemFS{"b.txt": {}, "a.txt": {}, ".hidden": {}},
+			files:   fsx.MemoryFS{"b.txt": {}, "a.txt": {}, ".hidden": {}},
 			args:    []string{"-f"},
 			wantOut: ".hidden\na.txt\nb.txt\n",
 		},
 		{
 			name:    "-f ignores -r",
-			files:   fsx.MemFS{"b.txt": {}, "a.txt": {}},
+			files:   fsx.MemoryFS{"b.txt": {}, "a.txt": {}},
 			args:    []string{"-f", "-r"},
 			wantOut: "a.txt\nb.txt\n",
 		},
 		{
 			name:    "-f ignores -S",
-			files:   fsx.MemFS{"a.txt": {Data: []byte("x")}, "b.txt": {}},
+			files:   fsx.MemoryFS{"a.txt": {Data: []byte("x")}, "b.txt": {}},
 			args:    []string{"-S", "-f"},
 			wantOut: "a.txt\nb.txt\n",
 		},
 		{
 			name:    "-f ignores -t",
-			files:   fsx.MemFS{"a.txt": {ModTime: now.old}, "b.txt": {ModTime: now.recent}},
+			files:   fsx.MemoryFS{"a.txt": {ModTime: now.old}, "b.txt": {ModTime: now.recent}},
 			args:    []string{"-t", "-f"},
 			wantOut: "a.txt\nb.txt\n",
 		},
 		{
 			name:    "-f keeps the long format",
-			files:   fsx.MemFS{"a.txt": {Mode: 0o644, ModTime: now.recent}},
+			files:   fsx.MemoryFS{"a.txt": {Mode: 0o644, ModTime: now.recent}},
 			args:    []string{"-f", "-l"},
 			wantOut: "total 0\n-rw-r--r-- 1 0 0 0 " + now.day(now.recent) + " a.txt\n",
 		},
 		{
 			name: "-S uses the size of the link itself",
-			files: fsx.MemFS{
+			files: fsx.MemoryFS{
 				"dir":  {Mode: dirMode(0o755)},
 				"link": link("dir"),
 				"big":  {Data: []byte(strings.Repeat("x", 100))},
@@ -879,7 +879,7 @@ func TestCompareVersion(t *testing.T) {
 func TestRunSymbolicLinks(t *testing.T) {
 	now := newTimes()
 
-	files := fsx.MemFS{
+	files := fsx.MemoryFS{
 		"dir":      {Mode: dirMode(0o755), ModTime: now.recent},
 		"dir/in":   {Mode: 0o644, ModTime: now.recent},
 		"file":     {Mode: 0o644, ModTime: now.recent},
@@ -923,7 +923,7 @@ func TestRunSymbolicLinks(t *testing.T) {
 		},
 		{
 			name:    "-p lists the contents of an operand link to a directory",
-			files:   fsx.MemFS{"dir/in": {Mode: 0o644, ModTime: now.recent}, "to-dir": link("dir")},
+			files:   fsx.MemoryFS{"dir/in": {Mode: 0o644, ModTime: now.recent}, "to-dir": link("dir")},
 			args:    []string{"-p", "to-dir"},
 			wantOut: "in\n",
 		},
@@ -1034,7 +1034,7 @@ func TestHelpVersion(t *testing.T) {
 func TestRunDirectories(t *testing.T) {
 	now := newTimes()
 
-	files := fsx.MemFS{
+	files := fsx.MemoryFS{
 		"a.txt":         {Mode: 0o644, ModTime: now.recent},
 		"dir":           {Mode: dirMode(0o755), ModTime: now.recent},
 		"dir/b.txt":     {Mode: 0o644, ModTime: now.recent},
@@ -1110,13 +1110,13 @@ func TestRunDirectories(t *testing.T) {
 		},
 		{
 			name:    "-R doesn't recurse into a link to a directory",
-			files:   fsx.MemFS{"dir": {Mode: dirMode(0o755)}, "dir/a.txt": {}, "link": link("dir")},
+			files:   fsx.MemoryFS{"dir": {Mode: dirMode(0o755)}, "dir/a.txt": {}, "link": link("dir")},
 			args:    []string{"-1", "-R"},
 			wantOut: ".:\ndir\nlink\n\n./dir:\na.txt\n",
 		},
 		{
 			name:    "-LR recurses into a link to a directory",
-			files:   fsx.MemFS{"dir/a.txt": {}, "link": link("dir")},
+			files:   fsx.MemoryFS{"dir/a.txt": {}, "link": link("dir")},
 			args:    []string{"-1", "-L", "-R"},
 			wantOut: ".:\ndir\nlink\n\n./dir:\na.txt\n\n./link:\na.txt\n",
 		},
@@ -1150,7 +1150,7 @@ func TestRunDirectories(t *testing.T) {
 		},
 		{
 			name:  "-lR writes a total for each listing",
-			files: fsx.MemFS{"dir": {Mode: dirMode(0o755), ModTime: now.recent}, "dir/sub": {Mode: dirMode(0o755), ModTime: now.recent}, "dir/sub/a.txt": {Mode: 0o644, ModTime: now.recent}},
+			files: fsx.MemoryFS{"dir": {Mode: dirMode(0o755), ModTime: now.recent}, "dir/sub": {Mode: dirMode(0o755), ModTime: now.recent}, "dir/sub/a.txt": {Mode: 0o644, ModTime: now.recent}},
 			args:  []string{"-l", "-R", "dir"},
 			wantOut: "dir:\ntotal 0\ndrwxr-xr-x 1 0 0 0 " + now.day(now.recent) + " sub\n" +
 				"\ndir/sub:\ntotal 0\n-rw-r--r-- 1 0 0 0 " + now.day(now.recent) + " a.txt\n",
@@ -1164,45 +1164,45 @@ func TestRunOptions(t *testing.T) {
 	runCases(t, []testCase{
 		{
 			name:     "an invalid option is reported",
-			files:    fsx.MemFS{"a.txt": {}},
+			files:    fsx.MemoryFS{"a.txt": {}},
 			args:     []string{"-Z"},
 			wantErr:  "ls: invalid option -- 'Z'\nTry 'ls --help' for more information.\n",
 			wantExit: 2,
 		},
 		{
 			name:     "an unrecognized long option is reported",
-			files:    fsx.MemFS{"a.txt": {}},
+			files:    fsx.MemoryFS{"a.txt": {}},
 			args:     []string{"--bogus"},
 			wantErr:  "ls: unrecognized option '--bogus'\nTry 'ls --help' for more information.\n",
 			wantExit: 2,
 		},
 		{
 			name:    "the operands may begin after a double dash",
-			files:   fsx.MemFS{"-a": {}, "b.txt": {}},
+			files:   fsx.MemoryFS{"-a": {}, "b.txt": {}},
 			args:    []string{"--", "-a"},
 			wantOut: "-a\n",
 		},
 		{
 			name:    "a single dash is an operand",
-			files:   fsx.MemFS{"-": {}},
+			files:   fsx.MemoryFS{"-": {}},
 			args:    []string{"-"},
 			wantOut: "-\n",
 		},
 		{
 			name:    "an operand keeps the options after it from parsing",
-			files:   fsx.MemFS{"a.txt": {}, "-l": {}},
+			files:   fsx.MemoryFS{"a.txt": {}, "-l": {}},
 			args:    []string{"a.txt", "-l"},
 			wantOut: "-l\na.txt\n",
 		},
 		{
 			name:    "bundled options are parsed one by one",
-			files:   fsx.MemFS{"a.txt": {Mode: 0o644, ModTime: now.recent}},
+			files:   fsx.MemoryFS{"a.txt": {Mode: 0o644, ModTime: now.recent}},
 			args:    []string{"-lq", "a.txt"},
 			wantOut: "-rw-r--r-- 1 0 0 0 " + now.day(now.recent) + " a.txt\n",
 		},
 		{
 			name:     "an invalid option of a bundle is reported",
-			files:    fsx.MemFS{},
+			files:    fsx.MemoryFS{},
 			args:     []string{"-lZ"},
 			wantErr:  "ls: invalid option -- 'Z'\nTry 'ls --help' for more information.\n",
 			wantExit: 2,
@@ -1220,7 +1220,7 @@ func TestRunOptions(t *testing.T) {
 func TestRunLongOptions(t *testing.T) {
 	now := newTimes()
 
-	linked := fsx.MemFS{
+	linked := fsx.MemoryFS{
 		"dir":    {Mode: dirMode(0o755)},
 		"dir/in": {Mode: 0o644},
 		"to-dir": link("dir"),
@@ -1229,19 +1229,19 @@ func TestRunLongOptions(t *testing.T) {
 	runCases(t, []testCase{
 		{
 			name:    "all writes the entries that begin with a dot",
-			files:   fsx.MemFS{".hidden": {}, "a.txt": {}},
+			files:   fsx.MemoryFS{".hidden": {}, "a.txt": {}},
 			args:    []string{"--all"},
 			wantOut: ".hidden\na.txt\n",
 		},
 		{
 			name:    "almost-all writes the hidden entries",
-			files:   fsx.MemFS{".hidden": {}, "a.txt": {}},
+			files:   fsx.MemoryFS{".hidden": {}, "a.txt": {}},
 			args:    []string{"--almost-all"},
 			wantOut: ".hidden\na.txt\n",
 		},
 		{
 			name:    "classify marks the type of each file",
-			files:   fsx.MemFS{"dir": {Mode: dirMode(0o755)}, "script": {Mode: 0o755}},
+			files:   fsx.MemoryFS{"dir": {Mode: dirMode(0o755)}, "script": {Mode: 0o755}},
 			args:    []string{"--classify"},
 			wantOut: "dir/\nscript*\n",
 		},
@@ -1259,171 +1259,171 @@ func TestRunLongOptions(t *testing.T) {
 		},
 		{
 			name:    "directory writes a directory as a file",
-			files:   fsx.MemFS{"dir": {Mode: dirMode(0o755)}, "dir/b.txt": {}},
+			files:   fsx.MemoryFS{"dir": {Mode: dirMode(0o755)}, "dir/b.txt": {}},
 			args:    []string{"--directory", "dir"},
 			wantOut: "dir\n",
 		},
 		{
 			name:    "hide-control-chars writes control characters as question marks",
-			files:   fsx.MemFS{"a\nb": {}, "e": {}},
+			files:   fsx.MemoryFS{"a\nb": {}, "e": {}},
 			args:    []string{"--hide-control-chars"},
 			wantOut: "a?b\ne\n",
 		},
 		{
 			name:    "inode writes the file serial number",
-			files:   fsx.MemFS{"a.txt": {}},
+			files:   fsx.MemoryFS{"a.txt": {}},
 			args:    []string{"--inode"},
 			wantOut: "0 a.txt\n",
 		},
 		{
 			name:    "kibibytes counts blocks in kibibytes",
-			files:   fsx.MemFS{"a.txt": {Data: []byte("x")}},
+			files:   fsx.MemoryFS{"a.txt": {Data: []byte("x")}},
 			args:    []string{"--kibibytes", "--size"},
 			wantOut: "total 1\n1 a.txt\n",
 		},
 		{
 			name:    "numeric-uid-gid writes the identifiers as numbers",
-			files:   fsx.MemFS{"a.txt": {Mode: 0o644, ModTime: now.recent}},
+			files:   fsx.MemoryFS{"a.txt": {Mode: 0o644, ModTime: now.recent}},
 			args:    []string{"--numeric-uid-gid"},
 			wantOut: "total 0\n-rw-r--r-- 1 0 0 0 " + now.day(now.recent) + " a.txt\n",
 		},
 		{
 			name:    "recursive lists the directories below the operand",
-			files:   fsx.MemFS{"dir": {Mode: dirMode(0o755)}, "dir/b.txt": {}, "dir/sub": {Mode: dirMode(0o755)}, "dir/sub/c.txt": {}},
+			files:   fsx.MemoryFS{"dir": {Mode: dirMode(0o755)}, "dir/b.txt": {}, "dir/sub": {Mode: dirMode(0o755)}, "dir/sub/c.txt": {}},
 			args:    []string{"--recursive", "dir"},
 			wantOut: "dir:\nb.txt\nsub\n\ndir/sub:\nc.txt\n",
 		},
 		{
 			name:    "reverse reverses the order of the names",
-			files:   fsx.MemFS{"a": {}, "b": {}, "c": {}},
+			files:   fsx.MemoryFS{"a": {}, "b": {}, "c": {}},
 			args:    []string{"--reverse"},
 			wantOut: "c\nb\na\n",
 		},
 		{
 			name:    "size writes the blocks and their total",
-			files:   fsx.MemFS{"a.txt": {Data: []byte("x")}},
+			files:   fsx.MemoryFS{"a.txt": {Data: []byte("x")}},
 			args:    []string{"--size"},
 			wantOut: "total 1\n1 a.txt\n",
 		},
 		{
 			name:    "format long writes the long format",
-			files:   fsx.MemFS{"a.txt": {Mode: 0o644, ModTime: now.recent}},
+			files:   fsx.MemoryFS{"a.txt": {Mode: 0o644, ModTime: now.recent}},
 			args:    []string{"--format=long"},
 			wantOut: "total 0\n-rw-r--r-- 1 0 0 0 " + now.day(now.recent) + " a.txt\n",
 		},
 		{
 			name:    "format single-column disables the long format",
-			files:   fsx.MemFS{"a.txt": {Mode: 0o644, ModTime: now.recent}},
+			files:   fsx.MemoryFS{"a.txt": {Mode: 0o644, ModTime: now.recent}},
 			args:    []string{"-l", "--format=single-column"},
 			wantOut: "a.txt\n",
 		},
 		{
 			name:    "format long after single-column writes the long format again",
-			files:   fsx.MemFS{"a.txt": {Mode: 0o644, ModTime: now.recent}},
+			files:   fsx.MemoryFS{"a.txt": {Mode: 0o644, ModTime: now.recent}},
 			args:    []string{"--format=single-column", "--format=long"},
 			wantOut: "total 0\n-rw-r--r-- 1 0 0 0 " + now.day(now.recent) + " a.txt\n",
 		},
 		{
 			name:    "format takes its value in the next argument",
-			files:   fsx.MemFS{"a": {}, "b": {}},
+			files:   fsx.MemoryFS{"a": {}, "b": {}},
 			args:    []string{"--format", "single-column"},
 			wantOut: "a\nb\n",
 		},
 		{
 			name:    "format vertical writes entries down the columns",
-			files:   fsx.MemFS{"a": {}, "b": {}, "c": {}, "d": {}},
+			files:   fsx.MemoryFS{"a": {}, "b": {}, "c": {}, "d": {}},
 			env:     map[string]string{"COLUMNS": "80"},
 			args:    []string{"--format=vertical"},
 			wantOut: "a  b  c  d\n",
 		},
 		{
 			name:    "format across writes entries across the columns",
-			files:   fsx.MemFS{"a": {}, "b": {}, "c": {}, "d": {}},
+			files:   fsx.MemoryFS{"a": {}, "b": {}, "c": {}, "d": {}},
 			env:     map[string]string{"COLUMNS": "10"},
 			args:    []string{"--format=across"},
 			wantOut: "a  b  c\nd\n",
 		},
 		{
 			name:    "format commas writes the names separated by commas",
-			files:   fsx.MemFS{"a": {}, "b": {}, "c": {}},
+			files:   fsx.MemoryFS{"a": {}, "b": {}, "c": {}},
 			args:    []string{"--format=commas"},
 			wantOut: "a, b, c\n",
 		},
 		{
 			name:    "sort size sorts by size, largest first",
-			files:   fsx.MemFS{"small": {Data: []byte("x")}, "big": {Data: []byte("xxxxxxxxxx")}, "zero": {}},
+			files:   fsx.MemoryFS{"small": {Data: []byte("x")}, "big": {Data: []byte("xxxxxxxxxx")}, "zero": {}},
 			args:    []string{"--sort=size"},
 			wantOut: "big\nsmall\nzero\n",
 		},
 		{
 			name:    "sort time sorts by modification time, most recent first",
-			files:   fsx.MemFS{"old": {ModTime: now.old}, "new": {ModTime: now.recent}},
+			files:   fsx.MemoryFS{"old": {ModTime: now.old}, "new": {ModTime: now.recent}},
 			args:    []string{"--sort=time"},
 			wantOut: "new\nold\n",
 		},
 		{
 			name:    "sort version orders the runs of digits of a name by value",
-			files:   fsx.MemFS{"f10": {}, "f9": {}, "f2": {}, "f1": {}},
+			files:   fsx.MemoryFS{"f10": {}, "f9": {}, "f2": {}, "f1": {}},
 			args:    []string{"--sort=version"},
 			wantOut: "f1\nf2\nf9\nf10\n",
 		},
 		{
 			name:    "sort extension sorts by the suffix of a name after its last dot",
-			files:   fsx.MemFS{"b.txt": {}, "a.md": {}, "plain": {}, "c.txt": {}},
+			files:   fsx.MemoryFS{"b.txt": {}, "a.md": {}, "plain": {}, "c.txt": {}},
 			args:    []string{"--sort=extension"},
 			wantOut: "plain\na.md\nb.txt\nc.txt\n",
 		},
 		{
 			name:    "sort width sorts the narrowest names first",
-			files:   fsx.MemFS{"ccc": {}, "dd": {}, "b": {}, "aa": {}},
+			files:   fsx.MemoryFS{"ccc": {}, "dd": {}, "b": {}, "aa": {}},
 			args:    []string{"--sort=width"},
 			wantOut: "b\naa\ndd\nccc\n",
 		},
 		{
 			name:    "sort width measures a wide character as two columns",
-			files:   fsx.MemFS{"界": {}, "aa": {}, "b": {}},
+			files:   fsx.MemoryFS{"界": {}, "aa": {}, "b": {}},
 			args:    []string{"--sort=width"},
 			wantOut: "b\naa\n界\n",
 		},
 		{
 			name:    "sort name keeps the order of the names",
-			files:   fsx.MemFS{"b": {Data: []byte("xxx")}, "a": {}},
+			files:   fsx.MemoryFS{"b": {Data: []byte("xxx")}, "a": {}},
 			args:    []string{"--sort=name"},
 			wantOut: "a\nb\n",
 		},
 		{
 			name:    "sort none keeps the order of the directory without showing hidden entries",
-			files:   fsx.MemFS{"b": {Data: []byte("xxx")}, "a": {}, ".hidden": {}},
+			files:   fsx.MemoryFS{"b": {Data: []byte("xxx")}, "a": {}, ".hidden": {}},
 			args:    []string{"--sort=none"},
 			wantOut: "a\nb\n",
 		},
 		{
 			name:    "time atime writes the access time",
-			files:   fsx.MemFS{"a.txt": {Mode: 0o644, ModTime: now.old}},
+			files:   fsx.MemoryFS{"a.txt": {Mode: 0o644, ModTime: now.old}},
 			args:    []string{"--format=long", "--time=atime"},
 			wantOut: "total 0\n-rw-r--r-- 1 0 0 0 " + now.year(now.old) + " a.txt\n",
 		},
 		{
 			name:    "time ctime writes the status change time",
-			files:   fsx.MemFS{"a.txt": {Mode: 0o644, ModTime: now.old}},
+			files:   fsx.MemoryFS{"a.txt": {Mode: 0o644, ModTime: now.old}},
 			args:    []string{"--format=long", "--time=ctime"},
 			wantOut: "total 0\n-rw-r--r-- 1 0 0 0 " + now.year(now.old) + " a.txt\n",
 		},
 		{
 			name:    "indicator-style slash marks directories only",
-			files:   fsx.MemFS{"dir": {Mode: dirMode(0o755)}, "script": {Mode: 0o755}},
+			files:   fsx.MemoryFS{"dir": {Mode: dirMode(0o755)}, "script": {Mode: 0o755}},
 			args:    []string{"--indicator-style=slash"},
 			wantOut: "dir/\nscript\n",
 		},
 		{
 			name:    "indicator-style classify marks the type of each file",
-			files:   fsx.MemFS{"dir": {Mode: dirMode(0o755)}, "script": {Mode: 0o755}},
+			files:   fsx.MemoryFS{"dir": {Mode: dirMode(0o755)}, "script": {Mode: 0o755}},
 			args:    []string{"--indicator-style=classify"},
 			wantOut: "dir/\nscript*\n",
 		},
 		{
 			name: "indicator-style file-type marks the type of each file but executables",
-			files: fsx.MemFS{
+			files: fsx.MemoryFS{
 				"dir":    {Mode: dirMode(0o755)},
 				"link":   link("dir"),
 				"plain":  {},
@@ -1434,54 +1434,54 @@ func TestRunLongOptions(t *testing.T) {
 		},
 		{
 			name:    "file-type marks the type of each file but executables",
-			files:   fsx.MemFS{"dir": {Mode: dirMode(0o755)}, "script": {Mode: 0o755}},
+			files:   fsx.MemoryFS{"dir": {Mode: dirMode(0o755)}, "script": {Mode: 0o755}},
 			args:    []string{"--file-type"},
 			wantOut: "dir/\nscript\n",
 		},
 		{
 			name:    "indicator-style none writes no indicator",
-			files:   fsx.MemFS{"dir": {Mode: dirMode(0o755)}, "script": {Mode: 0o755}},
+			files:   fsx.MemoryFS{"dir": {Mode: dirMode(0o755)}, "script": {Mode: 0o755}},
 			args:    []string{"--classify", "--indicator-style=none"},
 			wantOut: "dir\nscript\n",
 		},
 		{
 			name:     "an unknown format word is an error",
-			files:    fsx.MemFS{},
+			files:    fsx.MemoryFS{},
 			args:     []string{"--format=bogus"},
 			wantErr:  "ls: invalid argument 'bogus' for '--format'\nTry 'ls --help' for more information.\n",
 			wantExit: 2,
 		},
 		{
 			name:     "an unknown sort word is an error",
-			files:    fsx.MemFS{},
+			files:    fsx.MemoryFS{},
 			args:     []string{"--sort=bogus"},
 			wantErr:  "ls: invalid argument 'bogus' for '--sort'\nTry 'ls --help' for more information.\n",
 			wantExit: 2,
 		},
 		{
 			name:     "an unknown time word is an error",
-			files:    fsx.MemFS{},
+			files:    fsx.MemoryFS{},
 			args:     []string{"--time=bogus"},
 			wantErr:  "ls: invalid argument 'bogus' for '--time'\nTry 'ls --help' for more information.\n",
 			wantExit: 2,
 		},
 		{
 			name:     "an unknown indicator-style word is an error",
-			files:    fsx.MemFS{},
+			files:    fsx.MemoryFS{},
 			args:     []string{"--indicator-style=bogus"},
 			wantErr:  "ls: invalid argument 'bogus' for '--indicator-style'\nTry 'ls --help' for more information.\n",
 			wantExit: 2,
 		},
 		{
 			name:     "a valued long option requires an argument",
-			files:    fsx.MemFS{},
+			files:    fsx.MemoryFS{},
 			args:     []string{"--format"},
 			wantErr:  "ls: option '--format' requires an argument\nTry 'ls --help' for more information.\n",
 			wantExit: 2,
 		},
 		{
 			name:     "a long option with a value it doesn't take is an error",
-			files:    fsx.MemFS{},
+			files:    fsx.MemoryFS{},
 			args:     []string{"--all=yes"},
 			wantErr:  "ls: option '--all=yes' doesn't allow an argument\nTry 'ls --help' for more information.\n",
 			wantExit: 2,
@@ -1492,7 +1492,7 @@ func TestRunLongOptions(t *testing.T) {
 func TestRunMultipleOperands(t *testing.T) {
 	now := newTimes()
 
-	files := fsx.MemFS{
+	files := fsx.MemoryFS{
 		"z.txt":   {Mode: 0o644, ModTime: now.recent},
 		"a.txt":   {Mode: 0o644, ModTime: now.recent},
 		"dir":     {Mode: dirMode(0o755), ModTime: now.recent},
@@ -1539,7 +1539,7 @@ func TestRunMultipleOperands(t *testing.T) {
 // TestRunRealFS checks the listing of the information that only a real file
 // system reports.
 func TestRunRealFS(t *testing.T) {
-	sys := fsx.OsFS(t.TempDir())
+	sys := fsx.SystemFS(t.TempDir())
 	if err := sys.Mkdir("dir", 0o755); err != nil {
 		t.Fatalf("Mkdir() error = %v", err)
 	}
@@ -1644,14 +1644,14 @@ func TestRunUnreadable(t *testing.T) {
 	runCases(t, []testCase{
 		{
 			name:     "reports a directory that can't be opened",
-			sys:      unreadableFS{FS: fsx.MemFS{"hidden/a.txt": {}, "a.txt": {}}, denied: "hidden"},
+			sys:      unreadableFS{FS: fsx.MemoryFS{"hidden/a.txt": {}, "a.txt": {}}, denied: "hidden"},
 			args:     []string{"hidden"},
 			wantErr:  "ls: cannot open directory 'hidden': permission denied\n",
 			wantExit: 1,
 		},
 		{
 			name:     "lists the other operands after the failure",
-			sys:      unreadableFS{FS: fsx.MemFS{"hidden/a.txt": {}, "dir/b.txt": {}}, denied: "hidden"},
+			sys:      unreadableFS{FS: fsx.MemoryFS{"hidden/a.txt": {}, "dir/b.txt": {}}, denied: "hidden"},
 			args:     []string{"-1", "dir", "hidden"},
 			wantOut:  "dir:\nb.txt\n\nhidden:\n",
 			wantErr:  "ls: cannot open directory 'hidden': permission denied\n",
@@ -1659,7 +1659,7 @@ func TestRunUnreadable(t *testing.T) {
 		},
 		{
 			name:     "reports a directory of a recursive listing",
-			sys:      unreadableFS{FS: fsx.MemFS{"dir/hidden/a.txt": {}}, denied: "dir/hidden"},
+			sys:      unreadableFS{FS: fsx.MemoryFS{"dir/hidden/a.txt": {}}, denied: "dir/hidden"},
 			args:     []string{"-1", "-R", "dir"},
 			wantOut:  "dir:\nhidden\n\ndir/hidden:\n",
 			wantErr:  "ls: cannot open directory 'dir/hidden': permission denied\n",
@@ -1687,19 +1687,19 @@ func TestRunHiddenRecursion(t *testing.T) {
 	runCases(t, []testCase{
 		{
 			name:    "-R doesn't enter a hidden directory that wasn't listed",
-			files:   fsx.MemFS{"dir/sub/a.txt": {}, "dir/.hidden/b.txt": {}},
+			files:   fsx.MemoryFS{"dir/sub/a.txt": {}, "dir/.hidden/b.txt": {}},
 			args:    []string{"-1", "-R", "dir"},
 			wantOut: "dir:\nsub\n\ndir/sub:\na.txt\n",
 		},
 		{
 			name:    "-aR enters the hidden directories it listed",
-			files:   fsx.MemFS{"dir/sub/a.txt": {}, "dir/.hidden/b.txt": {}},
+			files:   fsx.MemoryFS{"dir/sub/a.txt": {}, "dir/.hidden/b.txt": {}},
 			args:    []string{"-1", "-aR"},
 			wantOut: ".:\ndir\n\n./dir:\n.hidden\nsub\n\n./dir/.hidden:\nb.txt\n\n./dir/sub:\na.txt\n",
 		},
 		{
 			name:    "-R enters a directory named as an operand",
-			files:   fsx.MemFS{"dir/sub/a.txt": {}},
+			files:   fsx.MemoryFS{"dir/sub/a.txt": {}},
 			args:    []string{"-1", "-R", "dir/sub"},
 			wantOut: "dir/sub:\na.txt\n",
 		},
@@ -1709,7 +1709,7 @@ func TestRunHiddenRecursion(t *testing.T) {
 // TestRunFastOrder checks that -f keeps the order a real directory reports.
 func TestRunFastOrder(t *testing.T) {
 	dir := t.TempDir()
-	sys := fsx.OsFS(dir)
+	sys := fsx.SystemFS(dir)
 	for _, name := range []string{"z.txt", "a.txt", "m.txt"} {
 		f, err := sys.OpenFile(name, os.O_CREATE|os.O_WRONLY, 0o644)
 		if err != nil {
@@ -1756,7 +1756,7 @@ func TestRunCycle(t *testing.T) {
 		t.Skip("the file system here reports no serial number to detect a cycle with")
 	}
 
-	sys := fsx.OsFS(t.TempDir())
+	sys := fsx.SystemFS(t.TempDir())
 	if err := sys.Mkdir("x", 0o755); err != nil {
 		t.Fatalf("Mkdir() error = %v", err)
 	}
@@ -1795,13 +1795,13 @@ func TestRunWindows(t *testing.T) {
 	runCases(t, []testCase{
 		{
 			name:    "an operand with backslashes names a directory",
-			files:   fsx.MemFS{"dir/a.txt": {}, "dir/b.txt": {}},
+			files:   fsx.MemoryFS{"dir/a.txt": {}, "dir/b.txt": {}},
 			args:    []string{`dir\`},
 			wantOut: "a.txt\nb.txt\n",
 		},
 		{
 			name:    "an operand with backslashes names a file",
-			files:   fsx.MemFS{"dir/a.txt": {}},
+			files:   fsx.MemoryFS{"dir/a.txt": {}},
 			args:    []string{`dir\a.txt`},
 			wantOut: "dir\\a.txt\n",
 		},
@@ -1810,12 +1810,12 @@ func TestRunWindows(t *testing.T) {
 
 // TestRunContext checks that a listing stops with the context it's given.
 func TestRunContext(t *testing.T) {
-	testutil.Cancelled(t, New, nil, fsx.MemFS{"a.txt": {}}, "a.txt")
+	testutil.Cancelled(t, New, nil, fsx.MemoryFS{"a.txt": {}}, "a.txt")
 }
 
 // TestRunIgnore checks the options that drop entries from a listing.
 func TestRunIgnore(t *testing.T) {
-	files := fsx.MemFS{"a.txt": {}, "b.txt": {}, "bak.txt~": {}, ".bak~": {}, "f1": {}, "f10": {}}
+	files := fsx.MemoryFS{"a.txt": {}, "b.txt": {}, "bak.txt~": {}, ".bak~": {}, "f1": {}, "f10": {}}
 
 	runCases(t, []testCase{
 		{
@@ -1838,13 +1838,13 @@ func TestRunIgnore(t *testing.T) {
 		},
 		{
 			name:    "an initial dot isn't matched by a leading wildcard",
-			files:   fsx.MemFS{".b": {}, "b.txt": {}},
+			files:   fsx.MemoryFS{".b": {}, "b.txt": {}},
 			args:    []string{"-a", "--ignore", "b*"},
 			wantOut: ".b\n",
 		},
 		{
 			name:    "--ignore works with -a",
-			files:   fsx.MemFS{".b": {}, "b.txt": {}},
+			files:   fsx.MemoryFS{".b": {}, "b.txt": {}},
 			args:    []string{"-a", "--ignore", ".b"},
 			wantOut: "b.txt\n",
 		},
@@ -1888,55 +1888,55 @@ func TestRunQuoting(t *testing.T) {
 	runCases(t, []testCase{
 		{
 			name:    "-b escapes the control characters and the space",
-			files:   fsx.MemFS{"a\nb": {}, "a b": {}, "plain": {}},
+			files:   fsx.MemoryFS{"a\nb": {}, "a b": {}, "plain": {}},
 			args:    []string{"-b"},
 			wantOut: "a\\nb\na\\ b\nplain\n",
 		},
 		{
 			name:    "-b escapes the space of a name",
-			files:   fsx.MemFS{"a b": {}},
+			files:   fsx.MemoryFS{"a b": {}},
 			args:    []string{"-b", "-F"},
 			wantOut: "a\\ b\n",
 		},
 		{
 			name:    "-Q quotes a name the C way",
-			files:   fsx.MemFS{"a\nb": {}, "plain": {}},
+			files:   fsx.MemoryFS{"a\nb": {}, "plain": {}},
 			args:    []string{"-Q"},
 			wantOut: "\"a\\nb\"\n\"plain\"\n",
 		},
 		{
 			name:    "-N writes the names as they are",
-			files:   fsx.MemFS{"a b": {}},
+			files:   fsx.MemoryFS{"a b": {}},
 			args:    []string{"-N"},
 			wantOut: "a b\n",
 		},
 		{
 			name:    "--quoting-style=shell quotes what the shell needs",
-			files:   fsx.MemFS{"a b": {}, "plain": {}},
+			files:   fsx.MemoryFS{"a b": {}, "plain": {}},
 			args:    []string{"--quoting-style=shell"},
 			wantOut: "'a b'\nplain\n",
 		},
 		{
 			name:    "--quoting-style=shell-escape quotes an apostrophe the C way",
-			files:   fsx.MemFS{"a'b": {}},
+			files:   fsx.MemoryFS{"a'b": {}},
 			args:    []string{"--quoting-style=shell-escape"},
 			wantOut: "\"a'b\"\n",
 		},
 		{
 			name:    "--quoting-style=shell-escape escapes a control character",
-			files:   fsx.MemFS{"a\nb": {}},
+			files:   fsx.MemoryFS{"a\nb": {}},
 			args:    []string{"--quoting-style=shell-escape"},
 			wantOut: "'a'$'\\n''b'\n",
 		},
 		{
 			name:    "--quoting-style=c-maybe quotes only what needs it",
-			files:   fsx.MemFS{"a\nb": {}, "plain": {}},
+			files:   fsx.MemoryFS{"a\nb": {}, "plain": {}},
 			args:    []string{"--quoting-style=c-maybe"},
 			wantOut: "\"a\\nb\"\nplain\n",
 		},
 		{
 			name:  "an unquoted name is padded for a quoted one in the long format",
-			files: fsx.MemFS{"a b": {Mode: 0o644, ModTime: now.recent}, "plain": {Mode: 0o644, ModTime: now.recent}},
+			files: fsx.MemoryFS{"a b": {Mode: 0o644, ModTime: now.recent}, "plain": {Mode: 0o644, ModTime: now.recent}},
 			args:  []string{"-l", "-n", "--quoting-style=shell"},
 			wantOut: "total 0\n" +
 				"-rw-r--r-- 1 0 0 0 " + now.day(now.recent) + " 'a b'\n" +
@@ -1944,40 +1944,40 @@ func TestRunQuoting(t *testing.T) {
 		},
 		{
 			name:    "--show-control-chars writes a nongraphic character as it is",
-			files:   fsx.MemFS{"a\nb": {}},
+			files:   fsx.MemoryFS{"a\nb": {}},
 			args:    []string{"-q", "--show-control-chars"},
 			wantOut: "a\nb\n",
 		},
 		{
 			name:    "-q wins over an earlier --show-control-chars",
-			files:   fsx.MemFS{"a\nb": {}},
+			files:   fsx.MemoryFS{"a\nb": {}},
 			args:    []string{"--show-control-chars", "-q"},
 			wantOut: "a?b\n",
 		},
 		{
 			name:     "an unknown quoting style is an error",
 			args:     []string{"--quoting-style=bogus"},
-			files:    fsx.MemFS{"a": {}},
+			files:    fsx.MemoryFS{"a": {}},
 			wantErr:  "ls: invalid argument 'bogus' for '--quoting-style'\nTry 'ls --help' for more information.\n",
 			wantExit: 2,
 		},
 		{
 			name:    "QUOTING_STYLE sets the default style",
-			files:   fsx.MemFS{"a b": {}},
+			files:   fsx.MemoryFS{"a b": {}},
 			env:     map[string]string{"QUOTING_STYLE": "shell"},
 			args:    []string{},
 			wantOut: "'a b'\n",
 		},
 		{
 			name:    "an option overrides QUOTING_STYLE",
-			files:   fsx.MemFS{"a b": {}},
+			files:   fsx.MemoryFS{"a b": {}},
 			env:     map[string]string{"QUOTING_STYLE": "shell"},
 			args:    []string{"-N"},
 			wantOut: "a b\n",
 		},
 		{
 			name:    "an invalid QUOTING_STYLE is ignored with a warning",
-			files:   fsx.MemFS{"a": {}},
+			files:   fsx.MemoryFS{"a": {}},
 			env:     map[string]string{"QUOTING_STYLE": "bogus"},
 			args:    []string{},
 			wantOut: "a\n",
@@ -2071,7 +2071,7 @@ func TestHideControl(t *testing.T) {
 // format.
 func TestRunHumanSizes(t *testing.T) {
 	now := newTimes()
-	files := fsx.MemFS{
+	files := fsx.MemoryFS{
 		"a": {Data: bytes.Repeat([]byte("x"), 1024), Mode: 0o644, ModTime: now.recent},
 		"b": {Data: bytes.Repeat([]byte("x"), 10240), Mode: 0o644, ModTime: now.recent},
 	}
@@ -2129,14 +2129,14 @@ func TestRunHumanSizes(t *testing.T) {
 		},
 		{
 			name:    "BLOCKSIZE scales the block counts only",
-			files:   fsx.MemFS{"a": {Data: bytes.Repeat([]byte("x"), 1024), Mode: 0o644, ModTime: now.recent}},
+			files:   fsx.MemoryFS{"a": {Data: bytes.Repeat([]byte("x"), 1024), Mode: 0o644, ModTime: now.recent}},
 			env:     map[string]string{"BLOCKSIZE": "1M"},
 			args:    []string{"-sln"},
 			wantOut: "total 1\n1 -rw-r--r-- 1 0 0 1024 " + now.day(now.recent) + " a\n",
 		},
 		{
 			name:    "POSIXLY_CORRECT counts the blocks in units of 512",
-			files:   fsx.MemFS{"a": {Data: bytes.Repeat([]byte("x"), 1024)}},
+			files:   fsx.MemoryFS{"a": {Data: bytes.Repeat([]byte("x"), 1024)}},
 			env:     map[string]string{"POSIXLY_CORRECT": "1"},
 			args:    []string{"-s", "-1"},
 			wantOut: "total 2\n2 a\n",
@@ -2170,7 +2170,7 @@ func TestRunHumanSizes(t *testing.T) {
 // long format.
 func TestRunTimeStyle(t *testing.T) {
 	now := newTimes()
-	files := fsx.MemFS{"new": {Mode: 0o644, ModTime: now.recent}, "old": {Mode: 0o644, ModTime: now.old}}
+	files := fsx.MemoryFS{"new": {Mode: 0o644, ModTime: now.recent}, "old": {Mode: 0o644, ModTime: now.old}}
 
 	runCases(t, []testCase{
 		{
@@ -2264,13 +2264,13 @@ func TestRunBirthTime(t *testing.T) {
 	runCases(t, []testCase{
 		{
 			name:    "a birth time a memory file system doesn't have is a question mark",
-			files:   fsx.MemFS{"a.txt": {Mode: 0o644, ModTime: now.recent}},
+			files:   fsx.MemoryFS{"a.txt": {Mode: 0o644, ModTime: now.recent}},
 			args:    []string{"-l", "--time=birth", "-n"},
 			wantOut: "total 0\n-rw-r--r-- 1 0 0 0            ? a.txt\n",
 		},
 		{
 			name:    "sorting by birth falls back to the modification time",
-			files:   fsx.MemFS{"a.txt": {ModTime: now.old}, "b.txt": {ModTime: now.recent}},
+			files:   fsx.MemoryFS{"a.txt": {ModTime: now.old}, "b.txt": {ModTime: now.recent}},
 			args:    []string{"-t", "--time=birth"},
 			wantOut: "b.txt\na.txt\n",
 		},
@@ -2279,7 +2279,7 @@ func TestRunBirthTime(t *testing.T) {
 
 // TestRunGroupDirectories checks --group-directories-first.
 func TestRunGroupDirectories(t *testing.T) {
-	files := fsx.MemFS{
+	files := fsx.MemoryFS{
 		"a":     {},
 		"b":     {},
 		"dir":   {Mode: dirMode(0o755)},
@@ -2321,53 +2321,53 @@ func TestRunWidthTabsize(t *testing.T) {
 	runCases(t, []testCase{
 		{
 			name:    "-w sets the width the columns fill",
-			files:   fsx.MemFS{"aaaa": {}, "bb": {}, "cc": {}},
+			files:   fsx.MemoryFS{"aaaa": {}, "bb": {}, "cc": {}},
 			args:    []string{"-C", "-w", "10"},
 			wantOut: "aaaa  cc\nbb\n",
 		},
 		{
 			name:    "-w 0 writes the entries on one line",
-			files:   fsx.MemFS{"aaaa": {}, "bb": {}},
+			files:   fsx.MemoryFS{"aaaa": {}, "bb": {}},
 			args:    []string{"-C", "-w", "0"},
 			wantOut: "aaaa  bb\n",
 		},
 		{
 			name:    "-w 0 fills the -m line without wrapping",
-			files:   fsx.MemFS{"aaaa": {}, "bb": {}},
+			files:   fsx.MemoryFS{"aaaa": {}, "bb": {}},
 			args:    []string{"-m", "-w", "0"},
 			wantOut: "aaaa, bb\n",
 		},
 		{
 			name:    "the width of -w overrides COLUMNS",
-			files:   fsx.MemFS{"aaaa": {}, "bb": {}, "cc": {}},
+			files:   fsx.MemoryFS{"aaaa": {}, "bb": {}, "cc": {}},
 			env:     map[string]string{"COLUMNS": "80"},
 			args:    []string{"-C", "-w", "10"},
 			wantOut: "aaaa  cc\nbb\n",
 		},
 		{
 			name:    "a padding that spans a tab stop is written with a tab",
-			files:   fsx.MemFS{"aaaaaa": {}, "b": {}},
+			files:   fsx.MemoryFS{"aaaaaa": {}, "b": {}},
 			env:     map[string]string{"COLUMNS": "20"},
 			args:    []string{"-C"},
 			wantOut: "aaaaaa\tb\n",
 		},
 		{
 			name:    "-T 0 writes only spaces",
-			files:   fsx.MemFS{"aaaaaa": {}, "b": {}},
+			files:   fsx.MemoryFS{"aaaaaa": {}, "b": {}},
 			env:     map[string]string{"COLUMNS": "20"},
 			args:    []string{"-C", "-T", "0"},
 			wantOut: "aaaaaa  b\n",
 		},
 		{
 			name:    "TABSIZE sets the distance between the stops",
-			files:   fsx.MemFS{"aaaaaa": {}, "b": {}},
+			files:   fsx.MemoryFS{"aaaaaa": {}, "b": {}},
 			env:     map[string]string{"COLUMNS": "20", "TABSIZE": "0"},
 			args:    []string{"-C"},
 			wantOut: "aaaaaa  b\n",
 		},
 		{
 			name:    "an invalid TABSIZE is ignored with a warning",
-			files:   fsx.MemFS{"a": {}},
+			files:   fsx.MemoryFS{"a": {}},
 			env:     map[string]string{"TABSIZE": "banana"},
 			args:    []string{"-1"},
 			wantOut: "a\n",
@@ -2375,14 +2375,14 @@ func TestRunWidthTabsize(t *testing.T) {
 		},
 		{
 			name:     "an invalid tab size is an error",
-			files:    fsx.MemFS{"a": {}},
+			files:    fsx.MemoryFS{"a": {}},
 			args:     []string{"-T", "banana"},
 			wantErr:  "ls: invalid tab size 'banana'\nTry 'ls --help' for more information.\n",
 			wantExit: 2,
 		},
 		{
 			name:     "an invalid width is an error",
-			files:    fsx.MemFS{"a": {}},
+			files:    fsx.MemoryFS{"a": {}},
 			args:     []string{"-w", "banana"},
 			wantErr:  "ls: invalid line width 'banana'\nTry 'ls --help' for more information.\n",
 			wantExit: 2,
@@ -2397,55 +2397,55 @@ func TestRunZero(t *testing.T) {
 	runCases(t, []testCase{
 		{
 			name:    "--zero ends the lines with NUL",
-			files:   fsx.MemFS{"a": {}, "b": {}},
+			files:   fsx.MemoryFS{"a": {}, "b": {}},
 			args:    []string{"--zero"},
 			wantOut: "a\x00b\x00",
 		},
 		{
 			name:    "--zero ends the long lines with NUL",
-			files:   fsx.MemFS{"a": {Mode: 0o644, ModTime: now.recent}},
+			files:   fsx.MemoryFS{"a": {Mode: 0o644, ModTime: now.recent}},
 			args:    []string{"--zero", "-ln"},
 			wantOut: "total 0\x00-rw-r--r-- 1 0 0 0 " + now.day(now.recent) + " a\x00",
 		},
 		{
 			name:    "--zero keeps the newline of the headers",
-			files:   fsx.MemFS{"dir/a": {}},
+			files:   fsx.MemoryFS{"dir/a": {}},
 			args:    []string{"--zero", "-R"},
 			wantOut: ".:\ndir\x00\n./dir:\na\x00",
 		},
 		{
 			name:    "--zero implies the literal quoting",
-			files:   fsx.MemFS{"a b": {}},
+			files:   fsx.MemoryFS{"a b": {}},
 			args:    []string{"--zero"},
 			wantOut: "a b\x00",
 		},
 		{
 			name:    "a later quoting option overrides --zero",
-			files:   fsx.MemFS{"a b": {}},
+			files:   fsx.MemoryFS{"a b": {}},
 			args:    []string{"--zero", "--quoting-style=shell"},
 			wantOut: "'a b'\x00",
 		},
 		{
 			name:    "a later -C overrides the single column of --zero",
-			files:   fsx.MemFS{"a": {}, "b": {}},
+			files:   fsx.MemoryFS{"a": {}, "b": {}},
 			args:    []string{"--zero", "-C"},
 			wantOut: "a  b\x00",
 		},
 		{
 			name:    "a later -l keeps the long format with --zero",
-			files:   fsx.MemFS{"a": {Mode: 0o644, ModTime: now.recent}},
+			files:   fsx.MemoryFS{"a": {Mode: 0o644, ModTime: now.recent}},
 			args:    []string{"-1", "--zero", "-ln"},
 			wantOut: "total 0\x00-rw-r--r-- 1 0 0 0 " + now.day(now.recent) + " a\x00",
 		},
 		{
 			name:    "-m writes the frills without padding",
-			files:   fsx.MemFS{"a": {Data: []byte("x")}, "bb": {}},
+			files:   fsx.MemoryFS{"a": {Data: []byte("x")}, "bb": {}},
 			args:    []string{"-m", "-i", "-s"},
 			wantOut: "total 1\n0 1 a, 0 0 bb\n",
 		},
 		{
 			name:    "--zero writes the -m list on one line",
-			files:   fsx.MemFS{"a": {}, "b": {}},
+			files:   fsx.MemoryFS{"a": {}, "b": {}},
 			args:    []string{"--zero", "-m"},
 			wantOut: "a, b\x00",
 		},
@@ -2455,7 +2455,7 @@ func TestRunZero(t *testing.T) {
 // TestRunTerminal checks the defaults of a listing written to a terminal.
 func TestRunTerminal(t *testing.T) {
 	now := newTimes()
-	files := fsx.MemFS{"a b": {}, "a\nb": {}, "plain": {Mode: 0o644, ModTime: now.recent}}
+	files := fsx.MemoryFS{"a b": {}, "a\nb": {}, "plain": {Mode: 0o644, ModTime: now.recent}}
 	for _, test := range []testCase{
 		{
 			name:    "the entries fill the columns and escape the control characters",
@@ -2471,19 +2471,19 @@ func TestRunTerminal(t *testing.T) {
 		},
 		{
 			name:    "an explicit quoting option overrides the default",
-			files:   fsx.MemFS{"a b": {}},
+			files:   fsx.MemoryFS{"a b": {}},
 			args:    []string{"-N"},
 			wantOut: "a b\n",
 		},
 		{
 			name:    "--show-control-chars keeps the characters of a literal name as they are",
-			files:   fsx.MemFS{"a\nb": {}},
+			files:   fsx.MemoryFS{"a\nb": {}},
 			args:    []string{"-N", "--show-control-chars"},
 			wantOut: "a\nb\n",
 		},
 		{
 			name:    "the long format stays one entry per line",
-			files:   fsx.MemFS{"plain": {Mode: 0o644, ModTime: now.recent}},
+			files:   fsx.MemoryFS{"plain": {Mode: 0o644, ModTime: now.recent}},
 			args:    []string{"-ln"},
 			wantOut: "total 0\n-rw-r--r-- 1 0 0 0 " + now.day(now.recent) + " plain\n",
 		},
@@ -2499,7 +2499,7 @@ func TestRunTerminal(t *testing.T) {
 // TestRunDerefArgDirs checks --dereference-command-line-symlink-to-dir.
 func TestRunDerefArgDirs(t *testing.T) {
 	now := newTimes()
-	linked := fsx.MemFS{
+	linked := fsx.MemoryFS{
 		"dir":    {Mode: dirMode(0o755)},
 		"dir/in": {Mode: 0o644, ModTime: now.recent},
 		"to-dir": linkAt("dir", now.recent),
@@ -2536,7 +2536,7 @@ func TestRunDerefArgDirs(t *testing.T) {
 // TestRunAuthorGroup checks --author and -G.
 func TestRunAuthorGroup(t *testing.T) {
 	now := newTimes()
-	files := fsx.MemFS{"a": {Mode: 0o644, ModTime: now.recent}}
+	files := fsx.MemoryFS{"a": {Mode: 0o644, ModTime: now.recent}}
 
 	runCases(t, []testCase{
 		{
@@ -2547,7 +2547,7 @@ func TestRunAuthorGroup(t *testing.T) {
 		},
 		{
 			name:    "-G drops the group without turning the format long",
-			files:   fsx.MemFS{"a": {}},
+			files:   fsx.MemoryFS{"a": {}},
 			args:    []string{"-G"},
 			wantOut: "a\n",
 		},

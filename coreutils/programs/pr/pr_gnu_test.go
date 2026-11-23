@@ -155,9 +155,9 @@ var gnuW20l24fll = "\n\n-- Date/Time -- x Page 1\n\n\n1<<<  -Test: FF's in\n2<<<
 func TestGNUVectors(t *testing.T) {
 	for _, test := range gnuTests {
 		t.Run(test.desc, func(t *testing.T) {
-			fsys := fsx.MemFS{}
+			fsys := fsx.MemoryFS{}
 			for _, in := range test.in {
-				fsys[in] = &fsx.MemFile{Data: []byte(gnuInput(in)), ModTime: modTime}
+				fsys[in] = &fsx.MemoryFile{Data: []byte(gnuInput(in)), ModTime: modTime}
 			}
 			stdout := new(bytes.Buffer)
 			rt := &coreutils.Runtime{
@@ -310,9 +310,9 @@ var gnuInline = []struct {
 func TestGNUInline(t *testing.T) {
 	for _, test := range gnuInline {
 		t.Run(test.name, func(t *testing.T) {
-			fsys := fsx.MemFS{}
+			fsys := fsx.MemoryFS{}
 			for i, name := range test.in {
-				fsys[name] = &fsx.MemFile{Data: []byte(test.inputs[i]), ModTime: modTime}
+				fsys[name] = &fsx.MemoryFile{Data: []byte(test.inputs[i]), ModTime: modTime}
 			}
 			args := append([]string{"--date-format=-- Date/Time --", "-h", "x"}, test.args...)
 			args = append(args, test.in...)

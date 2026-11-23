@@ -19,7 +19,7 @@ func Main(new coreutils.NewFunc) {
 
 // run executes the utility built by new and returns its status code.
 func run(new coreutils.NewFunc, args []string) int {
-	if err := new(coreutils.OsRuntime("")).Run(context.Background(), args...); err != nil {
+	if err := new(coreutils.SystemRuntime("")).Run(context.Background(), args...); err != nil {
 		if exitErr, ok := errors.AsType[*coreutils.ExitError](err); ok {
 			return exitErr.Code
 		}
