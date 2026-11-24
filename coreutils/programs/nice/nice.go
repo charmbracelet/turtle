@@ -234,7 +234,7 @@ func (p *Prog) invoke(ctx context.Context, utility string, args []string) error 
 		stdopts.Errorf(p.Runtime, "nice", "no command execution available")
 		return &coreutils.ExitError{Code: 125}
 	}
-	status, err := p.Exec(ctx, coreutils.ExecOpts{Name: utility, Args: args, Env: p.EnvList()})
+	status, err := p.Exec(ctx, coreutils.ExecOpts{Name: utility, Args: args, Env: p.EnvList(), Stdin: p.Stdin})
 	if err != nil {
 		if ctxErr := ctx.Err(); ctxErr != nil {
 			return ctxErr

@@ -96,6 +96,7 @@ func (p *Prog) invoke(ctx context.Context, utility string, args []string) error 
 		Name:   utility,
 		Args:   args,
 		Env:    p.EnvList(),
+		Stdin:  p.Stdin,
 		Stdout: stdout,
 		Stderr: stderr,
 	})

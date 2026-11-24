@@ -268,7 +268,7 @@ func (p *Prog) run(ctx context.Context, opts settings, duration time.Duration, i
 
 	done := make(chan execResult, 1)
 	go func() {
-		status, err := p.Exec(child, coreutils.ExecOpts{Name: command, Args: args, Env: p.EnvList()})
+		status, err := p.Exec(child, coreutils.ExecOpts{Name: command, Args: args, Env: p.EnvList(), Stdin: p.Stdin})
 		done <- execResult{status, err}
 	}()
 
