@@ -3,6 +3,8 @@
 🐢 Turtle is a collection of shell-related tools and libraries in Go,
 by [Charm][charm].
 
+<img src="https://stuff.charm.land/turtle/turtle.png" />
+
 ## [charm.land/turtle/coreutils](/coreutils/README.md)
 
 [![Go Reference](https://pkg.go.dev/badge/charm.land/turtle/coreutils.svg)](https://pkg.go.dev/charm.land/turtle/coreutils)
