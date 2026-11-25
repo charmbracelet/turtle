@@ -6,21 +6,42 @@
   <a href="https://github.com/charmbracelet/turtle/actions"><img src="https://github.com/charmbracelet/turtle/actions/workflows/ci.yml/badge.svg" alt="Build Status"></a>
 </p>
 
-A collection of shell-related tools and libraries, in pure Go.
+A collection of small, cross-platform, shell-related tools and libraries, in pure Go.
 
 ## [charm.land/turtle/coreutils](/coreutils/README.md)
 
 [![Go Reference](https://pkg.go.dev/badge/charm.land/turtle/coreutils.svg)](https://pkg.go.dev/charm.land/turtle/coreutils)
 
-A Go implementation of the Unix core utilities.
-Things like `cp`, `mv`, `rm`, `mkdir`, `chmod` and _several_ others.
+A cross-platform Go implementation of the Unix core utilities. Things like `cp`, `mv`, `rm`, `mkdir`, `chmod` and _many, many_ others.
 [See the full list here](/coreutils/README.md#compatibility-table).
 
-The intention is not to aim for 100% compatibility, but have something still
-powerful and flexible enough to be imported by other Go programs, in particular
-when using a [shell interpreter][mvdan].
+```go
+import "charm.land/turtle/coreutils/programs/cp"
+import "charm.land/turtle/coreutils/programs/mv"
 
-* Mostly compatible with POSIX and GNU
+const workingDir = "" // empty means current
+
+// Turtle coreutils has a mini runtime.
+rt := coreutils.SystemRuntime(workingDir)
+ctx := context.Background()
+
+// Copy!
+if err := cp.New(rt).Run(ctx, "input.txt", "copy.txt"); err != nil {
+    log.Fatal(err)
+}
+
+// Move.
+if err := mv.New(rt).Run(ctx, "copy.txt", "archive.txt"); err != nil {
+    log.Fatal(err)
+}
+```
+
+The goal is not 100% compatibility, but rather to provide a set of small,
+powerful, flexible tools what work on any platform and architecture
+supported by go, which can be imported by other Go programs,
+particularly [shell interpreters][mvdan].
+
+* Generally compatible with POSIX and GNU
 * Importable Go packages
 * Isolated state (including filesystem)
 * Can run 100% in memory
@@ -35,34 +56,7 @@ app like this:
 go install charm.land/turtle/coreutils@latest
 ```
 
-```go
-package main
-
-import (
-    "context"
-    "log"
-
-    "charm.land/turtle/coreutils"
-    "charm.land/turtle/coreutils/programs/cp"
-    "charm.land/turtle/coreutils/programs/mv"
-)
-
-func main() {
-    const workingDir = "" // empty means current
-
-    rt := coreutils.SystemRuntime(workingDir)
-    ctx := context.Background()
-
-    if err := cp.New(rt).Run(ctx, "input.txt", "copy.txt"); err != nil {
-        log.Fatal(err)
-    }
-    if err := mv.New(rt).Run(ctx, "copy.txt", "archive.txt"); err != nil {
-        log.Fatal(err)
-    }
-}
-```
-
-Want to read more? [Check out the coreutils module here](/coreutils/README.md).
+Check out pthe full coreutils module](/coreutils/README.md).
 
 ## [charm.land/turtle/shcoreutils](/shcoreutils/README.md)
 
