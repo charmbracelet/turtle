@@ -3,6 +3,7 @@ version: '3'
 vars:
   MODULES:
     - coreutils
+    - shcoreutils
     - fsx
   PROGRAMS:
     sh: ls coreutils/cmd

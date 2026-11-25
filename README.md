@@ -64,6 +64,24 @@ func main() {
 
 Want to read more? [Check out the coreutils module here](/coreutils/README.md).
 
+## [charm.land/turtle/shcoreutils](/shcoreutils/README.md)
+
+[![Go Reference](https://pkg.go.dev/badge/charm.land/turtle/shcoreutils.svg)](https://pkg.go.dev/charm.land/turtle/shcoreutils)
+
+An [mvdan/sh][mvdan] interpreter middleware that resolves core utilities through
+[our coreutils](/coreutils/README.md) and wires nested command execution back
+into the interpreter. Particularly useful on platforms where the system
+utilities are unavailable, like Windows.
+
+```go
+interpreter, err := interp.New(interp.ExecHandlers(shcoreutils.New()))
+if err != nil {
+	log.Fatal(err)
+}
+```
+
+[Check out the full docs on the shcoreutils module here](/shcoreutils/README.md).
+
 ## [charm.land/turtle/fsx](/fsx/README.md)
 
 [![Go Reference](https://pkg.go.dev/badge/charm.land/turtle/fsx.svg)](https://pkg.go.dev/charm.land/turtle/fsx)
