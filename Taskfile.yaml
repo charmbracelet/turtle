@@ -78,6 +78,44 @@ tasks:
     cmds:
       - go build -o ../bin/{{.PROG}} ./cmd/{{.PROG}}
 
+  tag:coreutils:
+    desc: Tag coreutils (task tag:coreutils -- vX.Y.Z)
+    cmds:
+      - task: tag
+        vars:
+          MODULE: coreutils
+          VERSION: '{{.CLI_ARGS}}'
+
+  tag:shcoreutils:
+    desc: Tag shcoreutils (task tag:shcoreutils -- vX.Y.Z)
+    cmds:
+      - task: tag
+        vars:
+          MODULE: shcoreutils
+          VERSION: '{{.CLI_ARGS}}'
+
+  tag:fsx:
+    desc: Tag fsx (task tag:fsx -- vX.Y.Z)
+    cmds:
+      - task: tag
+        vars:
+          MODULE: fsx
+          VERSION: '{{.CLI_ARGS}}'
+
+  tag:
+    internal: true
+    preconditions:
+      - sh: 'case "{{.VERSION}}" in v[0-9]*) exit 0;; *) exit 1;; esac'
+        msg: 'missing or invalid version, use: task tag:{{.MODULE}} -- vX.Y.Z'
+    cmds:
+      - |
+        if [ "{{.MODULE}}" = coreutils ]; then
+          printf '%s\n' '{{.VERSION}}' > coreutils/version.txt
+          git add coreutils/version.txt
+        fi
+      - git commit --allow-empty -m '{{.MODULE}}/{{.VERSION}}'
+      - git tag -a '{{.MODULE}}/{{.VERSION}}' -m '{{.MODULE}}/{{.VERSION}}'
+
   exec:
     internal: true
     dir: '{{.MODULE}}'
