@@ -1,3 +1,7 @@
+charm.land/turtle/coreutils v0.1.0 h1:UMUBaUL4WrPVAZroohoseeJrEjwz8tM7Cy7nrSfMEFY=
+charm.land/turtle/coreutils v0.1.0/go.mod h1:ZVaLgT+X7laeI7YH1yicVQyZqsNxlp6sUi0Hx6+bpv4=
+charm.land/turtle/fsx v0.1.0 h1:aLfJDb+DHetjp/mavgQpSAaMEorEIqxQFSXHyXmCdEk=
+charm.land/turtle/fsx v0.1.0/go.mod h1:Z+4npHHcle4TAFLmNSvZi7p17/aJp4fK6NHyIuYhfm4=
 github.com/creack/pty v1.1.24 h1:bJrF4RRfyJnbTJqzRLHzcGaZK1NeM5kTC9jGgovnR1s=
 github.com/creack/pty v1.1.24/go.mod h1:08sCNb52WyoAwi2QDyzUCTgcvVFhUzewun7wtTfvcwE=
 github.com/go-quicktest/qt v1.102.0 h1:HSQxCeh5YZH3EL3W39ixjtyaEhcWSXQHtHnMBzSs474=
