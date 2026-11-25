@@ -13,7 +13,7 @@ jobs:
       fail-fast: false
       matrix:
         os: [linux, macos, windows]
-        module: [coreutils, fsx]
+        module: [coreutils, shcoreutils, fsx]
         include:
           - os: linux
             runner: blacksmith-2vcpu-ubuntu-2404-arm
