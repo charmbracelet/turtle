@@ -1,9 +1,12 @@
-# charm.land/turtle
+# Turtle
 
-🐢 Turtle is a collection of shell-related tools and libraries in Go,
-by [Charm][charm].
+<p>
+  <img width="450" alt="Charm Turtle artwork" src="https://github.com/user-attachments/assets/3a6fac67-4d92-4ca8-bd98-e54cd0b776d1" /><br>
+  <a href="https://github.com/charmbracelet/turtle/releases"><img src="https://img.shields.io/github/release/charmbracelet/turtle" alt="Latest Release"></a>
+  <a href="https://github.com/charmbracelet/turtle/actions"><img src="https://github.com/charmbracelet/turtle/actions/workflows/ci.yml/badge.svg" alt="Build Status"></a>
+</p>
 
-<img src="https://stuff.charm.land/turtle/turtle.png" />
+A collection of shell-related tools and libraries, in pure Go.
 
 ## [charm.land/turtle/coreutils](/coreutils/README.md)
 
