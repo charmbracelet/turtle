@@ -97,6 +97,7 @@ import (
 	"charm.land/turtle/coreutils/programs/unexpand"
 	"charm.land/turtle/coreutils/programs/uniq"
 	"charm.land/turtle/coreutils/programs/unlink"
+	"charm.land/turtle/coreutils/programs/unzip"
 	"charm.land/turtle/coreutils/programs/uudecode"
 	"charm.land/turtle/coreutils/programs/uuencode"
 	"charm.land/turtle/coreutils/programs/wc"
@@ -105,6 +106,7 @@ import (
 	"charm.land/turtle/coreutils/programs/xargs"
 	"charm.land/turtle/coreutils/programs/yes"
 	"charm.land/turtle/coreutils/programs/zcat"
+	"charm.land/turtle/coreutils/programs/zip"
 
 	"charm.land/turtle/coreutils/programs/echo"
 	falseprog "charm.land/turtle/coreutils/programs/false"
@@ -200,6 +202,7 @@ var commandBuilders = map[string]turtle.NewFunc{
 	"unexpand":   unexpand.New,
 	"uniq":       uniq.New,
 	"unlink":     unlink.New,
+	"unzip":      unzip.New,
 	"uudecode":   uudecode.New,
 	"uuencode":   uuencode.New,
 	"wc":         wc.New,
@@ -208,6 +211,7 @@ var commandBuilders = map[string]turtle.NewFunc{
 	"xargs":      xargs.New,
 	"yes":        yes.New,
 	"zcat":       zcat.New,
+	"zip":        zip.New,
 }
 
 // nestedBuilders also includes utilities shadowed by interpreter builtins

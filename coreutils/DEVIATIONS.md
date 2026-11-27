@@ -461,3 +461,41 @@
 
 * Takes the name from the `USER` or `LOGNAME` environment variables, since
   the isolated runtime exposes no user database.
+
+### unzip
+
+* Follows the Info-ZIP unzip interface, taking its messages and exit
+  statuses from it, not from a POSIX or GNU specification. Encryption and
+  the `-P` option, the `-a` and `-C` conversions, the `-Z` zipinfo mode,
+  the `-L`, `-M`, `-O` and `-U` modifiers and the `-:` path escape are not
+  implemented, and member matching is case-sensitive.
+* The freshness of `-f` and `-u` compares the archive timestamps against
+  the file system ones as the format stores them, in the UTC of the DOS
+  time fields: archives created in another timezone compare against the
+  clock the local files were written by.
+* Extraction refuses the members holding a `..` component, instead of
+  skipping the component as Info-ZIP does, and never writes through a
+  symbolic link in the way of a member.
+* The listing formats of `-l` and `-v` reproduce the Info-ZIP columns, but
+  member comments are not listed, and the reports of `-t` on a failed
+  member don't detail the failure the way its own diagnostics do.
+
+### zip
+
+* Follows the Info-ZIP zip interface, taking its messages and exit
+  statuses from it, not from a POSIX or GNU specification. Encryption and
+  the `-e` and `-P` options, the `-b`, `-n`, `-t`, `-tt` and `-T` options,
+  the `-s` split archives, the `-Z` method choice, the `-R` name chasing,
+  the `-0` fallback suffix list and the `-lf` log file are not implemented,
+  and `-v` keeps the report lines without the running counts and progress
+  dots Info-ZIP adds.
+* Usage errors exit 2, as the shared option parser reports them, where
+  Info-ZIP exits 16; the `-f` and `-u` modes stay silent when nothing
+  changed, where Info-ZIP also is, but its other modes print the "zip
+  error: Nothing to do!" report only when no operand matched.
+* Each file is read wholly in memory to decide between deflating and
+  storing it, and an update rebuilds the whole archive through a sibling
+  `archive.zip.tmp` file which is renamed over the original, copying the
+  untouched entries as they are stored.
+* Archive comments keep plain newlines, not the CR/LF pairs the Info-ZIP
+  prompts write.
