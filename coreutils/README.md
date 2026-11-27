@@ -218,7 +218,6 @@ We also document [deviations](DEVIATIONS.md) from the POSIX and GNU specs.
 | GNU | `sha256sum` | Compute SHA-256 checksums | — | [✅](spec/gnu/sha2-utilities.md) |
 | GNU | `sha384sum` | Compute SHA-384 checksums | — | [✅](spec/gnu/sha2-utilities.md) |
 | GNU | `sha512sum` | Compute SHA-512 checksums | — | [✅](spec/gnu/sha2-utilities.md) |
-| GNU | `shasum`* | Print or check SHA checksums | — | [✅](https://perldoc.perl.org/shasum) |
 | GNU | `shuf`* | Generate random permutations | — | [✅](spec/gnu/shuf-invocation.md) |
 | GNU | `stat`* | Print file and file system status | — | [✅](spec/gnu/stat-invocation.md) |
 | GNU | `sync`* | Flush file system buffers | — | [✅](spec/gnu/sync-invocation.md) |
@@ -228,6 +227,11 @@ We also document [deviations](DEVIATIONS.md) from the POSIX and GNU specs.
 | GNU | `which`* | Locate a command in the search path | — | [✅](https://www.gnu.org/software/which/manual/) |
 | GNU | `whoami`* | Print the effective user name | — | [✅](spec/gnu/whoami-invocation.md) |
 | GNU | `yes` | Print a string repeatedly | — | [✅](spec/gnu/yes-invocation.md) |
+| Extra | `curl` | Transfer files from and to URLs | — | [❌](https://curl.se/docs/manpage.html) |
+| Extra | `shasum`* | Print or check SHA checksums | — | [✅](https://perldoc.perl.org/shasum) |
+| Extra | `unzip` | Extract files from ZIP archives | — | [❌](https://manpages.debian.org/bookworm/unzip/unzip.1.en.html) |
+| Extra | `wget` | Download files over HTTP and FTP | — | [❌](https://www.gnu.org/software/wget/manual/wget.html) |
+| Extra | `zip` | Create ZIP archives | — | [❌](https://manpages.debian.org/bookworm/zip/zip.1.en.html) |
 
 [mvdan]: https://github.com/mvdan/sh
 [crush]: https://github.com/charmbracelet/crush
