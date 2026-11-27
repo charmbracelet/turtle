@@ -147,10 +147,12 @@ Code style guidelines:
   implements the POSIX syntax and its diagnostics: grouped single-character
   options, option-arguments attached or in the next argument, `--` ending the
   options, parsing stopping at the first operand, and long options accepted
-  only when a utility documents them. Utilities keep their own option table,
-  defaults and conflict checks in their `parseFlags` function. (This doesn't
-  apply to `echo`, which the POSIX specification forbids from supporting
-  options at all.)
+  only when a utility documents them. The set can also let its options follow
+  the operands and collect the arguments below an option, which `zip` and
+  `unzip` set with `Permute` and `Collect`. Utilities keep their own option
+  table, defaults and conflict checks in their `parseFlags` function. (This
+  doesn't apply to `echo`, which the POSIX specification forbids from
+  supporting options at all.)
 * The GNU common options `--help` and `--version` are shared: every utility
   which takes options calls `stdopts.Check` from
   `charm.land/turtle/coreutils/internal/stdopts` at the top of its `Run`, with

@@ -62,6 +62,11 @@ func TestParse(t *testing.T) {
 			wantOperands: []string{"-"},
 		},
 		{
+			name:         "a double dash operand after a leading double dash",
+			args:         []string{"--", "--"},
+			wantOperands: []string{"--"},
+		},
+		{
 			name: "an attached argument",
 			set:  Set{Valued: "n"},
 			args: []string{"-n5"},
@@ -234,6 +239,106 @@ func TestParse(t *testing.T) {
 			args: []string{"-qf"},
 			want: []option{{'q', ""}, {'f', ""}},
 		},
+		{
+			name:         "permuted options after operands",
+			set:          Set{Permute: true},
+			args:         []string{"a.zip", "-r", "d1"},
+			want:         []option{{'r', ""}},
+			wantOperands: []string{"a.zip", "d1"},
+		},
+		{
+			name:         "permutation keeps the order of the operands",
+			set:          Set{Permute: true},
+			args:         []string{"f1", "-q", "f2", "-v", "f3"},
+			want:         []option{{'q', ""}, {'v', ""}},
+			wantOperands: []string{"f1", "f2", "f3"},
+		},
+		{
+			name:         "a permuted valued option takes the next argument",
+			set:          Set{Valued: "w", Permute: true},
+			args:         []string{"a.zip", "-w", "7"},
+			want:         []option{{'w', "7"}},
+			wantOperands: []string{"a.zip"},
+		},
+		{
+			name:         "double dash ends the options of a permuted set",
+			set:          Set{Permute: true},
+			args:         []string{"-a", "f1", "--", "-b", "f2"},
+			want:         []option{{'a', ""}},
+			wantOperands: []string{"f1", "-b", "f2"},
+		},
+		{
+			name: "a collecting option takes every argument below it",
+			set:  Set{Collect: "x"},
+			args: []string{"-x", "*.o", "*.exe", "f"},
+			want: []option{{'x', "*.o"}, {'x', "*.exe"}, {'x', "f"}},
+		},
+		{
+			name:         "a collecting option ends at a dashed one",
+			set:          Set{Collect: "x"},
+			args:         []string{"-x", "*.o", "-v", "f"},
+			want:         []option{{'x', "*.o"}, {'v', ""}},
+			wantOperands: []string{"f"},
+		},
+		{
+			name: "a collecting option without arguments",
+			set:  Set{Collect: "x"},
+			args: []string{"-x"},
+		},
+		{
+			name:         "a collecting option with an attached value",
+			set:          Set{Collect: "x"},
+			args:         []string{"-x*.o", "f"},
+			want:         []option{{'x', "*.o"}},
+			wantOperands: []string{"f"},
+		},
+		{
+			name: "a collecting option takes precedence over valuing",
+			set:  Set{Valued: "x", Collect: "x"},
+			args: []string{"-x", "*.o", "f"},
+			want: []option{{'x', "*.o"}, {'x', "f"}},
+		},
+		{
+			name:         "a plain dash ends a collection",
+			set:          Set{Collect: "x"},
+			args:         []string{"-x", "*.o", "-", "f"},
+			want:         []option{{'x', "*.o"}},
+			wantOperands: []string{"-", "f"},
+		},
+		{
+			name:         "double dash ends a collection",
+			set:          Set{Collect: "x"},
+			args:         []string{"-x", "*.o", "--", "f"},
+			want:         []option{{'x', "*.o"}},
+			wantOperands: []string{"f"},
+		},
+		{
+			name: "a long collecting option",
+			set:  Set{Collect: "x", Long: map[string]rune{"exclude": 'x'}},
+			args: []string{"--exclude", "*.o", "f"},
+			want: []option{{'x', "*.o"}, {'x', "f"}},
+		},
+		{
+			name:         "a long collecting option with an attached value",
+			set:          Set{Collect: "x", Long: map[string]rune{"exclude": 'x'}},
+			args:         []string{"--exclude=*.o", "f"},
+			want:         []option{{'x', "*.o"}},
+			wantOperands: []string{"f"},
+		},
+		{
+			name:         "a lone at-sign ends a collection",
+			set:          Set{Collect: "x", Permute: true},
+			args:         []string{"a.zip", "-x", "*.o", "@", "f", "-v"},
+			want:         []option{{'x', "*.o"}, {'v', ""}},
+			wantOperands: []string{"a.zip", "f"},
+		},
+		{
+			name:         "the collecting options of a permuted set",
+			set:          Set{Collect: "xi", Permute: true},
+			args:         []string{"a.zip", "f1", "-i", "*.c", "-x", "*.o", "-v", "f2"},
+			want:         []option{{'i', "*.c"}, {'x', "*.o"}, {'v', ""}},
+			wantOperands: []string{"a.zip", "f1", "f2"},
+		},
 	}
 
 	for _, test := range tests {
@@ -281,6 +386,22 @@ func TestParseVisitError(t *testing.T) {
 	}
 	if operands != nil {
 		t.Errorf("operands = %v, want none", operands)
+	}
+}
+
+func TestParseCollectVisitError(t *testing.T) {
+	sentinel := errors.New("bad pattern")
+	var got []option
+	_, err := Set{Collect: "x"}.Parse([]string{"-x", "*.o", "f"}, func(opt rune, value string) error {
+		got = append(got, option{opt, value})
+		return sentinel
+	})
+
+	if !errors.Is(err, sentinel) {
+		t.Errorf("err = %v, want %v", err, sentinel)
+	}
+	if !slices.Equal(got, []option{{'x', "*.o"}}) {
+		t.Errorf("options = %v, want only the first value", got)
 	}
 }
 

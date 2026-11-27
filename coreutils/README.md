@@ -229,9 +229,9 @@ We also document [deviations](DEVIATIONS.md) from the POSIX and GNU specs.
 | GNU | `yes` | Print a string repeatedly | — | [✅](spec/gnu/yes-invocation.md) |
 | Extra | `curl` | Transfer files from and to URLs | — | [❌](https://curl.se/docs/manpage.html) |
 | Extra | `shasum`* | Print or check SHA checksums | — | [✅](https://perldoc.perl.org/shasum) |
-| Extra | `unzip` | Extract files from ZIP archives | — | [❌](https://manpages.debian.org/bookworm/unzip/unzip.1.en.html) |
+| Extra | `unzip`* | Extract files from ZIP archives | — | [✅](https://manpages.debian.org/bookworm/unzip/unzip.1.en.html) |
 | Extra | `wget` | Download files over HTTP and FTP | — | [❌](https://www.gnu.org/software/wget/manual/wget.html) |
-| Extra | `zip` | Create ZIP archives | — | [❌](https://manpages.debian.org/bookworm/zip/zip.1.en.html) |
+| Extra | `zip`* | Create, update and delete ZIP archives | — | [✅](https://manpages.debian.org/bookworm/zip/zip.1.en.html) |
 
 [mvdan]: https://github.com/mvdan/sh
 [crush]: https://github.com/charmbracelet/crush
